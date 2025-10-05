@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./bin/run.js create_api TEST_KEY)",
+      "Bash(XANO_API_KEY=ENV_TEST_KEY ./bin/run.js create_api)",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,1 @@
+{"root":["./src/help.ts","./src/index.ts","./src/commands/create_api/index.ts","./src/commands/foo/bar.ts","./src/commands/hello/index.ts","./src/commands/hello/world.ts"],"version":"5.9.3"}
