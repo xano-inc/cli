@@ -32,6 +32,11 @@ interface Workspace {
   name: string
 }
 
+interface Branch {
+  id: string
+  label: string
+}
+
 export default class ProfileWizard extends Command {
   static override flags = {
     name: Flags.string({
@@ -131,64 +136,87 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         },
       ])
 
-      // Step 5: Optional workspace and branch
-      const {includeOptional} = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'includeOptional',
-          message: 'Do you want to configure workspace and branch? (optional)',
-          default: false,
-        },
-      ])
-
+      // Step 5: Workspace selection
       let workspace: string | undefined
       let branch: string | undefined
 
-      if (includeOptional) {
-        // Fetch workspaces from the selected instance
+      // Fetch workspaces from the selected instance
+      this.log('')
+      this.log('Fetching available workspaces...')
+      let workspaces: Workspace[] = []
+
+      try {
+        workspaces = await this.fetchWorkspaces(accessToken, selectedInstance.origin)
+      } catch (error) {
+        this.warn(`Failed to fetch workspaces: ${error instanceof Error ? error.message : String(error)}`)
+      }
+
+      // If workspaces were fetched, let user select one
+      if (workspaces.length > 0) {
         this.log('')
-        this.log('Fetching available workspaces...')
-        let workspaces: Workspace[] = []
-
-        try {
-          workspaces = await this.fetchWorkspaces(accessToken, selectedInstance.origin)
-        } catch (error) {
-          this.warn(`Failed to fetch workspaces: ${error instanceof Error ? error.message : String(error)}`)
-        }
-
-        // If workspaces were fetched, let user select one
-        if (workspaces.length > 0) {
-          this.log('')
-          const {selectedWorkspace} = await inquirer.prompt([
-            {
-              type: 'list',
-              name: 'selectedWorkspace',
-              message: 'Select a workspace',
-              choices: [
-                {name: '(Skip workspace)', value: ''},
-                ...workspaces.map(ws => ({
-                  name: ws.name,
-                  value: ws.id,
-                })),
-              ],
-            },
-          ])
-
-          workspace = selectedWorkspace || undefined
-        }
-
-        // Ask for branch
-        this.log('')
-        const {br} = await inquirer.prompt([
+        const {selectedWorkspace} = await inquirer.prompt([
           {
-            type: 'input',
-            name: 'br',
-            message: 'Branch name (optional)',
-            default: '',
+            type: 'list',
+            name: 'selectedWorkspace',
+            message: 'Select a workspace (or skip to use default)',
+            choices: [
+              {name: '(Skip workspace)', value: ''},
+              ...workspaces.map(ws => ({
+                name: ws.name,
+                value: ws.id,
+              })),
+            ],
           },
         ])
 
-        branch = br || undefined
+        workspace = selectedWorkspace || undefined
+
+        // If a workspace was selected, ask about branch preference
+        if (workspace) {
+          this.log('')
+          const {useLiveBranch} = await inquirer.prompt([
+            {
+              type: 'confirm',
+              name: 'useLiveBranch',
+              message: 'Use the live branch (recommended)?',
+              default: true,
+            },
+          ])
+
+          // If they don't want to use live branch, fetch branches and let them choose
+          if (!useLiveBranch) {
+            this.log('')
+            this.log('Fetching available branches...')
+            let branches: Branch[] = []
+
+            try {
+              branches = await this.fetchBranches(accessToken, selectedInstance.origin, workspace)
+            } catch (error) {
+              this.warn(`Failed to fetch branches: ${error instanceof Error ? error.message : String(error)}`)
+            }
+
+            // If branches were fetched, let user select one
+            if (branches.length > 0) {
+              this.log('')
+              const {selectedBranch} = await inquirer.prompt([
+                {
+                  type: 'list',
+                  name: 'selectedBranch',
+                  message: 'Select a branch',
+                  choices: branches.map(br => {
+                    return {
+                      name: br.label,
+                      value: br.id,
+                    }
+                  }),
+                },
+              ])
+
+              branch = selectedBranch || undefined
+            }
+          }
+          // If useLiveBranch is true, branch stays undefined (which uses live branch by default)
+        }
       }
 
       // Save profile
@@ -291,6 +319,51 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         return workspaces.map((ws: any) => ({
           id: ws.id || ws.name,
           name: ws.name,
+        }))
+      }
+    }
+
+    return []
+  }
+
+  private async fetchBranches(
+    accessToken: string,
+    origin: string,
+    workspaceId: string,
+  ): Promise<Branch[]> {
+    const response = await fetch(`${origin}/api:meta/workspace/${workspaceId}/branch`, {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Unauthorized. Please check your access token.')
+      }
+      throw new Error(`API request failed with status ${response.status}`)
+    }
+
+    const data = (await response.json()) as any
+
+    // Transform API response to Branch format
+    // Assuming the API returns an array or object with branches
+    if (Array.isArray(data)) {
+      return data.map((br: any) => ({
+        id: br.id || br.label,
+        label: br.label,
+      }))
+    }
+
+    // If it's an object, try to extract branches
+    if (data && typeof data === 'object') {
+      const branches = data.branches || data.data || []
+      if (Array.isArray(branches)) {
+        return branches.map((br: any) => ({
+          id: br.id || br.name,
+          label: br.label,
         }))
       }
     }
