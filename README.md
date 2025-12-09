@@ -1,443 +1,136 @@
-xano
-=================
+# Xano CLI
 
-XanoScript CLI for Xano's Metadata API
+Command-line interface for the Xano Metadata API.
 
+[![Version](https://img.shields.io/npm/v/@xano/cli.svg)](https://npmjs.org/package/@xano/cli)
+[![Downloads/week](https://img.shields.io/npm/dw/@xano/cli.svg)](https://npmjs.org/package/@xano/cli)
 
-[![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
-[![Version](https://img.shields.io/npm/v/xano.svg)](https://npmjs.org/package/xano)
-[![Downloads/week](https://img.shields.io/npm/dw/xano.svg)](https://npmjs.org/package/xano)
+## Installation
 
-
-<!-- toc -->
-* [Usage](#usage)
-* [Commands](#commands)
-<!-- tocstop -->
-# Usage
-<!-- usage -->
-```sh-session
-$ npm install -g xano
-$ xano COMMAND
-running command...
-$ xano (--version)
-xano/0.0.1 darwin-arm64 node-v22.19.0
-$ xano --help [COMMAND]
-USAGE
-  $ xano COMMAND
-...
-```
-<!-- usagestop -->
-# Commands
-<!-- commands -->
-* [`xano create_api`](#xano-create_api)
-* [`xano foo bar [FILE]`](#xano-foo-bar-file)
-* [`xano hello PERSON`](#xano-hello-person)
-* [`xano hello world`](#xano-hello-world)
-* [`xano help [COMMAND]`](#xano-help-command)
-* [`xano plugins`](#xano-plugins)
-* [`xano plugins add PLUGIN`](#xano-plugins-add-plugin)
-* [`xano plugins:inspect PLUGIN...`](#xano-pluginsinspect-plugin)
-* [`xano plugins install PLUGIN`](#xano-plugins-install-plugin)
-* [`xano plugins link PATH`](#xano-plugins-link-path)
-* [`xano plugins remove [PLUGIN]`](#xano-plugins-remove-plugin)
-* [`xano plugins reset`](#xano-plugins-reset)
-* [`xano plugins uninstall [PLUGIN]`](#xano-plugins-uninstall-plugin)
-* [`xano plugins unlink [PLUGIN]`](#xano-plugins-unlink-plugin)
-* [`xano plugins update`](#xano-plugins-update)
-
-## `xano create_api`
-
-Create API with the provided key
-
-```
-USAGE
-  $ xano create_api -k <value>
-
-FLAGS
-  -k, --api_key=<value>  [env: XANO_API_KEY]  (required) API key for the service
-
-DESCRIPTION
-  Create API with the provided key
-
-EXAMPLES
-  hello this is an example
+```bash
+npm install -g @xano/cli
 ```
 
-_See code: [src/commands/create_api/index.ts](https://github.com/git/xano/blob/v0.0.1/src/commands/create_api/index.ts)_
+## Quick Start
 
-## `xano foo bar [FILE]`
+1. Create a profile with the wizard:
+   ```bash
+   xano profile:wizard
+   ```
 
-describe the command here
+2. List your workspaces:
+   ```bash
+   xano workspace:list
+   ```
 
-```
-USAGE
-  $ xano foo bar [FILE] [-f] [-n <value>]
+3. Run an ephemeral job:
+   ```bash
+   xano ephemeral:run:job -f script.xs
+   ```
 
-ARGUMENTS
-  FILE  file to read
+## Commands
 
-FLAGS
-  -f, --force
-  -n, --name=<value>  name to print
+### Profile Management
 
-DESCRIPTION
-  describe the command here
+Profiles store your Xano credentials and default workspace settings.
 
-EXAMPLES
-  $ xano foo bar
-```
+```bash
+# Create a profile interactively
+xano profile:wizard
 
-_See code: [src/commands/foo/bar.ts](https://github.com/git/xano/blob/v0.0.1/src/commands/foo/bar.ts)_
+# Create a profile manually
+xano profile:create myprofile -i https://instance.xano.com -t <access_token>
 
-## `xano hello PERSON`
+# List profiles
+xano profile:list
+xano profile:list --details
 
-Say hello
+# Set default profile
+xano profile:set-default myprofile
 
-```
-USAGE
-  $ xano hello PERSON -f <value>
+# Edit a profile
+xano profile:edit myprofile -w 123  # Set default workspace
 
-ARGUMENTS
-  PERSON  Person to say hello to
-
-FLAGS
-  -f, --from=<value>  (required) Who is saying hello
-
-DESCRIPTION
-  Say hello
-
-EXAMPLES
-  $ xano hello friend --from oclif
-  hello friend from oclif! (./src/commands/hello/index.ts)
+# Delete a profile
+xano profile:delete myprofile
 ```
 
-_See code: [src/commands/hello/index.ts](https://github.com/git/xano/blob/v0.0.1/src/commands/hello/index.ts)_
+### Workspaces
 
-## `xano hello world`
-
-Say hello world
-
-```
-USAGE
-  $ xano hello world
-
-DESCRIPTION
-  Say hello world
-
-EXAMPLES
-  $ xano hello world
-  hello world! (./src/commands/hello/world.ts)
+```bash
+# List all workspaces
+xano workspace:list
+xano workspace:list -o json
 ```
 
-_See code: [src/commands/hello/world.ts](https://github.com/git/xano/blob/v0.0.1/src/commands/hello/world.ts)_
+### Functions
 
-## `xano help [COMMAND]`
+```bash
+# List functions in a workspace
+xano function:list -w 40
+xano function:list -o json
 
-Display help for xano.
+# Get a specific function
+xano function:get 145
+xano function:get 145 -o xs  # Output as XanoScript
 
-```
-USAGE
-  $ xano help [COMMAND...] [-n]
+# Create a function from XanoScript
+xano function:create -f function.xs
+cat function.xs | xano function:create --stdin
 
-ARGUMENTS
-  COMMAND...  Command to show help for.
-
-FLAGS
-  -n, --nested-commands  Include all nested commands in the output.
-
-DESCRIPTION
-  Display help for xano.
-```
-
-_See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.2.33/src/commands/help.ts)_
-
-## `xano plugins`
-
-List installed plugins.
-
-```
-USAGE
-  $ xano plugins [--json] [--core]
-
-FLAGS
-  --core  Show core plugins.
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  List installed plugins.
-
-EXAMPLES
-  $ xano plugins
+# Edit a function
+xano function:edit 145           # Opens in $EDITOR
+xano function:edit 145 -f new.xs # Update from file
+xano function:edit 145 --publish # Publish after editing
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.49/src/commands/plugins/index.ts)_
+### Ephemeral Jobs & Services
 
-## `xano plugins add PLUGIN`
+Run XanoScript code without creating permanent resources.
 
-Installs a plugin into xano.
+```bash
+# Run a job (executes and returns result)
+xano ephemeral:run:job -f script.xs
+xano ephemeral:run:job -f script.xs -a args.json  # With input arguments
+xano ephemeral:run:job -f script.xs --edit        # Edit in $EDITOR first
 
-```
-USAGE
-  $ xano plugins add PLUGIN... [--json] [-f] [-h] [-s | -v]
-
-ARGUMENTS
-  PLUGIN...  Plugin to install.
-
-FLAGS
-  -f, --force    Force npm to fetch remote resources even if a local copy exists on disk.
-  -h, --help     Show CLI help.
-  -s, --silent   Silences npm output.
-  -v, --verbose  Show verbose npm output.
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  Installs a plugin into xano.
-
-  Uses npm to install plugins.
-
-  Installation of a user-installed plugin will override a core plugin.
-
-  Use the xano_NPM_LOG_LEVEL environment variable to set the npm loglevel.
-  Use the xano_NPM_REGISTRY environment variable to set the npm registry.
-
-ALIASES
-  $ xano plugins add
-
-EXAMPLES
-  Install a plugin from npm registry.
-
-    $ xano plugins add myplugin
-
-  Install a plugin from a github url.
-
-    $ xano plugins add https://github.com/someuser/someplugin
-
-  Install a plugin from a github slug.
-
-    $ xano plugins add someuser/someplugin
+# Run a service (starts API endpoints)
+xano ephemeral:run:service -f service.xs
 ```
 
-## `xano plugins:inspect PLUGIN...`
+### Static Hosts
 
-Displays installation properties of a plugin.
+```bash
+# List static hosts
+xano static_host:list
 
-```
-USAGE
-  $ xano plugins inspect PLUGIN...
+# Create a build
+xano static_host:build:create default -f ./build.zip -n "v1.0.0"
 
-ARGUMENTS
-  PLUGIN...  [default: .] Plugin to inspect.
+# List builds
+xano static_host:build:list default
 
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  Displays installation properties of a plugin.
-
-EXAMPLES
-  $ xano plugins inspect myplugin
+# Get build details
+xano static_host:build:get default 52
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.49/src/commands/plugins/inspect.ts)_
+## Global Options
 
-## `xano plugins install PLUGIN`
+All commands support these options:
 
-Installs a plugin into xano.
+| Flag | Description |
+|------|-------------|
+| `-p, --profile` | Profile to use (or set `XANO_PROFILE` env var) |
+| `-w, --workspace` | Workspace ID (overrides profile default) |
+| `-o, --output` | Output format: `summary` (default) or `json` |
 
+## Configuration
+
+Profiles are stored in `~/.xano/credentials.yaml`.
+
+## Help
+
+```bash
+xano --help
+xano <command> --help
 ```
-USAGE
-  $ xano plugins install PLUGIN... [--json] [-f] [-h] [-s | -v]
-
-ARGUMENTS
-  PLUGIN...  Plugin to install.
-
-FLAGS
-  -f, --force    Force npm to fetch remote resources even if a local copy exists on disk.
-  -h, --help     Show CLI help.
-  -s, --silent   Silences npm output.
-  -v, --verbose  Show verbose npm output.
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  Installs a plugin into xano.
-
-  Uses npm to install plugins.
-
-  Installation of a user-installed plugin will override a core plugin.
-
-  Use the xano_NPM_LOG_LEVEL environment variable to set the npm loglevel.
-  Use the xano_NPM_REGISTRY environment variable to set the npm registry.
-
-ALIASES
-  $ xano plugins add
-
-EXAMPLES
-  Install a plugin from npm registry.
-
-    $ xano plugins install myplugin
-
-  Install a plugin from a github url.
-
-    $ xano plugins install https://github.com/someuser/someplugin
-
-  Install a plugin from a github slug.
-
-    $ xano plugins install someuser/someplugin
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.49/src/commands/plugins/install.ts)_
-
-## `xano plugins link PATH`
-
-Links a plugin into the CLI for development.
-
-```
-USAGE
-  $ xano plugins link PATH [-h] [--install] [-v]
-
-ARGUMENTS
-  PATH  [default: .] path to plugin
-
-FLAGS
-  -h, --help          Show CLI help.
-  -v, --verbose
-      --[no-]install  Install dependencies after linking the plugin.
-
-DESCRIPTION
-  Links a plugin into the CLI for development.
-
-  Installation of a linked plugin will override a user-installed or core plugin.
-
-  e.g. If you have a user-installed or core plugin that has a 'hello' command, installing a linked plugin with a 'hello'
-  command will override the user-installed or core plugin implementation. This is useful for development work.
-
-
-EXAMPLES
-  $ xano plugins link myplugin
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.49/src/commands/plugins/link.ts)_
-
-## `xano plugins remove [PLUGIN]`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ xano plugins remove [PLUGIN...] [-h] [-v]
-
-ARGUMENTS
-  PLUGIN...  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ xano plugins unlink
-  $ xano plugins remove
-
-EXAMPLES
-  $ xano plugins remove myplugin
-```
-
-## `xano plugins reset`
-
-Remove all user-installed and linked plugins.
-
-```
-USAGE
-  $ xano plugins reset [--hard] [--reinstall]
-
-FLAGS
-  --hard       Delete node_modules and package manager related files in addition to uninstalling plugins.
-  --reinstall  Reinstall all plugins after uninstalling.
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.49/src/commands/plugins/reset.ts)_
-
-## `xano plugins uninstall [PLUGIN]`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ xano plugins uninstall [PLUGIN...] [-h] [-v]
-
-ARGUMENTS
-  PLUGIN...  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ xano plugins unlink
-  $ xano plugins remove
-
-EXAMPLES
-  $ xano plugins uninstall myplugin
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.49/src/commands/plugins/uninstall.ts)_
-
-## `xano plugins unlink [PLUGIN]`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ xano plugins unlink [PLUGIN...] [-h] [-v]
-
-ARGUMENTS
-  PLUGIN...  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ xano plugins unlink
-  $ xano plugins remove
-
-EXAMPLES
-  $ xano plugins unlink myplugin
-```
-
-## `xano plugins update`
-
-Update installed plugins.
-
-```
-USAGE
-  $ xano plugins update [-h] [-v]
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Update installed plugins.
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.49/src/commands/plugins/update.ts)_
-<!-- commandsstop -->

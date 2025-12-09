@@ -1,12 +1,12 @@
 {
-  "name": "xano-cli",
-  "description": "XanoScript CLI for Xano's Metadata API",
-  "version": "0.0.2",
+  "name": "@xano/cli",
+  "description": "CLI for Xano's Metadata API",
+  "version": "0.0.6",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
   },
-  "bugs": "https://github.com/git/xano-cli/issues",
+  "bugs": "https://github.com/xano-inc/cli/issues",
   "dependencies": {
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
@@ -41,7 +41,7 @@
     "./dist",
     "./oclif.manifest.json"
   ],
-  "homepage": "https://github.com/git/xano-cli",
+  "homepage": "https://github.com/xano-inc/cli",
   "keywords": [
     "oclif"
   ],
@@ -64,7 +64,7 @@
       }
     }
   },
-  "repository": "git/xano-cli",
+  "repository": "xano-inc/cli",
   "scripts": {
     "build": "shx rm -rf dist && tsc -b",
     "dev": "./bin/dev.js",
