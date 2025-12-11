@@ -162,11 +162,16 @@ Service created successfully!
       )
     }
 
-    // Read XanoScript content
-    let xanoscript: string
+    // Read XanoScript content or use URL
+    let xanoscript: string | undefined
+    let xanoscriptUrl: string | undefined
+
     if (flags.file) {
-      // If edit flag is set and source is not a URL, copy to temp file and open in editor
-      if (flags.edit && !this.isUrl(flags.file)) {
+      if (this.isUrl(flags.file)) {
+        // Pass URL directly to API
+        xanoscriptUrl = flags.file
+      } else if (flags.edit) {
+        // If edit flag is set, copy to temp file and open in editor
         const fileToRead = await this.editFile(flags.file)
         xanoscript = fs.readFileSync(fileToRead, 'utf8')
         // Clean up temp file
@@ -176,7 +181,11 @@ Service created successfully!
           // Ignore cleanup errors
         }
       } else {
-        xanoscript = await this.fetchContent(flags.file)
+        try {
+          xanoscript = fs.readFileSync(flags.file, 'utf8')
+        } catch (error) {
+          this.error(`Failed to read file '${flags.file}': ${error}`)
+        }
       }
     } else if (flags.stdin) {
       // Read from stdin
@@ -189,13 +198,21 @@ Service created successfully!
       this.error('Either --file or --stdin must be specified to provide XanoScript code')
     }
 
-    // Validate xanoscript is not empty
-    if (!xanoscript || xanoscript.trim().length === 0) {
+    // Validate xanoscript is not empty (only if not using URL)
+    if (!xanoscriptUrl && (!xanoscript || xanoscript.trim().length === 0)) {
       this.error('XanoScript content is empty')
     }
 
     // Construct the API URL
     const apiUrl = `${profile.instance_origin}/api:meta/beta/workspace/${workspaceId}/ephemeral/service`
+
+    // Build request body
+    const formData = new FormData()
+    if (xanoscriptUrl) {
+      formData.append('doc', xanoscriptUrl)
+    } else {
+      formData.append('doc', xanoscript!)
+    }
 
     // Run ephemeral service via API
     try {
@@ -203,10 +220,9 @@ Service created successfully!
         method: 'POST',
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'text/x-xanoscript',
           'Authorization': `Bearer ${profile.access_token}`,
         },
-        body: xanoscript,
+        body: formData,
       })
 
       if (!response.ok) {
@@ -315,6 +331,10 @@ Service created successfully!
     return tmpFile
   }
 
+  private isUrl(str: string): boolean {
+    return str.startsWith('http://') || str.startsWith('https://')
+  }
+
   private async readStdin(): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
@@ -334,30 +354,6 @@ Service created successfully!
       // Resume stdin if it was paused
       process.stdin.resume()
     })
-  }
-
-  private isUrl(str: string): boolean {
-    return str.startsWith('http://') || str.startsWith('https://')
-  }
-
-  private async fetchContent(source: string): Promise<string> {
-    if (this.isUrl(source)) {
-      try {
-        const response = await fetch(source)
-        if (!response.ok) {
-          this.error(`Failed to fetch '${source}': ${response.status} ${response.statusText}`)
-        }
-        return await response.text()
-      } catch (error) {
-        this.error(`Failed to fetch '${source}': ${error}`)
-      }
-    } else {
-      try {
-        return fs.readFileSync(source, 'utf8')
-      } catch (error) {
-        this.error(`Failed to read file '${source}': ${error}`)
-      }
-    }
   }
 
   private loadCredentials(): CredentialsFile {

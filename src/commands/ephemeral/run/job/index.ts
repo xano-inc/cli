@@ -159,11 +159,16 @@ Job executed successfully!
       )
     }
 
-    // Read XanoScript content
-    let xanoscript: string
+    // Read XanoScript content or use URL
+    let xanoscript: string | undefined
+    let xanoscriptUrl: string | undefined
+
     if (flags.file) {
-      // If edit flag is set and source is not a URL, copy to temp file and open in editor
-      if (flags.edit && !this.isUrl(flags.file)) {
+      if (this.isUrl(flags.file)) {
+        // Pass URL directly to API
+        xanoscriptUrl = flags.file
+      } else if (flags.edit) {
+        // If edit flag is set, copy to temp file and open in editor
         const fileToRead = await this.editFile(flags.file)
         xanoscript = fs.readFileSync(fileToRead, 'utf8')
         // Clean up temp file
@@ -173,7 +178,11 @@ Job executed successfully!
           // Ignore cleanup errors
         }
       } else {
-        xanoscript = await this.fetchContent(flags.file)
+        try {
+          xanoscript = fs.readFileSync(flags.file, 'utf8')
+        } catch (error) {
+          this.error(`Failed to read file '${flags.file}': ${error}`)
+        }
       }
     } else if (flags.stdin) {
       // Read from stdin
@@ -186,50 +195,53 @@ Job executed successfully!
       this.error('Either --file or --stdin must be specified to provide XanoScript code')
     }
 
-    // Validate xanoscript is not empty
-    if (!xanoscript || xanoscript.trim().length === 0) {
+    // Validate xanoscript is not empty (only if not using URL)
+    if (!xanoscriptUrl && (!xanoscript || xanoscript.trim().length === 0)) {
       this.error('XanoScript content is empty')
     }
 
-    // Load args from JSON file or URL if provided
+    // Load args from JSON file/URL if provided
     let inputArgs: Record<string, unknown> | undefined
+    let inputArgsUrl: string | undefined
     if (flags.args) {
-      try {
-        const argsContent = await this.fetchContent(flags.args)
-        inputArgs = JSON.parse(argsContent)
-      } catch (error) {
-        this.error(`Failed to read or parse args '${flags.args}': ${error}`)
+      if (this.isUrl(flags.args)) {
+        // Pass URL directly to API
+        inputArgsUrl = flags.args
+      } else {
+        try {
+          const argsContent = fs.readFileSync(flags.args, 'utf8')
+          inputArgs = JSON.parse(argsContent)
+        } catch (error) {
+          this.error(`Failed to read or parse args '${flags.args}': ${error}`)
+        }
       }
     }
 
     // Construct the API URL
     const apiUrl = `${profile.instance_origin}/api:meta/beta/workspace/${workspaceId}/ephemeral/job`
 
-    // Build request body - multipart if args provided, plain xanoscript otherwise
-    let requestBody: string | FormData
-    let contentType: string
-
+    // Build request body
     const formData = new FormData()
-    formData.append('doc', xanoscript);
-    if (inputArgs) {
+    if (xanoscriptUrl) {
+      formData.append('doc', xanoscriptUrl)
+    } else {
+      formData.append('doc', xanoscript!)
+    }
+    if (inputArgsUrl) {
+      formData.append('args', inputArgsUrl)
+    } else if (inputArgs) {
       formData.append('args', JSON.stringify(inputArgs))
     }
-    requestBody = formData
-    contentType = '' // Let fetch set the boundary
+    const requestBody = formData
 
     // Run ephemeral job via API
     try {
-      const headers: Record<string, string> = {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${profile.access_token}`,
-      }
-      if (contentType) {
-        headers['Content-Type'] = contentType
-      }
-
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers,
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${profile.access_token}`,
+        },
         body: requestBody,
       })
 
@@ -332,6 +344,10 @@ Job executed successfully!
     return tmpFile
   }
 
+  private isUrl(str: string): boolean {
+    return str.startsWith('http://') || str.startsWith('https://')
+  }
+
   private async readStdin(): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
@@ -351,30 +367,6 @@ Job executed successfully!
       // Resume stdin if it was paused
       process.stdin.resume()
     })
-  }
-
-  private isUrl(str: string): boolean {
-    return str.startsWith('http://') || str.startsWith('https://')
-  }
-
-  private async fetchContent(source: string): Promise<string> {
-    if (this.isUrl(source)) {
-      try {
-        const response = await fetch(source)
-        if (!response.ok) {
-          this.error(`Failed to fetch '${source}': ${response.status} ${response.statusText}`)
-        }
-        return await response.text()
-      } catch (error) {
-        this.error(`Failed to fetch '${source}': ${error}`)
-      }
-    } else {
-      try {
-        return fs.readFileSync(source, 'utf8')
-      } catch (error) {
-        this.error(`Failed to read file '${source}': ${error}`)
-      }
-    }
   }
 
   private loadCredentials(): CredentialsFile {
