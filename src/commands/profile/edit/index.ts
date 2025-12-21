@@ -1,4 +1,4 @@
-import {Args, Command, Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -21,15 +21,16 @@ interface CredentialsFile {
   default?: string
 }
 
-export default class ProfileEdit extends Command {
+export default class ProfileEdit extends BaseCommand {
   static args = {
     name: Args.string({
-      description: 'Profile name to edit',
-      required: true,
+      description: 'Profile name to edit (uses default profile if not specified)',
+      required: false,
     }),
   }
 
   static override flags = {
+    ...BaseCommand.baseFlags,
     account_origin: Flags.string({
       char: 'a',
       description: 'Update account origin URL',
@@ -70,22 +71,28 @@ export default class ProfileEdit extends Command {
   static description = 'Edit an existing profile configuration'
 
   static examples = [
+    `$ xano profile:edit --access_token new_token123
+Profile 'default' updated successfully at ~/.xano/credentials.yaml
+`,
     `$ xano profile:edit production --access_token new_token123
 Profile 'production' updated successfully at ~/.xano/credentials.yaml
 `,
     `$ xano profile:edit staging -i https://new-staging-instance.xano.com -t new_token456
 Profile 'staging' updated successfully at ~/.xano/credentials.yaml
 `,
-    `$ xano profile:edit dev -w new-workspace -b new-branch
-Profile 'dev' updated successfully at ~/.xano/credentials.yaml
+    `$ xano profile:edit -b new-branch
+Profile 'default' updated successfully at ~/.xano/credentials.yaml
 `,
-    `$ xano profile:edit dev --remove-workspace
-Profile 'dev' updated successfully at ~/.xano/credentials.yaml
+    `$ xano profile:edit --remove-branch
+Profile 'default' updated successfully at ~/.xano/credentials.yaml
 `,
   ]
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(ProfileEdit)
+
+    // Use provided name or default profile
+    const profileName = args.name || this.getDefaultProfile()
 
     const configDir = path.join(os.homedir(), '.xano')
     const credentialsPath = path.join(configDir, 'credentials.yaml')
@@ -111,12 +118,12 @@ Profile 'dev' updated successfully at ~/.xano/credentials.yaml
     }
 
     // Check if profile exists
-    if (!(args.name in credentials.profiles)) {
-      this.error(`Profile '${args.name}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}`)
+    if (!(profileName in credentials.profiles)) {
+      this.error(`Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}`)
     }
 
     // Get the existing profile
-    const existingProfile = credentials.profiles[args.name]
+    const existingProfile = credentials.profiles[profileName]
 
     // Check if any flags were provided
     const hasFlags = flags.account_origin || flags.instance_origin || flags.access_token ||
@@ -145,7 +152,7 @@ Profile 'dev' updated successfully at ~/.xano/credentials.yaml
       delete updatedProfile.branch
     }
 
-    credentials.profiles[args.name] = updatedProfile
+    credentials.profiles[profileName] = updatedProfile
 
     // Write the updated credentials back to the file
     try {
@@ -156,7 +163,7 @@ Profile 'dev' updated successfully at ~/.xano/credentials.yaml
       })
 
       fs.writeFileSync(credentialsPath, yamlContent, 'utf8')
-      this.log(`Profile '${args.name}' updated successfully at ${credentialsPath}`)
+      this.log(`Profile '${profileName}' updated successfully at ${credentialsPath}`)
     } catch (error) {
       this.error(`Failed to write credentials file: ${error}`)
     }

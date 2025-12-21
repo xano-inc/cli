@@ -63,11 +63,6 @@ export default class EphemeralRunService extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
     file: Flags.string({
       char: 'f',
       description: 'Path or URL to file containing XanoScript code',
@@ -97,27 +92,23 @@ export default class EphemeralRunService extends BaseCommand {
     }),
   }
 
-  static description = 'Run an ephemeral service in a workspace'
+  static description = 'Run an ephemeral service'
 
   static examples = [
-    `$ xano ephemeral:run:service -w 1 -f service.xs
-Service created successfully!
-...
-`,
     `$ xano ephemeral:run:service -f service.xs
 Service created successfully!
 ...
 `,
-    `$ xano ephemeral:run:service -w 1 -f service.xs --edit
+    `$ xano ephemeral:run:service -f service.xs --edit
 # Opens service.xs in $EDITOR, then creates service with edited content
 Service created successfully!
 ...
 `,
-    `$ cat service.xs | xano ephemeral:run:service -w 1 --stdin
+    `$ cat service.xs | xano ephemeral:run:service --stdin
 Service created successfully!
 ...
 `,
-    `$ xano ephemeral:run:service -w 1 -f service.xs -o json
+    `$ xano ephemeral:run:service -f service.xs -o json
 {
   "service": { "id": 1 },
   ...
@@ -151,20 +142,6 @@ Service created successfully!
 
     if (!profile.access_token) {
       this.error(`Profile '${profileName}' is missing access_token`)
-    }
-
-    // Determine workspace_id from flag or profile
-    let workspaceId: string
-    if (flags.workspace) {
-      workspaceId = flags.workspace
-    } else if (profile.workspace) {
-      workspaceId = profile.workspace
-    } else {
-      this.error(
-        `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano ephemeral:run:service -w <workspace_id>\n` +
-        `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
-      )
     }
 
     // Read XanoScript content or use URL
@@ -209,7 +186,7 @@ Service created successfully!
     }
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/beta/workspace/${workspaceId}/ephemeral/service`
+    const apiUrl = `${profile.instance_origin}/api:meta/beta/ephemeral/service`
 
     // Build request body
     const formData = new FormData()

@@ -45,11 +45,6 @@ export default class EphemeralRunJob extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
     file: Flags.string({
       char: 'f',
       description: 'Path or URL to file containing XanoScript code',
@@ -84,33 +79,29 @@ export default class EphemeralRunJob extends BaseCommand {
     }),
   }
 
-  static description = 'Run an ephemeral job in a workspace'
+  static description = 'Run an ephemeral job'
 
   static examples = [
-    `$ xano ephemeral:run:job -w 1 -f script.xs
-Job executed successfully!
-...
-`,
     `$ xano ephemeral:run:job -f script.xs
 Job executed successfully!
 ...
 `,
-    `$ xano ephemeral:run:job -w 1 -f script.xs --edit
+    `$ xano ephemeral:run:job -f script.xs --edit
 # Opens script.xs in $EDITOR, then runs job with edited content
 Job executed successfully!
 ...
 `,
-    `$ cat script.xs | xano ephemeral:run:job -w 1 --stdin
+    `$ cat script.xs | xano ephemeral:run:job --stdin
 Job executed successfully!
 ...
 `,
-    `$ xano ephemeral:run:job -w 1 -f script.xs -o json
+    `$ xano ephemeral:run:job -f script.xs -o json
 {
   "job": { "id": 1, "run": { "id": 1 } },
   "result": { ... }
 }
 `,
-    `$ xano ephemeral:run:job -w 1 -f script.xs -a args.json
+    `$ xano ephemeral:run:job -f script.xs -a args.json
 # Runs job with input arguments from args.json
 Job executed successfully!
 ...
@@ -143,20 +134,6 @@ Job executed successfully!
 
     if (!profile.access_token) {
       this.error(`Profile '${profileName}' is missing access_token`)
-    }
-
-    // Determine workspace_id from flag or profile
-    let workspaceId: string
-    if (flags.workspace) {
-      workspaceId = flags.workspace
-    } else if (profile.workspace) {
-      workspaceId = profile.workspace
-    } else {
-      this.error(
-        `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano ephemeral:run:job -w <workspace_id>\n` +
-        `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
-      )
     }
 
     // Read XanoScript content or use URL
@@ -218,7 +195,7 @@ Job executed successfully!
     }
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/beta/workspace/${workspaceId}/ephemeral/job`
+    const apiUrl = `${profile.instance_origin}/api:meta/beta/ephemeral/job`
 
     // Build request body
     const formData = new FormData()
