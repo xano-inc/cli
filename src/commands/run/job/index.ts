@@ -4,7 +4,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as yaml from 'js-yaml'
-import BaseCommand from '../../../../base-command.js'
+import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
   account_origin?: string
@@ -12,6 +12,7 @@ interface ProfileConfig {
   access_token: string
   workspace?: string
   branch?: string
+  project?: string
 }
 
 interface CredentialsFile {
@@ -21,26 +22,30 @@ interface CredentialsFile {
   default?: string
 }
 
-interface EphemeralJobResult {
+interface JobResult {
   total_time: number
   pre_time: number
   boot_time: number
   post_time: number
   main_time: number
   response: any
+  state: string
+  error_msg: string | null
 }
 
-interface EphemeralJobResponse {
-  job: {
-    id: number
-    run: {
-      id: number
+interface JobResponse {
+  run: {
+    id: string
+    session: {
+      id: string
+      state: string
     }
   }
-  result: EphemeralJobResult
+  result: JobResult
+  logs: any[]
 }
 
-export default class EphemeralRunJob extends BaseCommand {
+export default class RunJob extends BaseCommand {
   static args = {}
 
   static override flags = {
@@ -79,29 +84,29 @@ export default class EphemeralRunJob extends BaseCommand {
     }),
   }
 
-  static description = 'Run an ephemeral job'
+  static description = 'Run a xano.run job'
 
   static examples = [
-    `$ xano ephemeral:run:job -f script.xs
+    `$ xano run:job -f script.xs
 Job executed successfully!
 ...
 `,
-    `$ xano ephemeral:run:job -f script.xs --edit
+    `$ xano run:job -f script.xs --edit
 # Opens script.xs in $EDITOR, then runs job with edited content
 Job executed successfully!
 ...
 `,
-    `$ cat script.xs | xano ephemeral:run:job --stdin
+    `$ cat script.xs | xano run:job --stdin
 Job executed successfully!
 ...
 `,
-    `$ xano ephemeral:run:job -f script.xs -o json
+    `$ xano run:job -f script.xs -o json
 {
   "job": { "id": 1, "run": { "id": 1 } },
   "result": { ... }
 }
 `,
-    `$ xano ephemeral:run:job -f script.xs -a args.json
+    `$ xano run:job -f script.xs -a args.json
 # Runs job with input arguments from args.json
 Job executed successfully!
 ...
@@ -109,7 +114,7 @@ Job executed successfully!
   ]
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(EphemeralRunJob)
+    const {flags} = await this.parse(RunJob)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -134,6 +139,10 @@ Job executed successfully!
 
     if (!profile.access_token) {
       this.error(`Profile '${profileName}' is missing access_token`)
+    }
+
+    if (!profile.project) {
+      this.error(`Profile '${profileName}' is missing project. Update your profile with 'xano profile:create'`)
     }
 
     // Read XanoScript content or use URL
@@ -195,7 +204,7 @@ Job executed successfully!
     }
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/beta/ephemeral/job`
+    const apiUrl = `${profile.instance_origin}/api:meta/beta/project/${profile.project}/run/job`
 
     // Build request body
     const formData = new FormData()
@@ -211,7 +220,7 @@ Job executed successfully!
     }
     const requestBody = formData
 
-    // Run ephemeral job via API
+    // Run job via API
     try {
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -229,7 +238,7 @@ Job executed successfully!
         )
       }
 
-      const result = await response.json() as EphemeralJobResponse
+      const result = await response.json() as JobResponse
 
       // Output results
       if (flags.output === 'json') {
@@ -238,8 +247,9 @@ Job executed successfully!
         // summary format
         this.log('Job executed successfully!')
         this.log('')
-        this.log(`  Job ID:    ${result.job.id}`)
-        this.log(`  Run ID:    ${result.job.run.id}`)
+        this.log(`  Run ID:     ${result.run.id}`)
+        this.log(`  Session ID: ${result.run.session.id}`)
+        this.log(`  State:      ${result.run.session.state}`)
         this.log('')
         this.log('  Timing:')
         this.log(`    Total:   ${(result.result.total_time * 1000).toFixed(2)}ms`)
@@ -258,9 +268,9 @@ Job executed successfully!
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to run ephemeral job: ${error.message}`)
+        this.error(`Failed to run job: ${error.message}`)
       } else {
-        this.error(`Failed to run ephemeral job: ${String(error)}`)
+        this.error(`Failed to run job: ${String(error)}`)
       }
     }
   }

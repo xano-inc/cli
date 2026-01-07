@@ -11,6 +11,7 @@ interface ProfileConfig {
   access_token: string
   workspace?: string
   branch?: string
+  project?: string
 }
 
 interface CredentialsFile {
@@ -49,6 +50,7 @@ Profile: default
   Access Token: ***...***
   Workspace: my-workspace
   Branch: main
+  Project: my-project
 
 Profile: production
   Account Origin: https://account.xano.com
@@ -64,6 +66,7 @@ Profile: default
   Access Token: ***...***
   Workspace: my-workspace
   Branch: main
+  Project: my-project
 `,
   ]
 
@@ -122,6 +125,10 @@ Profile: default
 
         if (profile.branch) {
           this.log(`  Branch: ${profile.branch}`)
+        }
+
+        if (profile.project) {
+          this.log(`  Project: ${profile.project}`)
         }
 
         this.log('') // Empty line between profiles

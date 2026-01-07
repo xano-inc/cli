@@ -12,6 +12,7 @@ interface ProfileConfig {
   access_token: string
   workspace?: string
   branch?: string
+  project?: string
 }
 
 interface CredentialsFile {
@@ -36,6 +37,11 @@ interface Workspace {
 interface Branch {
   id: string
   label: string
+}
+
+interface Project {
+  id: string
+  name: string
 }
 
 export default class ProfileWizard extends Command {
@@ -141,6 +147,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       // Step 5: Workspace selection
       let workspace: string | undefined
       let branch: string | undefined
+      let project: string | undefined
 
       // Fetch workspaces from the selected instance
       this.log('')
@@ -209,6 +216,40 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 
             branch = selectedBranch || undefined
           }
+
+          // Step 6: Project selection
+          this.log('')
+          this.log('Fetching available projects...')
+          let projects: Project[] = []
+
+          try {
+            projects = await this.fetchProjects(accessToken, selectedInstance.origin, workspace, branch)
+          } catch (error) {
+            this.warn(`Failed to fetch projects: ${error instanceof Error ? error.message : String(error)}`)
+          }
+
+          // If projects were fetched, let user select one
+          if (projects.length > 0) {
+            this.log('')
+            const {selectedProject} = await inquirer.prompt([
+              {
+                type: 'list',
+                name: 'selectedProject',
+                message: 'Select a project',
+                choices: [
+                  {name: '(Skip project)', value: ''},
+                  ...projects.map((proj) => {
+                    return {
+                      name: proj.name,
+                      value: proj.id,
+                    }
+                  }),
+                ],
+              },
+            ])
+
+            project = selectedProject || undefined
+          }
         }
       }
 
@@ -220,6 +261,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         access_token: accessToken,
         workspace,
         branch,
+        project,
       }, true)
 
       this.log('')
@@ -360,6 +402,48 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
     return []
   }
 
+  private async fetchProjects(accessToken: string, origin: string, workspaceId: string, branchId?: string): Promise<Project[]> {
+    const branchParam = branchId ? `?branch=${branchId}` : ''
+    const response = await fetch(`${origin}/api:meta/workspace/${workspaceId}/project${branchParam}`, {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Unauthorized. Please check your access token.')
+      }
+      throw new Error(`API request failed with status ${response.status}`)
+    }
+
+    const data = (await response.json()) as any
+
+    // Transform API response to Project format
+    // Assuming the API returns an array or object with projects
+    if (Array.isArray(data)) {
+      return data.map((proj: any) => ({
+        id: proj.id || proj.name,
+        name: proj.name,
+      }))
+    }
+
+    // If it's an object, try to extract projects
+    if (data && typeof data === 'object') {
+      const projects = data.projects || data.data || []
+      if (Array.isArray(projects)) {
+        return projects.map((proj: any) => ({
+          id: proj.id || proj.name,
+          name: proj.name,
+        }))
+      }
+    }
+
+    return []
+  }
+
   private getDefaultProfileName(): string {
     try {
       const configDir = path.join(os.homedir(), '.xano')
@@ -414,6 +498,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       access_token: profile.access_token,
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
+      ...(profile.project && {project: profile.project}),
     }
 
     // Set as default if requested

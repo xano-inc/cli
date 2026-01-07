@@ -4,7 +4,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as yaml from 'js-yaml'
-import BaseCommand from '../../../../base-command.js'
+import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
   account_origin?: string
@@ -12,6 +12,7 @@ interface ProfileConfig {
   access_token: string
   workspace?: string
   branch?: string
+  project?: string
 }
 
 interface CredentialsFile {
@@ -40,7 +41,7 @@ interface MetadataApi {
   url: string
 }
 
-interface EphemeralServiceResult {
+interface ServiceResult {
   pre_time: number
   boot_time: number
   pre_result: any
@@ -48,17 +49,17 @@ interface EphemeralServiceResult {
   metadata_api?: MetadataApi
 }
 
-interface EphemeralServiceResponse {
+interface ServiceResponse {
   service: {
     id: number
     run: {
       id: number
     }
   }
-  result: EphemeralServiceResult
+  result: ServiceResult
 }
 
-export default class EphemeralRunService extends BaseCommand {
+export default class RunService extends BaseCommand {
   static args = {}
 
   static override flags = {
@@ -92,23 +93,23 @@ export default class EphemeralRunService extends BaseCommand {
     }),
   }
 
-  static description = 'Run an ephemeral service'
+  static description = 'Run a xano.run service'
 
   static examples = [
-    `$ xano ephemeral:run:service -f service.xs
+    `$ xano run:service -f service.xs
 Service created successfully!
 ...
 `,
-    `$ xano ephemeral:run:service -f service.xs --edit
+    `$ xano run:service -f service.xs --edit
 # Opens service.xs in $EDITOR, then creates service with edited content
 Service created successfully!
 ...
 `,
-    `$ cat service.xs | xano ephemeral:run:service --stdin
+    `$ cat service.xs | xano run:service --stdin
 Service created successfully!
 ...
 `,
-    `$ xano ephemeral:run:service -f service.xs -o json
+    `$ xano run:service -f service.xs -o json
 {
   "service": { "id": 1 },
   ...
@@ -117,7 +118,7 @@ Service created successfully!
   ]
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(EphemeralRunService)
+    const {flags} = await this.parse(RunService)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -142,6 +143,10 @@ Service created successfully!
 
     if (!profile.access_token) {
       this.error(`Profile '${profileName}' is missing access_token`)
+    }
+
+    if (!profile.project) {
+      this.error(`Profile '${profileName}' is missing project. Update your profile with 'xano profile:create'`)
     }
 
     // Read XanoScript content or use URL
@@ -186,7 +191,7 @@ Service created successfully!
     }
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/beta/ephemeral/service`
+    const apiUrl = `${profile.instance_origin}/api:meta/beta/project/${profile.project}/run/service`
 
     // Build request body
     const formData = new FormData()
@@ -196,7 +201,7 @@ Service created successfully!
       formData.append('doc', xanoscript!)
     }
 
-    // Run ephemeral service via API
+    // Run service via API
     try {
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -214,7 +219,7 @@ Service created successfully!
         )
       }
 
-      const result = await response.json() as EphemeralServiceResponse
+      const result = await response.json() as ServiceResponse
 
       // Output results
       if (flags.output === 'json') {
@@ -255,9 +260,9 @@ Service created successfully!
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to run ephemeral service: ${error.message}`)
+        this.error(`Failed to run service: ${error.message}`)
       } else {
-        this.error(`Failed to run ephemeral service: ${String(error)}`)
+        this.error(`Failed to run service: ${String(error)}`)
       }
     }
   }

@@ -12,6 +12,7 @@ interface ProfileConfig {
   access_token: string
   workspace?: string
   branch?: string
+  project?: string
 }
 
 interface CredentialsFile {
@@ -55,6 +56,11 @@ export default class ProfileCreate extends Command {
       description: 'Branch name',
       required: false,
     }),
+    project: Flags.string({
+      char: 'j',
+      description: 'Project name',
+      required: false,
+    }),
     default: Flags.boolean({
       description: 'Set this profile as the default',
       required: false,
@@ -72,6 +78,9 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 Profile 'staging' created successfully at ~/.xano/credentials.yaml
 `,
     `$ xano profile:create dev -i https://dev-instance.xano.com -t token789 -w my-workspace -b feature-branch
+Profile 'dev' created successfully at ~/.xano/credentials.yaml
+`,
+    `$ xano profile:create dev -i https://dev-instance.xano.com -t token789 -w my-workspace -b feature-branch -j my-project
 Profile 'dev' created successfully at ~/.xano/credentials.yaml
 `,
     `$ xano profile:create production --account_origin https://account.xano.com --instance_origin https://instance.xano.com --access_token token123 --default
@@ -120,6 +129,7 @@ Default profile set to 'production'
       access_token: flags.access_token,
       ...(flags.workspace && {workspace: flags.workspace}),
       ...(flags.branch && {branch: flags.branch}),
+      ...(flags.project && {project: flags.project}),
     }
 
     // Set default if flag is provided

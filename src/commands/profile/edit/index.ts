@@ -12,6 +12,7 @@ interface ProfileConfig {
   access_token: string
   workspace?: string
   branch?: string
+  project?: string
 }
 
 interface CredentialsFile {
@@ -56,6 +57,11 @@ export default class ProfileEdit extends BaseCommand {
       description: 'Update branch name',
       required: false,
     }),
+    project: Flags.string({
+      char: 'j',
+      description: 'Update project name',
+      required: false,
+    }),
     'remove-workspace': Flags.boolean({
       description: 'Remove workspace from profile',
       required: false,
@@ -63,6 +69,11 @@ export default class ProfileEdit extends BaseCommand {
     }),
     'remove-branch': Flags.boolean({
       description: 'Remove branch from profile',
+      required: false,
+      default: false,
+    }),
+    'remove-project': Flags.boolean({
+      description: 'Remove project from profile',
       required: false,
       default: false,
     }),
@@ -84,6 +95,12 @@ Profile 'staging' updated successfully at ~/.xano/credentials.yaml
 Profile 'default' updated successfully at ~/.xano/credentials.yaml
 `,
     `$ xano profile:edit --remove-branch
+Profile 'default' updated successfully at ~/.xano/credentials.yaml
+`,
+    `$ xano profile:edit -j my-project
+Profile 'default' updated successfully at ~/.xano/credentials.yaml
+`,
+    `$ xano profile:edit --remove-project
 Profile 'default' updated successfully at ~/.xano/credentials.yaml
 `,
   ]
@@ -127,7 +144,8 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 
     // Check if any flags were provided
     const hasFlags = flags.account_origin || flags.instance_origin || flags.access_token ||
-                     flags.workspace || flags.branch || flags['remove-workspace'] || flags['remove-branch']
+                     flags.workspace || flags.branch || flags.project ||
+                     flags['remove-workspace'] || flags['remove-branch'] || flags['remove-project']
 
     if (!hasFlags) {
       this.error('No fields specified to update. Use at least one flag to edit the profile.')
@@ -141,6 +159,7 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
       ...(flags.access_token !== undefined && {access_token: flags.access_token}),
       ...(flags.workspace !== undefined && {workspace: flags.workspace}),
       ...(flags.branch !== undefined && {branch: flags.branch}),
+      ...(flags.project !== undefined && {project: flags.project}),
     }
 
     // Handle removal flags
@@ -150,6 +169,10 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 
     if (flags['remove-branch']) {
       delete updatedProfile.branch
+    }
+
+    if (flags['remove-project']) {
+      delete updatedProfile.project
     }
 
     credentials.profiles[profileName] = updatedProfile
