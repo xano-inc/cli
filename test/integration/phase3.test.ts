@@ -220,13 +220,31 @@ describe('Phase 3 Integration Tests', function () {
     describe('Create Trigger', () => {
       it('creates a workspace trigger from XanoScript', async () => {
         const triggerName = `test_trigger${testSuffix}`
-        // Workspace triggers typically respond to events like startup, shutdown, etc.
-        const xsContent = `trigger ${triggerName} {
+        // Workspace triggers respond to branch events (branch_live, branch_merge, branch_new)
+        const xsContent = `workspace_trigger ${triggerName} {
+  input {
+    object to_branch? {
+      schema {
+        int id?
+        text label?
+      }
+    }
+    object from_branch? {
+      schema {
+        int id?
+        text label?
+      }
+    }
+    enum action {
+      values = ["branch_live", "branch_merge", "branch_new"]
+    }
+  }
   stack {
     var $x1 {
       value = 1
     }
   }
+  actions = {branch_live: true, branch_merge: true, branch_new: true}
 }`
         const tmpFile = path.join(os.tmpdir(), `test-trigger-${Date.now()}.xs`)
         fs.writeFileSync(tmpFile, xsContent, 'utf8')
@@ -295,16 +313,36 @@ describe('Phase 3 Integration Tests', function () {
     })
 
     describe('Edit Trigger', () => {
-      it('edits trigger description', async function () {
+      it('edits trigger using XanoScript file', async function () {
         if (!createdResources.triggerId) {
           this.skip()
           return
         }
 
-        const {stdout} = await runTrackedCommand(
-          `trigger edit ${createdResources.triggerId} -p ${PROFILE} -w ${WORKSPACE_ID} --description "Updated by test"`,
-        )
-        expect(stdout).to.include('updated successfully')
+        // Trigger edit requires XanoScript file
+        const triggerName = `test_trigger${testSuffix}`
+        const xsContent = `workspace_trigger ${triggerName} {
+  input {
+    object to_branch? { schema { int id? } }
+    object from_branch? { schema { int id? } }
+    enum action { values = ["branch_live", "branch_merge", "branch_new"] }
+  }
+  stack {
+    var $updated { value = "Updated by test" }
+  }
+  actions = {branch_live: true, branch_merge: true, branch_new: true}
+}`
+        const tmpFile = path.join(os.tmpdir(), `test-trigger-edit-${Date.now()}.xs`)
+        fs.writeFileSync(tmpFile, xsContent, 'utf8')
+
+        try {
+          const {stdout} = await runTrackedCommand(
+            `trigger edit ${createdResources.triggerId} -p ${PROFILE} -w ${WORKSPACE_ID} -f ${tmpFile}`,
+          )
+          expect(stdout).to.include('updated successfully')
+        } finally {
+          fs.unlinkSync(tmpFile)
+        }
       })
     })
 
@@ -365,13 +403,25 @@ describe('Phase 3 Integration Tests', function () {
         }
 
         const triggerName = `test_table_trigger${testSuffix}`
-        // Table triggers respond to insert/update/delete on a specific table
-        const xsContent = `trigger ${triggerName} table=${createdResources.tableTriggerTableId} event=insert {
+        // Table triggers respond to insert/update/delete/truncate on a specific table
+        // Use the table name that was created (trigger_test_table + suffix)
+        const tableName = `trigger_test_table${testSuffix}`
+        const xsContent = `table_trigger ${triggerName} {
+  table = "${tableName}"
+  input {
+    json new
+    json old
+    enum action {
+      values = ["insert", "update", "delete", "truncate"]
+    }
+    text datasource
+  }
   stack {
     var $x1 {
       value = 1
     }
   }
+  actions = {insert: true, update: false}
 }`
         const tmpFile = path.join(os.tmpdir(), `test-table-trigger-${Date.now()}.xs`)
         fs.writeFileSync(tmpFile, xsContent, 'utf8')
@@ -439,16 +489,39 @@ describe('Phase 3 Integration Tests', function () {
     })
 
     describe('Edit Table Trigger', () => {
-      it('edits table trigger description', async function () {
+      it('edits table trigger using XanoScript file', async function () {
         if (!createdResources.tableTriggerId) {
           this.skip()
           return
         }
 
-        const {stdout} = await runTrackedCommand(
-          `table trigger edit ${createdResources.tableTriggerId} -p ${PROFILE} -w ${WORKSPACE_ID} --description "Updated by test"`,
-        )
-        expect(stdout).to.include('updated successfully')
+        // Table trigger edit requires XanoScript file
+        const triggerName = `test_table_trigger${testSuffix}`
+        const tableName = `trigger_test_table${testSuffix}`
+        const xsContent = `table_trigger ${triggerName} {
+  table = "${tableName}"
+  input {
+    json new
+    json old
+    enum action { values = ["insert", "update", "delete", "truncate"] }
+    text datasource
+  }
+  stack {
+    var $updated { value = "Updated by test" }
+  }
+  actions = {insert: true, update: true}
+}`
+        const tmpFile = path.join(os.tmpdir(), `test-table-trigger-edit-${Date.now()}.xs`)
+        fs.writeFileSync(tmpFile, xsContent, 'utf8')
+
+        try {
+          const {stdout} = await runTrackedCommand(
+            `table trigger edit ${createdResources.tableTriggerId} -p ${PROFILE} -w ${WORKSPACE_ID} -f ${tmpFile}`,
+          )
+          expect(stdout).to.include('updated successfully')
+        } finally {
+          fs.unlinkSync(tmpFile)
+        }
       })
     })
 

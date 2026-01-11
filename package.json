@@ -97,6 +97,21 @@
       },
       "trigger": {
         "description": "Manage workspace triggers"
+      },
+      "docs": {
+        "description": "View detailed documentation and guides"
+      },
+      "branch": {
+        "description": "Manage workspace branches"
+      },
+      "file": {
+        "description": "Manage workspace files"
+      },
+      "audit-log": {
+        "description": "View audit logs"
+      },
+      "history": {
+        "description": "View execution history"
       }
     }
   },

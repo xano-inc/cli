@@ -5,18 +5,16 @@ import {XanoApiClient} from '../../../../lib/api-client.js'
 import type {TableTrigger} from '../../../../lib/types.js'
 
 export default class TableTriggerEdit extends BaseCommand {
-  static override description = 'Edit a table trigger'
+  static override description = 'Edit a table trigger using XanoScript file'
 
   static override examples = [
-    `$ xano table trigger edit 123 -w 40 --description "Updated description"
-Table trigger updated successfully!
-ID: 123
-Name: my_trigger
-`,
     `$ xano table trigger edit 123 -w 40 -f trigger.xs
 Table trigger updated successfully!
 ID: 123
 Name: my_trigger
+`,
+    `$ xano table trigger edit 123 -w 40 -f trigger.xs -o json
+{"id": 123, "name": "my_trigger", ...}
 `,
   ]
 
@@ -36,16 +34,8 @@ Name: my_trigger
     }),
     file: Flags.string({
       char: 'f',
-      description: 'Path to XanoScript file',
-      required: false,
-    }),
-    name: Flags.string({
-      description: 'Trigger name',
-      required: false,
-    }),
-    description: Flags.string({
-      description: 'Trigger description',
-      required: false,
+      description: 'Path to XanoScript file (required)',
+      required: true,
     }),
     output: Flags.string({
       char: 'o',
@@ -64,26 +54,12 @@ Name: my_trigger
       const client = XanoApiClient.fromProfile(profileName)
       const workspaceId = client.getWorkspaceId(flags.workspace)
 
-      let trigger: TableTrigger
-
-      if (flags.file) {
-        if (!fs.existsSync(flags.file)) {
-          this.error(`File not found: ${flags.file}`)
-        }
-
-        const xsContent = fs.readFileSync(flags.file, 'utf8')
-        trigger = await client.updateTableTrigger(workspaceId, args.trigger_id, xsContent, true) as TableTrigger
-      } else {
-        const data: Record<string, string> = {}
-        if (flags.name) data.name = flags.name
-        if (flags.description !== undefined) data.description = flags.description
-
-        if (Object.keys(data).length === 0) {
-          this.error('At least one of --file, --name, or --description must be provided')
-        }
-
-        trigger = await client.updateTableTrigger(workspaceId, args.trigger_id, data, false) as TableTrigger
+      if (!fs.existsSync(flags.file)) {
+        this.error(`File not found: ${flags.file}`)
       }
+
+      const xsContent = fs.readFileSync(flags.file, 'utf8')
+      const trigger = await client.updateTableTrigger(workspaceId, args.trigger_id, xsContent, true) as TableTrigger
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(trigger, null, 2))

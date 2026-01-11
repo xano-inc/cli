@@ -326,6 +326,143 @@ export class XanoApiClient {
     return this.request('DELETE', `/workspace/${workspaceId}/table/${tableId}`)
   }
 
+  // Table Content (Data) endpoints
+  async listTableContent(workspaceId: string, tableId: string, params: {
+    page?: number
+    per_page?: number
+  } = {}) {
+    return this.request('GET', `/workspace/${workspaceId}/table/${tableId}/content`, {
+      queryParams: {
+        page: params.page ?? 1,
+        per_page: params.per_page ?? 50,
+      },
+    })
+  }
+
+  async getTableContent(workspaceId: string, tableId: string, recordId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/table/${tableId}/content/${recordId}`)
+  }
+
+  async createTableContent(workspaceId: string, tableId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/content`, {
+      body: data,
+    })
+  }
+
+  async updateTableContent(workspaceId: string, tableId: string, recordId: string, data: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/table/${tableId}/content/${recordId}`, {
+      body: data,
+    })
+  }
+
+  async deleteTableContent(workspaceId: string, tableId: string, recordId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/table/${tableId}/content/${recordId}`)
+  }
+
+  async searchTableContent(workspaceId: string, tableId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/content/search`, {
+      body: data,
+    })
+  }
+
+  async bulkCreateTableContent(workspaceId: string, tableId: string, data: unknown[]) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/content/bulk`, {
+      body: {items: data},
+    })
+  }
+
+  async bulkDeleteTableContent(workspaceId: string, tableId: string, data: {ids: number[]}) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/content/bulk/delete`, {
+      body: data,
+    })
+  }
+
+  async bulkPatchTableContent(workspaceId: string, tableId: string, data: unknown[]) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/content/bulk/patch`, {
+      body: data,
+    })
+  }
+
+  async truncateTable(workspaceId: string, tableId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/table/${tableId}/truncate`)
+  }
+
+  // Table Schema endpoints
+  async getTableSchema(workspaceId: string, tableId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/table/${tableId}/schema`)
+  }
+
+  async replaceTableSchema(workspaceId: string, tableId: string, schema: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/table/${tableId}/schema`, {
+      body: schema,
+    })
+  }
+
+  async getTableSchemaColumn(workspaceId: string, tableId: string, columnName: string) {
+    return this.request('GET', `/workspace/${workspaceId}/table/${tableId}/schema/${columnName}`)
+  }
+
+  async deleteTableSchemaColumn(workspaceId: string, tableId: string, columnName: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/table/${tableId}/schema/${columnName}`)
+  }
+
+  async renameTableSchemaColumn(workspaceId: string, tableId: string, data: {old_name: string; new_name: string}) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/schema/rename`, {
+      body: data,
+    })
+  }
+
+  async addTableSchemaColumn(workspaceId: string, tableId: string, columnType: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/schema/type/${columnType}`, {
+      body: data,
+    })
+  }
+
+  // Table Index endpoints
+  async listTableIndexes(workspaceId: string, tableId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/table/${tableId}/index`)
+  }
+
+  async replaceTableIndexes(workspaceId: string, tableId: string, indexes: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/table/${tableId}/index`, {
+      body: indexes,
+    })
+  }
+
+  async deleteTableIndex(workspaceId: string, tableId: string, indexId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/table/${tableId}/index/${indexId}`)
+  }
+
+  async createTableIndexBtree(workspaceId: string, tableId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/index/btree`, {
+      body: data,
+    })
+  }
+
+  async createTableIndexUnique(workspaceId: string, tableId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/index/unique`, {
+      body: data,
+    })
+  }
+
+  async createTableIndexSearch(workspaceId: string, tableId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/index/search`, {
+      body: data,
+    })
+  }
+
+  async createTableIndexSpatial(workspaceId: string, tableId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/index/spatial`, {
+      body: data,
+    })
+  }
+
+  async createTableIndexVector(workspaceId: string, tableId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/table/${tableId}/index/vector`, {
+      body: data,
+    })
+  }
+
   // API Group endpoints
   async listApiGroups(workspaceId: string, params: {
     page?: number
@@ -801,15 +938,6 @@ export class XanoApiClient {
     })
   }
 
-  // Branch endpoints
-  async listBranches(workspaceId: string) {
-    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/branch`)
-  }
-
-  async deleteBranch(workspaceId: string, branchLabel: string) {
-    return this.request('DELETE', `/workspace/${workspaceId}/branch/${branchLabel}`)
-  }
-
   // Static Host endpoints
   async listStaticHosts(workspaceId: string) {
     return this.request<unknown[]>('GET', `/workspace/${workspaceId}/static_host`)
@@ -836,6 +964,428 @@ export class XanoApiClient {
   async updateStaticHostBuildEnv(workspaceId: string, staticHost: string, buildId: string, data: unknown) {
     return this.request('POST', `/workspace/${workspaceId}/static_host/${staticHost}/build/${buildId}/env`, {
       body: data,
+    })
+  }
+
+  // ============================================
+  // Phase 5: Advanced Resources
+  // ============================================
+
+  // Agent endpoints
+  async listAgents(workspaceId: string, params: {branch?: string} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.branch) searchParams.set('branch', params.branch)
+    const query = searchParams.toString()
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/agent${query ? `?${query}` : ''}`)
+  }
+
+  async getAgent(workspaceId: string, agentId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/agent/${agentId}`)
+  }
+
+  async createAgent(workspaceId: string, xsContent: string) {
+    // Agent creation only accepts XanoScript format
+    return this.request('POST', `/workspace/${workspaceId}/agent`, {
+      body: xsContent,
+      contentType: 'text/x-xanoscript',
+    })
+  }
+
+  async updateAgent(workspaceId: string, agentId: string, xsContent: string) {
+    // Agent update only accepts XanoScript format
+    return this.request('PUT', `/workspace/${workspaceId}/agent/${agentId}`, {
+      body: xsContent,
+      contentType: 'text/x-xanoscript',
+    })
+  }
+
+  async deleteAgent(workspaceId: string, agentId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/agent/${agentId}`)
+  }
+
+  // Agent Trigger endpoints
+  async listAgentTriggers(workspaceId: string, agentId: string) {
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/agent/${agentId}/trigger`)
+  }
+
+  async getAgentTrigger(workspaceId: string, agentId: string, triggerId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/agent/${agentId}/trigger/${triggerId}`)
+  }
+
+  async createAgentTrigger(workspaceId: string, agentId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/agent/${agentId}/trigger`, {
+      body: data,
+    })
+  }
+
+  async updateAgentTrigger(workspaceId: string, agentId: string, triggerId: string, data: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/agent/${agentId}/trigger/${triggerId}`, {
+      body: data,
+    })
+  }
+
+  async deleteAgentTrigger(workspaceId: string, agentId: string, triggerId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/agent/${agentId}/trigger/${triggerId}`)
+  }
+
+  async updateAgentTriggerSecurity(workspaceId: string, agentId: string, triggerId: string, data: {guid: string}) {
+    return this.request('PUT', `/workspace/${workspaceId}/agent/${agentId}/trigger/${triggerId}/security`, {
+      body: data,
+    })
+  }
+
+  // MCP Server endpoints
+  async listMcpServers(workspaceId: string, params: {branch?: string} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.branch) searchParams.set('branch', params.branch)
+    const query = searchParams.toString()
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/mcp_server${query ? `?${query}` : ''}`)
+  }
+
+  async getMcpServer(workspaceId: string, mcpServerId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/mcp_server/${mcpServerId}`)
+  }
+
+  async createMcpServer(workspaceId: string, xsContent: string) {
+    // MCP Server creation only accepts XanoScript format
+    return this.request('POST', `/workspace/${workspaceId}/mcp_server`, {
+      body: xsContent,
+      contentType: 'text/x-xanoscript',
+    })
+  }
+
+  async updateMcpServer(workspaceId: string, mcpServerId: string, xsContent: string) {
+    // MCP Server update only accepts XanoScript format
+    return this.request('PUT', `/workspace/${workspaceId}/mcp_server/${mcpServerId}`, {
+      body: xsContent,
+      contentType: 'text/x-xanoscript',
+    })
+  }
+
+  async deleteMcpServer(workspaceId: string, mcpServerId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/mcp_server/${mcpServerId}`)
+  }
+
+  // MCP Server Trigger endpoints
+  async listMcpServerTriggers(workspaceId: string, mcpServerId: string) {
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/mcp_server/${mcpServerId}/trigger`)
+  }
+
+  async getMcpServerTrigger(workspaceId: string, mcpServerId: string, triggerId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/mcp_server/${mcpServerId}/trigger/${triggerId}`)
+  }
+
+  async createMcpServerTrigger(workspaceId: string, mcpServerId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/mcp_server/${mcpServerId}/trigger`, {
+      body: data,
+    })
+  }
+
+  async updateMcpServerTrigger(workspaceId: string, mcpServerId: string, triggerId: string, data: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/mcp_server/${mcpServerId}/trigger/${triggerId}`, {
+      body: data,
+    })
+  }
+
+  async deleteMcpServerTrigger(workspaceId: string, mcpServerId: string, triggerId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/mcp_server/${mcpServerId}/trigger/${triggerId}`)
+  }
+
+  async updateMcpServerTriggerSecurity(workspaceId: string, mcpServerId: string, triggerId: string, data: {guid: string}) {
+    return this.request('PUT', `/workspace/${workspaceId}/mcp_server/${mcpServerId}/trigger/${triggerId}/security`, {
+      body: data,
+    })
+  }
+
+  // Realtime endpoints
+  async getRealtime(workspaceId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/realtime`)
+  }
+
+  async updateRealtime(workspaceId: string, data: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/realtime`, {
+      body: data,
+    })
+  }
+
+  // Realtime Channel endpoints
+  async listRealtimeChannels(workspaceId: string, params: {branch?: string} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.branch) searchParams.set('branch', params.branch)
+    const query = searchParams.toString()
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/realtime/channel${query ? `?${query}` : ''}`)
+  }
+
+  async getRealtimeChannel(workspaceId: string, channelId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/realtime/channel/${channelId}`)
+  }
+
+  async createRealtimeChannel(workspaceId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/realtime/channel`, {
+      body: data,
+    })
+  }
+
+  async updateRealtimeChannel(workspaceId: string, channelId: string, data: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/realtime/channel/${channelId}`, {
+      body: data,
+    })
+  }
+
+  async deleteRealtimeChannel(workspaceId: string, channelId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/realtime/channel/${channelId}`)
+  }
+
+  // Realtime Channel Trigger endpoints
+  async listRealtimeChannelTriggers(workspaceId: string, channelId: string) {
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/realtime/channel/${channelId}/trigger`)
+  }
+
+  async getRealtimeChannelTrigger(workspaceId: string, channelId: string, triggerId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/realtime/channel/${channelId}/trigger/${triggerId}`)
+  }
+
+  async createRealtimeChannelTrigger(workspaceId: string, channelId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/realtime/channel/${channelId}/trigger`, {
+      body: data,
+    })
+  }
+
+  async updateRealtimeChannelTrigger(workspaceId: string, channelId: string, triggerId: string, data: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/realtime/channel/${channelId}/trigger/${triggerId}`, {
+      body: data,
+    })
+  }
+
+  async deleteRealtimeChannelTrigger(workspaceId: string, channelId: string, triggerId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/realtime/channel/${channelId}/trigger/${triggerId}`)
+  }
+
+  async updateRealtimeChannelTriggerSecurity(workspaceId: string, channelId: string, triggerId: string, data: {guid: string}) {
+    return this.request('PUT', `/workspace/${workspaceId}/realtime/channel/${channelId}/trigger/${triggerId}/security`, {
+      body: data,
+    })
+  }
+
+  // Tool endpoints
+  async listTools(workspaceId: string, params: {branch?: string} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.branch) searchParams.set('branch', params.branch)
+    const query = searchParams.toString()
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/tool${query ? `?${query}` : ''}`)
+  }
+
+  async getTool(workspaceId: string, toolId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/tool/${toolId}`)
+  }
+
+  async createTool(workspaceId: string, xsContent: string) {
+    // Tool creation only accepts XanoScript format
+    return this.request('POST', `/workspace/${workspaceId}/tool`, {
+      body: xsContent,
+      contentType: 'text/x-xanoscript',
+    })
+  }
+
+  async updateTool(workspaceId: string, toolId: string, xsContent: string) {
+    // Tool update only accepts XanoScript format
+    return this.request('PUT', `/workspace/${workspaceId}/tool/${toolId}`, {
+      body: xsContent,
+      contentType: 'text/x-xanoscript',
+    })
+  }
+
+  async deleteTool(workspaceId: string, toolId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/tool/${toolId}`)
+  }
+
+  async updateToolSecurity(workspaceId: string, toolId: string, data: {guid: string}) {
+    return this.request('PUT', `/workspace/${workspaceId}/tool/${toolId}/security`, {
+      body: data,
+    })
+  }
+
+  // Workflow Test endpoints
+  async listWorkflowTests(workspaceId: string, params: {branch?: string} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.branch) searchParams.set('branch', params.branch)
+    const query = searchParams.toString()
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/workflow_test${query ? `?${query}` : ''}`)
+  }
+
+  async getWorkflowTest(workspaceId: string, workflowTestId: string) {
+    return this.request('GET', `/workspace/${workspaceId}/workflow_test/${workflowTestId}`)
+  }
+
+  async createWorkflowTest(workspaceId: string, data: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/workflow_test`, {
+      body: data,
+    })
+  }
+
+  async updateWorkflowTest(workspaceId: string, workflowTestId: string, data: unknown) {
+    return this.request('PUT', `/workspace/${workspaceId}/workflow_test/${workflowTestId}`, {
+      body: data,
+    })
+  }
+
+  async deleteWorkflowTest(workspaceId: string, workflowTestId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/workflow_test/${workflowTestId}`)
+  }
+
+  async updateWorkflowTestSecurity(workspaceId: string, workflowTestId: string, data: {guid: string}) {
+    return this.request('PUT', `/workspace/${workspaceId}/workflow_test/${workflowTestId}/security`, {
+      body: data,
+    })
+  }
+
+  // Branch endpoints
+  async listBranches(workspaceId: string) {
+    return this.request<unknown[]>('GET', `/workspace/${workspaceId}/branch`)
+  }
+
+  async deleteBranch(workspaceId: string, branchLabel: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/branch/${encodeURIComponent(branchLabel)}`)
+  }
+
+  // File endpoints
+  async listFiles(workspaceId: string, params: {page?: number; per_page?: number; search?: string} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    if (params.search) searchParams.set('search', params.search)
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/file${query ? `?${query}` : ''}`)
+  }
+
+  async uploadFile(workspaceId: string, filePath: string, fileName: string) {
+    // File upload requires multipart form data - handled specially
+    return this.request('POST', `/workspace/${workspaceId}/file`, {
+      body: {path: filePath, name: fileName},
+    })
+  }
+
+  async deleteFile(workspaceId: string, fileId: string) {
+    return this.request('DELETE', `/workspace/${workspaceId}/file/${fileId}`)
+  }
+
+  async bulkDeleteFiles(workspaceId: string, fileIds: string[]) {
+    return this.request('DELETE', `/workspace/${workspaceId}/file/bulk_delete`, {
+      body: {ids: fileIds},
+    })
+  }
+
+  // Audit Log endpoints
+  async listAuditLogs(workspaceId: string, params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/audit_log${query ? `?${query}` : ''}`)
+  }
+
+  async searchAuditLogs(workspaceId: string, searchParams: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/audit_log/search`, {
+      body: searchParams,
+    })
+  }
+
+  async listGlobalAuditLogs(params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/audit_log${query ? `?${query}` : ''}`)
+  }
+
+  async searchGlobalAuditLogs(searchParams: unknown) {
+    return this.request('POST', `/audit_log/search`, {
+      body: searchParams,
+    })
+  }
+
+  // Request History endpoints
+  async listRequestHistory(workspaceId: string, params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/request_history${query ? `?${query}` : ''}`)
+  }
+
+  async searchRequestHistory(workspaceId: string, searchParams: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/request_history/search`, {
+      body: searchParams,
+    })
+  }
+
+  async listFunctionHistory(workspaceId: string, params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/function_history${query ? `?${query}` : ''}`)
+  }
+
+  async searchFunctionHistory(workspaceId: string, searchParams: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/function_history/search`, {
+      body: searchParams,
+    })
+  }
+
+  async listMiddlewareHistory(workspaceId: string, params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/middleware_history${query ? `?${query}` : ''}`)
+  }
+
+  async searchMiddlewareHistory(workspaceId: string, searchParams: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/middleware_history/search`, {
+      body: searchParams,
+    })
+  }
+
+  async listTaskHistory(workspaceId: string, params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/task_history${query ? `?${query}` : ''}`)
+  }
+
+  async searchTaskHistory(workspaceId: string, searchParams: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/task_history/search`, {
+      body: searchParams,
+    })
+  }
+
+  async listTriggerHistory(workspaceId: string, params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/trigger_history${query ? `?${query}` : ''}`)
+  }
+
+  async searchTriggerHistory(workspaceId: string, searchParams: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/trigger_history/search`, {
+      body: searchParams,
+    })
+  }
+
+  async listToolHistory(workspaceId: string, params: {page?: number; per_page?: number} = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.per_page) searchParams.set('per_page', String(params.per_page))
+    const query = searchParams.toString()
+    return this.request<unknown>('GET', `/workspace/${workspaceId}/tool_history${query ? `?${query}` : ''}`)
+  }
+
+  async searchToolHistory(workspaceId: string, searchParams: unknown) {
+    return this.request('POST', `/workspace/${workspaceId}/tool_history/search`, {
+      body: searchParams,
     })
   }
 }

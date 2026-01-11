@@ -4,91 +4,65 @@
 
 | Metric | Value |
 |--------|-------|
-| **Run Date** | 2026-01-11T09:37:34.797Z |
-| **Total Duration** | 7.89s |
+| **Run Date** | 2026-01-11T11:05:50.673Z |
+| **Total Duration** | 12.15s |
 | **Profile** | mcp-server |
 | **Workspace** | 40 |
-| **Total Tests** | 10 |
+| **Total Tests** | 5 |
 | **Passed** | ✅ 0 |
 | **Failed** | ❌ 0 |
-| **Skipped** | ⏭️ 10 |
+| **Skipped** | ⏭️ 5 |
 
 ## Results Overview
 
 | Status | Test | Duration |
 |--------|------|----------|
-| ⏭️ | Phase 3: Get Individual Resources > Tables > gets table details in JSON format | 1ms |
-| ⏭️ | Phase 3: Get Individual Resources > Tables > gets table details in summary format | 0ms |
-| ⏭️ | Phase 3: Get Individual Resources > Tables > gets table as XanoScript | 0ms |
-| ⏭️ | Phase 3: Get Individual Resources > Tables > gets XanoScript table with schema | 0ms |
-| ⏭️ | Phase 3: Get Individual Resources > API Groups > gets API group details in JSON format | 1ms |
-| ⏭️ | Phase 3: Get Individual Resources > API Groups > gets API group details in summary format | 0ms |
-| ⏭️ | Phase 3: Get Individual Resources > API Groups > gets API group as XanoScript | 0ms |
-| ⏭️ | Phase 3: Get Individual Resources > API Endpoints > gets API endpoint details in JSON format | 0ms |
-| ⏭️ | Phase 3: Get Individual Resources > API Endpoints > gets API endpoint details in summary format | 0ms |
-| ⏭️ | Phase 3: Get Individual Resources > API Endpoints > gets API endpoint as XanoScript | 1ms |
+| ⏭️ | Phase 6: Delete Resources (Cleanup) > deletes POST API endpoint > deletes POST API endpoint | 0ms |
+| ⏭️ | Phase 6: Delete Resources (Cleanup) > deletes GET API endpoint > deletes GET API endpoint | 0ms |
+| ⏭️ | Phase 6: Delete Resources (Cleanup) > deletes API group > deletes API group | 0ms |
+| ⏭️ | Phase 6: Delete Resources (Cleanup) > deletes XanoScript table > deletes XanoScript table | 0ms |
+| ⏭️ | Phase 6: Delete Resources (Cleanup) > deletes main table > deletes main table | 0ms |
 
 ---
 
 ## Detailed Test Results
 
-### Phase 3: Get Individual Resources
+### Phase 6: Delete Resources (Cleanup)
 
-#### Tables
+#### deletes POST API endpoint
 
-##### ⏭️ gets table details in JSON format
-
-- **Status:** skipped
-- **Duration:** 1ms
-
-##### ⏭️ gets table details in summary format
+##### ⏭️ deletes POST API endpoint
 
 - **Status:** skipped
 - **Duration:** 0ms
 
-##### ⏭️ gets table as XanoScript
+#### deletes GET API endpoint
+
+##### ⏭️ deletes GET API endpoint
 
 - **Status:** skipped
 - **Duration:** 0ms
 
-##### ⏭️ gets XanoScript table with schema
+#### deletes API group
+
+##### ⏭️ deletes API group
 
 - **Status:** skipped
 - **Duration:** 0ms
 
-#### API Groups
+#### deletes XanoScript table
 
-##### ⏭️ gets API group details in JSON format
-
-- **Status:** skipped
-- **Duration:** 1ms
-
-##### ⏭️ gets API group details in summary format
+##### ⏭️ deletes XanoScript table
 
 - **Status:** skipped
 - **Duration:** 0ms
 
-##### ⏭️ gets API group as XanoScript
+#### deletes main table
+
+##### ⏭️ deletes main table
 
 - **Status:** skipped
 - **Duration:** 0ms
-
-#### API Endpoints
-
-##### ⏭️ gets API endpoint details in JSON format
-
-- **Status:** skipped
-- **Duration:** 0ms
-
-##### ⏭️ gets API endpoint details in summary format
-
-- **Status:** skipped
-- **Duration:** 0ms
-
-##### ⏭️ gets API endpoint as XanoScript
-
-- **Status:** skipped
-- **Duration:** 1ms
 
 ---
 
