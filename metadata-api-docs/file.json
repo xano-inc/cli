@@ -1,0 +1,530 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - FILE",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/workspace/{workspace_id}/file/bulk_delete": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/file/bulk_delete|DELETE",
+        "summary": "Delete multiple files permanently. This action cannot be undone.",
+        "description": "Delete multiple files permanently. This action cannot be undone.\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace File: Delete",
+        "tags": [
+          "file"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": ""
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    }
+                  }
+                },
+                "required": [
+                  "ids"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    }
+                  }
+                },
+                "required": [
+                  "ids"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/file/{file_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/file/{file_id}|DELETE",
+        "summary": "Delete a file permanently. This action cannot be undone.",
+        "description": "Delete a file permanently. This action cannot be undone.\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace File: Delete",
+        "tags": [
+          "file"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": ""
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/file": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/file|GET",
+        "summary": "Retrieve workspace files with optional search, filtering, and pagination",
+        "description": "Retrieve workspace files with optional search, filtering, and pagination\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace File: Read",
+        "tags": [
+          "file"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "access",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "public",
+                "private"
+              ],
+              "default": "public"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "name",
+                "size",
+                "mime"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 10095
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "file_example_MP3_1MG.mp3"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1087849
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "",
+                            "default": "audio"
+                          },
+                          "mime": {
+                            "type": "string",
+                            "description": "",
+                            "default": "audio/mpeg"
+                          },
+                          "access": {
+                            "type": "string",
+                            "description": "",
+                            "default": "public"
+                          },
+                          "path": {
+                            "type": "string",
+                            "description": "",
+                            "default": "/vault/Ramtdv50/3TA6XKsmLe-2BigGnwxSb0v00sI/qSWtbg../file_example_MP3_1MG.mp3"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/file|POST",
+        "summary": "Upload files to workspace",
+        "description": "Upload files to workspace\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace File: Create",
+        "tags": [
+          "file"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 10095
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "file_example_MP3_1MG.mp3"
+                    },
+                    "size": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1087849
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "",
+                      "default": "audio"
+                    },
+                    "mime": {
+                      "type": "string",
+                      "description": "",
+                      "default": "audio/mpeg"
+                    },
+                    "access": {
+                      "type": "string",
+                      "description": "",
+                      "default": "public"
+                    },
+                    "path": {
+                      "type": "string",
+                      "description": "",
+                      "default": "/vault/Ramtdv50/3TA6XKsmLe-2BigGnwxSb0v00sI/qSWtbg../file_example_MP3_1MG.mp3"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": ""
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "",
+                    "enum": [
+                      "image",
+                      "video",
+                      "audio"
+                    ]
+                  },
+                  "access": {
+                    "type": "string",
+                    "description": "",
+                    "enum": [
+                      "public",
+                      "private"
+                    ],
+                    "default": "public"
+                  }
+                },
+                "required": [
+                  "content"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

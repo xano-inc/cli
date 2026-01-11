@@ -1,0 +1,377 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - DATASOURCE",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/workspace/{workspace_id}/datasource/{label}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/datasource/{label}|DELETE",
+        "summary": "Delete a data source permanently. This action cannot be undone.",
+        "description": "Delete a data source permanently. This action cannot be undone.\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nInstance Workspace: Delete",
+        "tags": [
+          "workspace / datasource"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/datasource/{label}|PUT",
+        "summary": "Update an existing data source's label and color properties",
+        "description": "Update an existing data source's label and color properties\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nInstance Workspace: Update",
+        "tags": [
+          "workspace / datasource"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "type": "string",
+                      "description": "",
+                      "default": "#008000"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "",
+                      "default": "live"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "color": {
+                    "type": "string",
+                    "description": "",
+                    "default": "#ebc346"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "color": {
+                    "type": "string",
+                    "description": "",
+                    "default": "#ebc346"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/datasource": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/datasource|GET",
+        "summary": "Retrieve all external data sources for a workspace",
+        "description": "Retrieve all external data sources for a workspace\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nInstance Workspace: Read",
+        "tags": [
+          "workspace / datasource"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "color": {
+                        "type": "string",
+                        "description": "",
+                        "default": "#008000"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "",
+                        "default": "live"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/datasource|POST",
+        "summary": "Create a new external data source with custom label and color",
+        "description": "Create a new external data source with custom label and color\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nInstance Workspace: Create",
+        "tags": [
+          "workspace / datasource"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "type": "string",
+                      "description": "",
+                      "default": "#008000"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "",
+                      "default": "live"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "",
+                    "default": "#ebc346"
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "",
+                    "default": "#ebc346"
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

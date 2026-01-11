@@ -1,0 +1,2096 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - REALTIME",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/workspace/{workspace_id}/realtime/channel/trigger/{trigger_id}/security": {
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/trigger/{trigger_id}/security|PUT",
+        "summary": "Update realtime trigger security configuration and access controls",
+        "description": "Update realtime trigger security configuration and access controls\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Realtime Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My realtime trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "join": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/realtime/channel/trigger/{trigger_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/trigger/{trigger_id}|DELETE",
+        "summary": "Delete a realtime trigger permanently. This action cannot be undone",
+        "description": "Delete a realtime trigger permanently. This action cannot be undone\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/trigger/{trigger_id}|GET",
+        "summary": "Retrieve a realtime trigger by ID",
+        "description": "Retrieve a realtime trigger by ID\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Realtime Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My realtime trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "join": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/trigger/{trigger_id}|PUT",
+        "summary": "Update realtime trigger using XanoScript",
+        "description": "Update realtime trigger using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "publish",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Realtime Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My realtime trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "join": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "realtime_trigger foo {\n  channel = \"my_channel\"\n  input {\n    enum action {\n      values = [\"message\", \"join\"]\n    }\n    text channel\n    object client {\n      schema {\n        json extras\n        object permissions {\n          schema {\n            int dbo_id\n            text row_id\n          }\n        }\n      }\n    }\n    object options {\n      schema {\n        bool authenticated\n        text channel\n      }\n    }\n    json payload\n  }\n  stack {\n    var $x1 {\n      value = 123\n    }\n  }\n  actions = {join: true}\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/realtime/channel/trigger": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/trigger|GET",
+        "summary": "Retrieve all realtime triggers",
+        "description": "Retrieve all realtime triggers\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "name"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "Realtime Trigger"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "",
+                            "default": "My realtime trigger test description"
+                          },
+                          "guid": {
+                            "type": "string",
+                            "description": "",
+                            "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "tag": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "example tag"
+                            ]
+                          },
+                          "actions": {
+                            "type": "object",
+                            "properties": {
+                              "message": {
+                                "type": "boolean",
+                                "description": ""
+                              },
+                              "join": {
+                                "type": "boolean",
+                                "description": ""
+                              }
+                            }
+                          },
+                          "xanoscript": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "",
+                                "enum": [
+                                  "ok",
+                                  "error"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/trigger|POST",
+        "summary": "Create a new realtime trigger using XanoScript",
+        "description": "Create a new realtime trigger using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Realtime Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My realtime trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "join": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "realtime_trigger foo {\n  channel = \"my_channel\"\n  input {\n    enum action {\n      values = [\"message\", \"join\"]\n    }\n    text channel\n    object client {\n      schema {\n        json extras\n        object permissions {\n          schema {\n            int dbo_id\n            text row_id\n          }\n        }\n      }\n    }\n    object options {\n      schema {\n        bool authenticated\n        text channel\n      }\n    }\n    json payload\n  }\n  stack {\n    var $x1 {\n      value = 123\n    }\n  }\n  actions = {connection: true}\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/realtime/channel/{channel_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/{channel_id}|DELETE",
+        "summary": "Delete a realtime channel permanently. This action cannot be undone",
+        "description": "Delete a realtime channel permanently. This action cannot be undone\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/{channel_id}|GET",
+        "summary": "get realtime channel",
+        "description": "get realtime channel\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Channel Name"
+                    },
+                    "active": {
+                      "type": "boolean",
+                      "description": "",
+                      "default": true
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel/{channel_id}|PUT",
+        "summary": "Update realtime channel details using XanoScript",
+        "description": "Update realtime channel details using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Channel Name"
+                    },
+                    "active": {
+                      "type": "boolean",
+                      "description": "",
+                      "default": true
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "realtime_channel foo {\n  public_messaging = {active: false}\n  private_messaging = {active: false}\n  settings = {\n    anonymous_clients: false\n    nested_channels  : false\n    message_history  : 0\n    auth_channel     : false\n    presence         : false\n  }\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/realtime/channel": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel|GET",
+        "summary": "Retrieve all realtime channels",
+        "description": "Retrieve all realtime channels\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name"
+              ],
+              "default": "name"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "Channel Name"
+                          },
+                          "active": {
+                            "type": "boolean",
+                            "description": "",
+                            "default": true
+                          },
+                          "xanoscript": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "",
+                                "enum": [
+                                  "ok",
+                                  "error"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime/channel|POST",
+        "summary": "Create a new realtime channel using XanoScript",
+        "description": "Create a new realtime channel using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "realtime"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Channel Name"
+                    },
+                    "active": {
+                      "type": "boolean",
+                      "description": "",
+                      "default": true
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "realtime_channel foo {\n  public_messaging = {active: false}\n  private_messaging = {active: false}\n  settings = {\n    anonymous_clients: false\n    nested_channels  : false\n    message_history  : 0\n    auth_channel     : false\n    presence         : false\n  }\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/realtime": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime|GET",
+        "summary": "Retrieve real-time operational metrics and connection details",
+        "description": "Retrieve real-time operational metrics and connection details\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nInstance Workspace: Read",
+        "tags": [
+          "realtime"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "description": ""
+                    },
+                    "hash": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Dl3HlakmBZDhezv6yml7hliTM20"
+                    },
+                    "channels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "anonymous_clients": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_authenticated_messaging": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_private_messaging": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_private_messaging_authenticated_only": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_public_messaging": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_public_messaging_authenticated_only": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "pattern": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "presence": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "wildcard": {
+                            "type": "boolean",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "deprecated": true
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/realtime|PUT",
+        "summary": "Update real-time settings and connection configuration",
+        "description": "Update real-time settings and connection configuration\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nInstance Workspace: Update",
+        "tags": [
+          "realtime"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "description": ""
+                    },
+                    "hash": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Dl3HlakmBZDhezv6yml7hliTM20"
+                    },
+                    "channels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "anonymous_clients": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_authenticated_messaging": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_private_messaging": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_private_messaging_authenticated_only": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_public_messaging": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "client_public_messaging_authenticated_only": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "pattern": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "presence": {
+                            "type": "boolean",
+                            "description": ""
+                          },
+                          "wildcard": {
+                            "type": "boolean",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "deprecated": true,
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "hash": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "channels": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "anonymous_clients": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_authenticated_messaging": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_private_messaging": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_private_messaging_authenticated_only": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_public_messaging": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_public_messaging_authenticated_only": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "enabled": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "history": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            0,
+                            25,
+                            50,
+                            100,
+                            250,
+                            1000
+                          ]
+                        },
+                        "id": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": ""
+                        },
+                        "pattern": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "presence": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "wildcard": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      },
+                      "required": [
+                        "pattern"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "hash": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "channels": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "anonymous_clients": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_authenticated_messaging": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_private_messaging": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_private_messaging_authenticated_only": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_public_messaging": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "client_public_messaging_authenticated_only": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "enabled": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "history": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            0,
+                            25,
+                            50,
+                            100,
+                            250,
+                            1000
+                          ]
+                        },
+                        "id": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": ""
+                        },
+                        "pattern": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "presence": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "wildcard": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      },
+                      "required": [
+                        "pattern"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

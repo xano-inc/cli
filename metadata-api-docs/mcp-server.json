@@ -1,0 +1,1852 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - MCP SERVER",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/mcp_server/documentation": {
+      "get": {
+        "operationId": "Xano Metadata API/mcp_server/documentation|GET",
+        "summary": "Documentation endpoint that provides a comprehensive overview of the MCP Server's operation and includes detailed documentation for the XanoScript syntax. Use the type \"start\" to view all available commands.",
+        "description": "Documentation endpoint that provides a comprehensive overview of the MCP Server's operation and includes detailed documentation for the XanoScript syntax. Use the type \"start\" to view all available commands.\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "start"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": ""
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/mcp_server/trigger/{trigger_id}/security": {
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/trigger/{trigger_id}/security|PUT",
+        "summary": "Update mcp_server trigger security configuration and access controls",
+        "description": "Update mcp_server trigger security configuration and access controls\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/mcp_server/trigger/{trigger_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/trigger/{trigger_id}|DELETE",
+        "summary": "Delete a mcp_server trigger permanently. This action cannot be undone",
+        "description": "Delete a mcp_server trigger permanently. This action cannot be undone\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/trigger/{trigger_id}|GET",
+        "summary": "Retrieve an mcp_server trigger by ID",
+        "description": "Retrieve an mcp_server trigger by ID\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/trigger/{trigger_id}|PUT",
+        "summary": "Update mcp_server trigger using XanoScript",
+        "description": "Update mcp_server trigger using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "publish",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "mcp_server_trigger foo {\n  mcp_server = \"my_server\"\n  input {\n    object toolset {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n    object[] tools {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n  }\n  stack {\n    var $x1 {\n      value = 123\n    }\n  }\n  actions = {connection: true}\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/mcp_server/trigger": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/trigger|GET",
+        "summary": "Retrieve all mcp_server triggers",
+        "description": "Retrieve all mcp_server triggers\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "name"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "Agent Trigger"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "",
+                            "default": "My agent trigger test description"
+                          },
+                          "guid": {
+                            "type": "string",
+                            "description": "",
+                            "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "tag": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "example tag"
+                            ]
+                          },
+                          "actions": {
+                            "type": "object",
+                            "properties": {
+                              "connection": {
+                                "type": "boolean",
+                                "description": ""
+                              }
+                            }
+                          },
+                          "xanoscript": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "",
+                                "enum": [
+                                  "ok",
+                                  "error"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/trigger|POST",
+        "summary": "Create a new mcp_server trigger using XanoScript",
+        "description": "Create a new mcp_server trigger using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "mcp_server_trigger foo {\n  mcp_server = \"my_server\"\n  input {\n    object toolset {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n    object[] tools {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n  }\n  stack {\n    var $x1 {\n      value = 123\n    }\n  }\n  actions = {connection: true}\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/mcp_server/{mcp_server_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/{mcp_server_id}|DELETE",
+        "summary": "Delete a MCP server permanently. This action cannot be undone",
+        "description": "Delete a MCP server permanently. This action cannot be undone\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "mcp_server_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/{mcp_server_id}|GET",
+        "summary": "Retrieve a specific MCP server by ID",
+        "description": "Retrieve a specific MCP server by ID\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "mcp_server_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "MCP Server Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My MCP Server description"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server/{mcp_server_id}|PUT",
+        "summary": "Update MCP server details using XanoScript",
+        "description": "Update MCP server details using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "mcp_server_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "MCP Server Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My MCP Server description"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "mcp_server foo {\n  description = \"test\"\n  canonical = \"custom\"\n  tags = [\"test\"]\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/mcp_server": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server|GET",
+        "summary": "Retrieve all MCP servers in a workspace",
+        "description": "Retrieve all MCP servers in a workspace\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "name"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "MCP Server Test"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "",
+                            "default": "My MCP Server description"
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "tag": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "example tag"
+                            ]
+                          },
+                          "xanoscript": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "",
+                                "enum": [
+                                  "ok",
+                                  "error"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/mcp_server|POST",
+        "summary": "Create a new MCP server using XanoScript",
+        "description": "Create a new MCP server using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "mcp server"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "MCP Server Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My MCP Server description"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "mcp_server foo {\n  description = \"test\"\n  canonical = \"custom\"\n  tags = [\"test\"]\n}\n"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

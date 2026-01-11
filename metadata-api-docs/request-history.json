@@ -1,0 +1,2206 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - REQUEST HISTORY",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/workspace/{workspace_id}/function_history/search": {
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function_history/search|POST",
+        "summary": "Search function request history using advanced filters and custom sorting options",
+        "description": "Search function request history using advanced filters and custom sorting options\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "function_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "function_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch": null,
+                  "function_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "function_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch": null,
+                  "function_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/function_history": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function_history|GET",
+        "summary": "Retrieve API function request history",
+        "description": "Retrieve API function request history\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "function_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "include_output",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "function_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/middleware_history/search": {
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/middleware_history/search|POST",
+        "summary": "Search middleware request history using advanced filters and custom sorting options",
+        "description": "Search middleware request history using advanced filters and custom sorting options\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "middleware_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "query_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "function_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "task_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "middleware_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "query_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "function_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "task_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch": null,
+                  "middleware_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "middleware_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "query_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "function_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "task_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch": null,
+                  "middleware_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/middleware_history": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/middleware_history|GET",
+        "summary": "Retrieve middleware request history",
+        "description": "Retrieve middleware request history\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "middleware_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "query_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "function_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "include_output",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "middleware_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "query_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "function_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "task_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/request_history/search": {
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/request_history/search|POST",
+        "summary": "Search API request history using advanced filters and custom sorting options",
+        "description": "Search API request history using advanced filters and custom sorting options\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "status": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 200
+                          },
+                          "verb": {
+                            "type": "string",
+                            "description": "",
+                            "default": "GET"
+                          },
+                          "uri": {
+                            "type": "string",
+                            "description": "",
+                            "default": "https://x1234-4567-8901.n7.xano.com/api:meta"
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "request_headers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "Accept: application/json"
+                            ]
+                          },
+                          "response_headers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "Content-Type: application/json"
+                            ]
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "api_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "query_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "apigroup_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "query_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch": null,
+                  "apigroup_id": null,
+                  "query_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "apigroup_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "query_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch": null,
+                  "apigroup_id": null,
+                  "query_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/request_history": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/request_history|GET",
+        "summary": "Retrieve API request history",
+        "description": "Retrieve API request history\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "apigroup_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "query_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "include_output",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "status": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 200
+                          },
+                          "verb": {
+                            "type": "string",
+                            "description": "",
+                            "default": "GET"
+                          },
+                          "uri": {
+                            "type": "string",
+                            "description": "",
+                            "default": "https://x1234-4567-8901.n7.xano.com/api:meta"
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "request_headers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "Accept: application/json"
+                            ]
+                          },
+                          "response_headers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "Content-Type: application/json"
+                            ]
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "api_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "query_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/task_history/search": {
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/task_history/search|POST",
+        "summary": "Search task request history using advanced filters and custom sorting options",
+        "description": "Search task request history using advanced filters and custom sorting options\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "task_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "task_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch_id": null,
+                  "task_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "task_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "branch_id": null,
+                  "task_id": null,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/task_history": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/task_history|GET",
+        "summary": "Retrieve task request history",
+        "description": "Retrieve task request history\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "include_output",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "task_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/trigger_history/search": {
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/trigger_history/search|POST",
+        "summary": "Search trigger request history using advanced filters and custom sorting options",
+        "description": "Search trigger request history using advanced filters and custom sorting options\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "trigger_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "trigger_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 1
+                  },
+                  "per_page": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "",
+                    "default": 50
+                  },
+                  "trigger_id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": ""
+                  },
+                  "search": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "sort": {
+                    "type": "object",
+                    "description": ""
+                  },
+                  "include_output": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "example": {
+                  "page": 1,
+                  "per_page": 50,
+                  "sort": {
+                    "created_at": "desc"
+                  },
+                  "search": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/trigger_history": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/trigger_history|GET",
+        "summary": "Retrieve trigger request history",
+        "description": "Retrieve trigger request history\n<br /><br />\n<b>Authentication:</b> required\n<br /><br />\n<b>Required API Scope:</b>\nWorkspace Request History: Read",
+        "tags": [
+          "request history"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "include_output",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-12 18:34:01+0000"
+                          },
+                          "duration": {
+                            "type": "number",
+                            "description": "",
+                            "default": 0.025
+                          },
+                          "input": {
+                            "type": "object",
+                            "description": "",
+                            "default": {
+                              "page": 1
+                            }
+                          },
+                          "workspace_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "trigger_id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    }
+  }
+}

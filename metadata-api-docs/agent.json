@@ -1,0 +1,1798 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - AGENT",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/workspace/{workspace_id}/agent/trigger/{trigger_id}/security": {
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/trigger/{trigger_id}/security|PUT",
+        "summary": "Update agent trigger security configuration and access controls",
+        "description": "Update agent trigger security configuration and access controls\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/agent/trigger/{trigger_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/trigger/{trigger_id}|DELETE",
+        "summary": "Delete a agent trigger permanently. This action cannot be undone",
+        "description": "Delete a agent trigger permanently. This action cannot be undone\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/trigger/{trigger_id}|GET",
+        "summary": "Retrieve an agent trigger by ID",
+        "description": "Retrieve an agent trigger by ID\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/trigger/{trigger_id}|PUT",
+        "summary": "Update agent trigger using XanoScript",
+        "description": "Update agent trigger using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "trigger_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "publish",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "agent_trigger foo {\n  agent = \"my_agent\"\n  input {\n    object toolset {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n    object[] tools {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n  }\n  stack {\n    var $x1 {\n      value = 123\n    }\n  }\n  actions = {connection: true}\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/agent/trigger": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/trigger|GET",
+        "summary": "Retrieve all agent triggers",
+        "description": "Retrieve all agent triggers\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "name"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "Agent Trigger"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "",
+                            "default": "My agent trigger test description"
+                          },
+                          "guid": {
+                            "type": "string",
+                            "description": "",
+                            "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "tag": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "example tag"
+                            ]
+                          },
+                          "actions": {
+                            "type": "object",
+                            "properties": {
+                              "connection": {
+                                "type": "boolean",
+                                "description": ""
+                              }
+                            }
+                          },
+                          "xanoscript": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "",
+                                "enum": [
+                                  "ok",
+                                  "error"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/trigger|POST",
+        "summary": "Create a new agent trigger using XanoScript",
+        "description": "Create a new agent trigger using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent trigger"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Trigger"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent trigger test description"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "actions": {
+                      "type": "object",
+                      "properties": {
+                        "connection": {
+                          "type": "boolean",
+                          "description": ""
+                        }
+                      }
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "agent_trigger foo {\n  agent = \"my_agent\"\n  input {\n    object toolset {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n    object[] tools {\n      schema {\n        int id\n        text name\n        text instructions\n      }\n    }\n  }\n  stack {\n    var $x1 {\n      value = 123\n    }\n  }\n  actions = {connection: true}\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/agent/{agent_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/{agent_id}|DELETE",
+        "summary": "Delete a agent permanently. This action cannot be undone",
+        "description": "Delete a agent permanently. This action cannot be undone\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/{agent_id}|GET",
+        "summary": "Retrieve a specific agent by ID",
+        "description": "Retrieve a specific agent by ID\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent description"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "llm": {
+                      "type": "string",
+                      "description": "",
+                      "default": "anthropic"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent/{agent_id}|PUT",
+        "summary": "Update agent details using XanoScript",
+        "description": "Update agent details using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent description"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "llm": {
+                      "type": "string",
+                      "description": "",
+                      "default": "anthropic"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "agent foo {\n  canonical = \"custom\"\n  llm = {\n    type         : \"anthropic\"\n    system_prompt: \"You are a helpful AI Agent.\"\n    max_steps    : 5\n    prompt       : \"\"\n    model        : \"claude-4-sonnet-20250514\"\n    temperature. : 1\n    reasoning    : true\n    baseURL      : \"\"\n    headers      : \"\"\n  }\n}\n"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/agent": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent|GET",
+        "summary": "Retrieve all agents in a workspace",
+        "description": "Retrieve all agents in a workspace\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "name"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "Agent Test"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "",
+                            "default": "My agent description"
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "llm": {
+                            "type": "string",
+                            "description": "",
+                            "default": "anthropic"
+                          },
+                          "tag": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "example tag"
+                            ]
+                          },
+                          "xanoscript": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "",
+                                "enum": [
+                                  "ok",
+                                  "error"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/agent|POST",
+        "summary": "Create a new agent using XanoScript",
+        "description": "Create a new agent using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Agent Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My agent description"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "llm": {
+                      "type": "string",
+                      "description": "",
+                      "default": "anthropic"
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "agent foo {\n  canonical = \"custom\"\n  llm = {\n    type         : \"anthropic\"\n    system_prompt: \"You are a helpful AI Agent.\"\n    max_steps    : 5\n    prompt       : \"\"\n    model        : \"claude-4-sonnet-20250514\"\n    temperature  : 1\n    reasoning    : true\n    baseURL      : \"\"\n    headers      : \"\"\n  }\n}\n"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,775 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - STATIC HOST",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/workspace/{workspace_id}/static_host/{static_host}/build/{build_id}/env": {
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/static_host/{static_host}/build/{build_id}/env|POST",
+        "summary": "update static hosting environment",
+        "description": "update static hosting environment\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "static host"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "static_host",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "build_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "env": {
+                    "type": "string",
+                    "description": "",
+                    "enum": [
+                      "prod",
+                      "dev"
+                    ]
+                  }
+                },
+                "required": [
+                  "env"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "env": {
+                    "type": "string",
+                    "description": "",
+                    "enum": [
+                      "prod",
+                      "dev"
+                    ]
+                  }
+                },
+                "required": [
+                  "env"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/static_host/{static_host}/build/{build_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/static_host/{static_host}/build/{build_id}|DELETE",
+        "summary": "delete a static host build",
+        "description": "delete a static host build\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "static host"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "static_host",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "build_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/static_host/{static_host}/build/{build_id}|GET",
+        "summary": "Retrieve a specific build for a static host",
+        "description": "Retrieve a specific build for a static host\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "static host"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "static_host",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "build_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": ""
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/static_host/{static_host}/build": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/static_host/{static_host}/build|GET",
+        "summary": "Retrieve builds for a static host",
+        "description": "Retrieve builds for a static host\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "static host"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "static_host",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": ""
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": ""
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "canonical": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "file_count": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "file_bytes": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "original": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "",
+                            "default": "pending"
+                          },
+                          "log": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "static_host": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "format": "int64",
+                                "description": ""
+                              }
+                            }
+                          },
+                          "user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "format": "int64",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemsReceived": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "perPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/static_host/{static_host}/build|POST",
+        "summary": "create a static host build",
+        "description": "create a static host build\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "static host"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "static_host",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": ""
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "file",
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/static_host": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/static_host|GET",
+        "summary": "Retrieve workspace static hosts",
+        "description": "Retrieve workspace static hosts\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "static host"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": ""
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": ""
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": ""
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "workspace": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "format": "int64",
+                                "description": ""
+                              }
+                            }
+                          },
+                          "dev": {
+                            "type": "object",
+                            "properties": {
+                              "canonical": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "host": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "custom": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          },
+                          "prod": {
+                            "type": "object",
+                            "properties": {
+                              "canonical": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "host": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "custom": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          },
+                          "git": {
+                            "type": "object",
+                            "properties": {
+                              "repo": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "private_key": {
+                                "type": "string",
+                                "description": "",
+                                "format": "workspace_secret"
+                              },
+                              "public_key": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemsReceived": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "perPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    }
+  }
+}

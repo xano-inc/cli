@@ -1,0 +1,1542 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Xano Metadata API - FUNCTION",
+    "description": "The <a href=\"https://docs.xano.com/xano-features/metadata-api\" target=\"_blank\">Metadata API</a> provides support\nto programatically manage your Xano instance and uses Access Tokens to\ncontrol access.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/workspace/{workspace_id}/function/{function_id}/security": {
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function/{function_id}/security|PUT",
+        "summary": "Update function security configuration and access controls",
+        "description": "Update function security configuration and access controls\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "function"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "function_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Function Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My functions description"
+                    },
+                    "docs": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Documentation"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "cache": {
+                      "type": "object",
+                      "properties": {
+                        "active": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "ttl": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "",
+                          "default": 3600
+                        },
+                        "input": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "auth": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "datasource": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "ip": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        },
+                        "env": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        }
+                      }
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "guid": {
+                    "type": "string",
+                    "description": ""
+                  }
+                },
+                "required": [
+                  "guid"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/function/{function_id}": {
+      "delete": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function/{function_id}|DELETE",
+        "summary": "Delete a function permanently. This action cannot be undone",
+        "description": "Delete a function permanently. This action cannot be undone\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "function"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "function_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function/{function_id}|GET",
+        "summary": "Retrieve a specific function by ID",
+        "description": "Retrieve a specific function by ID\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "function"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "function_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Function Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My functions description"
+                    },
+                    "docs": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Documentation"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "cache": {
+                      "type": "object",
+                      "properties": {
+                        "active": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "ttl": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "",
+                          "default": 3600
+                        },
+                        "input": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "auth": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "datasource": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "ip": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        },
+                        "env": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        }
+                      }
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function/{function_id}|PUT",
+        "summary": "Update function code, metadata, and caching settings",
+        "description": "Update function code, metadata, and caching settings\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "function"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "function_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "publish",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Function Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My functions description"
+                    },
+                    "docs": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Documentation"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "cache": {
+                      "type": "object",
+                      "properties": {
+                        "active": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "ttl": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "",
+                          "default": 3600
+                        },
+                        "input": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "auth": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "datasource": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "ip": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        },
+                        "env": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        }
+                      }
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "function foo {\n  input {\n    int score\n  }\n  stack {\n    var $x1 {\n      value = $input.score + 1\n    }\n  }\n  response = $x1\n}\n"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "docs": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "tag": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": ""
+                    },
+                    "nullable": true
+                  },
+                  "publish": {
+                    "type": "boolean",
+                    "description": "",
+                    "default": true
+                  },
+                  "cache": {
+                    "type": "object",
+                    "properties": {
+                      "active": {
+                        "type": "boolean",
+                        "description": ""
+                      },
+                      "ttl": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "",
+                        "default": 3600
+                      },
+                      "input": {
+                        "type": "boolean",
+                        "description": "",
+                        "default": true
+                      },
+                      "auth": {
+                        "type": "boolean",
+                        "description": "",
+                        "default": true
+                      },
+                      "datasource": {
+                        "type": "boolean",
+                        "description": "",
+                        "default": true
+                      },
+                      "ip": {
+                        "type": "boolean",
+                        "description": ""
+                      },
+                      "headers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      },
+                      "env": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "description"
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "docs": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "tag": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": ""
+                    },
+                    "nullable": true
+                  },
+                  "publish": {
+                    "type": "boolean",
+                    "description": "",
+                    "default": true
+                  },
+                  "cache": {
+                    "type": "object",
+                    "properties": {
+                      "active": {
+                        "type": "boolean",
+                        "description": ""
+                      },
+                      "ttl": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "",
+                        "default": 3600
+                      },
+                      "input": {
+                        "type": "boolean",
+                        "description": "",
+                        "default": true
+                      },
+                      "auth": {
+                        "type": "boolean",
+                        "description": "",
+                        "default": true
+                      },
+                      "datasource": {
+                        "type": "boolean",
+                        "description": "",
+                        "default": true
+                      },
+                      "ip": {
+                        "type": "boolean",
+                        "description": ""
+                      },
+                      "headers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      },
+                      "env": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "description"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/{workspace_id}/function": {
+      "get": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function|GET",
+        "summary": "Retrieve all functions in a workspace",
+        "description": "Retrieve all functions in a workspace\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "function"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_draft",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 50
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "name"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": ""
+                    },
+                    "nextPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "prevPage": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "nullable": true
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "",
+                            "default": 1
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "timestamptz",
+                            "description": "",
+                            "default": "2023-04-19 21:01:32+0000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "",
+                            "default": "Function Test"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "",
+                            "default": "My functions description"
+                          },
+                          "docs": {
+                            "type": "string",
+                            "description": "",
+                            "default": "Documentation"
+                          },
+                          "guid": {
+                            "type": "string",
+                            "description": "",
+                            "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                          },
+                          "branch": {
+                            "type": "string",
+                            "description": "",
+                            "default": "v1"
+                          },
+                          "cache": {
+                            "type": "object",
+                            "properties": {
+                              "active": {
+                                "type": "boolean",
+                                "description": ""
+                              },
+                              "ttl": {
+                                "type": "integer",
+                                "format": "int64",
+                                "description": "",
+                                "default": 3600
+                              },
+                              "input": {
+                                "type": "boolean",
+                                "description": "",
+                                "default": true
+                              },
+                              "auth": {
+                                "type": "boolean",
+                                "description": "",
+                                "default": true
+                              },
+                              "datasource": {
+                                "type": "boolean",
+                                "description": "",
+                                "default": true
+                              },
+                              "ip": {
+                                "type": "boolean",
+                                "description": ""
+                              },
+                              "headers": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "description": ""
+                                },
+                                "default": [
+                                  ""
+                                ]
+                              },
+                              "env": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "description": ""
+                                },
+                                "default": [
+                                  ""
+                                ]
+                              }
+                            }
+                          },
+                          "tag": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": ""
+                            },
+                            "default": [
+                              "example tag"
+                            ]
+                          },
+                          "xanoscript": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "",
+                                "enum": [
+                                  "ok",
+                                  "error"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": ""
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": ""
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "Xano Metadata API/workspace/{workspace_id}/function|POST",
+        "summary": "Create a new function using XanoScript",
+        "description": "Create a new function using XanoScript\n<br /><br />\n<b>Authentication:</b> required",
+        "tags": [
+          "function"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "include_xanoscript",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "",
+                      "default": 1
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "timestamptz",
+                      "description": "",
+                      "default": "2023-04-19 21:01:32+0000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Function Test"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "default": "My functions description"
+                    },
+                    "docs": {
+                      "type": "string",
+                      "description": "",
+                      "default": "Documentation"
+                    },
+                    "guid": {
+                      "type": "string",
+                      "description": "",
+                      "default": "YE1fwVhQ-enRlc6Sb42Gqru58-0"
+                    },
+                    "branch": {
+                      "type": "string",
+                      "description": "",
+                      "default": "v1"
+                    },
+                    "cache": {
+                      "type": "object",
+                      "properties": {
+                        "active": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "ttl": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "",
+                          "default": 3600
+                        },
+                        "input": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "auth": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "datasource": {
+                          "type": "boolean",
+                          "description": "",
+                          "default": true
+                        },
+                        "ip": {
+                          "type": "boolean",
+                          "description": ""
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        },
+                        "env": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "description": ""
+                          },
+                          "default": [
+                            ""
+                          ]
+                        }
+                      }
+                    },
+                    "tag": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "description": ""
+                      },
+                      "default": [
+                        "example tag"
+                      ]
+                    },
+                    "xanoscript": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "",
+                          "enum": [
+                            "ok",
+                            "error"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": ""
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": ""
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input Error. Check the request payload for issues."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied. Additional privileges are needed access the requested resource."
+          },
+          "404": {
+            "description": "Not Found. The requested resource does not exist."
+          },
+          "429": {
+            "description": "Rate Limited. Too many requests."
+          },
+          "500": {
+            "description": "Unexpected error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "text/x-xanoscript": {
+              "schema": {
+                "type": "string",
+                "example": "function foo {\n  input {\n    int score\n  }\n  stack {\n    var $x1 {\n      value = $input.score + 1\n    }\n  }\n  response = $x1\n}\n"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "docs": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "tag": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": ""
+                    },
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "description"
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "branch": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "include_xanoscript": {
+                    "type": "boolean",
+                    "description": ""
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "docs": {
+                    "type": "string",
+                    "description": ""
+                  },
+                  "tag": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": ""
+                    },
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "description"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
