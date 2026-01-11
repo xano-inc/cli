@@ -16,7 +16,7 @@ This document outlines the comprehensive plan to extend the Xano CLI to support 
 | Phase 4 | Table Data Operations | ✅ Complete |
 | Phase 5 | Advanced Resources | ✅ Complete |
 | Phase 6 | Operational Resources | ✅ Complete |
-| Phase 7 | Documentation | 🔄 In Progress |
+| Phase 7 | Documentation | ✅ Complete |
 
 ---
 
@@ -138,7 +138,20 @@ Create comprehensive, accurate documentation for all CLI commands using the buil
    5. Add integration test to verify documentation accuracy
    ```
 
-3. **Documentation Structure**
+3. **XanoScript Troubleshooting**
+   When XanoScript tests fail or generate errors:
+   - **DO NOT SKIP TESTS** - Always troubleshoot to resolution
+   - Reference `xanoscript-docs/xanoscript-ai-documentation-main/` for correct syntax
+   - Check the specific resource guideline file (e.g., `task_guideline.md`)
+   - Check the examples file (e.g., `task_examples.md`)
+   - Common issues:
+     - Incorrect block syntax (use `{}` not `()`)
+     - Missing required fields
+     - Wrong variable references (`$input.x` vs `$x`)
+     - Incorrect return type syntax
+   - If stuck, create minimal XanoScript and add features incrementally
+
+4. **Documentation Structure**
    Each topic should include:
    - Overview - What is it and when to use it
    - Key Concepts - Important terminology
@@ -155,24 +168,23 @@ Create comprehensive, accurate documentation for all CLI commands using the buil
 |-------|--------|---------------|
 | getting-started | ✅ Complete | N/A |
 | addon | ✅ Complete | addon.test.ts |
+| agent | ✅ Complete | phase5.test.ts |
+| api | ✅ Complete | real-api.test.ts |
+| apigroup | ✅ Complete | real-api.test.ts |
+| audit-log | ✅ Complete | phase6.test.ts |
+| branch | ✅ Complete | phase6.test.ts |
+| datasource | ✅ Complete | phase2.test.ts |
+| file | ✅ Complete | phase6.test.ts |
+| function | ✅ Complete | function.test.ts |
+| history | ✅ Complete | phase6.test.ts |
+| mcp-server | ✅ Complete | phase5.test.ts |
+| middleware | ✅ Complete | phase2.test.ts |
+| profile | ✅ Complete | - |
 | table | ✅ Complete | table.test.ts |
-| api | 🔄 In Progress | real-api.test.ts |
-| apigroup | 🔄 In Progress | real-api.test.ts |
-| function | ⏳ Pending | function.test.ts |
-| middleware | ⏳ Pending | phase2.test.ts |
-| task | ⏳ Pending | phase2.test.ts |
-| trigger | ⏳ Pending | phase3.test.ts |
-| agent | ⏳ Pending | phase5.test.ts |
-| mcp-server | ⏳ Pending | phase5.test.ts |
-| tool | ⏳ Pending | phase5.test.ts |
-| realtime | ⏳ Pending | phase5.test.ts |
-| branch | ⏳ Pending | phase6.test.ts |
-| file | ⏳ Pending | phase6.test.ts |
-| audit-log | ⏳ Pending | phase6.test.ts |
-| history | ⏳ Pending | phase6.test.ts |
-| profile | ⏳ Pending | - |
-| workspace | ⏳ Pending | - |
-| datasource | ⏳ Pending | phase2.test.ts |
+| task | ✅ Complete | phase2.test.ts |
+| tool | ✅ Complete | phase5.test.ts |
+| trigger | ✅ Complete | phase3.test.ts |
+| workspace | ✅ Complete | - |
 
 ### Documentation File Structure
 
@@ -180,26 +192,25 @@ Create comprehensive, accurate documentation for all CLI commands using the buil
 src/docs/
 ├── index.ts           # Documentation registry
 └── content/
-    ├── getting-started.ts
     ├── addon.ts
-    ├── table.ts
+    ├── agent.ts
     ├── api.ts
     ├── apigroup.ts
-    ├── function.ts
-    ├── middleware.ts
-    ├── task.ts
-    ├── trigger.ts
-    ├── agent.ts
-    ├── mcp-server.ts
-    ├── tool.ts
-    ├── realtime.ts
-    ├── branch.ts
-    ├── file.ts
     ├── audit-log.ts
+    ├── branch.ts
+    ├── datasource.ts
+    ├── file.ts
+    ├── function.ts
+    ├── getting-started.ts
     ├── history.ts
+    ├── mcp-server.ts
+    ├── middleware.ts
     ├── profile.ts
-    ├── workspace.ts
-    └── datasource.ts
+    ├── table.ts
+    ├── task.ts
+    ├── tool.ts
+    ├── trigger.ts
+    └── workspace.ts
 ```
 
 ### Adding New Documentation

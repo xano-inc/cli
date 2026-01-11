@@ -4,8 +4,8 @@
 
 | Metric | Value |
 |--------|-------|
-| **Run Date** | 2026-01-11T09:44:25.315Z |
-| **Total Duration** | 10.28s |
+| **Run Date** | 2026-01-11T11:30:28.839Z |
+| **Total Duration** | 17.86s |
 | **Profile** | mcp-server |
 | **Workspace** | 40 |
 | **Total Tests** | 11 |
@@ -17,17 +17,17 @@
 
 | Status | Test | Duration |
 |--------|------|----------|
-| PASS | Function Commands > Create Function for Testing > creates a test function | 404ms |
-| PASS | Function Commands > Function Security > updates function security (clear) | 372ms |
-| PASS | Function Commands > Function Security > shows error when no security option provided | 17ms |
-| PASS | Function Commands > Function Delete > deletes the test function | 428ms |
-| PASS | Function Commands > Function Delete > shows error for non-existent function | 91ms |
-| PASS | Workspace Commands > Workspace Get > gets workspace details in summary format | 101ms |
-| PASS | Workspace Commands > Workspace Get > gets workspace details in JSON format | 95ms |
-| PASS | Workspace Commands > Workspace Context > gets workspace context (text format) | 368ms |
-| PASS | Workspace Commands > Workspace OpenAPI > gets workspace OpenAPI spec | 1.90s |
-| PASS | Workspace Commands > Workspace Export/Import Schema > exports workspace schema to file | 399ms |
-| PASS | Workspace Commands > Workspace Export > exports workspace to file | 632ms |
+| PASS | Function Commands > Create Function for Testing > creates a test function | 430ms |
+| PASS | Function Commands > Function Security > updates function security (clear) | 353ms |
+| PASS | Function Commands > Function Security > shows error when no security option provided | 42ms |
+| PASS | Function Commands > Function Delete > deletes the test function | 399ms |
+| PASS | Function Commands > Function Delete > shows error for non-existent function | 87ms |
+| PASS | Workspace Commands > Workspace Get > gets workspace details in summary format | 107ms |
+| PASS | Workspace Commands > Workspace Get > gets workspace details in JSON format | 90ms |
+| PASS | Workspace Commands > Workspace Context > gets workspace context (text format) | 328ms |
+| PASS | Workspace Commands > Workspace OpenAPI > gets workspace OpenAPI spec | 1.57s |
+| PASS | Workspace Commands > Workspace Export/Import Schema > exports workspace schema to file | 428ms |
+| PASS | Workspace Commands > Workspace Export > exports workspace to file | 635ms |
 
 ---
 
@@ -40,18 +40,18 @@
 ##### PASS creates a test function
 
 - **Status:** passed
-- **Duration:** 404ms
-- **Command:** `xano function create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-func-1768124660509.xs -o json`
+- **Duration:** 430ms
+- **Command:** `xano function create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-func-1768131024366.xs -o json`
 - **Output:**
 ```json
 {
-  "id": 165,
-  "created_at": "2026-01-11 09:44:20+0000",
-  "updated_at": "2026-01-11 09:44:20+0000",
-  "name": "test_func_phase1_1768124655037",
+  "id": 166,
+  "created_at": "2026-01-11 11:30:24+0000",
+  "updated_at": "2026-01-11 11:30:24+0000",
+  "name": "test_func_phase1_1768131010974",
   "description": "",
   "docs": "",
-  "guid": "BLNXUFHVlVBy6oOxcWnHRqkZJn8",
+  "guid": "-fIniL4amGqJdegt0algp95UCyA",
   "cache": {
     "active": false,
     "ttl": 3600,
@@ -75,20 +75,20 @@
 ##### PASS updates function security (clear)
 
 - **Status:** passed
-- **Duration:** 372ms
-- **Command:** `xano function security 165 -p mcp-server -w 40 --clear`
+- **Duration:** 353ms
+- **Command:** `xano function security 166 -p mcp-server -w 40 --clear`
 - **Output:**
 ```json
 Function security cleared (no API group restriction)
-ID: 165
-Name: test_func_phase1_1768124655037
+ID: 166
+Name: test_func_phase1_1768131010974
 ```
 
 ##### PASS shows error when no security option provided
 
 - **Status:** passed
-- **Duration:** 17ms
-- **Command:** `xano function security 165 -p mcp-server -w 40`
+- **Duration:** 42ms
+- **Command:** `xano function security 166 -p mcp-server -w 40`
 - **Error:**
 ```
 Either --apigroup-guid or --clear must be provided
@@ -99,8 +99,8 @@ Either --apigroup-guid or --clear must be provided
 ##### PASS deletes the test function
 
 - **Status:** passed
-- **Duration:** 428ms
-- **Command:** `xano function delete 165 -p mcp-server -w 40 --force`
+- **Duration:** 399ms
+- **Command:** `xano function delete 166 -p mcp-server -w 40 --force`
 - **Output:**
 ```json
 Function deleted successfully!
@@ -109,7 +109,7 @@ Function deleted successfully!
 ##### PASS shows error for non-existent function
 
 - **Status:** passed
-- **Duration:** 91ms
+- **Duration:** 87ms
 - **Command:** `xano function delete 999999 -p mcp-server -w 40 --force`
 - **Error:**
 ```
@@ -124,7 +124,7 @@ API request failed with status 404: Not Found
 ##### PASS gets workspace details in summary format
 
 - **Status:** passed
-- **Duration:** 101ms
+- **Duration:** 107ms
 - **Command:** `xano workspace get 40 -p mcp-server`
 - **Output:**
 ```json
@@ -134,7 +134,7 @@ Workspace: CRM Application (ID: 40)
 ##### PASS gets workspace details in JSON format
 
 - **Status:** passed
-- **Duration:** 95ms
+- **Duration:** 90ms
 - **Command:** `xano workspace get 40 -p mcp-server -o json`
 - **Output:**
 ```json
@@ -153,7 +153,7 @@ Workspace: CRM Application (ID: 40)
 ##### PASS gets workspace context (text format)
 
 - **Status:** passed
-- **Duration:** 368ms
+- **Duration:** 328ms
 - **Command:** `xano workspace context 40 -p mcp-server`
 - **Output:**
 ```json
@@ -202,7 +202,7 @@ databaseTables:
 ##### PASS gets workspace OpenAPI spec
 
 - **Status:** passed
-- **Duration:** 1.90s
+- **Duration:** 1.57s
 - **Command:** `xano workspace openapi 40 -p mcp-server`
 - **Output:**
 ```json
@@ -239,11 +239,11 @@ databaseTables:
 ##### PASS exports workspace schema to file
 
 - **Status:** passed
-- **Duration:** 399ms
-- **Command:** `xano workspace export-schema 40 -p mcp-server --file /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/schema-export-1768124664283.xano`
+- **Duration:** 428ms
+- **Command:** `xano workspace export-schema 40 -p mcp-server --file /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/schema-export-1768131027776.xano`
 - **Output:**
 ```json
-Schema exported to /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/schema-export-1768124664283.xano
+Schema exported to /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/schema-export-1768131027776.xano
 ```
 
 #### Workspace Export
@@ -251,10 +251,10 @@ Schema exported to /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/schema-expor
 ##### PASS exports workspace to file
 
 - **Status:** passed
-- **Duration:** 632ms
-- **Command:** `xano workspace export 40 -p mcp-server --file /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/workspace-export-1768124664682.xano`
+- **Duration:** 635ms
+- **Command:** `xano workspace export 40 -p mcp-server --file /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/workspace-export-1768131028205.xano`
 - **Output:**
 ```json
-Workspace exported to /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/workspace-export-1768124664682.xano
+Workspace exported to /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/workspace-export-1768131028205.xano
 ```
 
