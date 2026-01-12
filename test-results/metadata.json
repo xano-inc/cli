@@ -1,0 +1,4691 @@
+{
+  "suite": "metadata",
+  "description": "Branches, Files, Audit Logs, and History",
+  "runDate": "2026-01-11T21:14:42.651Z",
+  "duration": 36469,
+  "profile": "mcp-server",
+  "workspace": "40",
+  "results": [
+    {
+      "name": "lists branches in workspace",
+      "suite": "metadata",
+      "category": "List Branches",
+      "status": "passed",
+      "duration": 228,
+      "command": "xano branch list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "created_at": "2026-01-07 09:11:54+0000",
+          "label": "v1",
+          "backup": false,
+          "live": true
+        }
+      ]
+    },
+    {
+      "name": "lists files in workspace",
+      "suite": "metadata",
+      "category": "List Files",
+      "status": "passed",
+      "duration": 85,
+      "command": "xano file list -p mcp-server -w 40 -o json",
+      "output": []
+    },
+    {
+      "name": "lists audit logs for workspace",
+      "suite": "metadata",
+      "category": "List Audit Logs",
+      "status": "passed",
+      "duration": 253,
+      "command": "xano audit-log list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 7672,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "type": "function:delete",
+          "msg": "Function deleted: test_func_funcws_1768166046145",
+          "label": [
+            "function"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7671,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "type": "function:update",
+          "msg": "Function updated: test_func_funcws_1768166046145",
+          "label": [
+            "function"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7670,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "type": "function:create",
+          "msg": "Function created: test_func_funcws_1768166046145",
+          "label": [
+            "function"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7669,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: renamed_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7668,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: xs_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7667,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "type": "apigroup:delete",
+          "msg": "Apigroup deleted: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7666,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "type": "query:delete",
+          "msg": "GET Query deleted: renamed_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7665,
+          "created_at": "2026-01-11 21:14:34+0000",
+          "type": "query:delete",
+          "msg": "POST Query deleted: post_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7664,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: renamed_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7663,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: renamed_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7662,
+          "created_at": "2026-01-11 21:14:32+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: get_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7661,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7660,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7659,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7658,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "type": "table:update",
+          "msg": "Table updated: renamed_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7657,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "type": "table:update",
+          "msg": "Table updated: renamed_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7656,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "type": "table:update",
+          "msg": "Table updated: integration_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7655,
+          "created_at": "2026-01-11 21:14:26+0000",
+          "type": "query:create",
+          "msg": "POST Query created: post_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7654,
+          "created_at": "2026-01-11 21:14:25+0000",
+          "type": "query:create",
+          "msg": "GET Query created: get_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7653,
+          "created_at": "2026-01-11 21:14:25+0000",
+          "type": "apigroup:create",
+          "msg": "Apigroup created: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7652,
+          "created_at": "2026-01-11 21:14:25+0000",
+          "type": "table:create",
+          "msg": "Table created: xs_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7651,
+          "created_at": "2026-01-11 21:14:24+0000",
+          "type": "table:create",
+          "msg": "Table created: integration_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7650,
+          "created_at": "2026-01-11 21:14:24+0000",
+          "type": "mcp_server:delete",
+          "msg": "Mcp_server deleted: Test MCP _amt_1768166046025",
+          "label": [
+            "mcp_server"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7649,
+          "created_at": "2026-01-11 21:14:24+0000",
+          "type": "mcp_server:update",
+          "msg": "Mcp_server updated: Test MCP _amt_1768166046025",
+          "label": [
+            "mcp_server"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7648,
+          "created_at": "2026-01-11 21:14:23+0000",
+          "type": "mcp_server:create",
+          "msg": "Mcp_server created: Test MCP _amt_1768166046025",
+          "label": [
+            "mcp_server"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7647,
+          "created_at": "2026-01-11 21:14:23+0000",
+          "type": "agent:delete",
+          "msg": "Agent deleted: Test Agent _amt_1768166046025",
+          "label": [
+            "agent"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7646,
+          "created_at": "2026-01-11 21:14:22+0000",
+          "type": "agent:update",
+          "msg": "Agent updated: Test Agent _amt_1768166046025",
+          "label": [
+            "agent"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7645,
+          "created_at": "2026-01-11 21:14:22+0000",
+          "type": "agent:create",
+          "msg": "Agent created: Test Agent _amt_1768166046025",
+          "label": [
+            "agent"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7644,
+          "created_at": "2026-01-11 21:14:22+0000",
+          "type": "tool:delete",
+          "msg": "Tool deleted: test_tool_amt_1768166046025",
+          "label": [
+            "tool"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7643,
+          "created_at": "2026-01-11 21:14:21+0000",
+          "type": "tool:update",
+          "msg": "Tool updated: test_tool_amt_1768166046025",
+          "label": [
+            "tool"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7642,
+          "created_at": "2026-01-11 21:14:20+0000",
+          "type": "tool:create",
+          "msg": "Tool created: test_tool_amt_1768166046025",
+          "label": [
+            "tool"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7641,
+          "created_at": "2026-01-11 21:14:20+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: addon_test_tbl_addon_1768166045957",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7640,
+          "created_at": "2026-01-11 21:14:19+0000",
+          "type": "addon:delete",
+          "msg": "Addon deleted: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7639,
+          "created_at": "2026-01-11 21:14:19+0000",
+          "type": "addon:update",
+          "msg": "Addon updated: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7638,
+          "created_at": "2026-01-11 21:14:18+0000",
+          "type": "addon:update",
+          "msg": "Addon updated: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7637,
+          "created_at": "2026-01-11 21:14:17+0000",
+          "type": "addon:create",
+          "msg": "Addon created: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7636,
+          "created_at": "2026-01-11 21:14:17+0000",
+          "type": "table:create",
+          "msg": "Table created: addon_test_tbl_addon_1768166045957",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7587,
+          "created_at": "2026-01-11 11:30:59+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: renamed_table_test_1768131011387",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7586,
+          "created_at": "2026-01-11 11:30:58+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: xs_table_test_1768131011387",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7585,
+          "created_at": "2026-01-11 11:30:58+0000",
+          "type": "apigroup:delete",
+          "msg": "Apigroup deleted: integration_group_test_1768131011387",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7584,
+          "created_at": "2026-01-11 11:30:58+0000",
+          "type": "query:delete",
+          "msg": "GET Query deleted: renamed_endpoint_test_1768131011387",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7583,
+          "created_at": "2026-01-11 11:30:57+0000",
+          "type": "query:delete",
+          "msg": "POST Query deleted: post_endpoint_test_1768131011387",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7582,
+          "created_at": "2026-01-11 11:30:57+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: renamed_endpoint_test_1768131011387",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7581,
+          "created_at": "2026-01-11 11:30:56+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: renamed_endpoint_test_1768131011387",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7580,
+          "created_at": "2026-01-11 11:30:55+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: get_endpoint_test_1768131011387",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7579,
+          "created_at": "2026-01-11 11:30:55+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768131011387",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7578,
+          "created_at": "2026-01-11 11:30:54+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768131011387",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7577,
+          "created_at": "2026-01-11 11:30:54+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768131011387",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7576,
+          "created_at": "2026-01-11 11:30:54+0000",
+          "type": "table:update",
+          "msg": "Table updated: renamed_table_test_1768131011387",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7575,
+          "created_at": "2026-01-11 11:30:54+0000",
+          "type": "table:update",
+          "msg": "Table updated: renamed_table_test_1768131011387",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        }
+      ]
+    },
+    {
+      "name": "lists global audit logs",
+      "suite": "metadata",
+      "category": "Global Audit Logs",
+      "status": "passed",
+      "duration": 245,
+      "command": "xano audit-log global-list -p mcp-server -o json",
+      "output": [
+        {
+          "id": 7672,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "type": "function:delete",
+          "msg": "Function deleted: test_func_funcws_1768166046145",
+          "label": [
+            "function"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7671,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "type": "function:update",
+          "msg": "Function updated: test_func_funcws_1768166046145",
+          "label": [
+            "function"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7670,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "type": "function:create",
+          "msg": "Function created: test_func_funcws_1768166046145",
+          "label": [
+            "function"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7669,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: renamed_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7668,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: xs_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7667,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "type": "apigroup:delete",
+          "msg": "Apigroup deleted: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7666,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "type": "query:delete",
+          "msg": "GET Query deleted: renamed_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7665,
+          "created_at": "2026-01-11 21:14:34+0000",
+          "type": "query:delete",
+          "msg": "POST Query deleted: post_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7664,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: renamed_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7663,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: renamed_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7662,
+          "created_at": "2026-01-11 21:14:32+0000",
+          "type": "query:update",
+          "msg": "GET Query updated: get_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7661,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7660,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7659,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "type": "apigroup:update",
+          "msg": "Apigroup updated: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7658,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "type": "table:update",
+          "msg": "Table updated: renamed_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7657,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "type": "table:update",
+          "msg": "Table updated: renamed_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7656,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "type": "table:update",
+          "msg": "Table updated: integration_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7655,
+          "created_at": "2026-01-11 21:14:26+0000",
+          "type": "query:create",
+          "msg": "POST Query created: post_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7654,
+          "created_at": "2026-01-11 21:14:25+0000",
+          "type": "query:create",
+          "msg": "GET Query created: get_endpoint_test_1768166046103",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7653,
+          "created_at": "2026-01-11 21:14:25+0000",
+          "type": "apigroup:create",
+          "msg": "Apigroup created: integration_group_test_1768166046103",
+          "label": [
+            "apigroup"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7652,
+          "created_at": "2026-01-11 21:14:25+0000",
+          "type": "table:create",
+          "msg": "Table created: xs_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7651,
+          "created_at": "2026-01-11 21:14:24+0000",
+          "type": "table:create",
+          "msg": "Table created: integration_table_test_1768166046103",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7650,
+          "created_at": "2026-01-11 21:14:24+0000",
+          "type": "mcp_server:delete",
+          "msg": "Mcp_server deleted: Test MCP _amt_1768166046025",
+          "label": [
+            "mcp_server"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7649,
+          "created_at": "2026-01-11 21:14:24+0000",
+          "type": "mcp_server:update",
+          "msg": "Mcp_server updated: Test MCP _amt_1768166046025",
+          "label": [
+            "mcp_server"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7648,
+          "created_at": "2026-01-11 21:14:23+0000",
+          "type": "mcp_server:create",
+          "msg": "Mcp_server created: Test MCP _amt_1768166046025",
+          "label": [
+            "mcp_server"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7647,
+          "created_at": "2026-01-11 21:14:23+0000",
+          "type": "agent:delete",
+          "msg": "Agent deleted: Test Agent _amt_1768166046025",
+          "label": [
+            "agent"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7646,
+          "created_at": "2026-01-11 21:14:22+0000",
+          "type": "agent:update",
+          "msg": "Agent updated: Test Agent _amt_1768166046025",
+          "label": [
+            "agent"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7645,
+          "created_at": "2026-01-11 21:14:22+0000",
+          "type": "agent:create",
+          "msg": "Agent created: Test Agent _amt_1768166046025",
+          "label": [
+            "agent"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7644,
+          "created_at": "2026-01-11 21:14:22+0000",
+          "type": "tool:delete",
+          "msg": "Tool deleted: test_tool_amt_1768166046025",
+          "label": [
+            "tool"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7643,
+          "created_at": "2026-01-11 21:14:21+0000",
+          "type": "tool:update",
+          "msg": "Tool updated: test_tool_amt_1768166046025",
+          "label": [
+            "tool"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7642,
+          "created_at": "2026-01-11 21:14:20+0000",
+          "type": "tool:create",
+          "msg": "Tool created: test_tool_amt_1768166046025",
+          "label": [
+            "tool"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7641,
+          "created_at": "2026-01-11 21:14:20+0000",
+          "type": "table:delete",
+          "msg": "Table deleted: addon_test_tbl_addon_1768166045957",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7640,
+          "created_at": "2026-01-11 21:14:19+0000",
+          "type": "addon:delete",
+          "msg": "Addon deleted: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7639,
+          "created_at": "2026-01-11 21:14:19+0000",
+          "type": "addon:update",
+          "msg": "Addon updated: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7638,
+          "created_at": "2026-01-11 21:14:18+0000",
+          "type": "addon:update",
+          "msg": "Addon updated: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7637,
+          "created_at": "2026-01-11 21:14:17+0000",
+          "type": "addon:create",
+          "msg": "Addon created: test_addon_addon_1768166045957",
+          "label": [
+            "addon"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7636,
+          "created_at": "2026-01-11 21:14:17+0000",
+          "type": "table:create",
+          "msg": "Table created: addon_test_tbl_addon_1768166045957",
+          "label": [
+            "table"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 40,
+            "name": "CRM Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7635,
+          "created_at": "2026-01-11 14:15:03+0000",
+          "type": "workspace:read",
+          "msg": "Workspace read: CLI Built Application",
+          "label": [
+            "workspace"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": null
+        },
+        {
+          "id": 7634,
+          "created_at": "2026-01-11 13:18:19+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: conversations/{conversation_id}/messages",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7633,
+          "created_at": "2026-01-11 13:17:03+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: auth/login",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7632,
+          "created_at": "2026-01-11 13:17:02+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: auth/signup",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7631,
+          "created_at": "2026-01-11 13:16:34+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: auth/login",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7630,
+          "created_at": "2026-01-11 13:15:32+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: conversations/{conversation_id}/messages",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7629,
+          "created_at": "2026-01-11 13:15:00+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: conversations/{conversation_id}/messages",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7628,
+          "created_at": "2026-01-11 13:14:38+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: conversations/{conversation_id}/messages",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7627,
+          "created_at": "2026-01-11 13:14:05+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: conversations/{conversation_id}/messages",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7626,
+          "created_at": "2026-01-11 13:13:27+0000",
+          "type": "query:update",
+          "msg": "POST Query updated: conversations/{conversation_id}/messages",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7625,
+          "created_at": "2026-01-11 13:13:14+0000",
+          "type": "agent:create",
+          "msg": "Agent created: Chatbot Assistant",
+          "label": [
+            "agent"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7624,
+          "created_at": "2026-01-11 12:58:13+0000",
+          "type": "query:create",
+          "msg": "POST Query created: conversations/{conversation_id}/messages",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        },
+        {
+          "id": 7623,
+          "created_at": "2026-01-11 12:57:56+0000",
+          "type": "query:create",
+          "msg": "DELETE Query created: conversations/{conversation_id}",
+          "label": [
+            "query"
+          ],
+          "user": {
+            "id": 2273,
+            "email": "lachlan.m@xano.com"
+          },
+          "workspace": {
+            "id": 36,
+            "name": "CLI Built Application"
+          },
+          "branch": {
+            "id": 0,
+            "label": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "lists request history",
+      "suite": "metadata",
+      "category": "Request History",
+      "status": "passed",
+      "duration": 152,
+      "command": "xano history request list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 57287,
+          "created_at": "2026-01-11 21:14:38+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.034,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: c166fcf1683ae4cd165047be144d679c",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:38 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: ce349fc3-eee8-4690-937e-e8a85105c4e5",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57288,
+          "created_at": "2026-01-11 21:14:38+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.228,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/context",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 24b8572a0fff9f153ff029255ff00338",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:38 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: 611df8af-dfbe-4bee-ac1b-67a59122a964",
+            "Content-Type: text/yaml; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57282,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.303,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/function/167/security",
+          "input": {
+            "guid": ""
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 11",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: d1ecc1dab0fcf76692168e03aba0a91a",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:37 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: a6f46ddf-3ced-435a-b574-65126324354f",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57283,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.209,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/function/167?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: e804b7f7976635637f0bd9ec119a1064",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:37 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 0363bb75-433b-48ca-8fdf-7247c5c5b6fc",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57284,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.084,
+          "status": 200,
+          "verb": "DELETE",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/function/167",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: bff7a279edb176f23aad98d2485ccdda",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:37 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: f9e60ceb-835b-4b26-9470-8a0784ff595d",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57285,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.023,
+          "status": 404,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/function/999999?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: ab5781ac5685e5732e6c223e4cf0a4ef",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:37 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: 09bafeaa-bf99-46a7-bf37-36174667ee57",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57286,
+          "created_at": "2026-01-11 21:14:37+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.046,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 3f15bc4b0168aecacebce4a43ac642d3",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:37 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: 54790c85-d1a5-44c4-b0a7-eec58c0804a3",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57278,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.107,
+          "status": 200,
+          "verb": "DELETE",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 2f9c8aebef140e111dec72d6096c1080",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:35 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: c98f871f-b122-46de-98f9-11ac2eeeef6b",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57279,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.123,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table?page=1&per_page=50&search=&sort=name&order=asc&include_xanoscript=false",
+          "input": {
+            "page": "1",
+            "sort": "name",
+            "order": "asc",
+            "search": "",
+            "per_page": "50",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: c585a88ce2815d11c8b110f8b7e7ad94",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:36 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 1a78ad4a-5a5d-4132-8f33-5b13faa95688",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57280,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.181,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup?page=1&per_page=50&search=&sort=created_at&order=desc&branch=&include_xanoscript=false",
+          "input": {
+            "page": "1",
+            "sort": "created_at",
+            "order": "desc",
+            "branch": "",
+            "search": "",
+            "per_page": "50",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: c80431fc75f16534250ffb0035c3b43f",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:36 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 9fd51194-c451-4fe0-bf4e-800ca3b2b4b3",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57281,
+          "created_at": "2026-01-11 21:14:36+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.323,
+          "status": 200,
+          "verb": "POST",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/function?include_xanoscript=false",
+          "input": {
+            "xanoscript": "function test_func_funcws_1768166046145 {\n  input {\n  }\n  stack {\n  }\n  response = \"Hello from test function\"\n}",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: text/x-xanoscript",
+            "Accept: application/json",
+            "Content-Length: 111",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: e8794a514d18d445feb7181f0f5d47e9",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:36 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: b3c5cc44-6a1c-445e-92c7-26abc7f3619e",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57270,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.216,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: fb81317a7de1aadd83354f51092c05c7",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:34 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 525f99a1-f194-4576-985d-52e2311ccebe",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57271,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.072,
+          "status": 200,
+          "verb": "DELETE",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 4292c347f8ed988345bd0b4f5860e428",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:35 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: 112ec9b1-a2d2-4b38-b7a9-44dbb226b09c",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57272,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.064,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 3f1de02e93f30712f81420cc9517f5af",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:35 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 4e1d7fd6-a469-40f3-9718-b86c9b3ea472",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57274,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.102,
+          "status": 200,
+          "verb": "DELETE",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 59092a4d853e66177266abf53f4a241d",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:35 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: efca9f13-5188-4240-822f-48ad876093dc",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57275,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.056,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/627?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: f1a48cc84cb69db4e87c0a4e9da82211",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:35 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: c9d2d385-cce9-45e2-b1db-40020d82e6bf",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57276,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.102,
+          "status": 200,
+          "verb": "DELETE",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/627",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 2f10876c9625f7bb2d08f55d98adb0a2",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:35 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: cd635a1e-5b66-4a48-a183-6dad886f3347",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57277,
+          "created_at": "2026-01-11 21:14:35+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.061,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: ee5ddabb5e823debb85d33e952bb41c4",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:35 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 0cc4447b-ec03-4a96-aca3-86af1ab0099f",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57266,
+          "created_at": "2026-01-11 21:14:34+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.03,
+          "status": 404,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/999999?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 3c7e5a860b51c52b16fca9a94ad614eb",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:34 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: 6c0d98b6-cae0-45cb-b57c-8650e3626f23",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57267,
+          "created_at": "2026-01-11 21:14:34+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.169,
+          "status": 404,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/999999?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 790ddd82c474ac2a4a72edded24992cd",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:34 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: adc2946b-4800-4ac3-9d50-0c113ed49ea1",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57268,
+          "created_at": "2026-01-11 21:14:34+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.194,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2219?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 29316fe0cf306054898069f1ef088b42",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:34 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 3d289ac1-618e-4a64-a510-0a63fca0399b",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57269,
+          "created_at": "2026-01-11 21:14:34+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.104,
+          "status": 200,
+          "verb": "DELETE",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2219",
+          "input": [],
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: c703c5da8203191710029c8e4491adbc",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:34 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Trace-ID: 6822a212-3f2c-4af3-ab0c-35fcfc220ad9",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57262,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.297,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?publish=true&include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "renamed_endpoint_test_1768166046103",
+            "verb": "GET",
+            "publish": "true",
+            "description": "Updated GET endpoint description",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 117",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 76eef84cd6527f48bdc2f9199b8cac5c",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:32 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: b60ba4e8-c3f5-452d-9e49-64ed48e13722",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57263,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.224,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: ca70433a8e6935b71cb9ffa3a6052bc9",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:33 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 3848bb88-cb2a-4c44-ae31-398d50195805",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57264,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.296,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?publish=true&include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "renamed_endpoint_test_1768166046103",
+            "verb": "GET",
+            "publish": "true",
+            "description": "Published update",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 101",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: b7ff429ca602a17b87126295ce6b6929",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:33 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: a63bff00-4fc2-4cf8-89d2-52759f6d3f32",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57265,
+          "created_at": "2026-01-11 21:14:33+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.047,
+          "status": 404,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/999999?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 46179c7f88ff88c06740d300e9f4ba8c",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:33 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 6c234f90-9055-41e3-8743-f3159e321e95",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57259,
+          "created_at": "2026-01-11 21:14:32+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.217,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 2dfcb2e59ad4ff940454e36972b93511",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:31 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: d6b8e550-dfc1-4602-8725-9e0c15e70644",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57260,
+          "created_at": "2026-01-11 21:14:32+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.311,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?publish=true&include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "get_endpoint_test_1768166046103",
+            "verb": "GET",
+            "publish": "true",
+            "description": "Updated GET endpoint description",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 113",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 1823e543c6335ac80181a7ae87e71bd3",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:32 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: d27ef7dd-a001-47a9-b22a-d81ef217afbb",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57261,
+          "created_at": "2026-01-11 21:14:32+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.222,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 9eb465c2e4a8ef661781fa607b0c96a5",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:32 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 21220dd3-7958-44c5-a9e2-81439386015f",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57253,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.063,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: b3573982d3f94a9b47dd310d08704527",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:30 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 4e3fae7f-1c96-4668-85a8-a8f2ebac795e",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57254,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.127,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "integration_group_test_1768166046103",
+            "swagger": true,
+            "description": "Updated integration test API group",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 122",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: b2067208a9cce14653f0456349999425",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:31 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 53b46149-22cd-4676-ba18-a6c337438fe5",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57255,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.066,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 66538acae1bef8332ac750d34868f2af",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:31 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 623f8244-aaab-427f-9410-367246209459",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57256,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.119,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "integration_group_test_1768166046103",
+            "swagger": false,
+            "description": "Updated integration test API group",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 123",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 1c0959ad1e76555b7ebf8deaec851174",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:31 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 14884dc8-28c5-46eb-8ca2-a34471af2dc5",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57257,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.064,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 57e222e3142d46b650432e3330157d24",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:31 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: miss",
+            "X-Trace-ID: 9bdd1dea-b148-4871-bf2b-e90e49352bb4",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57258,
+          "created_at": "2026-01-11 21:14:31+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.109,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "integration_group_test_1768166046103",
+            "swagger": true,
+            "description": "Updated integration test API group",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 122",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 540a54bfd870a0ecc42f09eb34275dc6",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:31 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 19d7893e-089a-4c41-91de-ec911f68c278",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57248,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.219,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "integration_table_test_1768166046103",
+            "description": "Updated integration test table",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 103",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 21af0c18dae2f2c2d7a06c26ba6205a6",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:29 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 4191cd1f-c273-4088-a793-b933812eb5f5",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57249,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.059,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 19d5d19cc568c22c38a31b9adc225e05",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:30 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: b03a8b64-d401-46b7-b74f-0c4df7bc95fb",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57250,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.206,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "renamed_table_test_1768166046103",
+            "description": "Updated integration test table",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 99",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 59b630bc1bf1b412b7623891a8a1943d",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:30 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 16926089-a053-4e1d-a6d9-1a42c178a6c8",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57251,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.057,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: bf95ea10b0b9376fcbc457278c1be0a6",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:30 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: b5d3e5df-a4f9-4250-9e4e-a8a2443cd115",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57252,
+          "created_at": "2026-01-11 21:14:30+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.2,
+          "status": 200,
+          "verb": "PUT",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "tag": [],
+            "name": "renamed_table_test_1768166046103",
+            "description": "Final description",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "Content-Length: 86",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: ee28d72d9ea46516ada897928026d5ce",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:30 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: ee763368-adb1-472f-bf99-375c855c56ec",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57242,
+          "created_at": "2026-01-11 21:14:29+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.08,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291?include_xanoscript=true",
+          "input": {
+            "include_xanoscript": "true"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: d7aa3ac39c5f424cca4286103b6103b6",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:28 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 8a7dbc11-97dd-4a62-a4c4-7eec8ce6fcf3",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57243,
+          "created_at": "2026-01-11 21:14:29+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.189,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: dace1d690ee1608f6fb032151cce0bbc",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:29 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 17df16de-d77d-4d1b-a47b-053320dea76d",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57244,
+          "created_at": "2026-01-11 21:14:29+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.169,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?include_draft=false&include_xanoscript=false",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: da6892b64b75c8628acef56b30844e5c",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:29 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 7c2881be-05da-410c-b5e4-a00b188ac357",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57245,
+          "created_at": "2026-01-11 21:14:29+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.224,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api/2218?include_draft=false&include_xanoscript=true",
+          "input": {
+            "include_draft": "false",
+            "include_xanoscript": "true"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 990342f0e011f74170d79f0a3ec92f9d",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:29 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 53da3afd-8216-4ee5-8774-6183540b0650",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57246,
+          "created_at": "2026-01-11 21:14:29+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.025,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: afb65eda36cd5dbbac90a933097253ae",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:29 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: d5b58059-a31a-4178-b2d3-8902d1ff133c",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57235,
+          "created_at": "2026-01-11 21:14:28+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.174,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/apigroup/291/api?page=1&per_page=50&search=&sort=created_at&order=desc&include_draft=false&include_xanoscript=false",
+          "input": {
+            "page": "1",
+            "sort": "created_at",
+            "order": "desc",
+            "search": "",
+            "per_page": "50",
+            "include_draft": "false",
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 35361ff16cc299d3d0a28302dd0e1204",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:28 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 38233bf8-386a-4948-a3ce-a38893c7bffa",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57236,
+          "created_at": "2026-01-11 21:14:28+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.036,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: e45ed6df300f6bb13d5b7ccaef4877dc",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:28 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: de264b62-5597-41d3-9656-a14753729c41",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57237,
+          "created_at": "2026-01-11 21:14:28+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.027,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=false",
+          "input": {
+            "include_xanoscript": "false"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: cc49bfeca424c5cc48d1354e337870e4",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:28 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: d013df0c-23d7-4c28-b562-d4da0007c619",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57238,
+          "created_at": "2026-01-11 21:14:28+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.081,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/626?include_xanoscript=true",
+          "input": {
+            "include_xanoscript": "true"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 7446c4263b84b05792c30250206251d5",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:28 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: b986b023-e02e-4d96-bac3-67e0981b546f",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        },
+        {
+          "id": 57239,
+          "created_at": "2026-01-11 21:14:28+0000",
+          "workspace_id": 40,
+          "branch": "v1",
+          "api_id": 0,
+          "query_id": 0,
+          "duration": 0.092,
+          "status": 200,
+          "verb": "GET",
+          "uri": "https://xhib-njau-6vza.d2.dev.xano.io/api:meta/workspace/40/table/627?include_xanoscript=true",
+          "input": {
+            "include_xanoscript": "true"
+          },
+          "request_headers": [
+            "Accept-Encoding: br, gzip, deflate",
+            "User-Agent: node",
+            "Sec-Fetch-Mode: cors",
+            "Accept-Language: *",
+            "Authorization: *** REMOVED ***",
+            "Content-Type: application/json",
+            "Accept: application/json",
+            "X-Scheme: https",
+            "X-Forwarded-Scheme: https",
+            "X-Forwarded-Proto: https",
+            "X-Forwarded-Port: 443",
+            "X-Forwarded-Host: xhib-njau-6vza.d2.dev.xano.io",
+            "X-Forwarded-For: 110.32.81.16",
+            "X-Real-Ip: 110.32.81.16",
+            "X-Request-Id: 79e8c619856671428e75a30db415ad9f",
+            "Host: xhib-njau-6vza.d2.dev.xano.io"
+          ],
+          "response_headers": [
+            "Accept-Ranges: none",
+            "X-XSS-Protection: 1; mode=block",
+            "Cache-Control: private, no-cache, no-store, must-revalidate",
+            "Pragma: no-cache",
+            "Expires: Thu, 14 Jan 2016 21:14:28 GMT",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: deny",
+            "Access-Control-Allow-Origin:",
+            "Access-Control-Allow-Methods: GET, POST, DELETE, PUT, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Credentials: true",
+            "Access-Control-Max-Age: 86400",
+            "X-Workspace: hit",
+            "X-Trace-ID: 03a45131-c2eb-47cd-ba49-5aab242eaa82",
+            "Content-Type: application/json; charset=UTF-8"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "lists function history",
+      "suite": "metadata",
+      "category": "Function History",
+      "status": "passed",
+      "duration": 121,
+      "command": "xano history function list -p mcp-server -w 40 -o json",
+      "output": []
+    },
+    {
+      "name": "lists middleware history",
+      "suite": "metadata",
+      "category": "Middleware History",
+      "status": "passed",
+      "duration": 188,
+      "command": "xano history middleware list -p mcp-server -w 40 -o json",
+      "output": []
+    },
+    {
+      "name": "lists task history",
+      "suite": "metadata",
+      "category": "Task History",
+      "status": "passed",
+      "duration": 119,
+      "command": "xano history task list -p mcp-server -w 40 -o json",
+      "output": []
+    },
+    {
+      "name": "lists trigger history",
+      "suite": "metadata",
+      "category": "Trigger History",
+      "status": "passed",
+      "duration": 90,
+      "command": "xano history trigger list -p mcp-server -w 40 -o json",
+      "output": []
+    },
+    {
+      "name": "lists tool history",
+      "suite": "metadata",
+      "category": "Tool History",
+      "status": "passed",
+      "duration": 121,
+      "command": "xano history tool list -p mcp-server -w 40 -o json",
+      "output": []
+    }
+  ],
+  "passed": 10,
+  "failed": 0,
+  "skipped": 0
+}

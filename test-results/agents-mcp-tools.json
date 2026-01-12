@@ -1,0 +1,334 @@
+{
+  "suite": "agents-mcp-tools",
+  "description": "AI Agents, MCP Servers, Tools, and Realtime",
+  "runDate": "2026-01-11T21:14:24.585Z",
+  "duration": 18560,
+  "profile": "mcp-server",
+  "workspace": "40",
+  "results": [
+    {
+      "name": "creates a new tool",
+      "suite": "agents-mcp-tools",
+      "category": "Create Tool",
+      "status": "passed",
+      "duration": 449,
+      "command": "xano tool create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/tool_1768166060381.xs -o json",
+      "output": {
+        "id": 69,
+        "created_at": "2026-01-11 21:14:20+0000",
+        "updated_at": "2026-01-11 21:14:20+0000",
+        "name": "test_tool_amt_1768166046025",
+        "description": "Test tool for integration tests",
+        "docs": "",
+        "instructions": "Use this tool to test the CLI create functionality.",
+        "guid": "aExz6tyLKC-8VSAZRJOctpr-hhU",
+        "branch": "v1",
+        "input": [
+          {
+            "name": "test_input",
+            "type": "text",
+            "description": "Optional test input parameter",
+            "nullable": false,
+            "default": "",
+            "required": false,
+            "format": "",
+            "access": "public",
+            "style": "single"
+          }
+        ],
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "lists tools and finds created tool",
+      "suite": "agents-mcp-tools",
+      "category": "List Tools",
+      "status": "passed",
+      "duration": 346,
+      "command": "xano tool list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 69,
+          "created_at": "2026-01-11 21:14:20+0000",
+          "updated_at": "2026-01-11 21:14:20+0000",
+          "name": "test_tool_amt_1768166046025",
+          "description": "Test tool for integration tests",
+          "docs": "",
+          "instructions": "Use this tool to test the CLI create functionality.",
+          "guid": "aExz6tyLKC-8VSAZRJOctpr-hhU",
+          "branch": "v1",
+          "input": [
+            {
+              "name": "test_input",
+              "type": "text",
+              "description": "Optional test input parameter",
+              "nullable": false,
+              "default": "",
+              "required": false,
+              "format": "",
+              "access": "public",
+              "style": "single"
+            }
+          ],
+          "tag": [],
+          "draft_updated_at": null,
+          "xanoscript": null
+        }
+      ]
+    },
+    {
+      "name": "gets tool details",
+      "suite": "agents-mcp-tools",
+      "category": "Get Tool",
+      "status": "passed",
+      "duration": 261,
+      "command": "xano tool get 69 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 69,
+        "created_at": "2026-01-11 21:14:20+0000",
+        "updated_at": "2026-01-11 21:14:20+0000",
+        "name": "test_tool_amt_1768166046025",
+        "description": "Test tool for integration tests",
+        "docs": "",
+        "instructions": "Use this tool to test the CLI create functionality.",
+        "guid": "aExz6tyLKC-8VSAZRJOctpr-hhU",
+        "branch": "v1",
+        "input": [
+          {
+            "name": "test_input",
+            "type": "text",
+            "description": "Optional test input parameter",
+            "nullable": false,
+            "default": "",
+            "required": false,
+            "format": "",
+            "access": "public",
+            "style": "single"
+          }
+        ],
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "updates tool via XanoScript file",
+      "suite": "agents-mcp-tools",
+      "category": "Edit Tool",
+      "status": "passed",
+      "duration": 434,
+      "command": "xano tool edit 69 -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/tool_edit_1768166061438.xs",
+      "output": "Tool updated successfully!"
+    },
+    {
+      "name": "deletes the test tool",
+      "suite": "agents-mcp-tools",
+      "category": "Delete Tool",
+      "status": "passed",
+      "duration": 147,
+      "command": "xano tool delete 69 -p mcp-server -w 40 --force",
+      "output": "Tool deleted successfully!"
+    },
+    {
+      "name": "creates a new agent",
+      "suite": "agents-mcp-tools",
+      "category": "Create Agent",
+      "status": "passed",
+      "duration": 379,
+      "command": "xano agent create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/agent_1768166062020.xs -o json",
+      "output": {
+        "id": 115,
+        "created_at": "2026-01-11 21:14:22+0000",
+        "updated_at": "2026-01-11 21:14:22+0000",
+        "name": "Test Agent _amt_1768166046025",
+        "description": "Test agent for integration tests",
+        "llm": "xano-free",
+        "tag": [],
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "lists agents and finds created agent",
+      "suite": "agents-mcp-tools",
+      "category": "List Agents",
+      "status": "passed",
+      "duration": 199,
+      "command": "xano agent list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 115,
+          "created_at": "2026-01-11 21:14:22+0000",
+          "updated_at": "2026-01-11 21:14:22+0000",
+          "name": "Test Agent _amt_1768166046025",
+          "description": "Test agent for integration tests",
+          "llm": "xano-free",
+          "tag": [],
+          "xanoscript": null
+        }
+      ]
+    },
+    {
+      "name": "gets agent details",
+      "suite": "agents-mcp-tools",
+      "category": "Get Agent",
+      "status": "passed",
+      "duration": 105,
+      "command": "xano agent get 115 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 115,
+        "created_at": "2026-01-11 21:14:22+0000",
+        "updated_at": "2026-01-11 21:14:22+0000",
+        "name": "Test Agent _amt_1768166046025",
+        "description": "Test agent for integration tests",
+        "llm": "xano-free",
+        "tag": [],
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "updates agent via XanoScript file",
+      "suite": "agents-mcp-tools",
+      "category": "Edit Agent",
+      "status": "passed",
+      "duration": 249,
+      "command": "xano agent edit 115 -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/agent_edit_1768166062703.xs",
+      "output": "Agent updated successfully!"
+    },
+    {
+      "name": "deletes the test agent",
+      "suite": "agents-mcp-tools",
+      "category": "Delete Agent",
+      "status": "passed",
+      "duration": 177,
+      "command": "xano agent delete 115 -p mcp-server -w 40 --force",
+      "output": "Agent deleted successfully!"
+    },
+    {
+      "name": "creates a new MCP server",
+      "suite": "agents-mcp-tools",
+      "category": "Create MCP Server",
+      "status": "passed",
+      "duration": 316,
+      "command": "xano mcp-server create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/mcp_server_1768166063130.xs -o json",
+      "output": {
+        "id": 116,
+        "created_at": "2026-01-11 21:14:23+0000",
+        "updated_at": "2026-01-11 21:14:23+0000",
+        "name": "Test MCP _amt_1768166046025",
+        "description": "Test MCP server for integration tests",
+        "tag": [
+          "test",
+          "integration"
+        ],
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "lists MCP servers and finds created server",
+      "suite": "agents-mcp-tools",
+      "category": "List MCP Servers",
+      "status": "passed",
+      "duration": 193,
+      "command": "xano mcp-server list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 116,
+          "created_at": "2026-01-11 21:14:23+0000",
+          "updated_at": "2026-01-11 21:14:23+0000",
+          "name": "Test MCP _amt_1768166046025",
+          "description": "Test MCP server for integration tests",
+          "tag": [
+            "test",
+            "integration"
+          ],
+          "xanoscript": null
+        }
+      ]
+    },
+    {
+      "name": "gets MCP server details",
+      "suite": "agents-mcp-tools",
+      "category": "Get MCP Server",
+      "status": "passed",
+      "duration": 111,
+      "command": "xano mcp-server get 116 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 116,
+        "created_at": "2026-01-11 21:14:23+0000",
+        "updated_at": "2026-01-11 21:14:23+0000",
+        "name": "Test MCP _amt_1768166046025",
+        "description": "Test MCP server for integration tests",
+        "tag": [
+          "test",
+          "integration"
+        ],
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "updates MCP server via XanoScript file",
+      "suite": "agents-mcp-tools",
+      "category": "Edit MCP Server",
+      "status": "passed",
+      "duration": 249,
+      "command": "xano mcp-server edit 116 -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/mcp_edit_1768166063750.xs",
+      "output": "MCP Server updated successfully!"
+    },
+    {
+      "name": "deletes the test MCP server",
+      "suite": "agents-mcp-tools",
+      "category": "Delete MCP Server",
+      "status": "passed",
+      "duration": 131,
+      "command": "xano mcp-server delete 116 -p mcp-server -w 40 --force",
+      "output": "MCP Server deleted successfully!"
+    },
+    {
+      "name": "gets realtime configuration",
+      "suite": "agents-mcp-tools",
+      "category": "Get Realtime Config",
+      "status": "passed",
+      "duration": 138,
+      "command": "xano realtime get -p mcp-server -w 40 -o json",
+      "output": {
+        "enabled": true,
+        "hash": "tixBsYsDDCx6P717WgX9j1TwkPA",
+        "channels": [
+          {
+            "anonymous_clients": true,
+            "client_authenticated_messaging": true,
+            "client_private_messaging": true,
+            "client_private_messaging_authenticated_only": true,
+            "client_public_messaging": true,
+            "client_public_messaging_authenticated_only": true,
+            "description": "dedscription",
+            "enabled": true,
+            "history": 50,
+            "id": 68327953636970,
+            "pattern": "test",
+            "presence": true,
+            "wildcard": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "lists workflow tests",
+      "suite": "agents-mcp-tools",
+      "category": "List Workflow Tests",
+      "status": "passed",
+      "duration": 316,
+      "command": "xano workflow-test list -p mcp-server -w 40 -o json",
+      "output": []
+    }
+  ],
+  "passed": 17,
+  "failed": 0,
+  "skipped": 0
+}

@@ -1,128 +1,133 @@
-# Xano CLI Project Guide
+# Xano Development Expert Guide
 
-## Project Overview
+You are an expert Xano backend developer. You build backends using the Xano CLI and XanoScript.
 
-This is the Xano CLI (`@xano/cli`), a command-line interface for Xano's Metadata API. Built with oclif (TypeScript CLI framework).
+## Skills
 
-## Key Directories
+| Skill | When to Use |
+|-------|-------------|
+| `/xano-cli` | CLI commands for managing workspaces, tables, APIs, functions, tasks |
+| `/xanoscript-authoring` | Writing XanoScript code - syntax, patterns, and reference file navigation |
+| `/cli-improvements` | Document bugs, unexpected behavior, or improvement opportunities |
+
+---
+
+## CLI Improvement Tracking
+
+This CLI is actively being developed. When you encounter bugs, unexpected results, or opportunities for improvement:
+
+1. **Document it** in `.claude/cli-issues.md`
+2. **Use the skill** `/cli-improvements` for the proper format
+3. **Categories:** `[BUG]`, `[UX]`, `[FEATURE]`, `[DOCS]`, `[PERF]`
+
+This helps us track and prioritize fixes for the CLI.
+
+---
+
+## Quick Start
+
+```bash
+# Setup profile (interactive - selects instance, workspace, branch)
+xano profile wizard
+
+# After wizard, workspace is saved - no -w flag needed!
+xano table list                    # List tables in your workspace
+xano api get 5 123 -o xs          # Export endpoint as XanoScript
+xano function create -f func.xs   # Create from XanoScript file
+xano run job -f script.xs         # Test script without deploying
+```
+
+### Profile & Workspace Setup
+
+The wizard saves your workspace to `~/.xano/credentials.yaml`. After setup, you don't need `-w` flags.
+
+```bash
+# Interactive setup (recommended)
+xano profile wizard
+
+# Manual workspace change
+xano profile edit -w <workspace_id>
+
+# View current profile
+xano profile me
+
+# List workspaces to find IDs
+xano workspace list
+```
+
+**Note:** Examples in docs may show `-w 40` - this is just a placeholder. Your workspace ID will be different and is saved in your profile.
+
+---
+
+## Reference Documentation
+
+All XanoScript reference files are in `.claude/reference/xanoscript-ai-documentation/`
+
+### Finding What You Need
+
+| Looking For | Read This File |
+|-------------|----------------|
+| **Function syntax** (var, db.query, array.filter, etc.) | `functions.md` |
+| **Database operations** (query, add, edit, patch, delete) | `db_query_guideline.md` |
+| **Query where clause operators** (==, contains, overlaps) | `query_filter.md` |
+| **Expression filters/pipes** (\|trim, \|to_lower, \|first) | `expression_guideline.md` |
+| **Input types and validation** | `input_guideline.md` |
+| **API endpoint structure** | `api_query_guideline.md` + `api_query_examples.md` |
+| **Function structure** | `function_guideline.md` + `function_examples.md` |
+| **Table schema** | `table_guideline.md` + `table_examples.md` |
+| **Scheduled tasks** | `task_guideline.md` + `task_examples.md` |
+| **AI Agents** | `agent_guideline.md` + `agent_examples.md` |
+| **MCP Servers** | `mcp_server_guideline.md` + `mcp_server_examples.md` |
+| **AI Tools** | `tool_guideline.md` + `tool_examples.md` |
+| **Unit testing** | `unit_testing_guideline.md` |
+| **Advanced patterns** | `tips_and_tricks.md` |
+
+### Search Strategy
+
+1. **Function syntax** → Search `functions.md` for `# <function_name>`
+2. **Real examples** → Check the `*_examples.md` files
+3. **Structure/format** → Read the `*_guideline.md` files
+
+---
+
+## XanoScript Resources
+
+| Resource | File Location | Purpose |
+|----------|---------------|---------|
+| `table` | `tables/*.xs` | Database schema |
+| `query` | `apis/<group>/*.xs` | API endpoints |
+| `function` | `functions/*.xs` | Reusable logic |
+| `task` | `tasks/*.xs` | Scheduled jobs |
+| `addon` | `addons/*.xs` | Optimized sub-queries for db.query |
+| `middleware` | `middleware/*.xs` | Request interceptors |
+| `agent` | `agents/*.xs` | AI agents |
+| `mcp_server` | `mcp_servers/*.xs` | MCP server definitions |
+| `tool` | `tools/*.xs` | AI tools |
+
+---
+
+## Project Structure
 
 ```
 src/
-  commands/           # CLI commands (oclif structure)
+  commands/           # CLI commands (oclif)
   lib/
-    api-client.ts     # XanoApiClient - shared API client
-    types.ts          # TypeScript interfaces
-  base-command.ts     # Base command class with shared flags
+    api-client.ts     # XanoApiClient
+    types.ts          # TypeScript types
 
-test/
-  integration/        # Real API integration tests
-    real-api.test.ts  # Main test file with report generation
+.claude/
+  reference/xanoscript-ai-documentation/   # XanoScript docs
+  skills/                                   # Claude Code skills
 
-metadata-api-docs/    # OpenAPI specs for all Metadata API endpoints
-xanoscript-docs/      # XanoScript documentation and examples
+metadata-api-docs/    # OpenAPI specs for Metadata API
 ```
 
-## Implementation Patterns
+---
 
-### Adding a New Command
-
-1. **Add types** to `src/lib/types.ts`
-2. **Add API methods** to `src/lib/api-client.ts`
-3. **Create command** at `src/commands/{resource}/{action}/index.ts`
-4. **Update topics** in `package.json` under `oclif.topics`
-5. **Add tests** to `test/integration/`
-
-### Command Structure
-
-```typescript
-import BaseCommand from '../../../base-command.js'
-import {XanoApiClient} from '../../../lib/api-client.js'
-
-export default class ResourceAction extends BaseCommand {
-  static override description = 'Description here'
-  static override examples = ['$ xano resource action ...']
-  static override args = { ... }
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    // additional flags
-  }
-
-  async run(): Promise<void> {
-    const {args, flags} = await this.parse(ResourceAction)
-    const client = XanoApiClient.fromProfile(flags.profile || XanoApiClient.getDefaultProfile())
-    const workspaceId = client.getWorkspaceId(flags.workspace)
-    // implementation
-  }
-}
-```
-
-### Output Formats
-
-Commands support multiple output formats:
-- `json` - Full JSON response
-- `summary` - Human-readable summary (default)
-- `xs` - XanoScript format (where applicable)
-
-### Test Pattern
-
-Tests follow create -> list -> get -> edit -> delete flow:
-- All tests use `runTrackedCommand()` for report generation
-- Tests output to `test-report.md`
-- Use unique suffixes to avoid conflicts: `` `_test_${Date.now()}` ``
-
-## XanoScript Documentation
-
-Reference `xanoscript-docs/xanoscript-ai-documentation-main/` for:
-
-| Resource | Files |
-|----------|-------|
-| API | `api_query_guideline.md`, `api_query_examples.md` |
-| Table | `table_guideline.md`, `table_examples.md` |
-| Function | `function_guideline.md`, `function_examples.md`, `functions.md` |
-| Task | `task_guideline.md`, `task_examples.md` |
-| Agent | `agent_guideline.md`, `agent_examples.md` |
-| MCP Server | `mcp_server_guideline.md`, `mcp_server_examples.md` |
-| Tool | `tool_guideline.md`, `tool_examples.md` |
-| Testing | `unit_testing_guideline.md` |
-
-## API Documentation
-
-OpenAPI specs in `metadata-api-docs/`:
-- `table.json` - Tables, triggers, content, schema, indexes
-- `api-group-api.json` - API groups and endpoints
-- `function.json` - Functions
-- `task.json` - Scheduled tasks
-- `middleware.json` - Middleware
-- `agent.json` - Agents and triggers
-- `mcp-server.json` - MCP servers and triggers
-- `realtime.json` - Realtime channels and triggers
-- `workspace.json` - Workspace, tools, workflow tests
-- And more...
-
-## Commands
+## Development Commands
 
 ```bash
 npm run build      # Build TypeScript
-npm test           # Run integration tests (generates test-report.md)
+npm test           # Run integration tests
 npm run dev        # Run dev CLI
 ```
-
-## Current Implementation Status
-
-See `IMPLEMENTATION_PLAN.md` for full status and roadmap.
-
-### Implemented
-- profile, api, apigroup, table (full CRUD)
-- function (missing delete)
-- workspace (list only)
-- static_host (partial)
-
-### In Progress
-- Phase 1: Complete existing resources
-- Phase 2-6: See implementation plan
-
-## Testing Configuration
-
-- Profile: `mcp-server` (or set via `XANO_TEST_PROFILE`)
-- Workspace: `40`
-- Tests create resources, validate, then clean up

@@ -1,0 +1,795 @@
+{
+  "suite": "addons",
+  "description": "Addon CRUD with Table Dependencies",
+  "runDate": "2026-01-11T21:14:20.379Z",
+  "duration": 14422,
+  "profile": "mcp-server",
+  "workspace": "40",
+  "results": [
+    {
+      "name": "creates a table for the addon to extend",
+      "suite": "addons",
+      "category": "Create Test Table",
+      "status": "passed",
+      "duration": 10870
+    },
+    {
+      "name": "creates an addon that extends the test table",
+      "suite": "addons",
+      "category": "creates an addon that extends the test table",
+      "status": "passed",
+      "duration": 467,
+      "command": "xano addon create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-addon-1768166057214.xs -o json",
+      "output": {
+        "id": 18,
+        "created_at": "2026-01-11 21:14:17+0000",
+        "updated_at": "2026-01-11 21:14:17+0000",
+        "name": "test_addon_addon_1768166045957",
+        "description": "",
+        "guid": "ksZE0gXVVD29B775U6Ta9JILum8",
+        "branch": "v1",
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null,
+        "context": {
+          "dbo": {
+            "id": 625,
+            "as": "addon_test_tbl_addon_1768166045957"
+          },
+          "bind": [],
+          "search": {
+            "expression": [
+              {
+                "type": "statement",
+                "or": false,
+                "group": {
+                  "expression": []
+                },
+                "statement": {
+                  "op": "=",
+                  "left": {
+                    "operand": "addon_test_tbl_addon_1768166045957.id",
+                    "tag": "col",
+                    "filters": []
+                  },
+                  "right": {
+                    "operand": "record_id",
+                    "tag": "input",
+                    "ignore_empty": false,
+                    "filters": []
+                  }
+                }
+              }
+            ]
+          },
+          "lock": {
+            "value": "",
+            "tag": "const:bool",
+            "filters": []
+          },
+          "external": {
+            "value": "",
+            "tag": "input",
+            "filters": [],
+            "permissions": {
+              "search": true,
+              "sort": true,
+              "per_page": false,
+              "page": true
+            }
+          },
+          "simpleExternal": {
+            "page": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "per_page": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "offset": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "search": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "sort": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            }
+          },
+          "eval": [],
+          "sort": [],
+          "return": {
+            "type": "single",
+            "single": {
+              "sort": []
+            },
+            "list": {
+              "distinct": "auto",
+              "sort": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "offset": 0,
+                "per_page": 25,
+                "metadata": true,
+                "totals": false
+              }
+            },
+            "stream": {
+              "distinct": "auto",
+              "sort": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "per_page": 25
+              }
+            },
+            "aggregate": {
+              "group": [],
+              "sort": [],
+              "index": [],
+              "eval": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "per_page": 25,
+                "metadata": true
+              }
+            }
+          }
+        },
+        "input": []
+      }
+    },
+    {
+      "name": "lists addons in JSON format",
+      "suite": "addons",
+      "category": "List Addons",
+      "status": "passed",
+      "duration": 222,
+      "command": "xano addon list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 18,
+          "created_at": "2026-01-11 21:14:17+0000",
+          "updated_at": "2026-01-11 21:14:17+0000",
+          "name": "test_addon_addon_1768166045957",
+          "description": "",
+          "guid": "ksZE0gXVVD29B775U6Ta9JILum8",
+          "branch": "v1",
+          "tag": [],
+          "draft_updated_at": null,
+          "xanoscript": null,
+          "context": {
+            "dbo": {
+              "id": 625,
+              "as": "addon_test_tbl_addon_1768166045957"
+            },
+            "bind": [],
+            "search": {
+              "expression": [
+                {
+                  "type": "statement",
+                  "or": false,
+                  "group": {
+                    "expression": []
+                  },
+                  "statement": {
+                    "op": "=",
+                    "left": {
+                      "operand": "addon_test_tbl_addon_1768166045957.id",
+                      "tag": "col",
+                      "filters": []
+                    },
+                    "right": {
+                      "operand": "record_id",
+                      "tag": "input",
+                      "ignore_empty": false,
+                      "filters": []
+                    }
+                  }
+                }
+              ]
+            },
+            "lock": {
+              "value": "",
+              "tag": "const:bool",
+              "filters": []
+            },
+            "external": {
+              "value": "",
+              "tag": "input",
+              "filters": [],
+              "permissions": {
+                "search": true,
+                "sort": true,
+                "per_page": false,
+                "page": true
+              }
+            },
+            "simpleExternal": {
+              "page": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "per_page": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "offset": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "search": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "sort": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              }
+            },
+            "eval": [],
+            "sort": [],
+            "return": {
+              "type": "single",
+              "single": {
+                "sort": []
+              },
+              "list": {
+                "distinct": "auto",
+                "sort": [],
+                "paging": {
+                  "enabled": false,
+                  "page": 1,
+                  "offset": 0,
+                  "per_page": 25,
+                  "metadata": true,
+                  "totals": false
+                }
+              },
+              "stream": {
+                "distinct": "auto",
+                "sort": [],
+                "paging": {
+                  "enabled": false,
+                  "page": 1,
+                  "per_page": 25
+                }
+              },
+              "aggregate": {
+                "group": [],
+                "sort": [],
+                "index": [],
+                "eval": [],
+                "paging": {
+                  "enabled": false,
+                  "page": 1,
+                  "per_page": 25,
+                  "metadata": true
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "lists addons in summary format",
+      "suite": "addons",
+      "category": "List Addons",
+      "status": "passed",
+      "duration": 119,
+      "command": "xano addon list -p mcp-server -w 40",
+      "output": "Available addons:\n  - test_addon_addon_1768166045957 (ID: 18)"
+    },
+    {
+      "name": "lists addons with search filter",
+      "suite": "addons",
+      "category": "List Addons",
+      "status": "passed",
+      "duration": 182,
+      "command": "xano addon list -p mcp-server -w 40 --search test_addon -o json",
+      "output": [
+        {
+          "id": 18,
+          "created_at": "2026-01-11 21:14:17+0000",
+          "updated_at": "2026-01-11 21:14:17+0000",
+          "name": "test_addon_addon_1768166045957",
+          "description": "",
+          "guid": "ksZE0gXVVD29B775U6Ta9JILum8",
+          "branch": "v1",
+          "tag": [],
+          "draft_updated_at": null,
+          "xanoscript": null,
+          "context": {
+            "dbo": {
+              "id": 625,
+              "as": "addon_test_tbl_addon_1768166045957"
+            },
+            "bind": [],
+            "search": {
+              "expression": [
+                {
+                  "type": "statement",
+                  "or": false,
+                  "group": {
+                    "expression": []
+                  },
+                  "statement": {
+                    "op": "=",
+                    "left": {
+                      "operand": "addon_test_tbl_addon_1768166045957.id",
+                      "tag": "col",
+                      "filters": []
+                    },
+                    "right": {
+                      "operand": "record_id",
+                      "tag": "input",
+                      "ignore_empty": false,
+                      "filters": []
+                    }
+                  }
+                }
+              ]
+            },
+            "lock": {
+              "value": "",
+              "tag": "const:bool",
+              "filters": []
+            },
+            "external": {
+              "value": "",
+              "tag": "input",
+              "filters": [],
+              "permissions": {
+                "search": true,
+                "sort": true,
+                "per_page": false,
+                "page": true
+              }
+            },
+            "simpleExternal": {
+              "page": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "per_page": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "offset": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "search": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              },
+              "sort": {
+                "value": "",
+                "tag": "input",
+                "filters": []
+              }
+            },
+            "eval": [],
+            "sort": [],
+            "return": {
+              "type": "single",
+              "single": {
+                "sort": []
+              },
+              "list": {
+                "distinct": "auto",
+                "sort": [],
+                "paging": {
+                  "enabled": false,
+                  "page": 1,
+                  "offset": 0,
+                  "per_page": 25,
+                  "metadata": true,
+                  "totals": false
+                }
+              },
+              "stream": {
+                "distinct": "auto",
+                "sort": [],
+                "paging": {
+                  "enabled": false,
+                  "page": 1,
+                  "per_page": 25
+                }
+              },
+              "aggregate": {
+                "group": [],
+                "sort": [],
+                "index": [],
+                "eval": [],
+                "paging": {
+                  "enabled": false,
+                  "page": 1,
+                  "per_page": 25,
+                  "metadata": true
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "gets addon details in JSON format",
+      "suite": "addons",
+      "category": "Get Addon",
+      "status": "passed",
+      "duration": 121,
+      "command": "xano addon get 18 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 18,
+        "created_at": "2026-01-11 21:14:17+0000",
+        "updated_at": "2026-01-11 21:14:17+0000",
+        "name": "test_addon_addon_1768166045957",
+        "description": "",
+        "guid": "ksZE0gXVVD29B775U6Ta9JILum8",
+        "branch": "v1",
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null,
+        "context": {
+          "dbo": {
+            "id": 625,
+            "as": "addon_test_tbl_addon_1768166045957"
+          },
+          "bind": [],
+          "search": {
+            "expression": [
+              {
+                "type": "statement",
+                "or": false,
+                "group": {
+                  "expression": []
+                },
+                "statement": {
+                  "op": "=",
+                  "left": {
+                    "operand": "addon_test_tbl_addon_1768166045957.id",
+                    "tag": "col",
+                    "filters": []
+                  },
+                  "right": {
+                    "operand": "record_id",
+                    "tag": "input",
+                    "ignore_empty": false,
+                    "filters": []
+                  }
+                }
+              }
+            ]
+          },
+          "lock": {
+            "value": "",
+            "tag": "const:bool",
+            "filters": []
+          },
+          "external": {
+            "value": "",
+            "tag": "input",
+            "filters": [],
+            "permissions": {
+              "search": true,
+              "sort": true,
+              "per_page": false,
+              "page": true
+            }
+          },
+          "simpleExternal": {
+            "page": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "per_page": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "offset": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "search": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "sort": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            }
+          },
+          "eval": [],
+          "sort": [],
+          "return": {
+            "type": "single",
+            "single": {
+              "sort": []
+            },
+            "list": {
+              "distinct": "auto",
+              "sort": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "offset": 0,
+                "per_page": 25,
+                "metadata": true,
+                "totals": false
+              }
+            },
+            "stream": {
+              "distinct": "auto",
+              "sort": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "per_page": 25
+              }
+            },
+            "aggregate": {
+              "group": [],
+              "sort": [],
+              "index": [],
+              "eval": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "per_page": 25,
+                "metadata": true
+              }
+            }
+          }
+        },
+        "input": []
+      }
+    },
+    {
+      "name": "gets addon in summary format",
+      "suite": "addons",
+      "category": "Get Addon",
+      "status": "passed",
+      "duration": 105,
+      "command": "xano addon get 18 -p mcp-server -w 40",
+      "output": "Addon: test_addon_addon_1768166045957\nID: 18\nGUID: ksZE0gXVVD29B775U6Ta9JILum8"
+    },
+    {
+      "name": "edits addon with updated XanoScript",
+      "suite": "addons",
+      "category": "edits addon with updated XanoScript",
+      "status": "passed",
+      "duration": 300,
+      "command": "xano addon edit 18 -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-addon-edit-1768166058431.xs",
+      "output": "Addon updated successfully!\nID: 18\nName: test_addon_addon_1768166045957"
+    },
+    {
+      "name": "verifies addon was updated",
+      "suite": "addons",
+      "category": "verifies addon was updated",
+      "status": "passed",
+      "duration": 159,
+      "command": "xano addon get 18 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 18,
+        "created_at": "2026-01-11 21:14:17+0000",
+        "updated_at": "2026-01-11 21:14:18+0000",
+        "name": "test_addon_addon_1768166045957",
+        "description": "",
+        "guid": "ksZE0gXVVD29B775U6Ta9JILum8",
+        "branch": "v1",
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null,
+        "context": {
+          "dbo": {
+            "id": 625,
+            "as": "addon_test_tbl_addon_1768166045957"
+          },
+          "bind": [],
+          "search": {
+            "expression": [
+              {
+                "type": "statement",
+                "or": false,
+                "group": {
+                  "expression": []
+                },
+                "statement": {
+                  "op": "=",
+                  "left": {
+                    "operand": "addon_test_tbl_addon_1768166045957.id",
+                    "tag": "col",
+                    "filters": []
+                  },
+                  "right": {
+                    "operand": "record_id",
+                    "tag": "input",
+                    "ignore_empty": false,
+                    "filters": []
+                  }
+                }
+              }
+            ]
+          },
+          "lock": {
+            "value": "",
+            "tag": "const:bool",
+            "filters": []
+          },
+          "external": {
+            "value": "",
+            "tag": "input",
+            "filters": [],
+            "permissions": {
+              "search": true,
+              "sort": true,
+              "per_page": false,
+              "page": true
+            }
+          },
+          "simpleExternal": {
+            "page": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "per_page": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "offset": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "search": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            },
+            "sort": {
+              "value": "",
+              "tag": "input",
+              "filters": []
+            }
+          },
+          "eval": [],
+          "sort": [],
+          "return": {
+            "type": "count",
+            "single": {
+              "sort": []
+            },
+            "list": {
+              "distinct": "auto",
+              "sort": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "offset": 0,
+                "per_page": 25,
+                "metadata": true,
+                "totals": false
+              }
+            },
+            "stream": {
+              "distinct": "auto",
+              "sort": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "per_page": 25
+              }
+            },
+            "aggregate": {
+              "group": [],
+              "sort": [],
+              "index": [],
+              "eval": [],
+              "paging": {
+                "enabled": false,
+                "page": 1,
+                "per_page": 25,
+                "metadata": true
+              }
+            }
+          }
+        },
+        "input": []
+      }
+    },
+    {
+      "name": "clears addon security",
+      "suite": "addons",
+      "category": "clears addon security",
+      "status": "passed",
+      "duration": 178,
+      "command": "xano addon security 18 -p mcp-server -w 40 --clear",
+      "output": "Addon security cleared (no API group restriction)\nID: 18\nName: test_addon_addon_1768166045957"
+    },
+    {
+      "name": "handles get with non-existent addon ID",
+      "suite": "addons",
+      "category": "handles get with non-existent addon ID",
+      "status": "passed",
+      "duration": 183,
+      "command": "xano addon get 999999999 -p mcp-server -w 40 -o json",
+      "error": "API request failed with status 404: Not Found\n{\"code\":\"ERROR_CODE_NOT_FOUND\",\"message\":\"\"}"
+    },
+    {
+      "name": "handles create with invalid XanoScript",
+      "suite": "addons",
+      "category": "handles create with invalid XanoScript",
+      "status": "passed",
+      "duration": 326,
+      "command": "xano addon create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-addon-invalid-1768166059253.xs -o json",
+      "error": "API request failed with status 400: Bad Request\n{\"code\":\"ERROR_CODE_SYNTAX_ERROR\",\"message\":\"Syntax error: unexpected \\u0027invalid\\u0027\",\"payload\":{\"char\":0,\"line\":0,\"col\":0,\"error_line\":\"invalid xanoscript content {{{\",\"error_snippet\":\"invalid xanoscript content {{{\"}}"
+    },
+    {
+      "name": "handles create with missing file",
+      "suite": "addons",
+      "category": "handles create with missing file",
+      "status": "passed",
+      "duration": 28,
+      "command": "xano addon create -p mcp-server -w 40 -f /nonexistent/path.xs -o json",
+      "error": "File not found: /nonexistent/path.xs"
+    },
+    {
+      "name": "deletes the test addon",
+      "suite": "addons",
+      "category": "Delete Addon",
+      "status": "passed",
+      "duration": 288,
+      "command": "xano addon delete 18 -p mcp-server -w 40 --force",
+      "output": "Addon deleted successfully!"
+    },
+    {
+      "name": "deletes the test table after addon is removed",
+      "suite": "addons",
+      "category": "Delete Table Dependency",
+      "status": "passed",
+      "duration": 289
+    },
+    {
+      "name": "verifies addon was deleted",
+      "suite": "addons",
+      "category": "verifies addon was deleted",
+      "status": "passed",
+      "duration": 194,
+      "command": "xano addon get 18 -p mcp-server -w 40 -o json",
+      "error": "API request failed with status 404: Not Found\n{\"code\":\"ERROR_CODE_NOT_FOUND\",\"message\":\"\"}"
+    }
+  ],
+  "passed": 16,
+  "failed": 0,
+  "skipped": 0
+}

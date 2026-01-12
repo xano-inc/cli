@@ -1,0 +1,346 @@
+{
+  "suite": "triggers",
+  "description": "Workspace and Table Triggers",
+  "runDate": "2026-01-11T21:14:57.017Z",
+  "duration": 50677,
+  "profile": "mcp-server",
+  "workspace": "40",
+  "results": [
+    {
+      "name": "creates a workspace trigger from XanoScript",
+      "suite": "triggers",
+      "category": "Create Trigger",
+      "status": "passed",
+      "duration": 483,
+      "command": "xano trigger create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-trigger-1768166091337.xs -o json",
+      "output": {
+        "id": 24,
+        "created_at": "2026-01-11 21:14:51+0000",
+        "updated_at": "2026-01-11 21:14:51+0000",
+        "name": "test_trigger_trig_1768166046340",
+        "description": "",
+        "guid": "7cjFbXeM4vrxZmBikvelv6LhIgc",
+        "branch": "v1",
+        "workspace_id": 40,
+        "tag": [],
+        "actions": {
+          "branch_live": true,
+          "branch_merge": true,
+          "branch_new": true
+        },
+        "draft_updated_at": null,
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "lists triggers in JSON format",
+      "suite": "triggers",
+      "category": "List Triggers",
+      "status": "passed",
+      "duration": 333,
+      "command": "xano trigger list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 24,
+          "created_at": "2026-01-11 21:14:51+0000",
+          "updated_at": "2026-01-11 21:14:51+0000",
+          "name": "test_trigger_trig_1768166046340",
+          "description": "",
+          "guid": "7cjFbXeM4vrxZmBikvelv6LhIgc",
+          "branch": "v1",
+          "workspace_id": 40,
+          "tag": [],
+          "actions": {
+            "branch_live": true,
+            "branch_merge": true,
+            "branch_new": true
+          },
+          "draft_updated_at": null,
+          "xanoscript": null
+        }
+      ]
+    },
+    {
+      "name": "lists triggers in summary format",
+      "suite": "triggers",
+      "category": "List Triggers",
+      "status": "passed",
+      "duration": 247,
+      "command": "xano trigger list -p mcp-server -w 40",
+      "output": "Available triggers:\n  - test_trigger_trig_1768166046340 (ID: 24)"
+    },
+    {
+      "name": "gets trigger details in JSON format",
+      "suite": "triggers",
+      "category": "Get Trigger",
+      "status": "passed",
+      "duration": 277,
+      "command": "xano trigger get 24 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 24,
+        "created_at": "2026-01-11 21:14:51+0000",
+        "updated_at": "2026-01-11 21:14:51+0000",
+        "name": "test_trigger_trig_1768166046340",
+        "description": "",
+        "guid": "7cjFbXeM4vrxZmBikvelv6LhIgc",
+        "branch": "v1",
+        "workspace_id": 40,
+        "tag": [],
+        "actions": {
+          "branch_live": true,
+          "branch_merge": true,
+          "branch_new": true
+        },
+        "draft_updated_at": null,
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "gets trigger in summary format",
+      "suite": "triggers",
+      "category": "Get Trigger",
+      "status": "passed",
+      "duration": 223,
+      "command": "xano trigger get 24 -p mcp-server -w 40",
+      "output": "Trigger: test_trigger_trig_1768166046340\nID: 24\nGUID: 7cjFbXeM4vrxZmBikvelv6LhIgc"
+    },
+    {
+      "name": "edits trigger using XanoScript file",
+      "suite": "triggers",
+      "category": "Edit Trigger",
+      "status": "passed",
+      "duration": 407,
+      "command": "xano trigger edit 24 -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-trigger-edit-1768166092901.xs",
+      "output": "Trigger updated successfully!\nID: 24\nName: test_trigger_trig_1768166046340"
+    },
+    {
+      "name": "clears trigger security",
+      "suite": "triggers",
+      "category": "Trigger Security",
+      "status": "passed",
+      "duration": 418,
+      "command": "xano trigger security 24 -p mcp-server -w 40 --clear",
+      "output": "Trigger security cleared (no API group restriction)\nID: 24\nName: test_trigger_trig_1768166046340"
+    },
+    {
+      "name": "deletes the test trigger",
+      "suite": "triggers",
+      "category": "Delete Trigger",
+      "status": "passed",
+      "duration": 191,
+      "command": "xano trigger delete 24 -p mcp-server -w 40 --force",
+      "output": "Trigger deleted successfully!"
+    },
+    {
+      "name": "creates a table for table trigger tests",
+      "suite": "triggers",
+      "category": "Setup Test Table",
+      "status": "passed",
+      "duration": 333,
+      "command": "xano table create -p mcp-server -w 40 --name trigger_test_table_trig_1768166046340 --description \"Table for trigger tests\" -o json",
+      "output": {
+        "id": 629,
+        "created_at": "2026-01-11 21:14:54+0000",
+        "updated_at": "2026-01-11 21:14:54+0000",
+        "name": "trigger_test_table_trig_1768166046340",
+        "description": "Table for trigger tests",
+        "docs": "",
+        "guid": "79N_d8VxSCnGAawlPp3n5M_Z2M4",
+        "auth": false,
+        "tag": [],
+        "autocomplete": [],
+        "schema": [
+          {
+            "name": "id",
+            "type": "int",
+            "description": "",
+            "nullable": false,
+            "default": "",
+            "required": true,
+            "access": "public",
+            "style": "single"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "description": "",
+            "nullable": false,
+            "default": "now",
+            "required": false,
+            "access": "private",
+            "style": "single"
+          }
+        ],
+        "index": [
+          {
+            "type": "primary",
+            "fields": [
+              {
+                "name": "id"
+              }
+            ],
+            "id": "1339908e"
+          },
+          {
+            "type": "btree",
+            "fields": [
+              {
+                "name": "created_at",
+                "op": "desc"
+              }
+            ],
+            "id": "411a6c94"
+          }
+        ],
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "creates a table trigger from XanoScript",
+      "suite": "triggers",
+      "category": "Create Table Trigger",
+      "status": "passed",
+      "duration": 524,
+      "command": "xano table trigger create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-table-trigger-1768166094250.xs -o json",
+      "output": {
+        "id": 25,
+        "created_at": "2026-01-11 21:14:54+0000",
+        "updated_at": "2026-01-11 21:14:54+0000",
+        "name": "test_table_trigger_trig_1768166046340",
+        "description": "",
+        "guid": "54EpV3HLTozXe1DY2seX_JouElQ",
+        "branch": "v1",
+        "table_id": 629,
+        "tag": [],
+        "actions": {
+          "delete": false,
+          "insert": true,
+          "truncate": false,
+          "update": false
+        },
+        "datasources": [],
+        "draft_updated_at": null,
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "lists table triggers in JSON format",
+      "suite": "triggers",
+      "category": "List Table Triggers",
+      "status": "passed",
+      "duration": 296,
+      "command": "xano table trigger list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 25,
+          "created_at": "2026-01-11 21:14:54+0000",
+          "updated_at": "2026-01-11 21:14:54+0000",
+          "name": "test_table_trigger_trig_1768166046340",
+          "description": "",
+          "guid": "54EpV3HLTozXe1DY2seX_JouElQ",
+          "branch": "v1",
+          "table_id": 629,
+          "tag": [],
+          "actions": {
+            "delete": false,
+            "insert": true,
+            "truncate": false,
+            "update": false
+          },
+          "datasources": [],
+          "draft_updated_at": null,
+          "xanoscript": null
+        }
+      ]
+    },
+    {
+      "name": "lists table triggers in summary format",
+      "suite": "triggers",
+      "category": "List Table Triggers",
+      "status": "passed",
+      "duration": 240,
+      "command": "xano table trigger list -p mcp-server -w 40",
+      "output": "Available table triggers:\n  - test_table_trigger_trig_1768166046340 (ID: 25, table: 629, event: undefined)"
+    },
+    {
+      "name": "gets table trigger details in JSON format",
+      "suite": "triggers",
+      "category": "Get Table Trigger",
+      "status": "passed",
+      "duration": 260,
+      "command": "xano table trigger get 25 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 25,
+        "created_at": "2026-01-11 21:14:54+0000",
+        "updated_at": "2026-01-11 21:14:54+0000",
+        "name": "test_table_trigger_trig_1768166046340",
+        "description": "",
+        "guid": "54EpV3HLTozXe1DY2seX_JouElQ",
+        "branch": "v1",
+        "table_id": 629,
+        "tag": [],
+        "actions": {
+          "delete": false,
+          "insert": true,
+          "truncate": false,
+          "update": false
+        },
+        "datasources": [],
+        "draft_updated_at": null,
+        "xanoscript": null,
+        "input": []
+      }
+    },
+    {
+      "name": "gets table trigger in summary format",
+      "suite": "triggers",
+      "category": "Get Table Trigger",
+      "status": "passed",
+      "duration": 245,
+      "command": "xano table trigger get 25 -p mcp-server -w 40",
+      "output": "Table Trigger: test_table_trigger_trig_1768166046340\nID: 25\nTable ID: 629\nEvent: undefined\nGUID: 54EpV3HLTozXe1DY2seX_JouElQ"
+    },
+    {
+      "name": "edits table trigger using XanoScript file",
+      "suite": "triggers",
+      "category": "Edit Table Trigger",
+      "status": "passed",
+      "duration": 405,
+      "command": "xano table trigger edit 25 -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-table-trigger-edit-1768166095817.xs",
+      "output": "Table trigger updated successfully!\nID: 25\nName: test_table_trigger_trig_1768166046340"
+    },
+    {
+      "name": "clears table trigger security",
+      "suite": "triggers",
+      "category": "Table Trigger Security",
+      "status": "passed",
+      "duration": 313,
+      "command": "xano table trigger security 25 -p mcp-server -w 40 --clear",
+      "output": "Table trigger security cleared (no API group restriction)\nID: 25\nName: test_table_trigger_trig_1768166046340"
+    },
+    {
+      "name": "deletes the test table trigger",
+      "suite": "triggers",
+      "category": "Delete Table Trigger",
+      "status": "passed",
+      "duration": 139,
+      "command": "xano table trigger delete 25 -p mcp-server -w 40 --force",
+      "output": "Table trigger deleted successfully!"
+    },
+    {
+      "name": "deletes the test table",
+      "suite": "triggers",
+      "category": "Cleanup Test Table",
+      "status": "passed",
+      "duration": 343,
+      "command": "xano table delete 629 -p mcp-server -w 40 --force",
+      "output": "Table deleted successfully!"
+    }
+  ],
+  "passed": 18,
+  "failed": 0,
+  "skipped": 0
+}

@@ -1,0 +1,267 @@
+{
+  "suite": "table-data",
+  "description": "Table Content, Schema, and Index Operations",
+  "runDate": "2026-01-11T21:14:51.335Z",
+  "duration": 45043,
+  "profile": "mcp-server",
+  "workspace": "40",
+  "results": [
+    {
+      "name": "creates a table for content tests",
+      "suite": "table-data",
+      "category": "Create Test Table",
+      "status": "passed",
+      "duration": 274,
+      "command": "xano table create -p mcp-server -w 40 --name content_test_tbldata_1768166046292 --description \"Table for content tests\" -o json",
+      "output": {
+        "id": 628,
+        "created_at": "2026-01-11 21:14:49+0000",
+        "updated_at": "2026-01-11 21:14:49+0000",
+        "name": "content_test_tbldata_1768166046292",
+        "description": "Table for content tests",
+        "docs": "",
+        "guid": "Xf2CG7WoN1ugTTnCP35nzZDFKkU",
+        "auth": false,
+        "tag": [],
+        "autocomplete": [],
+        "schema": [
+          {
+            "name": "id",
+            "type": "int",
+            "description": "",
+            "nullable": false,
+            "default": "",
+            "required": true,
+            "access": "public",
+            "style": "single"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp",
+            "description": "",
+            "nullable": false,
+            "default": "now",
+            "required": false,
+            "access": "private",
+            "style": "single"
+          }
+        ],
+        "index": [
+          {
+            "type": "primary",
+            "fields": [
+              {
+                "name": "id"
+              }
+            ],
+            "id": "1339908e"
+          },
+          {
+            "type": "btree",
+            "fields": [
+              {
+                "name": "created_at",
+                "op": "desc"
+              }
+            ],
+            "id": "411a6c94"
+          }
+        ],
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "creates a record in the table",
+      "suite": "table-data",
+      "category": "Create Record",
+      "status": "passed",
+      "duration": 114,
+      "command": "xano table content create 628 -p mcp-server -w 40 --data {\"id\":99} -o json",
+      "output": {
+        "id": 99,
+        "created_at": 1768166089431
+      }
+    },
+    {
+      "name": "lists records in JSON format",
+      "suite": "table-data",
+      "category": "List Records",
+      "status": "passed",
+      "duration": 84,
+      "command": "xano table content list 628 -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 99,
+          "created_at": 1768166089431
+        }
+      ]
+    },
+    {
+      "name": "lists records in summary format",
+      "suite": "table-data",
+      "category": "List Records",
+      "status": "passed",
+      "duration": 82,
+      "command": "xano table content list 628 -p mcp-server -w 40",
+      "output": "Records in table:\n  - ID: 99\n\nTotal: 1 records"
+    },
+    {
+      "name": "gets record details in JSON format",
+      "suite": "table-data",
+      "category": "Get Record",
+      "status": "passed",
+      "duration": 79,
+      "command": "xano table content get 628 99 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 99,
+        "created_at": 1768166089431
+      }
+    },
+    {
+      "name": "updates a record",
+      "suite": "table-data",
+      "category": "Edit Record",
+      "status": "passed",
+      "duration": 82,
+      "command": "xano table content edit 628 99 -p mcp-server -w 40 --data {\"id\":99}",
+      "output": "Record updated successfully!\nID: 99"
+    },
+    {
+      "name": "bulk creates multiple records",
+      "suite": "table-data",
+      "category": "Bulk Create Records",
+      "status": "passed",
+      "duration": 85,
+      "command": "xano table content bulk-create 628 -p mcp-server -w 40 --data [{\"id\":100},{\"id\":101}] -o json",
+      "output": [
+        100,
+        101
+      ]
+    },
+    {
+      "name": "bulk deletes multiple records",
+      "suite": "table-data",
+      "category": "Bulk Delete Records",
+      "status": "passed",
+      "duration": 84,
+      "command": "xano table content bulk-delete 628 -p mcp-server -w 40 --ids 100,101 --force",
+      "output": "2 records deleted successfully!"
+    },
+    {
+      "name": "deletes the test record",
+      "suite": "table-data",
+      "category": "Delete Record",
+      "status": "passed",
+      "duration": 80,
+      "command": "xano table content delete 628 99 -p mcp-server -w 40 --force",
+      "output": "Record deleted successfully!"
+    },
+    {
+      "name": "gets table schema",
+      "suite": "table-data",
+      "category": "Get Schema",
+      "status": "passed",
+      "duration": 90,
+      "command": "xano table schema get 628 -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "name": "id",
+          "type": "int",
+          "description": "",
+          "nullable": false,
+          "default": "",
+          "required": true,
+          "access": "public",
+          "style": "single"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "description": "",
+          "nullable": false,
+          "default": "now",
+          "required": false,
+          "access": "private",
+          "style": "single"
+        }
+      ]
+    },
+    {
+      "name": "adds a text column to the schema",
+      "suite": "table-data",
+      "category": "Add Column",
+      "status": "passed",
+      "duration": 241,
+      "command": "xano table schema column add 628 -p mcp-server -w 40 --type text --name test_column",
+      "output": "Column 'test_column' added successfully!"
+    },
+    {
+      "name": "gets column details",
+      "suite": "table-data",
+      "category": "Get Column",
+      "status": "passed",
+      "duration": 128,
+      "command": "xano table schema column get 628 test_column -p mcp-server -w 40",
+      "output": "Column: test_column\n{\n  \"name\": \"test_column\",\n  \"type\": \"text\",\n  \"style\": \"single\",\n  \"access\": \"public\",\n  \"format\": \"\",\n  \"default\": \"\",\n  \"nullable\": false,\n  \"required\": false,\n  \"description\": \"\"\n}"
+    },
+    {
+      "name": "renames a column",
+      "suite": "table-data",
+      "category": "Rename Column",
+      "status": "passed",
+      "duration": 195,
+      "command": "xano table schema column rename 628 -p mcp-server -w 40 --old-name test_column --new-name renamed_column",
+      "output": "Column renamed from 'test_column' to 'renamed_column' successfully!"
+    },
+    {
+      "name": "deletes a column",
+      "suite": "table-data",
+      "category": "Delete Column",
+      "status": "passed",
+      "duration": 264,
+      "command": "xano table schema column delete 628 renamed_column -p mcp-server -w 40 --force",
+      "output": "Column 'renamed_column' deleted successfully!"
+    },
+    {
+      "name": "lists table indexes",
+      "suite": "table-data",
+      "category": "List Indexes",
+      "status": "passed",
+      "duration": 197,
+      "command": "xano table index list 628 -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "type": "primary",
+          "fields": [
+            {
+              "name": "id"
+            }
+          ],
+          "id": "1339908e"
+        },
+        {
+          "type": "btree",
+          "fields": [
+            {
+              "name": "created_at",
+              "op": "desc"
+            }
+          ],
+          "id": "411a6c94"
+        }
+      ]
+    },
+    {
+      "name": "deletes the test table",
+      "suite": "table-data",
+      "category": "Delete Test Table",
+      "status": "passed",
+      "duration": 231,
+      "command": "xano table delete 628 -p mcp-server -w 40 --force",
+      "output": "Table deleted successfully!"
+    }
+  ],
+  "passed": 16,
+  "failed": 0,
+  "skipped": 0
+}

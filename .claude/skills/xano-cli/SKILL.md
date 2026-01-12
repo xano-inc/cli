@@ -1,496 +1,322 @@
-# Xano CLI Skill
+---
+name: xano-cli
+description: Use this skill when working with the Xano CLI to manage workspaces, tables, APIs, functions, and other Xano resources from the command line.
+---
 
-The Xano CLI provides full command-line access to Xano's Metadata API for **tables**, **APIs**, and **functions**.
+# Xano CLI Usage Guide
 
-## CLI vs MCP - Complete Comparison
+The Xano CLI (`@xano/cli`) provides command-line access to Xano's Metadata API for managing workspaces, tables, APIs, functions, tasks, and more.
 
-| Capability | CLI | MCP | Best Tool |
-|------------|-----|-----|-----------|
-| **Create Tables** | `table create` | `xano_execute` | **Either** |
-| **Edit Tables** | `table edit` | `xano_execute` | CLI (for XanoScript files) |
-| **Create API Groups** | `apigroup create` | `xano_execute` | **Either** |
-| **Create API Endpoints** | `api create` | `xano_execute` | CLI (for XanoScript files) |
-| **Edit API Endpoints** | `api edit` | `xano_execute` | CLI (for XanoScript files) |
-| **Export XanoScript** | `table/api get -o xs` | Limited | CLI |
-| **Create Functions** | `function create` | N/A | CLI |
-| **Edit Functions** | `function edit` | N/A | CLI |
-| **Auto-CRUD Generation** | Manual | Automatic | MCP |
-| **Natural Language** | N/A | Full support | MCP |
-| **Ephemeral Jobs** | `ephemeral:run:job` | N/A | CLI |
-| **Version Control** | Export to files | N/A | CLI |
+## Core Concepts
 
-**Key Insight:** Use CLI for **file-based workflows** and **version control**. Use MCP for **natural language** and **auto-CRUD**.
+### Profiles & Workspace Setup
+
+Profiles store credentials and default settings. The wizard is the easiest way to get started.
+
+```bash
+# Interactive setup (recommended) - selects instance, workspace, branch
+xano profile wizard
+
+# View current profile settings
+xano profile me
+
+# List available workspaces
+xano workspace list
+```
+
+**After running the wizard, your workspace is saved to the profile.** You won't need `-w` flags for subsequent commands.
+
+### Manual Profile Management
+
+```bash
+# Create profile manually
+xano profile create myprofile -i https://instance.xano.com -t <token>
+
+# Set default workspace (use ID from 'workspace list')
+xano profile edit -w <workspace_id>
+
+# Set default profile
+xano profile set-default myprofile
+
+# Change workspace later
+xano profile edit -w <new_workspace_id>
+```
+
+### Workspace Context
+
+Most commands require a workspace. Resolution order:
+1. `-w` flag if provided
+2. Profile's saved workspace
+3. Error with instructions
+
+```bash
+# Uses profile's saved workspace
+xano table list
+
+# Override with specific workspace
+xano table list -w <workspace_id>
+```
+
+### Output Formats
+
+Commands support three output formats via `-o`:
+- `summary` - Human-readable (default)
+- `json` - Full JSON response
+- `xs` - XanoScript format (for scriptable resources)
 
 ---
 
-## Installation & Configuration
+## Command Reference by Resource
 
-### Verify Installation
-```bash
-# From project's xano-cli folder
-cd xano-cli && npm install && npm link
+> **Note:** Examples below omit `-w` assuming workspace is set in profile. Add `-w <id>` if needed.
 
-# Verify
-xano --version
-xano profile:list --details
-```
+### Tables
 
-**Default Profile:** `mcp-server`
-- Instance: `https://xhib-njau-6vza.d2.dev.xano.io`
-- Workspace: `40`
+| Action | Command |
+|--------|---------|
+| List tables | `xano table list` |
+| Get table | `xano table get <table_id>` |
+| Create table | `xano table create --name users` |
+| Create from XS | `xano table create -f table.xs` |
+| Edit table | `xano table edit <table_id>` |
+| Delete table | `xano table delete <table_id> --force` |
 
----
+#### Table Content (Data)
 
-## Database Tables
+| Action | Command |
+|--------|---------|
+| List records | `xano table content list <table_id>` |
+| Get record | `xano table content get <table_id> <record_id>` |
+| Create record | `xano table content create <table_id> --data '{"name":"John"}'` |
+| Edit record | `xano table content edit <table_id> <record_id> --data '{"name":"Jane"}'` |
+| Delete record | `xano table content delete <table_id> <record_id>` |
+| Search | `xano table content search <table_id> --query "name=John"` |
+| Truncate | `xano table content truncate <table_id> --force` |
+| Bulk create | `xano table content bulk-create <table_id> -f records.json` |
 
-### List Tables
-```bash
-xano table list -w 40
-xano table list -w 40 -o json
-```
+#### Table Schema
 
-### Get Table (with XanoScript export)
-```bash
-xano table get 123 -w 40           # Summary
-xano table get 123 -w 40 -o xs     # Export as XanoScript
-xano table get 123 -w 40 -o json   # Full JSON
-```
+| Action | Command |
+|--------|---------|
+| Get schema | `xano table schema get <table_id>` |
+| Replace schema | `xano table schema replace <table_id> -f schema.json` |
+| Get column | `xano table schema column get <table_id> <column_name>` |
+| Add column | `xano table schema column add <table_id> --name email --type text` |
+| Delete column | `xano table schema column delete <table_id> <column_name>` |
 
-### Create Table
-```bash
-# From flags
-xano table create -w 40 --name users --description "User accounts"
+#### Table Indexes
 
-# From XanoScript file
-xano table create -w 40 -f table.xs
+| Action | Command |
+|--------|---------|
+| List indexes | `xano table index list <table_id>` |
+| Create btree | `xano table index create btree <table_id> --column email` |
+| Create unique | `xano table index create unique <table_id> --column email` |
+| Create search | `xano table index create search <table_id> --column desc --language english` |
+| Delete index | `xano table index delete <table_id> <index_name>` |
 
-# From JSON file
-xano table create -w 40 -f table.json
-```
+#### Table Triggers
 
-### Edit Table
-```bash
-xano table edit 123 -w 40              # Opens in $EDITOR
-xano table edit 123 -w 40 -f table.xs  # Update from file
-xano table edit 123 -w 40 --name new_name
-```
-
-### Delete Table
-```bash
-xano table delete 123 -w 40
-xano table delete 123 -w 40 --force   # Skip confirmation
-```
-
----
-
-## API Groups
-
-### List API Groups
-```bash
-xano apigroup list -w 40
-xano apigroup list -w 40 -o json
-```
-
-### Get API Group
-```bash
-xano apigroup get 5 -w 40
-xano apigroup get 5 -w 40 -o xs    # Export as XanoScript
-```
-
-### Create API Group
-```bash
-# From flags
-xano apigroup create -w 40 --name user --description "User APIs" --swagger
-
-# From XanoScript file
-xano apigroup create -w 40 -f apigroup.xs
-```
-
-### Edit API Group
-```bash
-xano apigroup edit 5 -w 40
-xano apigroup edit 5 -w 40 --name new_name --no-swagger
-```
-
-### Delete API Group
-```bash
-xano apigroup delete 5 -w 40
-xano apigroup delete 5 -w 40 --force
-```
+| Action | Command |
+|--------|---------|
+| List triggers | `xano table trigger list <table_id>` |
+| Get trigger | `xano table trigger get <table_id> <trigger_id>` |
+| Create trigger | `xano table trigger create <table_id> --name on_insert --event insert` |
+| Delete trigger | `xano table trigger delete <table_id> <trigger_id>` |
 
 ---
 
-## API Endpoints
+### API Groups & Endpoints
 
-### List APIs in a Group
-```bash
-xano api list 5 -w 40              # List APIs in group 5
-xano api list 5 -w 40 -o json --include_draft
-```
+#### API Groups
 
-### Get API Endpoint
-```bash
-xano api get 5 123 -w 40           # Get API 123 in group 5
-xano api get 5 123 -w 40 -o xs     # Export as XanoScript
-```
+| Action | Command |
+|--------|---------|
+| List groups | `xano apigroup list` |
+| Get group | `xano apigroup get <group_id>` |
+| Create group | `xano apigroup create --name user --swagger` |
+| Edit group | `xano apigroup edit <group_id> --name new_name` |
+| Delete group | `xano apigroup delete <group_id> --force` |
 
-### Create API Endpoint
-```bash
-# From flags
-xano api create 5 -w 40 --name user --verb GET --description "Get user"
+#### API Endpoints
 
-# From XanoScript file
-xano api create 5 -w 40 -f endpoint.xs
-
-# From stdin
-cat endpoint.xs | xano api create 5 -w 40 --stdin
-```
-
-### Edit API Endpoint
-```bash
-xano api edit 5 123 -w 40              # Opens in $EDITOR
-xano api edit 5 123 -w 40 -f new.xs    # Update from file
-xano api edit 5 123 -w 40 --publish    # Publish after editing
-```
-
-### Delete API Endpoint
-```bash
-xano api delete 5 123 -w 40
-xano api delete 5 123 -w 40 --force
-```
+| Action | Command |
+|--------|---------|
+| List APIs | `xano api list <group_id>` |
+| Get API | `xano api get <group_id> <api_id>` |
+| Get as XS | `xano api get <group_id> <api_id> -o xs` |
+| Create API | `xano api create <group_id> --name user --verb GET` |
+| Create from XS | `xano api create <group_id> -f endpoint.xs` |
+| Edit API | `xano api edit <group_id> <api_id>` |
+| Publish | `xano api edit <group_id> <api_id> --publish` |
+| Delete API | `xano api delete <group_id> <api_id> --force` |
 
 ---
 
-## Functions
+### Functions
 
-### List Functions
-```bash
-xano function:list -w 40
-xano function:list -w 40 -o json
-xano function:list -w 40 --include_xanoscript
-```
-
-### Get Function
-```bash
-xano function:get 156 -w 40           # Summary
-xano function:get 156 -w 40 -o xs     # XanoScript (for editing)
-xano function:get 156 -w 40 -o json   # Full JSON
-```
-
-### Create Function
-```bash
-xano function:create -w 40 -f function.xs
-cat function.xs | xano function:create -w 40 --stdin
-```
-
-### Edit Function
-```bash
-xano function:edit 156 -w 40           # Opens in $EDITOR
-xano function:edit 156 -w 40 -f new.xs
-xano function:edit 156 -w 40 --publish
-```
+| Action | Command |
+|--------|---------|
+| List functions | `xano function list` |
+| Get function | `xano function get <function_id>` |
+| Get as XS | `xano function get <function_id> -o xs` |
+| Create from XS | `xano function create -f function.xs` |
+| Edit function | `xano function edit <function_id>` |
+| Publish | `xano function edit <function_id> --publish` |
+| Delete function | `xano function delete <function_id> --force` |
+| Security settings | `xano function security <function_id>` |
 
 ---
 
-## Ephemeral Jobs & Services
+### Middleware
 
-Run XanoScript code without creating permanent resources.
-
-### Run Job (execute and return result)
-```bash
-xano ephemeral:run:job -f script.xs
-xano ephemeral:run:job -f script.xs -a args.json  # With input arguments
-xano ephemeral:run:job -f script.xs --edit        # Edit in $EDITOR first
-```
-
-### Run Service (start API endpoints)
-```bash
-xano ephemeral:run:service -f service.xs
-```
+| Action | Command |
+|--------|---------|
+| List | `xano middleware list` |
+| Get | `xano middleware get <middleware_id>` |
+| Create | `xano middleware create --name auth_check` |
+| Create from XS | `xano middleware create -f middleware.xs` |
+| Edit | `xano middleware edit <middleware_id>` |
+| Delete | `xano middleware delete <middleware_id> --force` |
 
 ---
 
-## Complete Development Workflow
+### Tasks (Scheduled Jobs)
 
-### 1. Export Existing Resources for Version Control
+| Action | Command |
+|--------|---------|
+| List | `xano task list` |
+| Get | `xano task get <task_id>` |
+| Get as XS | `xano task get <task_id> -o xs` |
+| Create | `xano task create --name cleanup --schedule "0 0 * * *"` |
+| Create from XS | `xano task create -f task.xs` |
+| Edit | `xano task edit <task_id>` |
+| Delete | `xano task delete <task_id> --force` |
+
+---
+
+### Addons
+
+| Action | Command |
+|--------|---------|
+| List | `xano addon list` |
+| Get | `xano addon get <addon_id>` |
+| Create | `xano addon create --name my_addon` |
+| Edit | `xano addon edit <addon_id>` |
+| Delete | `xano addon delete <addon_id> --force` |
+
+---
+
+### Workspace Operations
+
+| Action | Command |
+|--------|---------|
+| List workspaces | `xano workspace list` |
+| Get workspace | `xano workspace get` |
+| Get context | `xano workspace context` |
+| Export workspace | `xano workspace export -f workspace.zip` |
+| Import workspace | `xano workspace import -f workspace.zip` |
+| Export schema | `xano workspace export-schema -f schema.zip` |
+| Import schema | `xano workspace import-schema -f schema.zip` |
+| Get OpenAPI | `xano workspace openapi` |
+
+---
+
+### Ephemeral Execution
+
+Run XanoScript without creating permanent resources.
+
 ```bash
-# Export table schema
-xano table get 534 -w 40 -o xs > schemas/user.xs
+# Run a job (executes once, returns result)
+xano run job -f script.xs
+xano run job -f script.xs -a args.json  # With arguments
 
-# Export API endpoint
-xano api get 217 1458 -w 40 -o xs > apis/get_users.xs
-
-# Export function
-xano function:get 156 -w 40 -o xs > functions/get_low_stock.xs
-```
-
-### 2. Create New Table from File
-```bash
-# Write table schema
-cat > schemas/product.xs << 'EOF'
-table product {
-  description = "Product catalog"
-  column id { type = int, auto = true }
-  column name { type = text }
-  column price { type = decimal }
-  column stock { type = int, default = 0 }
-}
-EOF
-
-# Create in Xano
-xano table create -w 40 -f schemas/product.xs
-```
-
-### 3. Create API Endpoint from File
-```bash
-# Write endpoint
-cat > apis/get_products.xs << 'EOF'
-query "products" verb=GET {
-  description = "List all products"
-  input {
-    int limit?=10 { description = "Max results" }
-  }
-  stack {
-    db.direct_query {
-      sql = "SELECT * FROM x40_575 LIMIT ?"
-      response_type = "list"
-      arg = $input.limit
-    } as $products
-  }
-  response = $products
-}
-EOF
-
-# Create in Xano (in API group 5)
-xano api create 5 -w 40 -f apis/get_products.xs
-```
-
-### 4. Create Function and Use in Endpoint
-```bash
-# Write function
-cat > functions/calculate_total.xs << 'EOF'
-function calculate_total {
-  description = "Calculate order total with tax"
-  input {
-    decimal subtotal { description = "Order subtotal" }
-    decimal tax_rate?=0.08 { description = "Tax rate" }
-  }
-  stack {
-    var $tax { value = `$input.subtotal * $input.tax_rate` }
-    var $total { value = `$input.subtotal + $tax` }
-  }
-  response = {
-    subtotal: $input.subtotal,
-    tax: $tax,
-    total: $total
-  }
-}
-EOF
-
-# Create function
-xano function:create -w 40 -f functions/calculate_total.xs
-
-# Then call it from an endpoint using function.run
+# Run a service (starts temporary API endpoints)
+xano run service -f service.xs
 ```
 
 ---
 
-## Version Control Workflow
+## Common Workflows
 
-### Export All Resources
+### Create a Table with API CRUD
+
 ```bash
-#!/bin/bash
-# export-all.sh
+# 1. Create the table
+xano table create --name products --description "Product catalog"
 
-WORKSPACE=40
-mkdir -p schemas apis functions
+# 2. Get the new table ID from output, then add columns
+xano table schema column add <table_id> --name name --type text
+xano table schema column add <table_id> --name price --type decimal
+xano table schema column add <table_id> --name category --type text
 
-# Export tables
-for id in $(xano table list -w $WORKSPACE -o json | jq -r '.[].id'); do
-  name=$(xano table get $id -w $WORKSPACE -o json | jq -r '.name')
-  echo "Exporting table: $name"
-  xano table get $id -w $WORKSPACE -o xs > "schemas/${name}.xs"
-done
+# 3. Add indexes
+xano table index create btree <table_id> --column category
+xano table index create unique <table_id> --column name
 
-# Export API groups and endpoints
-for group_id in $(xano apigroup list -w $WORKSPACE -o json | jq -r '.[].id'); do
-  group_name=$(xano apigroup get $group_id -w $WORKSPACE -o json | jq -r '.name')
-  mkdir -p "apis/${group_name}"
+# 4. Create API group
+xano apigroup create --name products --swagger
 
-  for api_id in $(xano api list $group_id -w $WORKSPACE -o json | jq -r '.[].id'); do
-    api_name=$(xano api get $group_id $api_id -w $WORKSPACE -o json | jq -r '.name')
-    echo "Exporting API: $group_name/$api_name"
-    xano api get $group_id $api_id -w $WORKSPACE -o xs > "apis/${group_name}/${api_name}.xs"
-  done
-done
-
-# Export functions
-for id in $(xano function:list -w $WORKSPACE -o json | jq -r '.[].id'); do
-  name=$(xano function:get $id -w $WORKSPACE -o json | jq -r '.name')
-  echo "Exporting function: $name"
-  xano function:get $id -w $WORKSPACE -o xs > "functions/${name}.xs"
-done
+# 5. Create endpoints from XanoScript files
+xano api create <group_id> -f apis/products/list.xs
+xano api create <group_id> -f apis/products/get.xs
+xano api create <group_id> -f apis/products/create.xs
 ```
 
-### Git Workflow
+### Export and Edit a Resource
+
 ```bash
-# 1. Export current state
-./export-all.sh
+# Export as XanoScript
+xano function get <function_id> -o xs > my_function.xs
 
-# 2. Edit locally
-code apis/crm/get_contacts.xs
+# Edit the file
+$EDITOR my_function.xs
 
-# 3. Push back to Xano
-xano api edit 217 1458 -w 40 -f apis/crm/get_contacts.xs --publish
+# Update the function
+xano function edit <function_id> -f my_function.xs --publish
+```
 
-# 4. Commit to Git
-git add .
-git commit -m "Update get_contacts endpoint"
+### Bulk Data Operations
+
+```bash
+# Create records from JSON file
+xano table content bulk-create <table_id> -f records.json
+
+# Patch multiple records
+xano table content bulk-patch <table_id> -f updates.json
+
+# Delete multiple records
+xano table content bulk-delete <table_id> --ids 1,2,3,4,5
 ```
 
 ---
 
-## Table Name Convention
+## Tips
 
-When writing SQL in XanoScript, use: `x{workspace_id}_{table_id}`
-
-```bash
-# Get table IDs first
-xano table list -w 40 -o json | jq '.[] | {id, name}'
-
-# Returns:
-# {"id": 534, "name": "user"}
-# {"id": 575, "name": "product"}
-
-# Use in SQL:
-# x40_534 = user table
-# x40_575 = product table
-```
+1. **Run wizard first** - `xano profile wizard` sets up everything interactively
+2. **Use `-o json` for scripting** - Parse JSON output with `jq` for automation
+3. **Use `-o xs` for version control** - Export resources as XanoScript for git
+4. **Use `--force` to skip confirmations** - Useful for CI/CD pipelines
+5. **Pipe XanoScript** - `cat file.xs | xano api create <group_id> --stdin`
 
 ---
 
-## XanoScript Syntax Reference
+## Environment Variables
 
-### Table Definition
-```xs
-table my_table {
-  description = "Table description"
-
-  column id { type = int, auto = true }
-  column name { type = text, required = true }
-  column email { type = text, unique = true }
-  column status { type = enum, values = ["active", "inactive"], default = "active" }
-  column created_at { type = timestamp, default = now }
-}
-```
-
-### API Endpoint (Query)
-```xs
-query "endpoint-name" verb=GET {
-  description = "What this endpoint does"
-  auth = "user"  // Optional: require authentication
-
-  input {
-    int id { description = "Record ID" }
-    text search? { description = "Search term (optional)" }
-    int limit?=10 { description = "Limit with default" }
-  }
-
-  stack {
-    // Database, logic, etc.
-  }
-
-  response = $result
-}
-```
-
-### Function
-```xs
-function my_function {
-  description = "What this function does"
-
-  input {
-    text name { description = "Required parameter" }
-    int count?=10 { description = "Optional with default" }
-  }
-
-  stack {
-    // Your logic here
-  }
-
-  response = $result
-}
-```
+| Variable | Purpose |
+|----------|---------|
+| `XANO_PROFILE` | Default profile to use |
+| `XANO_TEST_PROFILE` | Profile for running tests |
+| `EDITOR` | Editor for `edit` commands |
 
 ---
 
-## Global Options
+## Error Handling
 
-All commands support these options:
+Common errors and solutions:
 
-| Flag | Description |
-|------|-------------|
-| `-p, --profile` | Profile to use (or set `XANO_PROFILE` env var) |
-| `-w, --workspace` | Workspace ID (overrides profile default) |
-| `-o, --output` | Output format: `summary` (default), `json`, or `xs` |
-| `-b, --branch` | Branch name (for API operations) |
-
----
-
-## When to Use CLI vs MCP
-
-### Use CLI When:
-- Version controlling XanoScript files
-- Bulk exporting resources
-- Editing in your IDE with `$EDITOR`
-- Running ephemeral jobs for testing
-- Scripting/automation workflows
-
-### Use MCP When:
-- Natural language is easier than writing XanoScript
-- Auto-generating CRUD endpoints with tables
-- Quick one-off operations
-- Don't need file-based workflow
-
----
-
-## Troubleshooting
-
-### "Profile not found"
-```bash
-xano profile:list
-xano profile:set-default mcp-server
-```
-
-### "Workspace not found"
-```bash
-xano workspace:list
-# Find correct workspace ID, then:
-xano profile:edit mcp-server -w CORRECT_ID
-```
-
-### Authentication Errors
-```bash
-xano profile:delete mcp-server
-xano profile:wizard  # Recreate interactively
-```
-
-### Syntax Errors in XanoScript
-Export and debug:
-```bash
-xano api get GROUP_ID API_ID -w 40 -o xs > debug.xs
-code debug.xs  # Inspect syntax
-```
-
----
-
-## Help
-
-```bash
-xano --help
-xano table --help
-xano api --help
-xano apigroup --help
-xano function --help
-xano <command> --help
-```
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "Profile not found" | Missing profile | Run `xano profile wizard` |
+| "Workspace ID required" | No workspace in profile | Run `xano profile edit -w <id>` |
+| "Unauthorized" | Invalid/expired token | Refresh token with `xano profile token` |
+| "Not found" | Invalid resource ID | Check ID with `list` command |

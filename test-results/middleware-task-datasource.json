@@ -1,0 +1,375 @@
+{
+  "suite": "middleware-task-datasource",
+  "description": "Middleware, Tasks, and Datasources",
+  "runDate": "2026-01-11T21:14:49.021Z",
+  "duration": 42782,
+  "profile": "mcp-server",
+  "workspace": "40",
+  "results": [
+    {
+      "name": "creates a middleware from XanoScript",
+      "suite": "middleware-task-datasource",
+      "category": "Create Middleware",
+      "status": "passed",
+      "duration": 383,
+      "command": "xano middleware create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-mw-1768166082653.xs -o json",
+      "output": {
+        "id": 10,
+        "created_at": "2026-01-11 21:14:42+0000",
+        "updated_at": "2026-01-11 21:14:42+0000",
+        "name": "test_mw_mtd_1768166046239",
+        "description": "",
+        "guid": "UmNfu6V4IXjcgjGmU2bs0vE9g_o",
+        "branch": "v1",
+        "input": [
+          {
+            "name": "vars",
+            "type": "json",
+            "description": "",
+            "nullable": false,
+            "default": "",
+            "required": false,
+            "access": "public",
+            "style": "single"
+          },
+          {
+            "name": "type",
+            "type": "enum",
+            "description": "",
+            "nullable": false,
+            "default": "pre",
+            "required": false,
+            "values": [
+              "pre",
+              "post"
+            ],
+            "access": "public",
+            "style": "single"
+          }
+        ],
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "lists middleware in JSON format",
+      "suite": "middleware-task-datasource",
+      "category": "List Middleware",
+      "status": "passed",
+      "duration": 361,
+      "command": "xano middleware list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 10,
+          "created_at": "2026-01-11 21:14:42+0000",
+          "updated_at": "2026-01-11 21:14:42+0000",
+          "name": "test_mw_mtd_1768166046239",
+          "description": "",
+          "guid": "UmNfu6V4IXjcgjGmU2bs0vE9g_o",
+          "branch": "v1",
+          "input": [
+            {
+              "name": "vars",
+              "type": "json",
+              "description": "",
+              "nullable": false,
+              "default": "",
+              "required": false,
+              "access": "public",
+              "style": "single"
+            },
+            {
+              "name": "type",
+              "type": "enum",
+              "description": "",
+              "nullable": false,
+              "default": "pre",
+              "required": false,
+              "values": [
+                "pre",
+                "post"
+              ],
+              "access": "public",
+              "style": "single"
+            }
+          ],
+          "tag": [],
+          "draft_updated_at": null,
+          "xanoscript": null
+        }
+      ]
+    },
+    {
+      "name": "lists middleware in summary format",
+      "suite": "middleware-task-datasource",
+      "category": "List Middleware",
+      "status": "passed",
+      "duration": 232,
+      "command": "xano middleware list -p mcp-server -w 40",
+      "output": "Available middleware:\n  - test_mw_mtd_1768166046239 (ID: 10)"
+    },
+    {
+      "name": "gets middleware details in JSON format",
+      "suite": "middleware-task-datasource",
+      "category": "Get Middleware",
+      "status": "passed",
+      "duration": 237,
+      "command": "xano middleware get 10 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 10,
+        "created_at": "2026-01-11 21:14:42+0000",
+        "updated_at": "2026-01-11 21:14:42+0000",
+        "name": "test_mw_mtd_1768166046239",
+        "description": "",
+        "guid": "UmNfu6V4IXjcgjGmU2bs0vE9g_o",
+        "branch": "v1",
+        "input": [
+          {
+            "name": "vars",
+            "type": "json",
+            "description": "",
+            "nullable": false,
+            "default": "",
+            "required": false,
+            "access": "public",
+            "style": "single"
+          },
+          {
+            "name": "type",
+            "type": "enum",
+            "description": "",
+            "nullable": false,
+            "default": "pre",
+            "required": false,
+            "values": [
+              "pre",
+              "post"
+            ],
+            "access": "public",
+            "style": "single"
+          }
+        ],
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "gets middleware in summary format",
+      "suite": "middleware-task-datasource",
+      "category": "Get Middleware",
+      "status": "passed",
+      "duration": 228,
+      "command": "xano middleware get 10 -p mcp-server -w 40",
+      "output": "Middleware: test_mw_mtd_1768166046239\nID: 10\nGUID: UmNfu6V4IXjcgjGmU2bs0vE9g_o"
+    },
+    {
+      "name": "edits middleware description",
+      "suite": "middleware-task-datasource",
+      "category": "Edit Middleware",
+      "status": "passed",
+      "duration": 381,
+      "command": "xano middleware edit 10 -p mcp-server -w 40 --description \"Updated by test\"",
+      "output": "Middleware updated successfully!\nID: 10\nName: test_mw_mtd_1768166046239"
+    },
+    {
+      "name": "clears middleware security",
+      "suite": "middleware-task-datasource",
+      "category": "Middleware Security",
+      "status": "passed",
+      "duration": 330,
+      "command": "xano middleware security 10 -p mcp-server -w 40 --clear",
+      "output": "Middleware security cleared (no API group restriction)\nID: 10\nName: test_mw_mtd_1768166046239"
+    },
+    {
+      "name": "deletes the test middleware",
+      "suite": "middleware-task-datasource",
+      "category": "Delete Middleware",
+      "status": "passed",
+      "duration": 395,
+      "command": "xano middleware delete 10 -p mcp-server -w 40 --force",
+      "output": "Middleware deleted successfully!"
+    },
+    {
+      "name": "creates a task from XanoScript",
+      "suite": "middleware-task-datasource",
+      "category": "Create Task",
+      "status": "passed",
+      "duration": 435,
+      "command": "xano task create -p mcp-server -w 40 -f /var/folders/0n/jvfbdf6123v9_w9sdnvq8jy40000gn/T/test-task-1768166085201.xs -o json",
+      "output": {
+        "id": 11,
+        "created_at": "2026-01-11 21:14:45+0000",
+        "updated_at": "2026-01-11 21:14:45+0000",
+        "name": "test_task_mtd_1768166046239",
+        "description": "",
+        "docs": "",
+        "guid": "cafnIq-lnKFBGEhXMwExhhJ_zwg",
+        "datasource": "",
+        "active": true,
+        "branch": "v1",
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "lists tasks in JSON format",
+      "suite": "middleware-task-datasource",
+      "category": "List Tasks",
+      "status": "passed",
+      "duration": 324,
+      "command": "xano task list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "id": 11,
+          "created_at": "2026-01-11 21:14:45+0000",
+          "updated_at": "2026-01-11 21:14:45+0000",
+          "name": "test_task_mtd_1768166046239",
+          "description": "",
+          "docs": "",
+          "guid": "cafnIq-lnKFBGEhXMwExhhJ_zwg",
+          "datasource": "",
+          "active": true,
+          "branch": "v1",
+          "tag": [],
+          "draft_updated_at": null,
+          "xanoscript": null
+        }
+      ]
+    },
+    {
+      "name": "lists tasks in summary format",
+      "suite": "middleware-task-datasource",
+      "category": "List Tasks",
+      "status": "passed",
+      "duration": 240,
+      "command": "xano task list -p mcp-server -w 40",
+      "output": "Available tasks:\n  - test_task_mtd_1768166046239 (ID: 11)"
+    },
+    {
+      "name": "gets task details in JSON format",
+      "suite": "middleware-task-datasource",
+      "category": "Get Task",
+      "status": "passed",
+      "duration": 238,
+      "command": "xano task get 11 -p mcp-server -w 40 -o json",
+      "output": {
+        "id": 11,
+        "created_at": "2026-01-11 21:14:45+0000",
+        "updated_at": "2026-01-11 21:14:45+0000",
+        "name": "test_task_mtd_1768166046239",
+        "description": "",
+        "docs": "",
+        "guid": "cafnIq-lnKFBGEhXMwExhhJ_zwg",
+        "datasource": "",
+        "active": true,
+        "branch": "v1",
+        "tag": [],
+        "draft_updated_at": null,
+        "xanoscript": null
+      }
+    },
+    {
+      "name": "gets task in summary format",
+      "suite": "middleware-task-datasource",
+      "category": "Get Task",
+      "status": "passed",
+      "duration": 220,
+      "command": "xano task get 11 -p mcp-server -w 40",
+      "output": "Task: test_task_mtd_1768166046239\nID: 11\nGUID: cafnIq-lnKFBGEhXMwExhhJ_zwg"
+    },
+    {
+      "name": "edits task description",
+      "suite": "middleware-task-datasource",
+      "category": "Edit Task",
+      "status": "passed",
+      "duration": 529,
+      "command": "xano task edit 11 -p mcp-server -w 40 --description \"Updated by test\"",
+      "output": "Task updated successfully!\nID: 11\nName: test_task_mtd_1768166046239"
+    },
+    {
+      "name": "clears task security",
+      "suite": "middleware-task-datasource",
+      "category": "Task Security",
+      "status": "passed",
+      "duration": 342,
+      "command": "xano task security 11 -p mcp-server -w 40 --clear",
+      "output": "Task security cleared (no API group restriction)\nID: 11\nName: test_task_mtd_1768166046239"
+    },
+    {
+      "name": "deletes the test task",
+      "suite": "middleware-task-datasource",
+      "category": "Delete Task",
+      "status": "passed",
+      "duration": 375,
+      "command": "xano task delete 11 -p mcp-server -w 40 --force",
+      "output": "Task deleted successfully!"
+    },
+    {
+      "name": "creates a datasource",
+      "suite": "middleware-task-datasource",
+      "category": "Create Datasource",
+      "status": "passed",
+      "duration": 516,
+      "command": "xano datasource create -p mcp-server -w 40 --label test_ds_mtd_1768166046239 --color \"#e74c3c\" -o json",
+      "output": {
+        "color": "#e74c3c",
+        "label": "test_ds_mtd_1768166046239"
+      }
+    },
+    {
+      "name": "lists datasources in JSON format",
+      "suite": "middleware-task-datasource",
+      "category": "List Datasources",
+      "status": "passed",
+      "duration": 94,
+      "command": "xano datasource list -p mcp-server -w 40 -o json",
+      "output": [
+        {
+          "color": "#008000",
+          "label": "live"
+        },
+        {
+          "color": "#fff3cd",
+          "label": "test"
+        },
+        {
+          "color": "#e74c3c",
+          "label": "test_ds_mtd_1768166046239"
+        }
+      ]
+    },
+    {
+      "name": "lists datasources in summary format",
+      "suite": "middleware-task-datasource",
+      "category": "List Datasources",
+      "status": "passed",
+      "duration": 100,
+      "command": "xano datasource list -p mcp-server -w 40",
+      "output": "Available datasources:\n  - live [#008000]\n  - test [#fff3cd]\n  - test_ds_mtd_1768166046239 [#e74c3c]"
+    },
+    {
+      "name": "edits datasource color",
+      "suite": "middleware-task-datasource",
+      "category": "Edit Datasource",
+      "status": "passed",
+      "duration": 143,
+      "command": "xano datasource edit test_ds_mtd_1768166046239 -p mcp-server -w 40 --color \"#3498db\"",
+      "output": "Datasource updated successfully!\nLabel: test_ds_mtd_1768166046239\nColor: #3498db"
+    },
+    {
+      "name": "deletes the test datasource",
+      "suite": "middleware-task-datasource",
+      "category": "Delete Datasource",
+      "status": "passed",
+      "duration": 261,
+      "command": "xano datasource delete test_ds_mtd_1768166046239 -p mcp-server -w 40 --force",
+      "output": "Datasource deleted successfully!"
+    }
+  ],
+  "passed": 21,
+  "failed": 0,
+  "skipped": 0
+}

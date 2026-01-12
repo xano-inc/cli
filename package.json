@@ -122,7 +122,10 @@
     "lint": "eslint",
     "postpack": "shx rm -f oclif.manifest.json",
     "prepack": "oclif manifest && oclif readme",
-    "test": "mocha --forbid-only \"test/**/*.test.ts\"",
+    "test": "mocha --forbid-only \"test/integration/*.test.ts\"",
+    "test:report": "npx ts-node test/generate-report.ts",
+    "test:all": "npm test && npm run test:report",
+    "test:clean": "shx rm -rf test-results test-report.md",
     "version": "oclif readme && git add README.md"
   },
   "types": "dist/index.d.ts"
