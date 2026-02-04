@@ -23,16 +23,16 @@ npm install -g @xano/cli
    xano workspace:list
    ```
 
-3. Run an ephemeral job:
+3. Execute XanoScript code:
    ```bash
-   xano ephemeral:run:job -f script.xs
+   xano run exec -f script.xs
    ```
 
 ## Commands
 
 ### Profile Management
 
-Profiles store your Xano credentials and default workspace settings.
+Profiles store your Xano credentials and default workspace/project settings.
 
 ```bash
 # Create a profile interactively
@@ -40,6 +40,9 @@ xano profile:wizard
 
 # Create a profile manually
 xano profile:create myprofile -i https://instance.xano.com -t <access_token>
+
+# Create a profile with workspace and project
+xano profile:create myprofile -i https://instance.xano.com -t <access_token> -w my-workspace -j my-project
 
 # List profiles
 xano profile:list
@@ -49,7 +52,8 @@ xano profile:list --details
 xano profile:set-default myprofile
 
 # Edit a profile
-xano profile:edit myprofile -w 123  # Set default workspace
+xano profile:edit myprofile -w 123        # Set default workspace
+xano profile:edit myprofile -j my-project # Set default project
 
 # Delete a profile
 xano profile:delete myprofile
@@ -84,18 +88,99 @@ xano function:edit 145 -f new.xs # Update from file
 xano function:edit 145 --publish # Publish after editing
 ```
 
-### Ephemeral Jobs & Services
+### Xano Run
 
-Run XanoScript code without creating permanent resources.
+Execute XanoScript code and manage projects, sessions, environment variables, and secrets.
+
+#### Executing Code
 
 ```bash
-# Run a job (executes and returns result)
-xano ephemeral:run:job -f script.xs
-xano ephemeral:run:job -f script.xs -a args.json  # With input arguments
-xano ephemeral:run:job -f script.xs --edit        # Edit in $EDITOR first
+# Execute XanoScript (job or service)
+xano run exec -f script.xs
+xano run exec -f https://example.com/script.xs   # From URL
+xano run exec -f script.xs -a args.json          # With input arguments (file)
+xano run exec -f script.xs -a https://ex.com/args.json  # With input arguments (URL)
+xano run exec -f script.xs --edit                # Edit in $EDITOR first
+xano run exec -f script.xs --env API_KEY=secret  # With env overrides
+cat script.xs | xano run exec --stdin            # From stdin
 
-# Run a service (starts API endpoints)
-xano ephemeral:run:service -f service.xs
+# Get document info (type, inputs, env vars)
+xano run info -f script.xs
+```
+
+#### Projects
+
+```bash
+# List projects
+xano run projects list
+
+# Create a project
+xano run projects create -n "My Project"
+xano run projects create -n "My Project" -d "Description"
+
+# Update a project
+xano run projects update <project-id> -n "New Name"
+xano run projects update <project-id> -d "New description"
+
+# Delete a project
+xano run projects delete <project-id>
+xano run projects delete <project-id> --force    # Skip confirmation
+```
+
+#### Sessions
+
+```bash
+# List sessions
+xano run sessions list
+
+# Get session details
+xano run sessions get <session-id>
+
+# Start/stop a session
+xano run sessions start <session-id>
+xano run sessions stop <session-id>
+
+# Delete a session
+xano run sessions delete <session-id>
+xano run sessions delete <session-id> --force    # Skip confirmation
+
+# Get sink data for a completed session
+xano run sink get <session-id>
+```
+
+#### Environment Variables
+
+```bash
+# List environment variable keys
+xano run env list
+
+# Set an environment variable
+xano run env set API_KEY my-secret-key
+
+# Get an environment variable value
+xano run env get API_KEY
+
+# Delete an environment variable
+xano run env delete API_KEY
+xano run env delete API_KEY --force              # Skip confirmation
+```
+
+#### Secrets
+
+```bash
+# List secrets
+xano run secrets list
+
+# Set a secret
+xano run secrets set docker-registry -t dockerconfigjson -v '{"auths":{...}}' -r ghcr.io
+xano run secrets set service-key -t service-account-token -v 'token-value'
+
+# Get a secret value
+xano run secrets get docker-registry
+
+# Delete a secret
+xano run secrets delete docker-registry
+xano run secrets delete docker-registry --force  # Skip confirmation
 ```
 
 ### Static Hosts

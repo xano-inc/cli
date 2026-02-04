@@ -13,6 +13,7 @@ interface ProfileConfig {
   workspace?: string
   branch?: string
   project?: string
+  run_base_url?: string
 }
 
 interface CredentialsFile {
@@ -74,6 +75,16 @@ export default class ProfileEdit extends BaseCommand {
     }),
     'remove-project': Flags.boolean({
       description: 'Remove project from profile',
+      required: false,
+      default: false,
+    }),
+    run_base_url: Flags.string({
+      char: 'r',
+      description: 'Update Xano Run API base URL',
+      required: false,
+    }),
+    'remove-run-base-url': Flags.boolean({
+      description: 'Remove run_base_url from profile (use default)',
       required: false,
       default: false,
     }),
@@ -144,8 +155,9 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 
     // Check if any flags were provided
     const hasFlags = flags.account_origin || flags.instance_origin || flags.access_token ||
-                     flags.workspace || flags.branch || flags.project ||
-                     flags['remove-workspace'] || flags['remove-branch'] || flags['remove-project']
+                     flags.workspace || flags.branch || flags.project || flags.run_base_url ||
+                     flags['remove-workspace'] || flags['remove-branch'] || flags['remove-project'] ||
+                     flags['remove-run-base-url']
 
     if (!hasFlags) {
       this.error('No fields specified to update. Use at least one flag to edit the profile.')
@@ -160,6 +172,7 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
       ...(flags.workspace !== undefined && {workspace: flags.workspace}),
       ...(flags.branch !== undefined && {branch: flags.branch}),
       ...(flags.project !== undefined && {project: flags.project}),
+      ...(flags.run_base_url !== undefined && {run_base_url: flags.run_base_url}),
     }
 
     // Handle removal flags
@@ -173,6 +186,10 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 
     if (flags['remove-project']) {
       delete updatedProfile.project
+    }
+
+    if (flags['remove-run-base-url']) {
+      delete updatedProfile.run_base_url
     }
 
     credentials.profiles[profileName] = updatedProfile

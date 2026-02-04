@@ -13,6 +13,7 @@ interface ProfileConfig {
   workspace?: string
   branch?: string
   project?: string
+  run_base_url?: string
 }
 
 interface CredentialsFile {
@@ -59,6 +60,11 @@ export default class ProfileCreate extends Command {
     project: Flags.string({
       char: 'j',
       description: 'Project name',
+      required: false,
+    }),
+    run_base_url: Flags.string({
+      char: 'r',
+      description: 'Xano Run API base URL (default: https://app.xano.com/)',
       required: false,
     }),
     default: Flags.boolean({
@@ -130,6 +136,7 @@ Default profile set to 'production'
       ...(flags.workspace && {workspace: flags.workspace}),
       ...(flags.branch && {branch: flags.branch}),
       ...(flags.project && {project: flags.project}),
+      ...(flags.run_base_url && {run_base_url: flags.run_base_url}),
     }
 
     // Set default if flag is provided
