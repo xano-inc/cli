@@ -16,7 +16,6 @@ export interface ProfileConfig {
   workspace?: string
   branch?: string
   project?: string
-  run_project?: string
   run_base_url?: string
 }
 
@@ -54,13 +53,10 @@ export default abstract class BaseRunCommand extends BaseCommand {
 
     const baseUrl = this.profile.run_base_url || DEFAULT_RUN_BASE_URL
 
-    // Use run_project if available, fall back to project for backward compatibility
-    const projectId = this.profile.run_project || this.profile.project
-
     this.httpClient = new RunHttpClient({
       baseUrl,
       authToken: this.profile.access_token,
-      projectId,
+      projectId: this.profile.project,
     })
   }
 
@@ -70,10 +66,10 @@ export default abstract class BaseRunCommand extends BaseCommand {
   protected async initRunCommandWithProject(profileFlag?: string): Promise<void> {
     await this.initRunCommand(profileFlag)
 
-    if (!this.profile.run_project && !this.profile.project) {
+    if (!this.profile.project) {
       this.error(
-        `Profile '${this.profileName}' is missing run_project. ` +
-        `Run 'xano profile:wizard' to set up your profile or use 'xano profile:edit --run-project <project-id>'`,
+        `Profile '${this.profileName}' is missing project. ` +
+        `Run 'xano profile:wizard' to set up your profile or use 'xano profile:edit --project <project-id>'`,
       )
     }
   }

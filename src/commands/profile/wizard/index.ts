@@ -14,7 +14,6 @@ interface ProfileConfig {
   workspace?: string
   branch?: string
   project?: string
-  run_project?: string
 }
 
 interface CredentialsFile {
@@ -262,21 +261,23 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         }
       }
 
-      // Step 7: Fetch run projects and auto-select the first one
-      let runProject: string | undefined
+      // Step 7: Fetch run projects and auto-select the first one if no project was selected
       this.log('')
       this.log('Fetching available run projects...')
 
       try {
         const runProjects = await this.fetchRunProjects(accessToken)
         if (runProjects.length > 0) {
-          runProject = runProjects[0].id
+          // Use run project if no metadata project was selected
+          if (!project) {
+            project = runProjects[0].id
+          }
           this.log(`✓ Found ${runProjects.length} run project(s). Using "${runProjects[0].name}" as default.`)
         } else {
           this.log('No run projects found. You can create one later with "xano run projects create".')
         }
       } catch {
-        // Silently ignore - run_project will remain undefined
+        // Silently ignore - project will remain undefined
       }
 
       // Save profile
@@ -288,7 +289,6 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         workspace,
         branch,
         project,
-        run_project: runProject,
       }, true)
 
       this.log('')
@@ -547,7 +547,6 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
       ...(profile.project && {project: profile.project}),
-      ...(profile.run_project && {run_project: profile.run_project}),
     }
 
     // Set as default if requested

@@ -13,7 +13,6 @@ interface ProfileConfig {
   workspace?: string
   branch?: string
   project?: string
-  run_project?: string
   run_base_url?: string
 }
 
@@ -61,11 +60,7 @@ export default class ProfileEdit extends BaseCommand {
     }),
     project: Flags.string({
       char: 'j',
-      description: 'Update project name',
-      required: false,
-    }),
-    'run-project': Flags.string({
-      description: 'Update run project ID (for xano run commands)',
+      description: 'Update project ID',
       required: false,
     }),
     'remove-workspace': Flags.boolean({
@@ -80,11 +75,6 @@ export default class ProfileEdit extends BaseCommand {
     }),
     'remove-project': Flags.boolean({
       description: 'Remove project from profile',
-      required: false,
-      default: false,
-    }),
-    'remove-run-project': Flags.boolean({
-      description: 'Remove run project from profile',
       required: false,
       default: false,
     }),
@@ -165,9 +155,9 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 
     // Check if any flags were provided
     const hasFlags = flags.account_origin || flags.instance_origin || flags.access_token ||
-                     flags.workspace || flags.branch || flags.project || flags['run-project'] || flags.run_base_url ||
+                     flags.workspace || flags.branch || flags.project || flags.run_base_url ||
                      flags['remove-workspace'] || flags['remove-branch'] || flags['remove-project'] ||
-                     flags['remove-run-project'] || flags['remove-run-base-url']
+                     flags['remove-run-base-url']
 
     if (!hasFlags) {
       this.error('No fields specified to update. Use at least one flag to edit the profile.')
@@ -182,7 +172,6 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
       ...(flags.workspace !== undefined && {workspace: flags.workspace}),
       ...(flags.branch !== undefined && {branch: flags.branch}),
       ...(flags.project !== undefined && {project: flags.project}),
-      ...(flags['run-project'] !== undefined && {run_project: flags['run-project']}),
       ...(flags.run_base_url !== undefined && {run_base_url: flags.run_base_url}),
     }
 
@@ -197,10 +186,6 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 
     if (flags['remove-project']) {
       delete updatedProfile.project
-    }
-
-    if (flags['remove-run-project']) {
-      delete updatedProfile.run_project
     }
 
     if (flags['remove-run-base-url']) {
