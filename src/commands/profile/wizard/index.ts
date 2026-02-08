@@ -275,8 +275,8 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         } else {
           this.log('No run projects found. You can create one later with "xano run projects create".')
         }
-      } catch (error) {
-        this.warn(`Failed to fetch run projects: ${error instanceof Error ? error.message : String(error)}`)
+      } catch {
+        // Silently ignore - run_project will remain undefined
       }
 
       // Save profile
