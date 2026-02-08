@@ -54,8 +54,6 @@ xano profile:set-default myprofile
 # Edit a profile
 xano profile:edit myprofile -w 123              # Set default workspace
 xano profile:edit myprofile -j my-project       # Set default project
-xano profile:edit myprofile --run-project <id>  # Set run project for xano run commands
-xano profile:edit myprofile --remove-run-project # Remove run project
 
 # Delete a profile
 xano profile:delete myprofile
@@ -225,7 +223,7 @@ profiles:
     access_token: <token>
     workspace: <workspace_id>
     branch: <branch_id>
-    run_project: <run_project_id>  # Used by xano run commands
+    project: <project_id>
 default: default
 ```
 
