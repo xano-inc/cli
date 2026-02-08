@@ -35,7 +35,7 @@ npm install -g @xano/cli
 Profiles store your Xano credentials and default workspace/project settings.
 
 ```bash
-# Create a profile interactively
+# Create a profile interactively (auto-fetches run projects)
 xano profile:wizard
 
 # Create a profile manually
@@ -52,12 +52,16 @@ xano profile:list --details
 xano profile:set-default myprofile
 
 # Edit a profile
-xano profile:edit myprofile -w 123        # Set default workspace
-xano profile:edit myprofile -j my-project # Set default project
+xano profile:edit myprofile -w 123              # Set default workspace
+xano profile:edit myprofile -j my-project       # Set default project
+xano profile:edit myprofile --run-project <id>  # Set run project for xano run commands
+xano profile:edit myprofile --remove-run-project # Remove run project
 
 # Delete a profile
 xano profile:delete myprofile
 ```
+
+The `profile:wizard` command automatically fetches your run projects and sets the first one as the default for `xano run` commands.
 
 ### Workspaces
 
@@ -211,7 +215,19 @@ All commands support these options:
 
 ## Configuration
 
-Profiles are stored in `~/.xano/credentials.yaml`.
+Profiles are stored in `~/.xano/credentials.yaml`:
+
+```yaml
+profiles:
+  default:
+    account_origin: https://app.xano.com
+    instance_origin: https://instance.xano.com
+    access_token: <token>
+    workspace: <workspace_id>
+    branch: <branch_id>
+    run_project: <run_project_id>  # Used by xano run commands
+default: default
+```
 
 ## Help
 

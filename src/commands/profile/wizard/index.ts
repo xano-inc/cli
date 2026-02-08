@@ -4,6 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as yaml from 'js-yaml'
 import inquirer from 'inquirer'
+import {DEFAULT_RUN_BASE_URL} from '../../../lib/run-http-client.js'
 
 interface ProfileConfig {
   name: string
@@ -13,6 +14,7 @@ interface ProfileConfig {
   workspace?: string
   branch?: string
   project?: string
+  run_project?: string
 }
 
 interface CredentialsFile {
@@ -42,6 +44,13 @@ interface Branch {
 interface Project {
   id: string
   name: string
+}
+
+interface RunProject {
+  id: string
+  name: string
+  description?: string
+  access?: 'private' | 'public'
 }
 
 export default class ProfileWizard extends Command {
@@ -253,6 +262,23 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         }
       }
 
+      // Step 7: Fetch run projects and auto-select the first one
+      let runProject: string | undefined
+      this.log('')
+      this.log('Fetching available run projects...')
+
+      try {
+        const runProjects = await this.fetchRunProjects(accessToken)
+        if (runProjects.length > 0) {
+          runProject = runProjects[0].id
+          this.log(`✓ Found ${runProjects.length} run project(s). Using "${runProjects[0].name}" as default.`)
+        } else {
+          this.log('No run projects found. You can create one later with "xano run projects create".')
+        }
+      } catch (error) {
+        this.warn(`Failed to fetch run projects: ${error instanceof Error ? error.message : String(error)}`)
+      }
+
       // Save profile
       await this.saveProfile({
         name: profileName,
@@ -262,6 +288,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
         workspace,
         branch,
         project,
+        run_project: runProject,
       }, true)
 
       this.log('')
@@ -444,6 +471,27 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
     return []
   }
 
+  private async fetchRunProjects(accessToken: string, runBaseUrl: string = DEFAULT_RUN_BASE_URL): Promise<RunProject[]> {
+    const baseUrl = runBaseUrl.endsWith('/') ? runBaseUrl.slice(0, -1) : runBaseUrl
+    const response = await fetch(`${baseUrl}/api:run/project`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Unauthorized. Please check your access token.')
+      }
+      throw new Error(`API request failed with status ${response.status}`)
+    }
+
+    const data = (await response.json()) as unknown
+    return Array.isArray(data) ? data : []
+  }
+
   private getDefaultProfileName(): string {
     try {
       const configDir = path.join(os.homedir(), '.xano')
@@ -499,6 +547,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
       ...(profile.project && {project: profile.project}),
+      ...(profile.run_project && {run_project: profile.run_project}),
     }
 
     // Set as default if requested
