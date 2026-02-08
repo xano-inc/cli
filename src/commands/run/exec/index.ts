@@ -1,4 +1,4 @@
-import {Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -7,13 +7,18 @@ import BaseRunCommand from '../../../lib/base-run-command.js'
 import type {RunResult} from '../../../lib/run-types.js'
 
 export default class RunExec extends BaseRunCommand {
-  static args = {}
+  static args = {
+    path: Args.string({
+      description: 'Path to file or directory containing XanoScript code (directory creates multidoc from .xs files)',
+      required: false,
+    }),
+  }
 
   static override flags = {
     ...BaseRunCommand.baseFlags,
     file: Flags.string({
       char: 'f',
-      description: 'Path or URL to file containing XanoScript code',
+      description: 'Path or URL to file containing XanoScript code (deprecated: use path argument instead)',
       required: false,
       exclusive: ['stdin'],
     }),
@@ -53,11 +58,16 @@ export default class RunExec extends BaseRunCommand {
   static description = 'Execute XanoScript code (job or service)'
 
   static examples = [
-    `$ xano run exec -f script.xs
+    `$ xano run exec script.xs
 Executed successfully!
 ...
 `,
-    `$ xano run exec -f script.xs --edit
+    `$ xano run exec ./my-workspace
+# Executes all .xs files in directory as multidoc
+Executed successfully!
+...
+`,
+    `$ xano run exec script.xs --edit
 # Opens script.xs in $EDITOR, then executes
 Executed successfully!
 ...
@@ -66,17 +76,17 @@ Executed successfully!
 Executed successfully!
 ...
 `,
-    `$ xano run exec -f script.xs -o json
+    `$ xano run exec script.xs -o json
 {
   "run": { ... }
 }
 `,
-    `$ xano run exec -f script.xs -a args.json
+    `$ xano run exec script.xs -a args.json
 # Executes with input arguments from args.json
 Executed successfully!
 ...
 `,
-    `$ xano run exec -f script.xs --env API_KEY=secret --env DEBUG=true
+    `$ xano run exec script.xs --env API_KEY=secret --env DEBUG=true
 # Executes with environment variable overrides
 Executed successfully!
 ...
@@ -84,7 +94,7 @@ Executed successfully!
   ]
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(RunExec)
+    const {args, flags} = await this.parse(RunExec)
 
     // Initialize with project required
     await this.initRunCommandWithProject(flags.profile)
@@ -92,21 +102,27 @@ Executed successfully!
     // Read XanoScript content
     let xanoscript: string
 
-    if (flags.file) {
-      if (this.isUrl(flags.file)) {
+    // Determine input source: path argument, --file flag, or --stdin
+    const inputPath = args.path || flags.file
+
+    if (inputPath) {
+      if (this.isUrl(inputPath)) {
         // Fetch URL content
         try {
-          const response = await fetch(flags.file)
+          const response = await fetch(inputPath)
           if (!response.ok) {
             this.error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
           }
           xanoscript = await response.text()
         } catch (error) {
-          this.error(`Failed to fetch URL '${flags.file}': ${error}`)
+          this.error(`Failed to fetch URL '${inputPath}': ${error}`)
         }
+      } else if (fs.existsSync(inputPath) && fs.statSync(inputPath).isDirectory()) {
+        // Handle directory - collect .xs files and create multidoc
+        xanoscript = this.loadMultidocFromDirectory(inputPath)
       } else if (flags.edit) {
         // If edit flag is set, copy to temp file and open in editor
-        const fileToRead = await this.editFile(flags.file)
+        const fileToRead = await this.editFile(inputPath)
         xanoscript = fs.readFileSync(fileToRead, 'utf8')
         // Clean up temp file
         try {
@@ -116,9 +132,9 @@ Executed successfully!
         }
       } else {
         try {
-          xanoscript = fs.readFileSync(flags.file, 'utf8')
+          xanoscript = fs.readFileSync(inputPath, 'utf8')
         } catch (error) {
-          this.error(`Failed to read file '${flags.file}': ${error}`)
+          this.error(`Failed to read file '${inputPath}': ${error}`)
         }
       }
     } else if (flags.stdin) {
@@ -128,7 +144,7 @@ Executed successfully!
         this.error(`Failed to read from stdin: ${error}`)
       }
     } else {
-      this.error('Either --file or --stdin must be specified to provide XanoScript code')
+      this.error('Either a path argument, --file, or --stdin must be specified to provide XanoScript code')
     }
 
     // Validate xanoscript is not empty
@@ -202,6 +218,57 @@ Executed successfully!
         this.error(`Failed to execute: ${String(error)}`)
       }
     }
+  }
+
+  /**
+   * Load all .xs files from a directory and combine them into a multidoc.
+   */
+  private loadMultidocFromDirectory(dir: string): string {
+    const resolvedDir = path.resolve(dir)
+
+    if (!fs.existsSync(resolvedDir)) {
+      this.error(`Directory not found: ${resolvedDir}`)
+    }
+
+    const files = this.collectFiles(resolvedDir)
+
+    if (files.length === 0) {
+      this.error(`No .xs files found in ${dir}`)
+    }
+
+    // Read each file and join with --- separator
+    const documents: string[] = []
+    for (const filePath of files) {
+      const content = fs.readFileSync(filePath, 'utf8').trim()
+      if (content) {
+        documents.push(content)
+      }
+    }
+
+    if (documents.length === 0) {
+      this.error(`All .xs files in ${dir} are empty`)
+    }
+
+    return documents.join('\n---\n')
+  }
+
+  /**
+   * Recursively collect all .xs files from a directory, sorted for deterministic ordering.
+   */
+  private collectFiles(dir: string): string[] {
+    const files: string[] = []
+    const entries = fs.readdirSync(dir, {withFileTypes: true})
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        files.push(...this.collectFiles(fullPath))
+      } else if (entry.isFile() && entry.name.endsWith('.xs')) {
+        files.push(fullPath)
+      }
+    }
+
+    return files.sort()
   }
 
   private outputSummary(result: RunResult): void {
