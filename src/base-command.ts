@@ -19,6 +19,13 @@ export default abstract class BaseCommand extends Command {
       env: 'XANO_PROFILE',
       required: false,
     }),
+    verbose: Flags.boolean({
+      char: 'v',
+      description: 'Show detailed request/response information',
+      env: 'XANO_VERBOSE',
+      required: false,
+      default: false,
+    }),
   }
 
   // Override the flags property to include baseFlags

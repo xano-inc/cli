@@ -49,7 +49,7 @@ Project created successfully!
     const {flags} = await this.parse(RunProjectsCreate)
 
     // Initialize (no project required for creating projects)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     const input: CreateProjectInput = {
       name: flags.name,

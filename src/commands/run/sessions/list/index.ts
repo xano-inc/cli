@@ -33,7 +33,7 @@ xyz789-uvw456-rst123                  stopped    2024-01-14T09:00:00Z
     const {flags} = await this.parse(RunSessionsList)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildProjectUrl('/run/session')

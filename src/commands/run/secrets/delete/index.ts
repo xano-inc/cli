@@ -35,7 +35,7 @@ Secret 'docker-registry' deleted successfully!
     const {args, flags} = await this.parse(RunSecretsDelete)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     // Confirm deletion unless --force is used
     if (!flags.force) {

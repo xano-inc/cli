@@ -33,7 +33,7 @@ service-account     kubernetes.io/service-account-token   -
     const {flags} = await this.parse(RunSecretsList)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildProjectUrl('/secret/key')

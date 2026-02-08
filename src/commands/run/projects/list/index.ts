@@ -35,7 +35,7 @@ xyz789-uvw456-rst123                  Test Project   public
     const {flags} = await this.parse(RunProjectsList)
 
     // Initialize (no project required for listing projects)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildUrl('/project')

@@ -41,7 +41,7 @@ Sink Data:
     const {args, flags} = await this.parse(RunSinkGet)
 
     // Initialize (no project required for sink data)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildSessionUrl(args.sessionId, '/sink')

@@ -34,7 +34,7 @@ Environment variables:
     const {flags} = await this.parse(RunEnvList)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildProjectUrl('/env/key')

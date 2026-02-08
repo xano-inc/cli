@@ -96,7 +96,7 @@ Executed successfully!
     const {args, flags} = await this.parse(RunExec)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     // Determine input source: path argument, --file flag, or --stdin
     const inputPath = args.path || flags.file
@@ -225,7 +225,15 @@ Executed successfully!
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to execute: ${error.message}`)
+        const xanoError = error as Error & {response?: unknown}
+        if (xanoError.response) {
+          const responseStr = typeof xanoError.response === 'string'
+            ? xanoError.response
+            : JSON.stringify(xanoError.response, null, 2)
+          this.error(`Failed to execute: ${error.message}\n\n${responseStr}`)
+        } else {
+          this.error(`Failed to execute: ${error.message}`)
+        }
       } else {
         this.error(`Failed to execute: ${String(error)}`)
       }

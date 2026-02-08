@@ -36,7 +36,7 @@ my-secret-api-key
     const {args, flags} = await this.parse(RunEnvGet)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildProjectUrl('/env', {name: args.name})

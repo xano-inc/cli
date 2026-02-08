@@ -5,12 +5,14 @@
 
 import type {XanoRunError} from './run-types.js'
 
-export const DEFAULT_RUN_BASE_URL = 'https://app.xano.com/'
+export const DEFAULT_RUN_BASE_URL = 'https://app.dev.xano.com/'
 
 export interface RunHttpClientConfig {
   baseUrl: string
   authToken: string
   projectId?: string
+  verbose?: boolean
+  logger?: (message: string) => void
 }
 
 export class RunHttpClient {
@@ -81,27 +83,68 @@ export class RunHttpClient {
   }
 
   /**
+   * Log a message if verbose mode is enabled
+   */
+  private log(message: string): void {
+    if (this.config.verbose && this.config.logger) {
+      this.config.logger(message)
+    }
+  }
+
+  /**
    * Make an HTTP request
    */
   async request<T>(url: string, options: RequestInit): Promise<T> {
+    const method = options.method || 'GET'
+    const contentType = (options.headers as Record<string, string>)?.['Content-Type'] || 'application/json'
+
+    // Log request details
+    this.log(`\n${'─'.repeat(60)}`)
+    this.log(`→ ${method} ${url}`)
+    this.log(`  Content-Type: ${contentType}`)
+    if (options.body) {
+      const bodyPreview = typeof options.body === 'string'
+        ? options.body.length > 500 ? options.body.slice(0, 500) + '...' : options.body
+        : JSON.stringify(options.body)
+      this.log(`  Body: ${bodyPreview}`)
+    }
+
+    const startTime = Date.now()
     const response = await fetch(url, options)
+    const elapsed = Date.now() - startTime
+
+    // Log response details
+    this.log(`← ${response.status} ${response.statusText} (${elapsed}ms)`)
 
     if (!response.ok) {
       const error = new Error(`HTTP ${response.status}: ${response.statusText}`) as XanoRunError
       error.status = response.status
       try {
         error.response = await response.json()
+        this.log(`  Response: ${JSON.stringify(error.response, null, 2)}`)
       } catch {
         error.response = await response.text()
+        this.log(`  Response: ${error.response}`)
       }
+      this.log(`${'─'.repeat(60)}\n`)
       throw error
     }
 
     const text = await response.text()
     if (!text) {
+      this.log(`  Response: (empty)`)
+      this.log(`${'─'.repeat(60)}\n`)
       return undefined as T
     }
-    return JSON.parse(text)
+
+    const parsed = JSON.parse(text)
+    if (this.config.verbose) {
+      const responsePreview = text.length > 1000 ? text.slice(0, 1000) + '...' : text
+      this.log(`  Response: ${responsePreview}`)
+    }
+    this.log(`${'─'.repeat(60)}\n`)
+
+    return parsed
   }
 
   /**

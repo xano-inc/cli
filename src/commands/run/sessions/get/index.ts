@@ -42,7 +42,7 @@ Session Details:
     const {args, flags} = await this.parse(RunSessionsGet)
 
     // Initialize (no project required for session details)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildSessionUrl(args.sessionId)

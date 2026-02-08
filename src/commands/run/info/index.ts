@@ -58,7 +58,7 @@ Document Info:
     const {flags} = await this.parse(RunInfo)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     // Read XanoScript content
     let xanoscript: string

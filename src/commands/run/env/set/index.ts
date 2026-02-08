@@ -33,7 +33,7 @@ Environment variable 'DATABASE_URL' set successfully!
     const {args, flags} = await this.parse(RunEnvSet)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     const input: UpdateEnvInput = {
       name: args.name,

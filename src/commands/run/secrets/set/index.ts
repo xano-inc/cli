@@ -45,7 +45,7 @@ Secret 'service-key' set successfully!
     const {args, flags} = await this.parse(RunSecretsSet)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     // Map short type to full type
     const typeMap: Record<string, SecretType> = {

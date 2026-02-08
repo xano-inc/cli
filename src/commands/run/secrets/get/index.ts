@@ -36,7 +36,7 @@ export default class RunSecretsGet extends BaseRunCommand {
     const {args, flags} = await this.parse(RunSecretsGet)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildProjectUrl('/secret', {name: args.name})

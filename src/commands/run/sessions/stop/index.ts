@@ -38,7 +38,7 @@ Session stopped successfully!
     const {args, flags} = await this.parse(RunSessionsStop)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildProjectUrl(`/run/session/${args.sessionId}/stop`)

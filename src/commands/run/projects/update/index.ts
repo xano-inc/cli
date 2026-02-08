@@ -53,7 +53,7 @@ Project updated successfully!
     const {args, flags} = await this.parse(RunProjectsUpdate)
 
     // Initialize (no project required)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     // Check if any update flags were provided
     if (!flags.name && flags.description === undefined) {

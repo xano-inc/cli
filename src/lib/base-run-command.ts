@@ -34,7 +34,7 @@ export default abstract class BaseRunCommand extends BaseCommand {
   /**
    * Initialize the run command with profile and HTTP client
    */
-  protected async initRunCommand(profileFlag?: string): Promise<void> {
+  protected async initRunCommand(profileFlag?: string, verbose?: boolean): Promise<void> {
     this.profileName = profileFlag || this.getDefaultProfile()
     const credentials = this.loadCredentials()
 
@@ -57,14 +57,16 @@ export default abstract class BaseRunCommand extends BaseCommand {
       baseUrl,
       authToken: this.profile.access_token,
       projectId: this.profile.project,
+      verbose,
+      logger: (msg: string) => this.log(msg),
     })
   }
 
   /**
    * Initialize with project required
    */
-  protected async initRunCommandWithProject(profileFlag?: string): Promise<void> {
-    await this.initRunCommand(profileFlag)
+  protected async initRunCommandWithProject(profileFlag?: string, verbose?: boolean): Promise<void> {
+    await this.initRunCommand(profileFlag, verbose)
 
     if (!this.profile.project) {
       this.error(

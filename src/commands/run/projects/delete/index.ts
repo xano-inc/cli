@@ -35,7 +35,7 @@ Project deleted successfully!
     const {args, flags} = await this.parse(RunProjectsDelete)
 
     // Initialize (no project required)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     // Confirm deletion unless --force is used
     if (!flags.force) {
