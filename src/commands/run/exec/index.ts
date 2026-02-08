@@ -31,10 +31,9 @@ export default class RunExec extends BaseRunCommand {
     }),
     edit: Flags.boolean({
       char: 'e',
-      description: 'Open file in editor before running (requires --file)',
+      description: 'Open file in editor before running (requires path argument or --file)',
       required: false,
       default: false,
-      dependsOn: ['file'],
     }),
     output: Flags.string({
       char: 'o',
@@ -99,11 +98,24 @@ Executed successfully!
     // Initialize with project required
     await this.initRunCommandWithProject(flags.profile)
 
-    // Read XanoScript content
-    let xanoscript: string
-
     // Determine input source: path argument, --file flag, or --stdin
     const inputPath = args.path || flags.file
+
+    // Validate --edit flag requirements
+    if (flags.edit) {
+      if (!inputPath) {
+        this.error('--edit requires a file path (either path argument or --file flag)')
+      }
+      if (this.isUrl(inputPath)) {
+        this.error('--edit cannot be used with URLs')
+      }
+      if (fs.existsSync(inputPath) && fs.statSync(inputPath).isDirectory()) {
+        this.error('--edit cannot be used with directories')
+      }
+    }
+
+    // Read XanoScript content
+    let xanoscript: string
 
     if (inputPath) {
       if (this.isUrl(inputPath)) {
