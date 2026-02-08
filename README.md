@@ -213,6 +213,20 @@ All commands support these options:
 | `-p, --profile` | Profile to use (or set `XANO_PROFILE` env var) |
 | `-w, --workspace` | Workspace ID (overrides profile default) |
 | `-o, --output` | Output format: `summary` (default) or `json` |
+| `-v, --verbose` | Show detailed request/response information (or set `XANO_VERBOSE` env var) |
+
+### Verbose Mode
+
+Use `-v` or `--verbose` to see detailed HTTP request and response information, useful for debugging:
+
+```bash
+xano run exec script.xs -v
+```
+
+This will show:
+- Request method, URL, and content type
+- Request body (truncated if large)
+- Response status, timing, and body
 
 ## Configuration
 
