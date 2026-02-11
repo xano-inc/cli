@@ -1,24 +1,13 @@
 import {Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {EnvKeysResponse} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunEnvList extends BaseRunCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'list',
-      options: ['list', 'json'],
-    }),
-  }
-
-  static description = 'List all environment variable keys'
-
-  static examples = [
+static description = 'List all environment variable keys'
+static examples = [
     `$ xano run env list
 Environment variables:
   - API_KEY
@@ -29,6 +18,16 @@ Environment variables:
 { "env": ["API_KEY", "DATABASE_URL", "DEBUG"] }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'list',
+      description: 'Output format',
+      options: ['list', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(RunEnvList)
@@ -42,8 +41,7 @@ Environment variables:
 
       if (flags.output === 'json') {
         this.outputJson(result)
-      } else {
-        if (result.env.length === 0) {
+      } else if (result.env.length === 0) {
           this.log('No environment variables found.')
         } else {
           this.log('Environment variables:')
@@ -51,7 +49,6 @@ Environment variables:
             this.log(`  - ${key}`)
           }
         }
-      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list environment variables: ${error.message}`)

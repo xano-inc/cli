@@ -8,11 +8,11 @@ import type {XanoRunError} from './run-types.js'
 export const DEFAULT_RUN_BASE_URL = 'https://app.dev.xano.com/'
 
 export interface RunHttpClientConfig {
-  baseUrl: string
   authToken: string
+  baseUrl: string
+  logger?: (message: string) => void
   projectId?: string
   verbose?: boolean
-  logger?: (message: string) => void
 }
 
 export class RunHttpClient {
@@ -23,21 +23,22 @@ export class RunHttpClient {
   }
 
   /**
-   * Get the project ID
+   * Build a URL scoped to the current project
    */
-  getProjectId(): string | undefined {
-    return this.config.projectId
+  buildProjectUrl(path: string, queryParams?: Record<string, unknown>): string {
+    const {projectId} = this.config
+    if (!projectId) {
+      throw new Error('Project ID is required. Set it in your profile.')
+    }
+
+    return this.buildUrl(`/project/${projectId}${path}`, queryParams)
   }
 
   /**
-   * Build headers for a request
+   * Build a URL scoped to a specific session
    */
-  getHeaders(contentType: string = 'application/json'): HeadersInit {
-    const headers: HeadersInit = {
-      'Content-Type': contentType,
-      'Authorization': `Bearer ${this.config.authToken}`,
-    }
-    return headers
+  buildSessionUrl(sessionId: string, path: string = '', queryParams?: Record<string, unknown>): string {
+    return this.buildUrl(`/session/${sessionId}${path}`, queryParams)
   }
 
   /**
@@ -65,30 +66,75 @@ export class RunHttpClient {
   }
 
   /**
-   * Build a URL scoped to the current project
+   * Make a DELETE request
    */
-  buildProjectUrl(path: string, queryParams?: Record<string, unknown>): string {
-    const projectId = this.config.projectId
-    if (!projectId) {
-      throw new Error('Project ID is required. Set it in your profile.')
-    }
-    return this.buildUrl(`/project/${projectId}${path}`, queryParams)
+  async delete<T>(url: string, body?: unknown): Promise<T> {
+    return this.request<T>(url, {
+      body: body ? JSON.stringify(body) : undefined,
+      headers: this.getHeaders(),
+      method: 'DELETE',
+    })
   }
 
   /**
-   * Build a URL scoped to a specific session
+   * Make a GET request
    */
-  buildSessionUrl(sessionId: string, path: string = '', queryParams?: Record<string, unknown>): string {
-    return this.buildUrl(`/session/${sessionId}${path}`, queryParams)
+  async get<T>(url: string): Promise<T> {
+    return this.request<T>(url, {
+      headers: this.getHeaders(),
+      method: 'GET',
+    })
   }
 
   /**
-   * Log a message if verbose mode is enabled
+   * Build headers for a request
    */
-  private log(message: string): void {
-    if (this.config.verbose && this.config.logger) {
-      this.config.logger(message)
+  getHeaders(contentType: string = 'application/json'): HeadersInit {
+    const headers: HeadersInit = {
+      'Authorization': `Bearer ${this.config.authToken}`,
+      'Content-Type': contentType,
     }
+    return headers
+  }
+
+  /**
+   * Get the project ID
+   */
+  getProjectId(): string | undefined {
+    return this.config.projectId
+  }
+
+  /**
+   * Make a PATCH request
+   */
+  async patch<T>(url: string, body: unknown): Promise<T> {
+    return this.request<T>(url, {
+      body: JSON.stringify(body),
+      headers: this.getHeaders(),
+      method: 'PATCH',
+    })
+  }
+
+  /**
+   * Make a POST request with JSON body
+   */
+  async post<T>(url: string, body?: unknown): Promise<T> {
+    return this.request<T>(url, {
+      body: body ? JSON.stringify(body) : undefined,
+      headers: this.getHeaders(),
+      method: 'POST',
+    })
+  }
+
+  /**
+   * Make a POST request with XanoScript body
+   */
+  async postXanoScript<T>(url: string, code: string): Promise<T> {
+    return this.request<T>(url, {
+      body: code,
+      headers: this.getHeaders('text/x-xanoscript'),
+      method: 'POST',
+    })
   }
 
   /**
@@ -126,6 +172,7 @@ export class RunHttpClient {
         error.response = await response.text()
         this.log(`  Response: ${error.response}`)
       }
+
       this.log(`${'─'.repeat(60)}\n`)
       throw error
     }
@@ -142,62 +189,18 @@ export class RunHttpClient {
       const responsePreview = text.length > 1000 ? text.slice(0, 1000) + '...' : text
       this.log(`  Response: ${responsePreview}`)
     }
+
     this.log(`${'─'.repeat(60)}\n`)
 
     return parsed
   }
 
   /**
-   * Make a GET request
+   * Log a message if verbose mode is enabled
    */
-  async get<T>(url: string): Promise<T> {
-    return this.request<T>(url, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    })
-  }
-
-  /**
-   * Make a POST request with JSON body
-   */
-  async post<T>(url: string, body?: unknown): Promise<T> {
-    return this.request<T>(url, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: body ? JSON.stringify(body) : undefined,
-    })
-  }
-
-  /**
-   * Make a POST request with XanoScript body
-   */
-  async postXanoScript<T>(url: string, code: string): Promise<T> {
-    return this.request<T>(url, {
-      method: 'POST',
-      headers: this.getHeaders('text/x-xanoscript'),
-      body: code,
-    })
-  }
-
-  /**
-   * Make a PATCH request
-   */
-  async patch<T>(url: string, body: unknown): Promise<T> {
-    return this.request<T>(url, {
-      method: 'PATCH',
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
-    })
-  }
-
-  /**
-   * Make a DELETE request
-   */
-  async delete<T>(url: string, body?: unknown): Promise<T> {
-    return this.request<T>(url, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-      body: body ? JSON.stringify(body) : undefined,
-    })
+  private log(message: string): void {
+    if (this.config.verbose && this.config.logger) {
+      this.config.logger(message)
+    }
   }
 }

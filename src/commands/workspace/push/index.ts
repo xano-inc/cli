@@ -1,23 +1,24 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 export default class Push extends BaseCommand {
@@ -27,10 +28,8 @@ export default class Push extends BaseCommand {
       required: true,
     }),
   }
-
-  static override description = 'Push local documents to a workspace via the Xano Metadata API multidoc endpoint'
-
-  static override examples = [
+static override description = 'Push local documents to a workspace via the Xano Metadata API multidoc endpoint'
+static override examples = [
     `$ xano workspace push ./my-workspace
 Pushed 42 documents from ./my-workspace
 `,
@@ -41,8 +40,7 @@ Pushed 15 documents from ./output
 Pushed 58 documents from ./backup
 `,
   ]
-
-  static override flags = {
+static override flags = {
     ...BaseCommand.baseFlags,
     workspace: Flags.string({
       char: 'w',
@@ -132,13 +130,13 @@ Pushed 58 documents from ./backup
     // POST the multidoc to the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'POST',
+        body: multidoc,
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
           'Content-Type': 'text/x-xanoscript',
         },
-        body: multidoc,
+        method: 'POST',
       })
 
       if (!response.ok) {

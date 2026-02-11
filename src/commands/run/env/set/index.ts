@@ -1,6 +1,8 @@
 import {Args} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {UpdateEnvInput} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunEnvSet extends BaseRunCommand {
   static args = {
@@ -13,14 +15,8 @@ export default class RunEnvSet extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-  }
-
-  static description = 'Set an environment variable'
-
-  static examples = [
+static description = 'Set an environment variable'
+static examples = [
     `$ xano run env set API_KEY my-secret-key
 Environment variable 'API_KEY' set successfully!
 `,
@@ -28,6 +24,9 @@ Environment variable 'API_KEY' set successfully!
 Environment variable 'DATABASE_URL' set successfully!
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunEnvSet)
@@ -36,11 +35,11 @@ Environment variable 'DATABASE_URL' set successfully!
     await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     const input: UpdateEnvInput = {
-      name: args.name,
       env: {
         name: args.name,
         value: args.value,
       },
+      name: args.name,
     }
 
     try {

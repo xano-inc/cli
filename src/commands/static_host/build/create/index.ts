@@ -1,30 +1,31 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface BuildCreateResponse {
+  [key: string]: any
   id: number
   name: string
   status?: string
-  [key: string]: any
 }
 
 export default class StaticHostBuildCreate extends BaseCommand {
@@ -34,41 +35,8 @@ export default class StaticHostBuildCreate extends BaseCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    file: Flags.string({
-      char: 'f',
-      description: 'Path to zip file to upload',
-      required: true,
-    }),
-    name: Flags.string({
-      char: 'n',
-      description: 'Build name',
-      required: true,
-    }),
-    description: Flags.string({
-      char: 'd',
-      description: 'Build description',
-      required: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Create a new build for a static host'
-
-  static examples = [
+static description = 'Create a new build for a static host'
+static examples = [
     `$ xano static_host:build:create default -f ./build.zip -n "v1.0.0"
 Build created successfully!
 ID: 123
@@ -89,6 +57,36 @@ Description: Production build
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    description: Flags.string({
+      char: 'd',
+      description: 'Build description',
+      required: false,
+    }),
+    file: Flags.string({
+      char: 'f',
+      description: 'Path to zip file to upload',
+      required: true,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'Build name',
+      required: true,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(StaticHostBuildCreate)
@@ -171,12 +169,12 @@ Description: Production build
     // Create build via API
     try {
       const response = await fetch(apiUrl, {
-        method: 'POST',
+        body: formData,
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
-        body: formData,
+        method: 'POST',
       })
 
       if (!response.ok) {

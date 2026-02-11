@@ -1,29 +1,30 @@
 import {Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Workspace {
+  created_at?: number
   id: number
   name: string
-  created_at?: number
   // Add other workspace properties as needed
 }
 
@@ -33,20 +34,8 @@ interface WorkspaceListResponse {
 }
 
 export default class WorkspaceList extends BaseCommand {
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
   static description = 'List all workspaces from the Xano Metadata API'
-
-  static examples = [
+static examples = [
     `$ xano workspace:list
 Available workspaces:
   - workspace-1 (ID: 1)
@@ -83,6 +72,16 @@ Available workspaces:
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(WorkspaceList)
@@ -118,11 +117,11 @@ Available workspaces:
     // Fetch workspaces from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -132,7 +131,7 @@ Available workspaces:
         )
       }
 
-      const data = await response.json() as WorkspaceListResponse | Workspace[]
+      const data = await response.json() as Workspace[] | WorkspaceListResponse
 
       // Handle different response formats
       let workspaces: Workspace[]
@@ -155,10 +154,10 @@ Available workspaces:
         } else {
           this.log('Available workspaces:')
           for (const workspace of workspaces) {
-            if (workspace.id !== undefined) {
-              this.log(`  - ${workspace.name} (ID: ${workspace.id})`)
-            } else {
+            if (workspace.id === undefined) {
               this.log(`  - ${workspace.name}`)
+            } else {
+              this.log(`  - ${workspace.name} (ID: ${workspace.id})`)
             }
           }
         }

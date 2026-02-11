@@ -1,30 +1,31 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Workspace {
+  created_at?: number
+  description?: string
   id: number
   name: string
-  description?: string
-  created_at?: number
   updated_at?: number
 }
 
@@ -35,21 +36,8 @@ export default class WorkspaceGet extends BaseCommand {
       required: false,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Get details of a specific workspace from the Xano Metadata API'
-
-  static examples = [
+static description = 'Get details of a specific workspace from the Xano Metadata API'
+static examples = [
     `$ xano workspace get 123
 Workspace: my-workspace (ID: 123)
   Description: My workspace description
@@ -69,6 +57,16 @@ Workspace: my-workspace (ID: 123)
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(WorkspaceGet)
@@ -113,11 +111,11 @@ Workspace: my-workspace (ID: 123)
     // Fetch workspace from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -138,10 +136,12 @@ Workspace: my-workspace (ID: 123)
         if (workspace.description) {
           this.log(`  Description: ${workspace.description}`)
         }
+
         if (workspace.created_at) {
           const createdDate = new Date(workspace.created_at * 1000).toISOString().split('T')[0]
           this.log(`  Created: ${createdDate}`)
         }
+
         if (workspace.updated_at) {
           const updatedDate = new Date(workspace.updated_at * 1000).toISOString().split('T')[0]
           this.log(`  Updated: ${updatedDate}`)

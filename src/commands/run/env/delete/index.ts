@@ -1,4 +1,5 @@
 import {Args, Flags} from '@oclif/core'
+
 import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunEnvDelete extends BaseRunCommand {
@@ -8,20 +9,8 @@ export default class RunEnvDelete extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    force: Flags.boolean({
-      char: 'f',
-      description: 'Skip confirmation prompt',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Delete an environment variable'
-
-  static examples = [
+static description = 'Delete an environment variable'
+static examples = [
     `$ xano run env delete API_KEY
 Are you sure you want to delete environment variable 'API_KEY'? (y/N)
 Environment variable 'API_KEY' deleted successfully!
@@ -30,6 +19,15 @@ Environment variable 'API_KEY' deleted successfully!
 Environment variable 'API_KEY' deleted successfully!
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunEnvDelete)

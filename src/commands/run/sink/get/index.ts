@@ -1,6 +1,8 @@
 import {Args, Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {SinkData} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunSinkGet extends BaseRunCommand {
   static args = {
@@ -9,21 +11,8 @@ export default class RunSinkGet extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Get sink data for a completed session'
-
-  static examples = [
+static description = 'Get sink data for a completed session'
+static examples = [
     `$ xano run sink get abc123-def456
 Sink Data:
   Tables: 3
@@ -36,6 +25,16 @@ Sink Data:
 { "tables": [...], "logs": [...] }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunSinkGet)
@@ -56,6 +55,7 @@ Sink Data:
           const rowCount = table.content?.length || 0
           this.log(`    - ${table.name} (${rowCount} rows)`)
         }
+
         this.log(`  Logs: ${sinkData.logs.length} entries`)
       }
     } catch (error) {

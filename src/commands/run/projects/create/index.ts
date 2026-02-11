@@ -1,35 +1,13 @@
 import {Flags} from '@oclif/core'
+
+import type {CreateProjectInput, Project} from '../../../../lib/run-types.js'
+
 import BaseRunCommand from '../../../../lib/base-run-command.js'
-import type {Project, CreateProjectInput} from '../../../../lib/run-types.js'
 
 export default class RunProjectsCreate extends BaseRunCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    name: Flags.string({
-      char: 'n',
-      description: 'Project name',
-      required: true,
-    }),
-    description: Flags.string({
-      char: 'd',
-      description: 'Project description',
-      required: false,
-      default: '',
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Create a new project'
-
-  static examples = [
+static description = 'Create a new project'
+static examples = [
     `$ xano run projects create -n "My Project"
 Project created successfully!
   ID:   abc123-def456-ghi789
@@ -44,6 +22,27 @@ Project created successfully!
 { "id": "abc123-def456-ghi789", "name": "My Project", ... }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    description: Flags.string({
+      char: 'd',
+      default: '',
+      description: 'Project description',
+      required: false,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'Project name',
+      required: true,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(RunProjectsCreate)
@@ -52,8 +51,8 @@ Project created successfully!
     await this.initRunCommand(flags.profile, flags.verbose)
 
     const input: CreateProjectInput = {
-      name: flags.name,
       description: flags.description || '',
+      name: flags.name,
     }
 
     try {
@@ -69,6 +68,7 @@ Project created successfully!
         if (project.description) {
           this.log(`  Description: ${project.description}`)
         }
+
         this.log(`  Access:      ${project.access}`)
       }
     } catch (error) {

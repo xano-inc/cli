@@ -1,6 +1,8 @@
 import {Args, Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {Session} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunSessionsStart extends BaseRunCommand {
   static args = {
@@ -9,21 +11,8 @@ export default class RunSessionsStart extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Start a session'
-
-  static examples = [
+static description = 'Start a session'
+static examples = [
     `$ xano run sessions start abc123-def456
 Session started successfully!
   ID:    abc123-def456
@@ -33,6 +22,16 @@ Session started successfully!
 { "id": "abc123-def456", "state": "running", ... }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunSessionsStart)

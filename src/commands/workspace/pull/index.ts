@@ -1,30 +1,31 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface ParsedDocument {
-  type: string
-  name: string
-  verb?: string
   content: string
+  name: string
+  type: string
+  verb?: string
 }
 
 export default class Pull extends BaseCommand {
@@ -34,29 +35,8 @@ export default class Pull extends BaseCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    env: Flags.boolean({
-      description: 'Include environment variables',
-      required: false,
-      default: false,
-    }),
-    records: Flags.boolean({
-      description: 'Include records',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
-
-  static examples = [
+static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
+static examples = [
     `$ xano workspace pull ./my-workspace
 Pulled 42 documents to ./my-workspace
 `,
@@ -67,6 +47,24 @@ Pulled 15 documents to ./output
 Pulled 58 documents to ./backup
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    env: Flags.boolean({
+      default: false,
+      description: 'Include environment variables',
+      required: false,
+    }),
+    records: Flags.boolean({
+      default: false,
+      description: 'Include records',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(Pull)
@@ -123,11 +121,11 @@ Pulled 58 documents to ./backup
     let responseText: string
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -200,11 +198,7 @@ Pulled 58 documents to ./backup
 
       // Append numeric suffix for duplicates
       let filename: string
-      if (count === 0) {
-        filename = `${baseName}.xs`
-      } else {
-        filename = `${baseName}_${count + 1}.xs`
-      }
+      filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`;
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')
@@ -214,16 +208,43 @@ Pulled 58 documents to ./backup
     this.log(`Pulled ${writtenCount} documents to ${args.directory}`)
   }
 
+  private loadCredentials(): CredentialsFile {
+    const configDir = path.join(os.homedir(), '.xano')
+    const credentialsPath = path.join(configDir, 'credentials.yaml')
+
+    // Check if credentials file exists
+    if (!fs.existsSync(credentialsPath)) {
+      this.error(
+        `Credentials file not found at ${credentialsPath}\n` +
+        `Create a profile using 'xano profile:create'`,
+      )
+    }
+
+    // Read credentials file
+    try {
+      const fileContent = fs.readFileSync(credentialsPath, 'utf8')
+      const parsed = yaml.load(fileContent) as CredentialsFile
+
+      if (!parsed || typeof parsed !== 'object' || !('profiles' in parsed)) {
+        this.error('Credentials file has invalid format.')
+      }
+
+      return parsed
+    } catch (error) {
+      this.error(`Failed to parse credentials file: ${error}`)
+    }
+  }
+
   /**
    * Parse a single document to extract its type, name, and optional verb.
    * Skips leading comment lines (starting with //) to find the first
    * meaningful line containing the type keyword and name.
    */
-  private parseDocument(content: string): ParsedDocument | null {
+  private parseDocument(content: string): null | ParsedDocument {
     const lines = content.split('\n')
 
     // Find the first non-comment line
-    let firstLine: string | null = null
+    let firstLine: null | string = null
     for (const line of lines) {
       const trimmedLine = line.trim()
       if (trimmedLine && !trimmedLine.startsWith('//')) {
@@ -263,7 +284,7 @@ Pulled 58 documents to ./backup
       verb = verbMatch[1]
     }
 
-    return {type, name, verb, content}
+    return {content, name, type, verb}
   }
 
   /**
@@ -273,35 +294,8 @@ Pulled 58 documents to ./backup
    */
   private sanitizeFilename(name: string): string {
     return name
-      .replace(/"/g, '')
-      .replace(/\s+/g, '_')
-      .replace(/[<>:"/\\|?*]/g, '_')
-  }
-
-  private loadCredentials(): CredentialsFile {
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
-
-    // Check if credentials file exists
-    if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
-    }
-
-    // Read credentials file
-    try {
-      const fileContent = fs.readFileSync(credentialsPath, 'utf8')
-      const parsed = yaml.load(fileContent) as CredentialsFile
-
-      if (!parsed || typeof parsed !== 'object' || !('profiles' in parsed)) {
-        this.error('Credentials file has invalid format.')
-      }
-
-      return parsed
-    } catch (error) {
-      this.error(`Failed to parse credentials file: ${error}`)
-    }
+      .replaceAll('"', '')
+      .replaceAll(/\s+/g, '_')
+      .replaceAll(/[<>:"/\\|?*]/g, '_')
   }
 }

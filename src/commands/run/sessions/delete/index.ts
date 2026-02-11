@@ -1,4 +1,5 @@
 import {Args, Flags} from '@oclif/core'
+
 import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunSessionsDelete extends BaseRunCommand {
@@ -8,20 +9,8 @@ export default class RunSessionsDelete extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    force: Flags.boolean({
-      char: 'f',
-      description: 'Skip confirmation prompt',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Delete a session'
-
-  static examples = [
+static description = 'Delete a session'
+static examples = [
     `$ xano run sessions delete abc123-def456
 Are you sure you want to delete session 'abc123-def456'? (y/N)
 Session deleted successfully!
@@ -30,6 +19,15 @@ Session deleted successfully!
 Session deleted successfully!
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunSessionsDelete)

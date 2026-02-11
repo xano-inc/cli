@@ -1,24 +1,13 @@
 import {Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {Project} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunProjectsList extends BaseRunCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'table',
-      options: ['table', 'json'],
-    }),
-  }
-
-  static description = 'List all projects'
-
-  static examples = [
+static description = 'List all projects'
+static examples = [
     `$ xano run projects list
 ID                                    NAME           ACCESS
 abc123-def456-ghi789                  My Project     private
@@ -30,6 +19,16 @@ xyz789-uvw456-rst123                  Test Project   public
 ]
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'table',
+      description: 'Output format',
+      options: ['table', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(RunProjectsList)
@@ -68,7 +67,7 @@ xyz789-uvw456-rst123                  Test Project   public
     for (const project of projects) {
       const id = project.id.padEnd(36)
       const name = project.name.slice(0, 24).padEnd(25)
-      const access = project.access
+      const {access} = project
       this.log(`${id}  ${name} ${access}`)
     }
   }

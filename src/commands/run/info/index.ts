@@ -1,38 +1,14 @@
 import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
-import BaseRunCommand from '../../../lib/base-run-command.js'
+
 import type {DocInfoResult} from '../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../lib/base-run-command.js'
 
 export default class RunInfo extends BaseRunCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    file: Flags.string({
-      char: 'f',
-      description: 'Path or URL to file containing XanoScript code',
-      required: false,
-      exclusive: ['stdin'],
-    }),
-    stdin: Flags.boolean({
-      char: 's',
-      description: 'Read XanoScript code from stdin',
-      required: false,
-      default: false,
-      exclusive: ['file'],
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Get information about a XanoScript document (type, inputs, env vars)'
-
-  static examples = [
+static description = 'Get information about a XanoScript document (type, inputs, env vars)'
+static examples = [
     `$ xano run info -f script.xs
 Document Info:
   Type: job
@@ -53,6 +29,29 @@ Document Info:
 { "type": "job", "input": { "name": {...} }, "env": ["API_KEY"] }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    file: Flags.string({
+      char: 'f',
+      description: 'Path or URL to file containing XanoScript code',
+      exclusive: ['stdin'],
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    stdin: Flags.boolean({
+      char: 's',
+      default: false,
+      description: 'Read XanoScript code from stdin',
+      exclusive: ['file'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(RunInfo)
@@ -71,6 +70,7 @@ Document Info:
           if (!response.ok) {
             this.error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
           }
+
           xanoscript = await response.text()
         } catch (error) {
           this.error(`Failed to fetch URL '${flags.file}': ${error}`)
@@ -116,6 +116,10 @@ Document Info:
     }
   }
 
+  private isUrl(str: string): boolean {
+    return str.startsWith('http://') || str.startsWith('https://')
+  }
+
   private outputSummary(result: DocInfoResult): void {
     this.log('Document Info:')
     this.log(`  Type: ${result.type}`)
@@ -131,6 +135,7 @@ Document Info:
     } else {
       this.log('    (none)')
     }
+
     this.log('')
 
     // Display environment variables
@@ -142,10 +147,6 @@ Document Info:
     } else {
       this.log('    (none)')
     }
-  }
-
-  private isUrl(str: string): boolean {
-    return str.startsWith('http://') || str.startsWith('https://')
   }
 
   private async readStdin(): Promise<string> {

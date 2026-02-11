@@ -1,6 +1,8 @@
 import {Args, Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {SecretType, UpdateSecretInput} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunSecretsSet extends BaseRunCommand {
   static args = {
@@ -9,30 +11,8 @@ export default class RunSecretsSet extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    type: Flags.string({
-      char: 't',
-      description: 'Secret type',
-      required: true,
-      options: ['dockerconfigjson', 'service-account-token'],
-    }),
-    value: Flags.string({
-      char: 'v',
-      description: 'Secret value',
-      required: true,
-    }),
-    repo: Flags.string({
-      char: 'r',
-      description: 'Repository (for dockerconfigjson type)',
-      required: false,
-    }),
-  }
-
-  static description = 'Set a secret'
-
-  static examples = [
+static description = 'Set a secret'
+static examples = [
     `$ xano run secrets set docker-registry -t dockerconfigjson -v '{"auths":{"ghcr.io":{"auth":"..."}}}' -r ghcr.io
 Secret 'docker-registry' set successfully!
 `,
@@ -40,6 +20,25 @@ Secret 'docker-registry' set successfully!
 Secret 'service-key' set successfully!
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    repo: Flags.string({
+      char: 'r',
+      description: 'Repository (for dockerconfigjson type)',
+      required: false,
+    }),
+    type: Flags.string({
+      char: 't',
+      description: 'Secret type',
+      options: ['dockerconfigjson', 'service-account-token'],
+      required: true,
+    }),
+    value: Flags.string({
+      char: 'v',
+      description: 'Secret value',
+      required: true,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunSecretsSet)

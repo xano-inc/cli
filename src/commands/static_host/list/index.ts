@@ -1,73 +1,46 @@
 import {Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface StaticHost {
-  id: number
-  name: string
+  created_at?: number | string
   description?: string
   domain?: string
-  created_at?: number | string
+  id: number
+  name: string
   updated_at?: number | string
   // Add other static host properties as needed
 }
 
 interface StaticHostListResponse {
-  static_hosts?: StaticHost[]
   items?: StaticHost[]
+  static_hosts?: StaticHost[]
   // Handle both array and object responses
 }
 
 export default class StaticHostList extends BaseCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-    page: Flags.integer({
-      description: 'Page number for pagination',
-      required: false,
-      default: 1,
-    }),
-    per_page: Flags.integer({
-      description: 'Number of results per page',
-      required: false,
-      default: 50,
-    }),
-  }
-
-  static description = 'List all static hosts in a workspace from the Xano Metadata API'
-
-  static examples = [
+static description = 'List all static hosts in a workspace from the Xano Metadata API'
+static examples = [
     `$ xano static_host:list -w 40
 Available static hosts:
   - my-static-host (ID: 1)
@@ -96,6 +69,31 @@ Available static hosts:
 ]
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    page: Flags.integer({
+      default: 1,
+      description: 'Page number for pagination',
+      required: false,
+    }),
+    per_page: Flags.integer({
+      default: 50,
+      description: 'Number of results per page',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(StaticHostList)
@@ -155,11 +153,11 @@ Available static hosts:
     // Fetch static hosts from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -169,7 +167,7 @@ Available static hosts:
         )
       }
 
-      const data = await response.json() as StaticHostListResponse | StaticHost[]
+      const data = await response.json() as StaticHost[] | StaticHostListResponse
 
       // Handle different response formats
       let staticHosts: StaticHost[]
@@ -194,11 +192,11 @@ Available static hosts:
         } else {
           this.log('Available static hosts:')
           for (const host of staticHosts) {
-            if (host.id !== undefined) {
+            if (host.id === undefined) {
+              this.log(`  - ${host.name}`)
+            } else {
               const domainInfo = host.domain ? ` - ${host.domain}` : ''
               this.log(`  - ${host.name} (ID: ${host.id})${domainInfo}`)
-            } else {
-              this.log(`  - ${host.name}`)
             }
           }
         }

@@ -1,26 +1,27 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  name: string
-  account_origin: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin: string
   branch?: string
+  instance_origin: string
+  name: string
   project?: string
   run_base_url?: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: Omit<ProfileConfig, 'name'>
   }
-  default?: string
 }
 
 export default class ProfileEdit extends BaseCommand {
@@ -30,69 +31,8 @@ export default class ProfileEdit extends BaseCommand {
       required: false,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    account_origin: Flags.string({
-      char: 'a',
-      description: 'Update account origin URL',
-      required: false,
-    }),
-    instance_origin: Flags.string({
-      char: 'i',
-      description: 'Update instance origin URL',
-      required: false,
-    }),
-    access_token: Flags.string({
-      char: 't',
-      description: 'Update access token for the Xano Metadata API',
-      required: false,
-    }),
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Update workspace name',
-      required: false,
-    }),
-    branch: Flags.string({
-      char: 'b',
-      description: 'Update branch name',
-      required: false,
-    }),
-    project: Flags.string({
-      char: 'j',
-      description: 'Update project ID',
-      required: false,
-    }),
-    'remove-workspace': Flags.boolean({
-      description: 'Remove workspace from profile',
-      required: false,
-      default: false,
-    }),
-    'remove-branch': Flags.boolean({
-      description: 'Remove branch from profile',
-      required: false,
-      default: false,
-    }),
-    'remove-project': Flags.boolean({
-      description: 'Remove project from profile',
-      required: false,
-      default: false,
-    }),
-    run_base_url: Flags.string({
-      char: 'r',
-      description: 'Update Xano Run API base URL',
-      required: false,
-    }),
-    'remove-run-base-url': Flags.boolean({
-      description: 'Remove run_base_url from profile (use default)',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Edit an existing profile configuration'
-
-  static examples = [
+static description = 'Edit an existing profile configuration'
+static examples = [
     `$ xano profile:edit --access_token new_token123
 Profile 'default' updated successfully at ~/.xano/credentials.yaml
 `,
@@ -115,6 +55,64 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 Profile 'default' updated successfully at ~/.xano/credentials.yaml
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    access_token: Flags.string({
+      char: 't',
+      description: 'Update access token for the Xano Metadata API',
+      required: false,
+    }),
+    account_origin: Flags.string({
+      char: 'a',
+      description: 'Update account origin URL',
+      required: false,
+    }),
+    branch: Flags.string({
+      char: 'b',
+      description: 'Update branch name',
+      required: false,
+    }),
+    instance_origin: Flags.string({
+      char: 'i',
+      description: 'Update instance origin URL',
+      required: false,
+    }),
+    project: Flags.string({
+      char: 'j',
+      description: 'Update project ID',
+      required: false,
+    }),
+    'remove-branch': Flags.boolean({
+      default: false,
+      description: 'Remove branch from profile',
+      required: false,
+    }),
+    'remove-project': Flags.boolean({
+      default: false,
+      description: 'Remove project from profile',
+      required: false,
+    }),
+    'remove-run-base-url': Flags.boolean({
+      default: false,
+      description: 'Remove run_base_url from profile (use default)',
+      required: false,
+    }),
+    'remove-workspace': Flags.boolean({
+      default: false,
+      description: 'Remove workspace from profile',
+      required: false,
+    }),
+    run_base_url: Flags.string({
+      char: 'r',
+      description: 'Update Xano Run API base URL',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Update workspace name',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(ProfileEdit)

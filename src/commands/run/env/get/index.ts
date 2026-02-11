@@ -1,6 +1,8 @@
 import {Args, Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {EnvValueResponse} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunEnvGet extends BaseRunCommand {
   static args = {
@@ -9,21 +11,8 @@ export default class RunEnvGet extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'value',
-      options: ['value', 'json'],
-    }),
-  }
-
-  static description = 'Get an environment variable value'
-
-  static examples = [
+static description = 'Get an environment variable value'
+static examples = [
     `$ xano run env get API_KEY
 my-secret-api-key
 `,
@@ -31,6 +20,16 @@ my-secret-api-key
 { "name": "API_KEY", "value": "my-secret-api-key" }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'value',
+      description: 'Output format',
+      options: ['value', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunEnvGet)

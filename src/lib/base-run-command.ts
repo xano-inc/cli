@@ -2,28 +2,29 @@
  * Base command for all run commands
  */
 
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../base-command.js'
 import {DEFAULT_RUN_BASE_URL, RunHttpClient} from './run-http-client.js'
 
 export interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
   project?: string
   run_base_url?: string
+  workspace?: string
 }
 
 export interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 export default abstract class BaseRunCommand extends BaseCommand {
@@ -54,11 +55,11 @@ export default abstract class BaseRunCommand extends BaseCommand {
     const baseUrl = this.profile.run_base_url || DEFAULT_RUN_BASE_URL
 
     this.httpClient = new RunHttpClient({
-      baseUrl,
       authToken: this.profile.access_token,
+      baseUrl,
+      logger: (msg: string) => this.log(msg),
       projectId: this.profile.project,
       verbose,
-      logger: (msg: string) => this.log(msg),
     })
   }
 

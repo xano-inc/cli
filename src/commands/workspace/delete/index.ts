@@ -1,23 +1,24 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 export default class WorkspaceDelete extends BaseCommand {
@@ -27,27 +28,8 @@ export default class WorkspaceDelete extends BaseCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    force: Flags.boolean({
-      char: 'f',
-      description: 'Skip confirmation prompt',
-      required: false,
-      default: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Delete a workspace via the Xano Metadata API. Cannot delete workspaces with active tenants.'
-
-  static examples = [
+static description = 'Delete a workspace via the Xano Metadata API. Cannot delete workspaces with active tenants.'
+static examples = [
     `$ xano workspace delete 123
 Are you sure you want to delete workspace 123? This action cannot be undone. (y/N) y
 Deleted workspace 123
@@ -62,6 +44,22 @@ Deleted workspace 123
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(WorkspaceDelete)
@@ -110,11 +108,11 @@ Deleted workspace 123
     // Delete workspace via the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'DELETE',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'DELETE',
       })
 
       if (!response.ok) {

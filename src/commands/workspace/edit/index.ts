@@ -1,35 +1,36 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Workspace {
-  id: number
-  name: string
+  created_at?: number
   description?: string
-  swagger?: boolean
   documentation?: {
     link?: string
     require_token?: boolean
   }
-  created_at?: number
+  id: number
+  name: string
+  swagger?: boolean
   updated_at?: number
 }
 
@@ -40,41 +41,8 @@ export default class WorkspaceEdit extends BaseCommand {
       required: false,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    name: Flags.string({
-      char: 'n',
-      description: 'New name for the workspace',
-      required: false,
-    }),
-    description: Flags.string({
-      char: 'd',
-      description: 'New description for the workspace',
-      required: false,
-    }),
-    swagger: Flags.boolean({
-      description: 'Enable or disable swagger documentation',
-      required: false,
-      allowNo: true,
-    }),
-    'require-token': Flags.boolean({
-      description: 'Whether to require a token for documentation access',
-      required: false,
-      allowNo: true,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Edit an existing workspace via the Xano Metadata API'
-
-  static examples = [
+static description = 'Edit an existing workspace via the Xano Metadata API'
+static examples = [
     `$ xano workspace edit 123 --name "new-name"
 Updated workspace: new-name (ID: 123)
 `,
@@ -95,6 +63,36 @@ Updated workspace: my-workspace (ID: 123)
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    description: Flags.string({
+      char: 'd',
+      description: 'New description for the workspace',
+      required: false,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'New name for the workspace',
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    'require-token': Flags.boolean({
+      allowNo: true,
+      description: 'Whether to require a token for documentation access',
+      required: false,
+    }),
+    swagger: Flags.boolean({
+      allowNo: true,
+      description: 'Enable or disable swagger documentation',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(WorkspaceEdit)
@@ -135,21 +133,24 @@ Updated workspace: my-workspace (ID: 123)
 
     // Build request body - only include fields that were specified
     const body: {
-      name?: string
       description?: string
-      swagger?: boolean
       documentation?: {require_token?: boolean}
+      name?: string
+      swagger?: boolean
     } = {}
 
     if (flags.name !== undefined) {
       body.name = flags.name
     }
+
     if (flags.description !== undefined) {
       body.description = flags.description
     }
+
     if (flags.swagger !== undefined) {
       body.swagger = flags.swagger
     }
+
     if (flags['require-token'] !== undefined) {
       body.documentation = {require_token: flags['require-token']}
     }
@@ -168,13 +169,13 @@ Updated workspace: my-workspace (ID: 123)
     // Update workspace via the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'PUT',
+        body: JSON.stringify(body),
         headers: {
           'accept': 'application/json',
-          'content-type': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
+          'content-type': 'application/json',
         },
-        body: JSON.stringify(body),
+        method: 'PUT',
       })
 
       if (!response.ok) {
@@ -195,9 +196,11 @@ Updated workspace: my-workspace (ID: 123)
         if (workspace.description) {
           this.log(`  Description: ${workspace.description}`)
         }
+
         if (workspace.swagger !== undefined) {
           this.log(`  Swagger: ${workspace.swagger ? 'enabled' : 'disabled'}`)
         }
+
         if (workspace.documentation?.require_token !== undefined) {
           this.log(`  Require Token: ${workspace.documentation.require_token}`)
         }
