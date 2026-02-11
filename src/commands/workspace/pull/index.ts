@@ -115,7 +115,7 @@ static override flags = {
     })
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/beta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
 
     // Fetch multidoc from the API
     let responseText: string

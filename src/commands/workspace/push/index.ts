@@ -125,7 +125,7 @@ static override flags = {
     const multidoc = documents.join('\n---\n')
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/beta/workspace/${workspaceId}/multidoc`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc`
 
     // POST the multidoc to the API
     try {
