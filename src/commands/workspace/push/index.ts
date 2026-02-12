@@ -150,7 +150,7 @@ Pushed 58 documents from ./backup
 
       // Log the response if any
       const responseText = await response.text()
-      if (responseText) {
+      if (responseText && responseText !== 'null') {
         this.log(responseText)
       }
     } catch (error) {
