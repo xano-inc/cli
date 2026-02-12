@@ -107,13 +107,18 @@ static override flags = {
 
     // Delete workspace via the API
     try {
-      const response = await fetch(apiUrl, {
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
+      const response = await this.verboseFetch(
+        apiUrl,
+        {
+          headers: {
+            'accept': 'application/json',
+            'Authorization': `Bearer ${profile.access_token}`,
+          },
+          method: 'DELETE',
         },
-        method: 'DELETE',
-      })
+        flags.verbose,
+        profile.access_token,
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

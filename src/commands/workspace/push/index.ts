@@ -50,12 +50,6 @@ static override flags = {
       description: 'Branch name (optional if set in profile, defaults to live)',
       required: false,
     }),
-    verbose: Flags.boolean({
-      char: 'v',
-      default: false,
-      description: 'Show request details',
-      required: false,
-    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -152,23 +146,17 @@ static override flags = {
       'Content-Type': 'text/x-xanoscript',
     }
 
-    if (flags.verbose) {
-      this.log('Request details:')
-      this.log(`  Method: POST`)
-      this.log(`  URL: ${apiUrl}`)
-      this.log(`  Headers:`)
-      this.log(`    accept: application/json`)
-      this.log(`    Authorization: Bearer ${profile.access_token.slice(0, 8)}...${profile.access_token.slice(-4)}`)
-      this.log(`    Content-Type: text/x-xanoscript`)
-      this.log(`  Body: ${multidoc.length} bytes (${documents.length} documents)`)
-    }
-
     try {
-      const response = await fetch(apiUrl, {
-        body: multidoc,
-        headers: requestHeaders,
-        method: 'POST',
-      })
+      const response = await this.verboseFetch(
+        apiUrl,
+        {
+          body: multidoc,
+          headers: requestHeaders,
+          method: 'POST',
+        },
+        flags.verbose,
+        profile.access_token,
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

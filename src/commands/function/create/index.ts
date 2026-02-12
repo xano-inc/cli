@@ -188,15 +188,20 @@ static override flags = {
 
     // Create function via API
     try {
-      const response = await fetch(apiUrl, {
-        body: xanoscript,
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
-          'Content-Type': 'text/x-xanoscript',
+      const response = await this.verboseFetch(
+        apiUrl,
+        {
+          body: xanoscript,
+          headers: {
+            'accept': 'application/json',
+            'Authorization': `Bearer ${profile.access_token}`,
+            'Content-Type': 'text/x-xanoscript',
+          },
+          method: 'POST',
         },
-        method: 'POST',
-      })
+        flags.verbose,
+        profile.access_token,
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

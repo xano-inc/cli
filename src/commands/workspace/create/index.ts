@@ -109,15 +109,20 @@ static override flags = {
 
     // Create workspace via the API
     try {
-      const response = await fetch(apiUrl, {
-        body: JSON.stringify(body),
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
-          'content-type': 'application/json',
+      const response = await this.verboseFetch(
+        apiUrl,
+        {
+          body: JSON.stringify(body),
+          headers: {
+            'accept': 'application/json',
+            'Authorization': `Bearer ${profile.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          method: 'POST',
         },
-        method: 'POST',
-      })
+        flags.verbose,
+        profile.access_token,
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

@@ -70,12 +70,6 @@ static override flags = {
       description: 'Include records',
       required: false,
     }),
-    verbose: Flags.boolean({
-      char: 'v',
-      default: false,
-      description: 'Show request details',
-      required: false,
-    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -145,20 +139,16 @@ static override flags = {
       'Authorization': `Bearer ${profile.access_token}`,
     }
 
-    if (flags.verbose) {
-      this.log('Request details:')
-      this.log(`  Method: GET`)
-      this.log(`  URL: ${apiUrl}`)
-      this.log(`  Headers:`)
-      this.log(`    accept: application/json`)
-      this.log(`    Authorization: Bearer ${profile.access_token.slice(0, 8)}...${profile.access_token.slice(-4)}`)
-    }
-
     try {
-      const response = await fetch(apiUrl, {
-        headers: requestHeaders,
-        method: 'GET',
-      })
+      const response = await this.verboseFetch(
+        apiUrl,
+        {
+          headers: requestHeaders,
+          method: 'GET',
+        },
+        flags.verbose,
+        profile.access_token,
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

@@ -57,4 +57,46 @@ export default abstract class BaseCommand extends Command {
   protected getProfile(): string | undefined {
     return (this as any).flags?.profile
   }
+
+  /**
+   * Make an HTTP request with optional verbose logging.
+   * Use this for all Metadata API calls to support the --verbose flag.
+   */
+  protected async verboseFetch(
+    url: string,
+    options: RequestInit,
+    verbose: boolean,
+    authToken?: string,
+  ): Promise<Response> {
+    const method = options.method || 'GET'
+    const contentType = (options.headers as Record<string, string>)?.['Content-Type'] || 'application/json'
+
+    if (verbose) {
+      this.log('')
+      this.log('─'.repeat(60))
+      this.log(`→ ${method} ${url}`)
+      this.log(`  Content-Type: ${contentType}`)
+      if (authToken) {
+        this.log(`  Authorization: Bearer ${authToken.slice(0, 8)}...${authToken.slice(-4)}`)
+      }
+
+      if (options.body) {
+        const bodyStr = typeof options.body === 'string' ? options.body : String(options.body)
+        const bodyPreview = bodyStr.length > 500 ? bodyStr.slice(0, 500) + '...' : bodyStr
+        this.log(`  Body: ${bodyPreview}`)
+      }
+    }
+
+    const startTime = Date.now()
+    const response = await fetch(url, options)
+    const elapsed = Date.now() - startTime
+
+    if (verbose) {
+      this.log(`← ${response.status} ${response.statusText} (${elapsed}ms)`)
+      this.log('─'.repeat(60))
+      this.log('')
+    }
+
+    return response
+  }
 }
