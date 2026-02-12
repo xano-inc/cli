@@ -49,9 +49,17 @@ Pulled 15 documents to ./output
     `$ xano workspace pull ./backup --profile production --env --records
 Pulled 58 documents to ./backup
 `,
+    `$ xano workspace pull ./my-workspace -b dev
+Pulled 42 documents to ./my-workspace
+`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
+    branch: Flags.string({
+      char: 'b',
+      description: 'Branch name (optional if set in profile, defaults to live)',
+      required: false,
+    }),
     env: Flags.boolean({
       default: false,
       description: 'Include environment variables',
@@ -111,8 +119,12 @@ static override flags = {
       )
     }
 
+    // Determine branch from flag or profile
+    const branch = flags.branch || profile.branch || ''
+
     // Build query parameters
     const queryParams = new URLSearchParams({
+      branch,
       env: flags.env.toString(),
       records: flags.records.toString(),
     })

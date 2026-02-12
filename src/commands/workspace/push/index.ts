@@ -39,9 +39,17 @@ Pushed 15 documents from ./output
     `$ xano workspace push ./backup --profile production
 Pushed 58 documents from ./backup
 `,
+    `$ xano workspace push ./my-workspace -b dev
+Pushed 42 documents from ./my-workspace
+`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
+    branch: Flags.string({
+      char: 'b',
+      description: 'Branch name (optional if set in profile, defaults to live)',
+      required: false,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -124,8 +132,12 @@ static override flags = {
 
     const multidoc = documents.join('\n---\n')
 
+    // Determine branch from flag or profile
+    const branch = flags.branch || profile.branch || ''
+
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc`
+    const queryParams = new URLSearchParams({branch})
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
 
     // POST the multidoc to the API
     try {
