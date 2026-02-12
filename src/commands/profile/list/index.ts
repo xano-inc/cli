@@ -1,39 +1,29 @@
 import {Command, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
 
 interface ProfileConfig {
-  name: string
-  account_origin: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin: string
   branch?: string
+  instance_origin: string
+  name: string
   project?: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: Omit<ProfileConfig, 'name'>
   }
-  default?: string
 }
 
 export default class ProfileList extends Command {
-  static override flags = {
-    details: Flags.boolean({
-      char: 'd',
-      description: 'Show detailed information for each profile',
-      required: false,
-      default: false,
-    }),
-  }
-
   static description = 'List all available profile configurations'
-
-  static examples = [
+static examples = [
     `$ xano profile:list
 Available profiles:
   - default
@@ -69,6 +59,14 @@ Profile: default
   Project: my-project
 `,
   ]
+static override flags = {
+    details: Flags.boolean({
+      char: 'd',
+      default: false,
+      description: 'Show detailed information for each profile',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(ProfileList)

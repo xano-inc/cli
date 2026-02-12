@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.15",
+  "version": "0.0.25",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -12,7 +12,8 @@
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
     "inquirer": "^8.2.5",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
@@ -59,8 +60,41 @@
     ],
     "topicSeparator": " ",
     "topics": {
-      "hello": {
-        "description": "Say hello to the world and others"
+      "branch": {
+        "description": "Manage workspace branches"
+      },
+      "function": {
+        "description": "Manage reusable functions in a workspace"
+      },
+      "profile": {
+        "description": "Manage CLI profiles and authentication"
+      },
+      "run": {
+        "description": "Execute XanoScript and manage Xano Run projects"
+      },
+      "run:env": {
+        "description": "Manage environment variables for a project"
+      },
+      "run:projects": {
+        "description": "Manage Xano Run projects"
+      },
+      "run:secrets": {
+        "description": "Manage secrets for a project"
+      },
+      "run:sessions": {
+        "description": "Manage Xano Run sessions"
+      },
+      "run:sink": {
+        "description": "Retrieve sink data from completed sessions"
+      },
+      "static_host": {
+        "description": "Manage static hosting sites"
+      },
+      "static_host:build": {
+        "description": "Manage static host builds"
+      },
+      "workspace": {
+        "description": "Manage Xano workspaces"
       }
     }
   },

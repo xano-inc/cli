@@ -1,32 +1,33 @@
 import {Args, Flags} from '@oclif/core'
+import inquirer from 'inquirer'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
-import inquirer from 'inquirer'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Function {
+  created_at?: number | string
+  description?: string
   id: number
   name: string
-  description?: string
   type?: string
-  created_at?: number | string
   updated_at?: number | string
   xanoscript?: any
   // Add other function properties as needed
@@ -45,36 +46,8 @@ export default class FunctionGet extends BaseCommand {
       required: false,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json', 'xs'],
-    }),
-    include_draft: Flags.boolean({
-      description: 'Include draft version',
-      required: false,
-      default: false,
-    }),
-    include_xanoscript: Flags.boolean({
-      description: 'Include XanoScript in response',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Get a specific function from a workspace'
-
-  static examples = [
+static description = 'Get a specific function from a workspace'
+static examples = [
     `$ xano function:get 145 -w 40
 Function: yo (ID: 145)
 Created: 2025-10-10 10:30:00
@@ -112,6 +85,31 @@ function yo {
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    include_draft: Flags.boolean({
+      default: false,
+      description: 'Include draft version',
+      required: false,
+    }),
+    include_xanoscript: Flags.boolean({
+      default: false,
+      description: 'Include XanoScript in response',
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json', 'xs'],
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(FunctionGet)
@@ -157,11 +155,7 @@ function yo {
 
     // If function_id is not provided, prompt user to select from list
     let functionId: string
-    if (args.function_id) {
-      functionId = args.function_id
-    } else {
-      functionId = await this.promptForFunctionId(profile, workspaceId)
-    }
+    functionId = args.function_id ? args.function_id : (await this.promptForFunctionId(profile, workspaceId));
 
     // Build query parameters
     // Automatically set include_xanoscript to true if output format is xs
@@ -178,11 +172,11 @@ function yo {
     // Fetch function from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -244,26 +238,53 @@ function yo {
     }
   }
 
+  private loadCredentials(): CredentialsFile {
+    const configDir = path.join(os.homedir(), '.xano')
+    const credentialsPath = path.join(configDir, 'credentials.yaml')
+
+    // Check if credentials file exists
+    if (!fs.existsSync(credentialsPath)) {
+      this.error(
+        `Credentials file not found at ${credentialsPath}\n` +
+        `Create a profile using 'xano profile:create'`,
+      )
+    }
+
+    // Read credentials file
+    try {
+      const fileContent = fs.readFileSync(credentialsPath, 'utf8')
+      const parsed = yaml.load(fileContent) as CredentialsFile
+
+      if (!parsed || typeof parsed !== 'object' || !('profiles' in parsed)) {
+        this.error('Credentials file has invalid format.')
+      }
+
+      return parsed
+    } catch (error) {
+      this.error(`Failed to parse credentials file: ${error}`)
+    }
+  }
+
   private async promptForFunctionId(profile: ProfileConfig, workspaceId: string): Promise<string> {
     try {
       // Fetch list of functions
       const queryParams = new URLSearchParams({
         include_draft: 'false',
         include_xanoscript: 'false',
+        order: 'desc',
         page: '1',
         per_page: '50',
         sort: 'created_at',
-        order: 'desc',
       })
 
       const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function?${queryParams.toString()}`
 
       const response = await fetch(listUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -273,7 +294,7 @@ function yo {
         )
       }
 
-      const data = await response.json() as FunctionListResponse | Function[]
+      const data = await response.json() as Function[] | FunctionListResponse
 
       // Handle different response formats
       let functions: Function[]
@@ -301,10 +322,10 @@ function yo {
       // Prompt user to select a function
       const answer = await inquirer.prompt([
         {
-          type: 'list',
-          name: 'functionId',
-          message: 'Select a function:',
           choices,
+          message: 'Select a function:',
+          name: 'functionId',
+          type: 'list',
         },
       ])
 
@@ -315,33 +336,6 @@ function yo {
       } else {
         this.error(`Failed to prompt for function: ${String(error)}`)
       }
-    }
-  }
-
-  private loadCredentials(): CredentialsFile {
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
-
-    // Check if credentials file exists
-    if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
-    }
-
-    // Read credentials file
-    try {
-      const fileContent = fs.readFileSync(credentialsPath, 'utf8')
-      const parsed = yaml.load(fileContent) as CredentialsFile
-
-      if (!parsed || typeof parsed !== 'object' || !('profiles' in parsed)) {
-        this.error('Credentials file has invalid format.')
-      }
-
-      return parsed
-    } catch (error) {
-      this.error(`Failed to parse credentials file: ${error}`)
     }
   }
 }

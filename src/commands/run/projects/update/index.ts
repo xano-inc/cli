@@ -1,6 +1,8 @@
 import {Args, Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {Project, UpdateProjectInput} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunProjectsUpdate extends BaseRunCommand {
   static args = {
@@ -9,31 +11,8 @@ export default class RunProjectsUpdate extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    name: Flags.string({
-      char: 'n',
-      description: 'New project name',
-      required: false,
-    }),
-    description: Flags.string({
-      char: 'd',
-      description: 'New project description',
-      required: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Update a project'
-
-  static examples = [
+static description = 'Update a project'
+static examples = [
     `$ xano run projects update abc123-def456 -n "New Name"
 Project updated successfully!
   ID:   abc123-def456
@@ -48,12 +27,32 @@ Project updated successfully!
 { "id": "abc123-def456", "name": "New Name", ... }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    description: Flags.string({
+      char: 'd',
+      description: 'New project description',
+      required: false,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'New project name',
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunProjectsUpdate)
 
     // Initialize (no project required)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     // Check if any update flags were provided
     if (!flags.name && flags.description === undefined) {
@@ -64,6 +63,7 @@ Project updated successfully!
     if (flags.name) {
       input.name = flags.name
     }
+
     if (flags.description !== undefined) {
       input.description = flags.description
     }
@@ -81,6 +81,7 @@ Project updated successfully!
         if (project.description) {
           this.log(`  Description: ${project.description}`)
         }
+
         this.log(`  Access:      ${project.access}`)
       }
     } catch (error) {

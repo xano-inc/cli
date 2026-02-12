@@ -25,7 +25,7 @@ npm install -g @xano/cli
 
 3. Execute XanoScript code:
    ```bash
-   xano run exec -f script.xs
+   xano run exec script.xs
    ```
 
 ## Commands
@@ -35,7 +35,7 @@ npm install -g @xano/cli
 Profiles store your Xano credentials and default workspace/project settings.
 
 ```bash
-# Create a profile interactively
+# Create a profile interactively (auto-fetches run projects)
 xano profile:wizard
 
 # Create a profile manually
@@ -52,12 +52,14 @@ xano profile:list --details
 xano profile:set-default myprofile
 
 # Edit a profile
-xano profile:edit myprofile -w 123        # Set default workspace
-xano profile:edit myprofile -j my-project # Set default project
+xano profile:edit myprofile -w 123              # Set default workspace
+xano profile:edit myprofile -j my-project       # Set default project
 
 # Delete a profile
 xano profile:delete myprofile
 ```
+
+The `profile:wizard` command automatically fetches your run projects and sets the first one as the default for `xano run` commands.
 
 ### Workspaces
 
@@ -96,17 +98,20 @@ Execute XanoScript code and manage projects, sessions, environment variables, an
 
 ```bash
 # Execute XanoScript (job or service)
-xano run exec -f script.xs
-xano run exec -f https://example.com/script.xs   # From URL
-xano run exec -f script.xs -a args.json          # With input arguments (file)
-xano run exec -f script.xs -a https://ex.com/args.json  # With input arguments (URL)
-xano run exec -f script.xs --edit                # Edit in $EDITOR first
-xano run exec -f script.xs --env API_KEY=secret  # With env overrides
+xano run exec script.xs                          # Single file
+xano run exec ./my-workspace                     # Directory (multidoc from .xs files)
+xano run exec https://example.com/script.xs     # From URL
+xano run exec script.xs -a args.json             # With input arguments (file)
+xano run exec script.xs -a https://ex.com/args.json  # With input arguments (URL)
+xano run exec script.xs --edit                   # Edit in $EDITOR first
+xano run exec script.xs --env API_KEY=secret     # With env overrides
 cat script.xs | xano run exec --stdin            # From stdin
 
 # Get document info (type, inputs, env vars)
 xano run info -f script.xs
 ```
+
+When a directory is provided, all `.xs` files are collected recursively and combined into a multidoc (joined with `---` separators), similar to `xano workspace push`.
 
 #### Projects
 
@@ -208,10 +213,36 @@ All commands support these options:
 | `-p, --profile` | Profile to use (or set `XANO_PROFILE` env var) |
 | `-w, --workspace` | Workspace ID (overrides profile default) |
 | `-o, --output` | Output format: `summary` (default) or `json` |
+| `-v, --verbose` | Show detailed request/response information (or set `XANO_VERBOSE` env var) |
+
+### Verbose Mode
+
+Use `-v` or `--verbose` to see detailed HTTP request and response information, useful for debugging:
+
+```bash
+xano run exec script.xs -v
+```
+
+This will show:
+- Request method, URL, and content type
+- Request body (truncated if large)
+- Response status, timing, and body
 
 ## Configuration
 
-Profiles are stored in `~/.xano/credentials.yaml`.
+Profiles are stored in `~/.xano/credentials.yaml`:
+
+```yaml
+profiles:
+  default:
+    account_origin: https://app.xano.com
+    instance_origin: https://instance.xano.com
+    access_token: <token>
+    workspace: <workspace_id>
+    branch: <branch_id>
+    project: <project_id>
+default: default
+```
 
 ## Help
 

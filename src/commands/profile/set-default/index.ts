@@ -1,23 +1,23 @@
 import {Args, Command} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
 
 interface ProfileConfig {
-  name: string
-  account_origin: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin: string
   branch?: string
+  instance_origin: string
+  name: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: Omit<ProfileConfig, 'name'>
   }
-  default?: string
 }
 
 export default class ProfileSetDefault extends Command {
@@ -27,10 +27,8 @@ export default class ProfileSetDefault extends Command {
       required: true,
     }),
   }
-
-  static description = 'Set the default profile'
-
-  static examples = [
+static description = 'Set the default profile'
+static examples = [
     `$ xano profile:set-default production
 Default profile set to 'production'
 `,

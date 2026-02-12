@@ -1,26 +1,27 @@
 import {Args, Command, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  name: string
-  account_origin: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin: string
   branch?: string
+  instance_origin: string
+  name: string
   project?: string
   run_base_url?: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: Omit<ProfileConfig, 'name'>
   }
-  default?: string
 }
 
 export default class ProfileCreate extends Command {
@@ -30,53 +31,8 @@ export default class ProfileCreate extends Command {
       required: true,
     }),
   }
-
-  static override flags = {
-    account_origin: Flags.string({
-      char: 'a',
-      description: 'Account origin URL. Optional for self hosted installs.',
-      required: false,
-    }),
-    instance_origin: Flags.string({
-      char: 'i',
-      description: 'Instance origin URL',
-      required: true,
-    }),
-    access_token: Flags.string({
-      char: 't',
-      description: 'Access token for the Xano Metadata API',
-      required: true,
-    }),
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace name',
-      required: false,
-    }),
-    branch: Flags.string({
-      char: 'b',
-      description: 'Branch name',
-      required: false,
-    }),
-    project: Flags.string({
-      char: 'j',
-      description: 'Project name',
-      required: false,
-    }),
-    run_base_url: Flags.string({
-      char: 'r',
-      description: 'Xano Run API base URL (default: https://app.xano.com/)',
-      required: false,
-    }),
-    default: Flags.boolean({
-      description: 'Set this profile as the default',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Create a new profile configuration'
-
-  static examples = [
+static description = 'Create a new profile configuration'
+static examples = [
     `$ xano profile:create production --account_origin https://account.xano.com --instance_origin https://instance.xano.com --access_token token123
 Profile 'production' created successfully at ~/.xano/credentials.yaml
 `,
@@ -94,6 +50,48 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 Default profile set to 'production'
 `,
   ]
+static override flags = {
+    access_token: Flags.string({
+      char: 't',
+      description: 'Access token for the Xano Metadata API',
+      required: true,
+    }),
+    account_origin: Flags.string({
+      char: 'a',
+      description: 'Account origin URL. Optional for self hosted installs.',
+      required: false,
+    }),
+    branch: Flags.string({
+      char: 'b',
+      description: 'Branch name',
+      required: false,
+    }),
+    default: Flags.boolean({
+      default: false,
+      description: 'Set this profile as the default',
+      required: false,
+    }),
+    instance_origin: Flags.string({
+      char: 'i',
+      description: 'Instance origin URL',
+      required: true,
+    }),
+    project: Flags.string({
+      char: 'j',
+      description: 'Project name',
+      required: false,
+    }),
+    run_base_url: Flags.string({
+      char: 'r',
+      description: 'Xano Run API base URL (default: https://app.xano.com/)',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace name',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(ProfileCreate)
@@ -130,9 +128,9 @@ Default profile set to 'production'
     const profileExists = args.name in credentials.profiles
 
     credentials.profiles[args.name] = {
+      access_token: flags.access_token,
       account_origin: flags.account_origin ?? '',
       instance_origin: flags.instance_origin,
-      access_token: flags.access_token,
       ...(flags.workspace && {workspace: flags.workspace}),
       ...(flags.branch && {branch: flags.branch}),
       ...(flags.project && {project: flags.project}),

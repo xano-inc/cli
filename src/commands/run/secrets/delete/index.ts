@@ -1,4 +1,5 @@
 import {Args, Flags} from '@oclif/core'
+
 import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunSecretsDelete extends BaseRunCommand {
@@ -8,20 +9,8 @@ export default class RunSecretsDelete extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    force: Flags.boolean({
-      char: 'f',
-      description: 'Skip confirmation prompt',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Delete a secret'
-
-  static examples = [
+static description = 'Delete a secret'
+static examples = [
     `$ xano run secrets delete docker-registry
 Are you sure you want to delete secret 'docker-registry'? (y/N)
 Secret 'docker-registry' deleted successfully!
@@ -30,12 +19,21 @@ Secret 'docker-registry' deleted successfully!
 Secret 'docker-registry' deleted successfully!
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunSecretsDelete)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     // Confirm deletion unless --force is used
     if (!flags.force) {

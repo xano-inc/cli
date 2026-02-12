@@ -1,48 +1,37 @@
 import {Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface UserInfo {
+  [key: string]: unknown
+  created_at?: number
+  email?: string
   id: number
   name?: string
-  email?: string
-  created_at?: number
-  [key: string]: unknown
 }
 
 export default class ProfileMe extends BaseCommand {
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
   static description = 'Get information about the currently authenticated user'
-
-  static examples = [
+static examples = [
     `$ xano profile:me
 User Information:
   ID: 1
@@ -63,6 +52,16 @@ User Information:
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(ProfileMe)
@@ -98,11 +97,11 @@ User Information:
     // Fetch user info from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -138,9 +137,9 @@ User Information:
         }
 
         // Display any other fields that aren't already shown
-        const knownFields = ['id', 'name', 'email', 'created_at']
+        const knownFields = new Set(['created_at', 'email', 'id', 'name'])
         for (const [key, value] of Object.entries(data)) {
-          if (!knownFields.includes(key) && value !== null && value !== undefined) {
+          if (!knownFields.has(key) && value !== null && value !== undefined) {
             if (typeof value === 'object') {
               this.log(`  ${this.formatKey(key)}: ${JSON.stringify(value)}`)
             } else {
@@ -156,6 +155,14 @@ User Information:
         this.error(`Failed to fetch user info: ${String(error)}`)
       }
     }
+  }
+
+  private formatKey(key: string): string {
+    // Convert snake_case to Title Case
+    return key
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
   }
 
   private loadCredentials(): CredentialsFile {
@@ -183,13 +190,5 @@ User Information:
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
-  }
-
-  private formatKey(key: string): string {
-    // Convert snake_case to Title Case
-    return key
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
   }
 }

@@ -1,24 +1,13 @@
 import {Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {SecretKeysResponse} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunSecretsList extends BaseRunCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'table',
-      options: ['table', 'json'],
-    }),
-  }
-
-  static description = 'List all secret keys'
-
-  static examples = [
+static description = 'List all secret keys'
+static examples = [
     `$ xano run secrets list
 NAME                TYPE                                  REPO
 docker-registry     kubernetes.io/dockerconfigjson        ghcr.io
@@ -28,12 +17,22 @@ service-account     kubernetes.io/service-account-token   -
 { "secrets": [{ "name": "docker-registry", "type": "kubernetes.io/dockerconfigjson", "repo": "ghcr.io" }] }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'table',
+      description: 'Output format',
+      options: ['table', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(RunSecretsList)
 
     // Initialize with project required
-    await this.initRunCommandWithProject(flags.profile)
+    await this.initRunCommandWithProject(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildProjectUrl('/secret/key')
@@ -41,8 +40,7 @@ service-account     kubernetes.io/service-account-token   -
 
       if (flags.output === 'json') {
         this.outputJson(result)
-      } else {
-        if (result.secrets.length === 0) {
+      } else if (result.secrets.length === 0) {
           this.log('No secrets found.')
         } else {
           // Print header
@@ -56,7 +54,6 @@ service-account     kubernetes.io/service-account-token   -
             this.log(`${name} ${type} ${repo}`)
           }
         }
-      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list secrets: ${error.message}`)

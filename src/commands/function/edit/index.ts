@@ -1,33 +1,34 @@
 import {Args, Flags} from '@oclif/core'
+import inquirer from 'inquirer'
+import * as yaml from 'js-yaml'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
-import inquirer from 'inquirer'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Function {
+  created_at?: number | string
+  description?: string
   id: number
   name: string
-  description?: string
   type?: string
-  created_at?: number | string
   updated_at?: number | string
   xanoscript?: any
 }
@@ -38,9 +39,9 @@ interface FunctionListResponse {
 }
 
 interface EditFunctionResponse {
+  [key: string]: any
   id: number
   name: string
-  [key: string]: any
 }
 
 export default class FunctionEdit extends BaseCommand {
@@ -50,50 +51,8 @@ export default class FunctionEdit extends BaseCommand {
       required: false,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    file: Flags.string({
-      char: 'f',
-      description: 'Path to file containing XanoScript code',
-      required: false,
-      exclusive: ['stdin'],
-    }),
-    stdin: Flags.boolean({
-      char: 's',
-      description: 'Read XanoScript code from stdin',
-      required: false,
-      default: false,
-      exclusive: ['file'],
-    }),
-    edit: Flags.boolean({
-      char: 'e',
-      description: 'Open file in editor before updating function (requires --file)',
-      required: false,
-      default: false,
-    }),
-    publish: Flags.boolean({
-      description: 'Publish the function after editing',
-      required: false,
-      default: true,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Edit a function in a workspace'
-
-  static examples = [
+static description = 'Edit a function in a workspace'
+static examples = [
     `$ xano function:edit 163
 # Fetches the function code and opens it in $EDITOR for editing
 Function updated successfully!
@@ -140,6 +99,45 @@ Name: my_function
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    edit: Flags.boolean({
+      char: 'e',
+      default: false,
+      description: 'Open file in editor before updating function (requires --file)',
+      required: false,
+    }),
+    file: Flags.string({
+      char: 'f',
+      description: 'Path to file containing XanoScript code',
+      exclusive: ['stdin'],
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    publish: Flags.boolean({
+      default: true,
+      description: 'Publish the function after editing',
+      required: false,
+    }),
+    stdin: Flags.boolean({
+      char: 's',
+      default: false,
+      description: 'Read XanoScript code from stdin',
+      exclusive: ['file'],
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(FunctionEdit)
@@ -190,11 +188,7 @@ Name: my_function
 
     // If function_id is not provided, prompt user to select from list
     let functionId: string
-    if (args.function_id) {
-      functionId = args.function_id
-    } else {
-      functionId = await this.promptForFunctionId(profile, workspaceId)
-    }
+    functionId = args.function_id ? args.function_id : (await this.promptForFunctionId(profile, workspaceId));
 
     // Read XanoScript content
     let xanoscript: string
@@ -246,21 +240,21 @@ Name: my_function
 
     // Construct the API URL
     const queryParams = new URLSearchParams({
-      publish: flags.publish ? 'true' : 'false',
       include_xanoscript: 'false',
+      publish: flags.publish ? 'true' : 'false',
     })
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/${functionId}?${queryParams.toString()}`
 
     // Update function via API
     try {
       const response = await fetch(apiUrl, {
-        method: 'PUT',
+        body: xanoscript,
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'text/x-xanoscript',
           'Authorization': `Bearer ${profile.access_token}`,
+          'Content-Type': 'text/x-xanoscript',
         },
-        body: xanoscript,
+        method: 'PUT',
       })
 
       if (!response.ok) {
@@ -292,98 +286,6 @@ Name: my_function
       } else {
         this.error(`Failed to update function: ${String(error)}`)
       }
-    }
-  }
-
-  private async fetchFunctionCode(profile: ProfileConfig, workspaceId: string, functionId: string): Promise<string> {
-    const queryParams = new URLSearchParams({
-      include_xanoscript: 'true',
-    })
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/${functionId}?${queryParams.toString()}`
-
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
-      }
-
-      const result = await response.json() as any
-
-      // Handle xanoscript as an object with status and value
-      if (result.xanoscript) {
-        if (result.xanoscript.status === 'ok' && result.xanoscript.value !== undefined) {
-          return result.xanoscript.value
-        } else if (typeof result.xanoscript === 'string') {
-          return result.xanoscript
-        } else {
-          throw new Error(`Invalid xanoscript format: ${JSON.stringify(result.xanoscript)}`)
-        }
-      }
-
-      return ''
-    } catch (error) {
-      throw error
-    }
-  }
-
-  private async editFunctionContent(xanoscript: string): Promise<string> {
-    // Get the EDITOR environment variable
-    const editor = process.env.EDITOR || process.env.VISUAL
-
-    if (!editor) {
-      throw new Error('No editor configured. Please set the EDITOR or VISUAL environment variable. Example: export EDITOR=vim')
-    }
-
-    // Validate editor executable exists
-    try {
-      execSync(`which ${editor.split(' ')[0]}`, {stdio: 'ignore'})
-    } catch {
-      throw new Error(`Editor '${editor}' not found. Please set EDITOR to a valid editor. Example: export EDITOR=vim`)
-    }
-
-    // Create a temporary file with .xs extension
-    const tmpFile = path.join(os.tmpdir(), `xano-edit-${Date.now()}.xs`)
-
-    // Write content to temp file
-    try {
-      fs.writeFileSync(tmpFile, xanoscript, 'utf8')
-    } catch (error) {
-      throw new Error(`Failed to create temporary file: ${error}`)
-    }
-
-    // Open the editor
-    try {
-      execSync(`${editor} "${tmpFile}"`, {stdio: 'inherit'})
-    } catch (error) {
-      // Clean up temp file
-      try {
-        fs.unlinkSync(tmpFile)
-      } catch {
-        // Ignore cleanup errors
-      }
-      throw new Error(`Editor exited with an error: ${error}`)
-    }
-
-    // Read the edited content
-    try {
-      const editedContent = fs.readFileSync(tmpFile, 'utf8')
-      // Clean up temp file
-      try {
-        fs.unlinkSync(tmpFile)
-      } catch {
-        // Ignore cleanup errors
-      }
-      return editedContent
-    } catch (error) {
-      throw new Error(`Failed to read edited file: ${error}`)
     }
   }
 
@@ -437,104 +339,107 @@ Name: my_function
       } catch {
         // Ignore cleanup errors
       }
+
       this.error(`Editor exited with an error: ${error}`)
     }
 
     return tmpFile
   }
 
-  private async readStdin(): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = []
+  private async editFunctionContent(xanoscript: string): Promise<string> {
+    // Get the EDITOR environment variable
+    const editor = process.env.EDITOR || process.env.VISUAL
 
-      process.stdin.on('data', (chunk: Buffer) => {
-        chunks.push(chunk)
-      })
+    if (!editor) {
+      throw new Error('No editor configured. Please set the EDITOR or VISUAL environment variable. Example: export EDITOR=vim')
+    }
 
-      process.stdin.on('end', () => {
-        resolve(Buffer.concat(chunks).toString('utf8'))
-      })
+    // Validate editor executable exists
+    try {
+      execSync(`which ${editor.split(' ')[0]}`, {stdio: 'ignore'})
+    } catch {
+      throw new Error(`Editor '${editor}' not found. Please set EDITOR to a valid editor. Example: export EDITOR=vim`)
+    }
 
-      process.stdin.on('error', (error: Error) => {
-        reject(error)
-      })
+    // Create a temporary file with .xs extension
+    const tmpFile = path.join(os.tmpdir(), `xano-edit-${Date.now()}.xs`)
 
-      // Resume stdin if it was paused
-      process.stdin.resume()
-    })
+    // Write content to temp file
+    try {
+      fs.writeFileSync(tmpFile, xanoscript, 'utf8')
+    } catch (error) {
+      throw new Error(`Failed to create temporary file: ${error}`)
+    }
+
+    // Open the editor
+    try {
+      execSync(`${editor} "${tmpFile}"`, {stdio: 'inherit'})
+    } catch (error) {
+      // Clean up temp file
+      try {
+        fs.unlinkSync(tmpFile)
+      } catch {
+        // Ignore cleanup errors
+      }
+
+      throw new Error(`Editor exited with an error: ${error}`)
+    }
+
+    // Read the edited content
+    try {
+      const editedContent = fs.readFileSync(tmpFile, 'utf8')
+      // Clean up temp file
+      try {
+        fs.unlinkSync(tmpFile)
+      } catch {
+        // Ignore cleanup errors
+      }
+
+      return editedContent
+    } catch (error) {
+      throw new Error(`Failed to read edited file: ${error}`)
+    }
   }
 
-  private async promptForFunctionId(profile: ProfileConfig, workspaceId: string): Promise<string> {
+  private async fetchFunctionCode(profile: ProfileConfig, workspaceId: string, functionId: string): Promise<string> {
+    const queryParams = new URLSearchParams({
+      include_xanoscript: 'true',
+    })
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/${functionId}?${queryParams.toString()}`
+
     try {
-      // Fetch list of functions
-      const queryParams = new URLSearchParams({
-        include_draft: 'false',
-        include_xanoscript: 'false',
-        page: '1',
-        per_page: '50',
-        sort: 'created_at',
-        order: 'desc',
-      })
-
-      const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function?${queryParams.toString()}`
-
-      const response = await fetch(listUrl, {
-        method: 'GET',
+      const response = await fetch(apiUrl, {
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `Failed to fetch function list: ${response.status} ${response.statusText}\n${errorText}`,
-        )
+        throw new Error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const data = await response.json() as FunctionListResponse | Function[]
+      const result = await response.json() as any
 
-      // Handle different response formats
-      let functions: Function[]
+      // Handle xanoscript as an object with status and value
+      if (result.xanoscript) {
+        if (result.xanoscript.status === 'ok' && result.xanoscript.value !== undefined) {
+          return result.xanoscript.value
+        }
 
-      if (Array.isArray(data)) {
-        functions = data
-      } else if (data && typeof data === 'object' && 'functions' in data && Array.isArray(data.functions)) {
-        functions = data.functions
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        functions = data.items
-      } else {
-        this.error('Unexpected API response format')
+ if (typeof result.xanoscript === 'string') {
+          return result.xanoscript
+        }
+ 
+          throw new Error(`Invalid xanoscript format: ${JSON.stringify(result.xanoscript)}`)
+        
       }
 
-      if (functions.length === 0) {
-        this.error('No functions found in workspace')
-      }
-
-      // Create choices for inquirer
-      const choices = functions.map(func => ({
-        name: `${func.name} (ID: ${func.id})${func.description ? ` - ${func.description}` : ''}`,
-        value: func.id.toString(),
-      }))
-
-      // Prompt user to select a function
-      const answer = await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'functionId',
-          message: 'Select a function to edit:',
-          choices,
-        },
-      ])
-
-      return answer.functionId
+      return ''
     } catch (error) {
-      if (error instanceof Error) {
-        this.error(`Failed to prompt for function: ${error.message}`)
-      } else {
-        this.error(`Failed to prompt for function: ${String(error)}`)
-      }
+      throw error
     }
   }
 
@@ -563,5 +468,100 @@ Name: my_function
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
+  }
+
+  private async promptForFunctionId(profile: ProfileConfig, workspaceId: string): Promise<string> {
+    try {
+      // Fetch list of functions
+      const queryParams = new URLSearchParams({
+        include_draft: 'false',
+        include_xanoscript: 'false',
+        order: 'desc',
+        page: '1',
+        per_page: '50',
+        sort: 'created_at',
+      })
+
+      const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function?${queryParams.toString()}`
+
+      const response = await fetch(listUrl, {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        this.error(
+          `Failed to fetch function list: ${response.status} ${response.statusText}\n${errorText}`,
+        )
+      }
+
+      const data = await response.json() as Function[] | FunctionListResponse
+
+      // Handle different response formats
+      let functions: Function[]
+
+      if (Array.isArray(data)) {
+        functions = data
+      } else if (data && typeof data === 'object' && 'functions' in data && Array.isArray(data.functions)) {
+        functions = data.functions
+      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
+        functions = data.items
+      } else {
+        this.error('Unexpected API response format')
+      }
+
+      if (functions.length === 0) {
+        this.error('No functions found in workspace')
+      }
+
+      // Create choices for inquirer
+      const choices = functions.map(func => ({
+        name: `${func.name} (ID: ${func.id})${func.description ? ` - ${func.description}` : ''}`,
+        value: func.id.toString(),
+      }))
+
+      // Prompt user to select a function
+      const answer = await inquirer.prompt([
+        {
+          choices,
+          message: 'Select a function to edit:',
+          name: 'functionId',
+          type: 'list',
+        },
+      ])
+
+      return answer.functionId
+    } catch (error) {
+      if (error instanceof Error) {
+        this.error(`Failed to prompt for function: ${error.message}`)
+      } else {
+        this.error(`Failed to prompt for function: ${String(error)}`)
+      }
+    }
+  }
+
+  private async readStdin(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
+
+      process.stdin.on('data', (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
+
+      process.stdin.on('end', () => {
+        resolve(Buffer.concat(chunks).toString('utf8'))
+      })
+
+      process.stdin.on('error', (error: Error) => {
+        reject(error)
+      })
+
+      // Resume stdin if it was paused
+      process.stdin.resume()
+    })
   }
 }

@@ -1,24 +1,25 @@
 import {Args, Command, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  name: string
-  account_origin: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin: string
   branch?: string
+  instance_origin: string
+  name: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: Omit<ProfileConfig, 'name'>
   }
-  default?: string
 }
 
 export default class ProfileDelete extends Command {
@@ -28,19 +29,8 @@ export default class ProfileDelete extends Command {
       required: true,
     }),
   }
-
-  static override flags = {
-    force: Flags.boolean({
-      char: 'f',
-      description: 'Skip confirmation prompt',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Delete a profile configuration'
-
-  static examples = [
+static description = 'Delete a profile configuration'
+static examples = [
     `$ xano profile:delete old-profile
 Are you sure you want to delete profile 'old-profile'? (y/n): y
 Profile 'old-profile' deleted successfully from ~/.xano/credentials.yaml
@@ -52,6 +42,14 @@ Profile 'old-profile' deleted successfully from ~/.xano/credentials.yaml
 Profile 'old-profile' deleted successfully from ~/.xano/credentials.yaml
 `,
   ]
+static override flags = {
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(ProfileDelete)
@@ -152,6 +150,7 @@ Profile 'old-profile' deleted successfully from ~/.xano/credentials.yaml
         if (wasRaw !== undefined) {
           process.stdin.setRawMode?.(wasRaw)
         }
+
         resolve(data.toString().trim())
       })
     })

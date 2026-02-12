@@ -1,31 +1,32 @@
 import {Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Function {
+  created_at?: number
+  description?: string
   id: number
   name: string
-  description?: string
   type?: string
-  created_at?: number
   updated_at?: number
   // Add other function properties as needed
 }
@@ -38,57 +39,8 @@ interface FunctionListResponse {
 
 export default class FunctionList extends BaseCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-    include_draft: Flags.boolean({
-      description: 'Include draft functions',
-      required: false,
-      default: false,
-    }),
-    include_xanoscript: Flags.boolean({
-      description: 'Include XanoScript in response',
-      required: false,
-      default: false,
-    }),
-    page: Flags.integer({
-      description: 'Page number for pagination',
-      required: false,
-      default: 1,
-    }),
-    per_page: Flags.integer({
-      description: 'Number of results per page',
-      required: false,
-      default: 50,
-    }),
-    sort: Flags.string({
-      description: 'Sort field',
-      required: false,
-      default: 'created_at',
-    }),
-    order: Flags.string({
-      description: 'Sort order',
-      required: false,
-      default: 'desc',
-      options: ['asc', 'desc'],
-    }),
-  }
-
-  static description = 'List all functions in a workspace from the Xano Metadata API'
-
-  static examples = [
+static description = 'List all functions in a workspace from the Xano Metadata API'
+static examples = [
     `$ xano function:list -w 40
 Available functions:
   - function-1 (ID: 1)
@@ -117,6 +69,52 @@ Available functions:
 ]
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    include_draft: Flags.boolean({
+      default: false,
+      description: 'Include draft functions',
+      required: false,
+    }),
+    include_xanoscript: Flags.boolean({
+      default: false,
+      description: 'Include XanoScript in response',
+      required: false,
+    }),
+    order: Flags.string({
+      default: 'desc',
+      description: 'Sort order',
+      options: ['asc', 'desc'],
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    page: Flags.integer({
+      default: 1,
+      description: 'Page number for pagination',
+      required: false,
+    }),
+    per_page: Flags.integer({
+      default: 50,
+      description: 'Number of results per page',
+      required: false,
+    }),
+    sort: Flags.string({
+      default: 'created_at',
+      description: 'Sort field',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(FunctionList)
@@ -164,10 +162,10 @@ Available functions:
     const queryParams = new URLSearchParams({
       include_draft: flags.include_draft.toString(),
       include_xanoscript: flags.include_xanoscript.toString(),
+      order: flags.order,
       page: flags.page.toString(),
       per_page: flags.per_page.toString(),
       sort: flags.sort,
-      order: flags.order,
     })
 
     // Construct the API URL
@@ -176,11 +174,11 @@ Available functions:
     // Fetch functions from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -190,7 +188,7 @@ Available functions:
         )
       }
 
-      const data = await response.json() as FunctionListResponse | Function[]
+      const data = await response.json() as Function[] | FunctionListResponse
 
       // Handle different response formats
       let functions: Function[]
@@ -215,10 +213,10 @@ Available functions:
         } else {
           this.log('Available functions:')
           for (const func of functions) {
-            if (func.id !== undefined) {
-              this.log(`  - ${func.name} (ID: ${func.id})`)
-            } else {
+            if (func.id === undefined) {
               this.log(`  - ${func.name}`)
+            } else {
+              this.log(`  - ${func.name} (ID: ${func.id})`)
             }
           }
         }

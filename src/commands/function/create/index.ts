@@ -1,74 +1,37 @@
 import {Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface CreateFunctionResponse {
+  [key: string]: any
   id: number
   name: string
-  [key: string]: any
 }
 
 export default class FunctionCreate extends BaseCommand {
   static args = {}
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    file: Flags.string({
-      char: 'f',
-      description: 'Path to file containing XanoScript code',
-      required: false,
-      exclusive: ['stdin'],
-    }),
-    stdin: Flags.boolean({
-      char: 's',
-      description: 'Read XanoScript code from stdin',
-      required: false,
-      default: false,
-      exclusive: ['file'],
-    }),
-    edit: Flags.boolean({
-      char: 'e',
-      description: 'Open file in editor before creating function (requires --file)',
-      required: false,
-      default: false,
-      dependsOn: ['file'],
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Create a new function in a workspace'
-
-  static examples = [
+static description = 'Create a new function in a workspace'
+static examples = [
     `$ xano function:create -w 40 -f function.xs
 Function created successfully!
 ID: 123
@@ -98,6 +61,41 @@ Name: my_function
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    edit: Flags.boolean({
+      char: 'e',
+      default: false,
+      dependsOn: ['file'],
+      description: 'Open file in editor before creating function (requires --file)',
+      required: false,
+    }),
+    file: Flags.string({
+      char: 'f',
+      description: 'Path to file containing XanoScript code',
+      exclusive: ['stdin'],
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    stdin: Flags.boolean({
+      char: 's',
+      default: false,
+      description: 'Read XanoScript code from stdin',
+      exclusive: ['file'],
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(FunctionCreate)
@@ -191,13 +189,13 @@ Name: my_function
     // Create function via API
     try {
       const response = await fetch(apiUrl, {
-        method: 'POST',
+        body: xanoscript,
         headers: {
           'accept': 'application/json',
-          'Content-Type': 'text/x-xanoscript',
           'Authorization': `Bearer ${profile.access_token}`,
+          'Content-Type': 'text/x-xanoscript',
         },
-        body: xanoscript,
+        method: 'POST',
       })
 
       if (!response.ok) {
@@ -282,31 +280,11 @@ Name: my_function
       } catch {
         // Ignore cleanup errors
       }
+
       this.error(`Editor exited with an error: ${error}`)
     }
 
     return tmpFile
-  }
-
-  private async readStdin(): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = []
-
-      process.stdin.on('data', (chunk: Buffer) => {
-        chunks.push(chunk)
-      })
-
-      process.stdin.on('end', () => {
-        resolve(Buffer.concat(chunks).toString('utf8'))
-      })
-
-      process.stdin.on('error', (error: Error) => {
-        reject(error)
-      })
-
-      // Resume stdin if it was paused
-      process.stdin.resume()
-    })
   }
 
   private loadCredentials(): CredentialsFile {
@@ -334,5 +312,26 @@ Name: my_function
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
+  }
+
+  private async readStdin(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
+
+      process.stdin.on('data', (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
+
+      process.stdin.on('end', () => {
+        resolve(Buffer.concat(chunks).toString('utf8'))
+      })
+
+      process.stdin.on('error', (error: Error) => {
+        reject(error)
+      })
+
+      // Resume stdin if it was paused
+      process.stdin.resume()
+    })
   }
 }

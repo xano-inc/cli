@@ -2,28 +2,29 @@
  * Base command for all run commands
  */
 
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../base-command.js'
 import {DEFAULT_RUN_BASE_URL, RunHttpClient} from './run-http-client.js'
 
 export interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
   project?: string
   run_base_url?: string
+  workspace?: string
 }
 
 export interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 export default abstract class BaseRunCommand extends BaseCommand {
@@ -34,7 +35,7 @@ export default abstract class BaseRunCommand extends BaseCommand {
   /**
    * Initialize the run command with profile and HTTP client
    */
-  protected async initRunCommand(profileFlag?: string): Promise<void> {
+  protected async initRunCommand(profileFlag?: string, verbose?: boolean): Promise<void> {
     this.profileName = profileFlag || this.getDefaultProfile()
     const credentials = this.loadCredentials()
 
@@ -54,22 +55,24 @@ export default abstract class BaseRunCommand extends BaseCommand {
     const baseUrl = this.profile.run_base_url || DEFAULT_RUN_BASE_URL
 
     this.httpClient = new RunHttpClient({
-      baseUrl,
       authToken: this.profile.access_token,
+      baseUrl,
+      logger: (msg: string) => this.log(msg),
       projectId: this.profile.project,
+      verbose,
     })
   }
 
   /**
    * Initialize with project required
    */
-  protected async initRunCommandWithProject(profileFlag?: string): Promise<void> {
-    await this.initRunCommand(profileFlag)
+  protected async initRunCommandWithProject(profileFlag?: string, verbose?: boolean): Promise<void> {
+    await this.initRunCommand(profileFlag, verbose)
 
     if (!this.profile.project) {
       this.error(
         `Profile '${this.profileName}' is missing project. ` +
-        `Update your profile with 'xano profile:edit --project <project-id>'`,
+        `Run 'xano profile:wizard' to set up your profile or use 'xano profile:edit --project <project-id>'`,
       )
     }
   }

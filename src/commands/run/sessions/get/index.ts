@@ -1,6 +1,8 @@
 import {Args, Flags} from '@oclif/core'
-import BaseRunCommand from '../../../../lib/base-run-command.js'
+
 import type {SessionDetail} from '../../../../lib/run-types.js'
+
+import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunSessionsGet extends BaseRunCommand {
   static args = {
@@ -9,21 +11,8 @@ export default class RunSessionsGet extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-  }
-
-  static description = 'Get session details'
-
-  static examples = [
+static description = 'Get session details'
+static examples = [
     `$ xano run sessions get abc123-def456
 Session Details:
   ID:        abc123-def456
@@ -37,12 +26,22 @@ Session Details:
 { "id": "abc123-def456", "name": "My Session", "status": "running", ... }
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunSessionsGet)
 
     // Initialize (no project required for session details)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     try {
       const url = this.httpClient.buildSessionUrl(args.sessionId)
@@ -59,9 +58,11 @@ Session Details:
         if (session.url) {
           this.log(`  URL:       ${session.url}`)
         }
+
         if (session.uptime !== null) {
           this.log(`  Uptime:    ${session.uptime}s`)
         }
+
         this.log(`  Created:   ${session.createdAt}`)
         if (session.projectId) {
           this.log(`  Project:   ${session.projectId}`)

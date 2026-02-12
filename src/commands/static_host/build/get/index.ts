@@ -1,66 +1,49 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Build {
+  [key: string]: any
+  created_at?: number | string
+  description?: string
   id: number
   name: string
-  description?: string
   status?: string
-  created_at?: number | string
   updated_at?: number | string
-  [key: string]: any
 }
 
 export default class StaticHostBuildGet extends BaseCommand {
   static args = {
-    static_host: Args.string({
-      description: 'Static Host name',
-      required: true,
-    }),
     build_id: Args.string({
       description: 'Build ID',
       required: true,
     }),
-  }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
+    static_host: Args.string({
+      description: 'Static Host name',
+      required: true,
     }),
   }
-
-  static description = 'Get details of a specific build for a static host'
-
-  static examples = [
+static description = 'Get details of a specific build for a static host'
+static examples = [
     `$ xano static_host:build:get default 52
 Build Details:
 ID: 52
@@ -86,6 +69,21 @@ Name: production-build
 }
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(StaticHostBuildGet)
@@ -135,11 +133,11 @@ Name: production-build
     // Fetch build from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {

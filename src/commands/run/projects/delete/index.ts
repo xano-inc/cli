@@ -1,4 +1,5 @@
 import {Args, Flags} from '@oclif/core'
+
 import BaseRunCommand from '../../../../lib/base-run-command.js'
 
 export default class RunProjectsDelete extends BaseRunCommand {
@@ -8,20 +9,8 @@ export default class RunProjectsDelete extends BaseRunCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseRunCommand.baseFlags,
-    force: Flags.boolean({
-      char: 'f',
-      description: 'Skip confirmation prompt',
-      required: false,
-      default: false,
-    }),
-  }
-
-  static description = 'Delete a project'
-
-  static examples = [
+static description = 'Delete a project'
+static examples = [
     `$ xano run projects delete abc123-def456
 Are you sure you want to delete project 'abc123-def456'? (y/N)
 Project deleted successfully!
@@ -30,12 +19,21 @@ Project deleted successfully!
 Project deleted successfully!
 `,
   ]
+static override flags = {
+    ...BaseRunCommand.baseFlags,
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(RunProjectsDelete)
 
     // Initialize (no project required)
-    await this.initRunCommand(flags.profile)
+    await this.initRunCommand(flags.profile, flags.verbose)
 
     // Confirm deletion unless --force is used
     if (!flags.force) {

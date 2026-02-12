@@ -1,31 +1,32 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
+
 import BaseCommand from '../../../../base-command.js'
 
 interface ProfileConfig {
-  account_origin?: string
-  instance_origin: string
   access_token: string
-  workspace?: string
+  account_origin?: string
   branch?: string
+  instance_origin: string
+  workspace?: string
 }
 
 interface CredentialsFile {
+  default?: string
   profiles: {
     [key: string]: ProfileConfig
   }
-  default?: string
 }
 
 interface Build {
+  created_at?: number | string
+  description?: string
   id: number
   name: string
-  description?: string
   status?: string
-  created_at?: number | string
   updated_at?: number | string
   // Add other build properties as needed
 }
@@ -43,36 +44,8 @@ export default class StaticHostBuildList extends BaseCommand {
       required: true,
     }),
   }
-
-  static override flags = {
-    ...BaseCommand.baseFlags,
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (optional if set in profile)',
-      required: false,
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output format',
-      required: false,
-      default: 'summary',
-      options: ['summary', 'json'],
-    }),
-    page: Flags.integer({
-      description: 'Page number for pagination',
-      required: false,
-      default: 1,
-    }),
-    per_page: Flags.integer({
-      description: 'Number of results per page',
-      required: false,
-      default: 50,
-    }),
-  }
-
-  static description = 'List all builds for a static host'
-
-  static examples = [
+static description = 'List all builds for a static host'
+static examples = [
     `$ xano static_host:build:list default -w 40
 Available builds:
   - v1.0.0 (ID: 1) - Status: completed
@@ -101,6 +74,31 @@ Available builds:
 ]
 `,
   ]
+static override flags = {
+    ...BaseCommand.baseFlags,
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    page: Flags.integer({
+      default: 1,
+      description: 'Page number for pagination',
+      required: false,
+    }),
+    per_page: Flags.integer({
+      default: 50,
+      description: 'Number of results per page',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(StaticHostBuildList)
@@ -160,11 +158,11 @@ Available builds:
     // Fetch builds from the API
     try {
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${profile.access_token}`,
         },
+        method: 'GET',
       })
 
       if (!response.ok) {
@@ -174,7 +172,7 @@ Available builds:
         )
       }
 
-      const data = await response.json() as BuildListResponse | Build[]
+      const data = await response.json() as Build[] | BuildListResponse
 
       // Handle different response formats
       let builds: Build[]
@@ -199,11 +197,11 @@ Available builds:
         } else {
           this.log('Available builds:')
           for (const build of builds) {
-            if (build.id !== undefined) {
+            if (build.id === undefined) {
+              this.log(`  - ${build.name}`)
+            } else {
               const statusInfo = build.status ? ` - Status: ${build.status}` : ''
               this.log(`  - ${build.name} (ID: ${build.id})${statusInfo}`)
-            } else {
-              this.log(`  - ${build.name}`)
             }
           }
         }
