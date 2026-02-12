@@ -184,9 +184,25 @@ static override flags = {
       let baseName: string
 
       if (doc.type === 'workspace') {
-        // workspace → workspace.xs at root
-        typeDir = outputDir
-        baseName = 'workspace'
+        // workspace → workspace/{name}.xs
+        typeDir = path.join(outputDir, 'workspace')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'workspace_trigger') {
+        // workspace_trigger → workspace/trigger/{name}.xs
+        typeDir = path.join(outputDir, 'workspace', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'agent_trigger') {
+        // agent_trigger → agent/trigger/{name}.xs
+        typeDir = path.join(outputDir, 'agent', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'mcp_server_trigger') {
+        // mcp_server_trigger → mcp_server/trigger/{name}.xs
+        typeDir = path.join(outputDir, 'mcp_server', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'table_trigger') {
+        // table_trigger → table/trigger/{name}.xs
+        typeDir = path.join(outputDir, 'table', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'api_group') {
         // api_group "test" → api/test/api_group.xs
         const groupFolder = snakeCase(doc.name)
