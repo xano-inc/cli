@@ -13,6 +13,7 @@
     "@oclif/plugin-plugins": "^5",
     "inquirer": "^8.2.5",
     "js-yaml": "^4.1.0",
+    "lodash.snakecase": "^4.1.1",
     "open": "^11.0.0"
   },
   "devDependencies": {
@@ -22,6 +23,7 @@
     "@types/chai": "^4",
     "@types/inquirer": "^8.2.5",
     "@types/js-yaml": "^4.0.9",
+    "@types/lodash.snakecase": "^4.1.9",
     "@types/mocha": "^10",
     "@types/node": "^18",
     "chai": "^4",

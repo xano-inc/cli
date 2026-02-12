@@ -4,6 +4,8 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+import snakeCase from 'lodash.snakecase'
+
 import BaseCommand from '../../../base-command.js'
 
 interface ProfileConfig {
@@ -22,6 +24,7 @@ interface CredentialsFile {
 }
 
 interface ParsedDocument {
+  apiGroup?: string
   content: string
   name: string
   type: string
@@ -177,22 +180,50 @@ static override flags = {
 
     let writtenCount = 0
     for (const doc of documents) {
-      // Create the type subdirectory
-      const typeDir = path.join(outputDir, doc.type)
+      let typeDir: string
+      let baseName: string
+
+      if (doc.type === 'workspace') {
+        // workspace → workspace.xs at root
+        typeDir = outputDir
+        baseName = 'workspace'
+      } else if (doc.type === 'api_group') {
+        // api_group "test" → api/test/api_group.xs
+        const groupFolder = snakeCase(doc.name)
+        typeDir = path.join(outputDir, 'api', groupFolder)
+        baseName = 'api_group'
+      } else if (doc.type === 'query' && doc.apiGroup) {
+        // query in group "test" → api/test/{query_name}.xs
+        const groupFolder = snakeCase(doc.apiGroup)
+        const nameParts = doc.name.split('/')
+        const leafName = nameParts.pop()!
+        const folderParts = nameParts.map((part) => snakeCase(part))
+        typeDir = path.join(outputDir, 'api', groupFolder, ...folderParts)
+        baseName = this.sanitizeFilename(leafName)
+        if (doc.verb) {
+          baseName = `${baseName}_${doc.verb}`
+        }
+      } else {
+        // Default: split folder path from name
+        const nameParts = doc.name.split('/')
+        const leafName = nameParts.pop()!
+        const folderParts = nameParts.map((part) => snakeCase(part))
+        typeDir = path.join(outputDir, doc.type, ...folderParts)
+        baseName = this.sanitizeFilename(leafName)
+        if (doc.verb) {
+          baseName = `${baseName}_${doc.verb}`
+        }
+      }
+
       fs.mkdirSync(typeDir, {recursive: true})
 
-      // Build the base filename
-      let baseName = this.sanitizeFilename(doc.name)
-      if (doc.verb) {
-        baseName = `${baseName}_${doc.verb}`
+      // Track duplicates per directory
+      const dirKey = path.relative(outputDir, typeDir)
+      if (!filenameCounters.has(dirKey)) {
+        filenameCounters.set(dirKey, new Map())
       }
 
-      // Track duplicates per type directory
-      if (!filenameCounters.has(doc.type)) {
-        filenameCounters.set(doc.type, new Map())
-      }
-
-      const typeCounters = filenameCounters.get(doc.type)!
+      const typeCounters = filenameCounters.get(dirKey)!
       const count = typeCounters.get(baseName) || 0
       typeCounters.set(baseName, count + 1)
 
@@ -284,7 +315,14 @@ static override flags = {
       verb = verbMatch[1]
     }
 
-    return {content, name, type, verb}
+    // Extract api_group if present (e.g., api_group = "test")
+    let apiGroup: string | undefined
+    const apiGroupMatch = content.match(/api_group\s*=\s*"([^"]*)"/)
+    if (apiGroupMatch) {
+      apiGroup = apiGroupMatch[1]
+    }
+
+    return {apiGroup, content, name, type, verb}
   }
 
   /**
@@ -293,9 +331,6 @@ static override flags = {
    * characters that are unsafe in filenames.
    */
   private sanitizeFilename(name: string): string {
-    return name
-      .replaceAll('"', '')
-      .replaceAll(/\s+/g, '_')
-      .replaceAll(/[<>:"/\\|?*]/g, '_')
+    return snakeCase(name.replaceAll('"', ''))
   }
 }
