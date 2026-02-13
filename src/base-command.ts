@@ -15,7 +15,7 @@ export default abstract class BaseCommand extends Command {
   static baseFlags = {
     profile: Flags.string({
       char: 'p',
-      description: 'Profile to use for this command',
+      description: 'Profile to use (uses default profile if not specified)',
       env: 'XANO_PROFILE',
       required: false,
     }),

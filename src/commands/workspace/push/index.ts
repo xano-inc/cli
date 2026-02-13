@@ -42,12 +42,44 @@ Pushed 58 documents from ./backup
     `$ xano workspace push ./my-workspace -b dev
 Pushed 42 documents from ./my-workspace
 `,
+    `$ xano workspace push ./my-workspace --no-records
+Push schema only, skip importing table records
+`,
+    `$ xano workspace push ./my-workspace --no-env
+Push without overwriting environment variables
+`,
+    `$ xano workspace push ./my-workspace --truncate
+Truncate all table records before importing
+`,
+    `$ xano workspace push ./my-workspace --truncate --no-records
+Truncate all table records without importing new ones
+`,
+    `$ xano workspace push ./my-workspace --no-records --no-env
+Push schema only, skip records and environment variables
+`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
       description: 'Branch name (optional if set in profile, defaults to live)',
+      required: false,
+    }),
+    env: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Include environment variables in import (default: true, use --no-env to exclude)',
+      required: false,
+    }),
+    records: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Include records in import (default: true, use --no-records to exclude)',
+      required: false,
+    }),
+    truncate: Flags.boolean({
+      default: false,
+      description: 'Truncate all table records before importing',
       required: false,
     }),
     workspace: Flags.string({
@@ -136,7 +168,7 @@ static override flags = {
     const branch = flags.branch || profile.branch || ''
 
     // Construct the API URL
-    const queryParams = new URLSearchParams({branch})
+    const queryParams = new URLSearchParams({branch, env: flags.env.toString(), records: flags.records.toString(), truncate: flags.truncate.toString()})
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
 
     // POST the multidoc to the API

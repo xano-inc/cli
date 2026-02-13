@@ -222,6 +222,14 @@ static override flags = {
         // table_trigger → table/trigger/{name}.xs
         typeDir = path.join(outputDir, 'table', 'trigger')
         baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'realtime_channel') {
+        // realtime_channel → realtime/channel/{name}.xs
+        typeDir = path.join(outputDir, 'realtime', 'channel')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'realtime_trigger') {
+        // realtime_trigger → realtime/trigger/{name}.xs
+        typeDir = path.join(outputDir, 'realtime', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'api_group') {
         // api_group "test" → api/test/api_group.xs
         const groupFolder = snakeCase(doc.name)
