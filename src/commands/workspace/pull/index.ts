@@ -49,6 +49,9 @@ Pulled 15 documents to ./output
     `$ xano workspace pull ./backup --profile production --env --records
 Pulled 58 documents to ./backup
 `,
+    `$ xano workspace pull ./my-workspace --draft
+Pulled 42 documents to ./my-workspace
+`,
     `$ xano workspace pull ./my-workspace -b dev
 Pulled 42 documents to ./my-workspace
 `,
@@ -63,6 +66,11 @@ static override flags = {
     env: Flags.boolean({
       default: false,
       description: 'Include environment variables',
+      required: false,
+    }),
+    draft: Flags.boolean({
+      default: false,
+      description: 'Include draft versions',
       required: false,
     }),
     records: Flags.boolean({
@@ -126,6 +134,7 @@ static override flags = {
     const queryParams = new URLSearchParams({
       branch,
       env: flags.env.toString(),
+      include_draft: flags.draft.toString(),
       records: flags.records.toString(),
     })
 
@@ -210,13 +219,25 @@ static override flags = {
         // workspace_trigger → workspace/trigger/{name}.xs
         typeDir = path.join(outputDir, 'workspace', 'trigger')
         baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'agent') {
+        // agent → ai/agent/{name}.xs
+        typeDir = path.join(outputDir, 'ai', 'agent')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'mcp_server') {
+        // mcp_server → ai/mcp_server/{name}.xs
+        typeDir = path.join(outputDir, 'ai', 'mcp_server')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'tool') {
+        // tool → ai/tool/{name}.xs
+        typeDir = path.join(outputDir, 'ai', 'tool')
+        baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'agent_trigger') {
-        // agent_trigger → agent/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'agent', 'trigger')
+        // agent_trigger → ai/agent/trigger/{name}.xs
+        typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
         baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'mcp_server_trigger') {
-        // mcp_server_trigger → mcp_server/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'mcp_server', 'trigger')
+        // mcp_server_trigger → ai/mcp_server/trigger/{name}.xs
+        typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
         baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'table_trigger') {
         // table_trigger → table/trigger/{name}.xs
