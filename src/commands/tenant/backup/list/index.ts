@@ -31,19 +31,19 @@ interface Backup {
 
 export default class TenantBackupList extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to list backups for',
+    tenant_name: Args.string({
+      description: 'Tenant name to list backups for',
       required: true,
     }),
   }
   static description = 'List backups for a tenant'
   static examples = [
-    `$ xano tenant backup list 42
-Backups for tenant 42:
+    `$ xano tenant backup list t1234-abcd-xyz1
+Backups for tenant t1234-abcd-xyz1:
   - #1 - Pre-deploy backup (2024-01-15)
   - #2 - Daily backup (2024-01-16)
 `,
-    `$ xano tenant backup list 42 -o json`,
+    `$ xano tenant backup list t1234-abcd-xyz1 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -96,9 +96,9 @@ Backups for tenant 42:
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
     const queryParams = new URLSearchParams({page: flags.page.toString()})
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}/backup?${queryParams.toString()}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup?${queryParams.toString()}`
 
     try {
       const response = await this.verboseFetch(
@@ -136,9 +136,9 @@ Backups for tenant 42:
         this.log(JSON.stringify(backups, null, 2))
       } else {
         if (backups.length === 0) {
-          this.log(`No backups found for tenant ${tenantId}`)
+          this.log(`No backups found for tenant ${tenantName}`)
         } else {
-          this.log(`Backups for tenant ${tenantId}:`)
+          this.log(`Backups for tenant ${tenantName}:`)
           for (const backup of backups) {
             let date = 'unknown'
             if (backup.created_at) {

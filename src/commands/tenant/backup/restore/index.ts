@@ -23,18 +23,18 @@ interface CredentialsFile {
 
 export default class TenantRestore extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to restore',
+    tenant_name: Args.string({
+      description: 'Tenant name to restore',
       required: true,
     }),
   }
   static description = 'Restore a tenant from a backup. This replaces the current tenant data.'
   static examples = [
-    `$ xano tenant backup restore 42 --backup-id 10
-Are you sure you want to restore tenant 42 from backup 10? This will replace current data. (y/N) y
-Restored tenant 42 from backup #10
+    `$ xano tenant backup restore t1234-abcd-xyz1 --backup-id 10
+Are you sure you want to restore tenant t1234-abcd-xyz1 from backup 10? This will replace current data. (y/N) y
+Restored tenant t1234-abcd-xyz1 from backup #10
 `,
-    `$ xano tenant backup restore 42 --backup-id 10 --force -o json`,
+    `$ xano tenant backup restore t1234-abcd-xyz1 --backup-id 10 --force -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -92,12 +92,12 @@ Restored tenant 42 from backup #10
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
     const backupId = flags['backup-id']
 
     if (!flags.force) {
       const confirmed = await this.confirm(
-        `Are you sure you want to restore tenant ${tenantId} from backup ${backupId}? This will replace current data.`,
+        `Are you sure you want to restore tenant ${tenantName} from backup ${backupId}? This will replace current data.`,
       )
       if (!confirmed) {
         this.log('Restore cancelled.')
@@ -105,7 +105,7 @@ Restored tenant 42 from backup #10
       }
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}/restore`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/restore`
 
     try {
       const response = await this.verboseFetch(
@@ -135,7 +135,7 @@ Restored tenant 42 from backup #10
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
       } else {
-        this.log(`Restored tenant ${tenantId} from backup #${backupId}`)
+        this.log(`Restored tenant ${tenantName} from backup #${backupId}`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
       }
     } catch (error) {

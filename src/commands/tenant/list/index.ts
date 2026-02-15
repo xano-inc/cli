@@ -131,7 +131,7 @@ Tenants in workspace 5:
           for (const tenant of tenants) {
             const state = tenant.state ? ` [${tenant.state}]` : ''
             const license = tenant.license ? ` - ${tenant.license}` : ''
-            this.log(`  - ${tenant.display || tenant.name} (${tenant.name}) (ID: ${tenant.id})${state}${license}`)
+            this.log(`  - ${tenant.display || tenant.name} (${tenant.name})${state}${license}`)
           }
         }
       }

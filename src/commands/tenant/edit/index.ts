@@ -36,17 +36,17 @@ interface Tenant {
 
 export default class TenantEdit extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to edit',
+    tenant_name: Args.string({
+      description: 'Tenant name to edit',
       required: true,
     }),
   }
   static description = 'Edit an existing tenant'
   static examples = [
-    `$ xano tenant edit 42 --display "New Name" --description "Updated description"
+    `$ xano tenant edit t1234-abcd-xyz1 --display "New Name" --description "Updated description"
 Updated tenant: New Name (my-tenant) - ID: 42
 `,
-    `$ xano tenant edit 42 --no-tasks --no-ingress -o json`,
+    `$ xano tenant edit t1234-abcd-xyz1 --no-tasks --no-ingress -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -126,8 +126,8 @@ Updated tenant: New Name (my-tenant) - ID: 42
       )
     }
 
-    const tenantId = args.tenant_id
-    const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}`
+    const tenantName = args.tenant_name
+    const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}`
     const headers = {
       'accept': 'application/json',
       'Authorization': `Bearer ${profile.access_token}`,

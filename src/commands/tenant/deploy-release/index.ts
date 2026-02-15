@@ -31,17 +31,17 @@ interface Tenant {
 
 export default class TenantDeployRelease extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to deploy to',
+    tenant_name: Args.string({
+      description: 'Tenant name to deploy to',
       required: true,
     }),
   }
   static description = 'Deploy a release to a tenant'
   static examples = [
-    `$ xano tenant deploy-release 42 --release-id 10
+    `$ xano tenant deploy-release t1234-abcd-xyz1 --release-id 10
 Deployed release 10 to tenant: My Tenant (my-tenant)
 `,
-    `$ xano tenant deploy-release 42 --release-id 10 -o json`,
+    `$ xano tenant deploy-release t1234-abcd-xyz1 --release-id 10 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -93,9 +93,9 @@ Deployed release 10 to tenant: My Tenant (my-tenant)
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
     const releaseId = flags['release-id']
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}/deploy`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/deploy`
 
     try {
       const response = await this.verboseFetch(

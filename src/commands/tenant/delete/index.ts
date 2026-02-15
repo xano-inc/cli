@@ -23,21 +23,21 @@ interface CredentialsFile {
 
 export default class TenantDelete extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to delete',
+    tenant_name: Args.string({
+      description: 'Tenant name to delete',
       required: true,
     }),
   }
   static description = 'Delete a tenant permanently. This destroys all associated infrastructure and cannot be undone.'
   static examples = [
-    `$ xano tenant delete 42
-Are you sure you want to delete tenant 42? This action cannot be undone. (y/N) y
-Deleted tenant 42
+    `$ xano tenant delete t1234-abcd-xyz1
+Are you sure you want to delete tenant t1234-abcd-xyz1? This action cannot be undone. (y/N) y
+Deleted tenant t1234-abcd-xyz1
 `,
-    `$ xano tenant delete 42 --force
-Deleted tenant 42
+    `$ xano tenant delete t1234-abcd-xyz1 --force
+Deleted tenant t1234-abcd-xyz1
 `,
-    `$ xano tenant delete 42 -f -o json`,
+    `$ xano tenant delete t1234-abcd-xyz1 -f -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -91,11 +91,11 @@ Deleted tenant 42
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
 
     if (!flags.force) {
       const confirmed = await this.confirm(
-        `Are you sure you want to delete tenant ${tenantId}? This action cannot be undone.`,
+        `Are you sure you want to delete tenant ${tenantName}? This action cannot be undone.`,
       )
       if (!confirmed) {
         this.log('Deletion cancelled.')
@@ -103,7 +103,7 @@ Deleted tenant 42
       }
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}`
 
     try {
       const response = await this.verboseFetch(
@@ -127,9 +127,9 @@ Deleted tenant 42
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify({deleted: true, tenant_id: tenantId}, null, 2))
+        this.log(JSON.stringify({deleted: true, tenant_name: tenantName}, null, 2))
       } else {
-        this.log(`Deleted tenant ${tenantId}`)
+        this.log(`Deleted tenant ${tenantName}`)
       }
     } catch (error) {
       if (error instanceof Error) {

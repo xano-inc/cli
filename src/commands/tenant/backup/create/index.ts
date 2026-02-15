@@ -27,17 +27,17 @@ interface BackupResult {
 
 export default class TenantBackupCreate extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to back up',
+    tenant_name: Args.string({
+      description: 'Tenant name to back up',
       required: true,
     }),
   }
   static description = 'Create a backup for a tenant'
   static examples = [
-    `$ xano tenant backup create 42 --description "Pre-deploy backup"
-Created backup #15 for tenant 42
+    `$ xano tenant backup create t1234-abcd-xyz1 --description "Pre-deploy backup"
+Created backup #15 for tenant t1234-abcd-xyz1
 `,
-    `$ xano tenant backup create 42 -d "Daily backup" -o json`,
+    `$ xano tenant backup create t1234-abcd-xyz1 -d "Daily backup" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -91,9 +91,9 @@ Created backup #15 for tenant 42
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}/backup`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup`
 
     try {
       const response = await this.verboseFetch(
@@ -123,7 +123,7 @@ Created backup #15 for tenant 42
       if (flags.output === 'json') {
         this.log(JSON.stringify(result, null, 2))
       } else {
-        this.log(`Created backup #${result.id} for tenant ${tenantId}`)
+        this.log(`Created backup #${result.id} for tenant ${tenantName}`)
       }
     } catch (error) {
       if (error instanceof Error) {

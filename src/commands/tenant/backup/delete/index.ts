@@ -24,19 +24,19 @@ interface CredentialsFile {
 
 export default class TenantBackupDelete extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID that owns the backup',
+    tenant_name: Args.string({
+      description: 'Tenant name that owns the backup',
       required: true,
     }),
   }
   static description = 'Delete a tenant backup permanently. This action cannot be undone.'
   static examples = [
-    `$ xano tenant backup delete 42 --backup-id 10
+    `$ xano tenant backup delete t1234-abcd-xyz1 --backup-id 10
 Are you sure you want to delete backup #10? This action cannot be undone. (y/N) y
 Deleted backup #10
 `,
-    `$ xano tenant backup delete 42 --backup-id 10 --force`,
-    `$ xano tenant backup delete 42 --backup-id 10 -o json`,
+    `$ xano tenant backup delete t1234-abcd-xyz1 --backup-id 10 --force`,
+    `$ xano tenant backup delete t1234-abcd-xyz1 --backup-id 10 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -94,7 +94,7 @@ Deleted backup #10
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
     const backupId = flags['backup-id']
 
     if (!flags.force) {
@@ -107,7 +107,7 @@ Deleted backup #10
       }
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}/backup/${backupId}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}`
 
     try {
       const response = await this.verboseFetch(
@@ -131,7 +131,7 @@ Deleted backup #10
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify({backup_id: backupId, deleted: true, tenant_id: tenantId}, null, 2))
+        this.log(JSON.stringify({backup_id: backupId, deleted: true, tenant_name: tenantName}, null, 2))
       } else {
         this.log(`Deleted backup #${backupId}`)
       }

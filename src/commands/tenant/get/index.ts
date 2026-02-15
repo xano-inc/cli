@@ -42,22 +42,22 @@ interface Tenant {
 
 export default class TenantGet extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to retrieve',
+    tenant_name: Args.string({
+      description: 'Tenant name to retrieve',
       required: true,
     }),
   }
   static description = 'Get details of a specific tenant'
   static examples = [
-    `$ xano tenant get 42
-Tenant: My Tenant (my-tenant) - ID: 42
+    `$ xano tenant get t1234-abcd-xyz1
+Tenant: My Tenant (my-tenant)
   State: ok
   License: tier1
   Domain: my-tenant.xano.io
   Cluster: default
   Release: v1.0
 `,
-    `$ xano tenant get 42 -w 5 -o json`,
+    `$ xano tenant get t1234-abcd-xyz1 -w 5 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -105,8 +105,8 @@ Tenant: My Tenant (my-tenant) - ID: 42
       )
     }
 
-    const tenantId = args.tenant_id
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}`
+    const tenantName = args.tenant_name
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}`
 
     try {
       const response = await this.verboseFetch(
@@ -134,7 +134,7 @@ Tenant: My Tenant (my-tenant) - ID: 42
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
       } else {
-        this.log(`Tenant: ${tenant.display || tenant.name} (${tenant.name}) - ID: ${tenant.id}`)
+        this.log(`Tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.license) this.log(`  License: ${tenant.license}`)
         if (tenant.xano_domain) this.log(`  Domain: ${tenant.xano_domain}`)

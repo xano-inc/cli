@@ -1,4 +1,4 @@
-import {Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -30,16 +30,22 @@ interface Workspace {
 }
 
 export default class WorkspaceCreate extends BaseCommand {
+  static override args = {
+    name: Args.string({
+      description: 'Name of the workspace',
+      required: true,
+    }),
+  }
   static description = 'Create a new workspace via the Xano Metadata API'
-static examples = [
-    `$ xano workspace create --name "my-workspace"
+  static examples = [
+    `$ xano workspace create my-workspace
 Created workspace: my-workspace (ID: 123)
 `,
-    `$ xano workspace create --name "my-app" --description "My application workspace"
+    `$ xano workspace create my-app --description "My application workspace"
 Created workspace: my-app (ID: 456)
   Description: My application workspace
 `,
-    `$ xano workspace create -n "new-project" -d "New project workspace" -o json
+    `$ xano workspace create new-project -d "New project workspace" -o json
 {
   "id": 789,
   "name": "new-project",
@@ -47,17 +53,12 @@ Created workspace: my-app (ID: 456)
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     description: Flags.string({
       char: 'd',
       description: 'Description for the workspace',
       required: false,
-    }),
-    name: Flags.string({
-      char: 'n',
-      description: 'Name of the workspace',
-      required: true,
     }),
     output: Flags.string({
       char: 'o',
@@ -69,7 +70,7 @@ static override flags = {
   }
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(WorkspaceCreate)
+    const {args, flags} = await this.parse(WorkspaceCreate)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -101,7 +102,7 @@ static override flags = {
 
     // Build request body
     const body: {description?: string; name: string;} = {
-      name: flags.name,
+      name: args.name,
     }
     if (flags.description) {
       body.description = flags.description

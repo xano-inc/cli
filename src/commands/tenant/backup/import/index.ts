@@ -27,17 +27,17 @@ interface ImportResult {
 
 export default class TenantBackupImport extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to import backup into',
+    tenant_name: Args.string({
+      description: 'Tenant name to import backup into',
       required: true,
     }),
   }
   static description = 'Import a backup file into a tenant'
   static examples = [
-    `$ xano tenant backup import 42 --file ./my-backup.tar.gz
-Imported backup as #15 for tenant 42
+    `$ xano tenant backup import t1234-abcd-xyz1 --file ./my-backup.tar.gz
+Imported backup as #15 for tenant t1234-abcd-xyz1
 `,
-    `$ xano tenant backup import 42 --file ./my-backup.tar.gz --description "Restored from production" -o json`,
+    `$ xano tenant backup import t1234-abcd-xyz1 --file ./my-backup.tar.gz --description "Restored from production" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -96,14 +96,14 @@ Imported backup as #15 for tenant 42
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
     const filePath = path.resolve(flags.file)
 
     if (!fs.existsSync(filePath)) {
       this.error(`File not found: ${filePath}`)
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}/backup/import`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/import`
 
     try {
       const fileBuffer = fs.readFileSync(filePath)
@@ -140,7 +140,7 @@ Imported backup as #15 for tenant 42
         this.log(JSON.stringify(result, null, 2))
       } else {
         const sizeMb = (fileBuffer.length / 1024 / 1024).toFixed(2)
-        this.log(`Imported backup as #${result.id} for tenant ${tenantId} (${sizeMb} MB)`)
+        this.log(`Imported backup as #${result.id} for tenant ${tenantName} (${sizeMb} MB)`)
       }
     } catch (error) {
       if (error instanceof Error) {

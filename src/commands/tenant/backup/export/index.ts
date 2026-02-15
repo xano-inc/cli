@@ -27,18 +27,18 @@ interface ExportLink {
 
 export default class TenantBackupExport extends BaseCommand {
   static override args = {
-    tenant_id: Args.integer({
-      description: 'Tenant ID to export backup from',
+    tenant_name: Args.string({
+      description: 'Tenant name to export backup from',
       required: true,
     }),
   }
   static description = 'Export (download) a tenant backup to a local file'
   static examples = [
-    `$ xano tenant backup export 42 --backup-id 10
-Downloaded backup #10 to ./tenant-42-backup-10.tar.gz
+    `$ xano tenant backup export t1234-abcd-xyz1 --backup-id 10
+Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
 `,
-    `$ xano tenant backup export 42 --backup-id 10 --output ./backups/my-backup.tar.gz`,
-    `$ xano tenant backup export 42 --backup-id 10 -o json`,
+    `$ xano tenant backup export t1234-abcd-xyz1 --backup-id 10 --output ./backups/my-backup.tar.gz`,
+    `$ xano tenant backup export t1234-abcd-xyz1 --backup-id 10 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -54,7 +54,7 @@ Downloaded backup #10 to ./tenant-42-backup-10.tar.gz
       required: false,
     }),
     output: Flags.string({
-      description: 'Output file path (defaults to ./tenant-{id}-backup-{backup_id}.tar.gz)',
+      description: 'Output file path (defaults to ./tenant-{name}-backup-{backup_id}.tar.gz)',
       required: false,
     }),
     workspace: Flags.string({
@@ -94,11 +94,11 @@ Downloaded backup #10 to ./tenant-42-backup-10.tar.gz
       )
     }
 
-    const tenantId = args.tenant_id
+    const tenantName = args.tenant_name
     const backupId = flags['backup-id']
 
     // Step 1: Get signed download URL
-    const exportUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantId}/backup/${backupId}/export`
+    const exportUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}/export`
 
     try {
       const response = await this.verboseFetch(
@@ -128,7 +128,7 @@ Downloaded backup #10 to ./tenant-42-backup-10.tar.gz
       }
 
       // Step 2: Download the file
-      const outputPath = flags.output || `tenant-${tenantId}-backup-${backupId}.tar.gz`
+      const outputPath = flags.output || `tenant-${tenantName}-backup-${backupId}.tar.gz`
       const resolvedPath = path.resolve(outputPath)
 
       const downloadResponse = await fetch(exportLink.src)
@@ -163,7 +163,7 @@ Downloaded backup #10 to ./tenant-42-backup-10.tar.gz
       })
 
       if (flags.format === 'json') {
-        this.log(JSON.stringify({backup_id: backupId, bytes: totalBytes, file: resolvedPath, tenant_id: tenantId}, null, 2))
+        this.log(JSON.stringify({backup_id: backupId, bytes: totalBytes, file: resolvedPath, tenant_name: tenantName}, null, 2))
       } else {
         const sizeMb = (totalBytes / 1024 / 1024).toFixed(2)
         this.log(`Downloaded backup #${backupId} to ${resolvedPath} (${sizeMb} MB)`)
