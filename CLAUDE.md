@@ -57,37 +57,6 @@ try {
 - NEVER force push to main/master
 - Always create NEW commits rather than amending unless explicitly requested
 
-## CRITICAL: Available Commands
-
-**YOU MUST USE THESE COMMANDS. They invoke specialized agents with domain expertise.**
-
-| Command | When to Use | Agent |
-|---------|-------------|-------|
-| `/plan` | **BEFORE** implementing any new feature or complex task | `planner` |
-| `/tdd` | When writing new code - tests first, then implementation | `tdd-guide` |
-| `/code-review` | **AFTER** writing or modifying any code | `code-reviewer` |
-| `/security-review` | When handling auth, secrets, API endpoints, user input | `security-reviewer` |
-| `/build-fix` | When build fails or type errors occur | `build-error-resolver` |
-| `/e2e` | For end-to-end testing with Playwright | `e2e-runner` |
-
-### ALWAYS FOLLOW THIS WORKFLOW
-
-**DO NOT skip these steps. They ensure code quality and proper architecture.**
-
-1. **Planning Phase** - Use `/plan` before implementing new features
-   - Define interfaces before implementation
-   - Consider failure modes and edge cases
-
-2. **Implementation Phase** - Use `/tdd` for test-first development
-   - Keep functions small and focused
-   - Use `/security-review` for code handling auth, secrets, or user input
-
-3. **Review Phase** - Use `/code-review` before committing
-   - Run tests before committing
-   - Verify changes work as expected
-
-4. **If build breaks** - Use `/build-fix` to resolve errors
-
 ## Commands
 
 ```bash

@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.33",
+  "version": "0.0.34",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -103,6 +103,9 @@
       },
       "tenant:backup": {
         "description": "Manage tenant backups"
+      },
+      "workflow_test": {
+        "description": "Manage and run workflow tests"
       },
       "workspace": {
         "description": "Manage Xano workspaces"
