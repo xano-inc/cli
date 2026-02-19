@@ -84,7 +84,7 @@ Results: 2 passed, 1 failed (2.691s total)
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -100,9 +100,7 @@ Results: 2 passed, 1 failed (2.691s total)
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
-      this.error(
-        'No workspace ID provided. Use --workspace flag or set one in your profile.',
-      )
+      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
     const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/workflow_test`
@@ -118,8 +116,8 @@ Results: 2 passed, 1 failed (2.691s total)
         `${baseUrl}?${listParams}`,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -129,12 +127,10 @@ Results: 2 passed, 1 failed (2.691s total)
 
       if (!listResponse.ok) {
         const errorText = await listResponse.text()
-        this.error(
-          `Failed to list workflow tests: ${listResponse.status}: ${listResponse.statusText}\n${errorText}`,
-        )
+        this.error(`Failed to list workflow tests: ${listResponse.status}: ${listResponse.statusText}\n${errorText}`)
       }
 
-      const data = await listResponse.json() as WorkflowTest[] | {items?: WorkflowTest[]}
+      const data = (await listResponse.json()) as WorkflowTest[] | {items?: WorkflowTest[]}
 
       let tests: WorkflowTest[]
       if (Array.isArray(data)) {
@@ -166,8 +162,8 @@ Results: 2 passed, 1 failed (2.691s total)
             runUrl,
             {
               headers: {
-                'accept': 'application/json',
-                'Authorization': `Bearer ${profile.access_token}`,
+                accept: 'application/json',
+                Authorization: `Bearer ${profile.access_token}`,
                 'Content-Type': 'application/json',
               },
               method: 'POST',
@@ -194,7 +190,7 @@ Results: 2 passed, 1 failed (2.691s total)
             continue
           }
 
-          const runResult = await runResponse.json() as RunResult
+          const runResult = (await runResponse.json()) as RunResult
           const passed = runResult.status === 'ok'
           const result: TestResult = {
             message: runResult.message,
@@ -233,8 +229,8 @@ Results: 2 passed, 1 failed (2.691s total)
       }
 
       // Step 3: Summary
-      const passed = results.filter(r => r.status === 'pass').length
-      const failed = results.filter(r => r.status === 'fail').length
+      const passed = results.filter((r) => r.status === 'pass').length
+      const failed = results.filter((r) => r.status === 'fail').length
 
       if (flags.output === 'json') {
         this.log(JSON.stringify({passed, failed, total_timing: totalTiming, results}, null, 2))
@@ -243,7 +239,7 @@ Results: 2 passed, 1 failed (2.691s total)
       }
 
       if (failed > 0) {
-        this.exit(1)
+        process.exitCode = 1
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -259,10 +255,7 @@ Results: 2 passed, 1 failed (2.691s total)
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     try {
