@@ -28,8 +28,8 @@ export default class Push extends BaseCommand {
       required: true,
     }),
   }
-static override description = 'Push local documents to a workspace via the Xano Metadata API multidoc endpoint'
-static override examples = [
+  static override description = 'Push local documents to a workspace via the Xano Metadata API multidoc endpoint'
+  static override examples = [
     `$ xano workspace push ./my-workspace
 Pushed 42 documents from ./my-workspace
 `,
@@ -58,7 +58,7 @@ Truncate all table records without importing new ones
 Push schema only, skip records and environment variables
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
@@ -102,7 +102,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile:create'`,
+          `Create a profile using 'xano profile:create'`,
       )
     }
 
@@ -126,8 +126,8 @@ static override flags = {
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano workspace push <directory> -w <workspace_id>\n` +
-        `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
+          `  1. Provide it as a flag: xano workspace push <directory> -w <workspace_id>\n` +
+          `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
@@ -168,13 +168,18 @@ static override flags = {
     const branch = flags.branch || profile.branch || ''
 
     // Construct the API URL
-    const queryParams = new URLSearchParams({branch, env: flags.env.toString(), records: flags.records.toString(), truncate: flags.truncate.toString()})
+    const queryParams = new URLSearchParams({
+      branch,
+      env: flags.env.toString(),
+      records: flags.records.toString(),
+      truncate: flags.truncate.toString(),
+    })
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
 
     // POST the multidoc to the API
     const requestHeaders = {
-      'accept': 'application/json',
-      'Authorization': `Bearer ${profile.access_token}`,
+      accept: 'application/json',
+      Authorization: `Bearer ${profile.access_token}`,
       'Content-Type': 'text/x-xanoscript',
     }
 
@@ -192,9 +197,19 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        let errorMessage = `Push failed (${response.status})`
+
+        try {
+          const errorJson = JSON.parse(errorText)
+          errorMessage += `: ${errorJson.message}`
+          if (errorJson.payload?.param) {
+            errorMessage += `\n  Parameter: ${errorJson.payload.param}`
+          }
+        } catch {
+          errorMessage += `\n${errorText}`
+        }
+
+        this.error(errorMessage)
       }
 
       // Log the response if any
@@ -239,10 +254,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile:create'`)
     }
 
     // Read credentials file
