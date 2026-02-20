@@ -1,8 +1,8 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
 
 import BaseCommand from '../../../../base-command.js'
 
@@ -21,40 +21,42 @@ interface CredentialsFile {
   }
 }
 
-interface ExportLink {
-  src: string
-}
-
-export default class TenantBackupExport extends BaseCommand {
+export default class TenantEnvDelete extends BaseCommand {
   static override args = {
     tenant_name: Args.string({
-      description: 'Tenant name to export backup from',
+      description: 'Tenant name',
       required: true,
     }),
   }
-  static description = 'Export (download) a tenant backup to a local file'
+  static description = 'Delete an environment variable from a tenant'
   static examples = [
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10
-Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
+    `$ xano tenant env delete my-tenant --name DATABASE_URL
+Are you sure you want to delete environment variable 'DATABASE_URL' from tenant my-tenant? (y/N) y
+Environment variable 'DATABASE_URL' deleted from tenant my-tenant
 `,
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10 --output ./backups/my-backup.tar.gz`,
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10 -o json`,
+    `$ xano tenant env delete my-tenant --name DATABASE_URL --force
+Environment variable 'DATABASE_URL' deleted from tenant my-tenant
+`,
+    `$ xano tenant env delete my-tenant --name DATABASE_URL -f -w 5 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    backup_id: Flags.integer({
-      description: 'Backup ID to export',
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
+      required: false,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'Environment variable name',
       required: true,
     }),
-    format: Flags.string({
+    output: Flags.string({
       char: 'o',
       default: 'summary',
       description: 'Output format',
       options: ['summary', 'json'],
-      required: false,
-    }),
-    output: Flags.string({
-      description: 'Output file path (defaults to ./tenant-{name}-backup-{backup_id}.tar.gz)',
       required: false,
     }),
     workspace: Flags.string({
@@ -65,7 +67,7 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(TenantBackupExport)
+    const {args, flags} = await this.parse(TenantEnvDelete)
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -93,20 +95,29 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
     }
 
     const tenantName = args.tenant_name
-    const backupId = flags.backup_id
+    const envName = flags.name
 
-    // Step 1: Get signed download URL
-    const exportUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}/export`
+    if (!flags.force) {
+      const confirmed = await this.confirm(
+        `Are you sure you want to delete environment variable '${envName}' from tenant ${tenantName}?`,
+      )
+      if (!confirmed) {
+        this.log('Deletion cancelled.')
+        return
+      }
+    }
+
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/env/${envName}`
 
     try {
       const response = await this.verboseFetch(
-        exportUrl,
+        apiUrl,
         {
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
           },
-          method: 'GET',
+          method: 'DELETE',
         },
         flags.verbose,
         profile.access_token,
@@ -117,64 +128,33 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const exportLink = (await response.json()) as ExportLink
-
-      if (!exportLink.src) {
-        this.error('API did not return a download URL')
-      }
-
-      // Step 2: Download the file
-      const outputPath = flags.output || `tenant-${tenantName}-backup-${backupId}.tar.gz`
-      const resolvedPath = path.resolve(outputPath)
-
-      const downloadResponse = await fetch(exportLink.src)
-
-      if (!downloadResponse.ok) {
-        this.error(`Failed to download backup: ${downloadResponse.status} ${downloadResponse.statusText}`)
-      }
-
-      if (!downloadResponse.body) {
-        this.error('Download response has no body')
-      }
-
-      const fileStream = fs.createWriteStream(resolvedPath)
-      const reader = downloadResponse.body.getReader()
-
-      let totalBytes = 0
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop
-        const {done, value} = await reader.read()
-        if (done) break
-        fileStream.write(value)
-        totalBytes += value.length
-      }
-
-      fileStream.end()
-      await new Promise<void>((resolve, reject) => {
-        fileStream.on('finish', resolve)
-        fileStream.on('error', reject)
-      })
-
-      if (flags.format === 'json') {
-        this.log(
-          JSON.stringify(
-            {backup_id: backupId, bytes: totalBytes, file: resolvedPath, tenant_name: tenantName},
-            null,
-            2,
-          ),
-        )
+      if (flags.output === 'json') {
+        this.log(JSON.stringify({deleted: true, env_name: envName, tenant_name: tenantName}, null, 2))
       } else {
-        const sizeMb = (totalBytes / 1024 / 1024).toFixed(2)
-        this.log(`Downloaded backup #${backupId} to ${resolvedPath} (${sizeMb} MB)`)
+        this.log(`Environment variable '${envName}' deleted from tenant ${tenantName}`)
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to export backup: ${error.message}`)
+        this.error(`Failed to delete tenant environment variable: ${error.message}`)
       } else {
-        this.error(`Failed to export backup: ${String(error)}`)
+        this.error(`Failed to delete tenant environment variable: ${String(error)}`)
       }
     }
+  }
+
+  private async confirm(message: string): Promise<boolean> {
+    const readline = await import('node:readline')
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
+
+    return new Promise((resolve) => {
+      rl.question(`${message} (y/N) `, (answer) => {
+        rl.close()
+        resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes')
+      })
+    })
   }
 
   private loadCredentials(): CredentialsFile {

@@ -12,8 +12,6 @@ interface ProfileConfig {
   branch?: string
   instance_origin: string
   name: string
-  project?: string
-  run_base_url?: string
   workspace?: string
 }
 
@@ -31,8 +29,8 @@ export default class ProfileCreate extends Command {
       required: true,
     }),
   }
-static description = 'Create a new profile configuration'
-static examples = [
+  static description = 'Create a new profile configuration'
+  static examples = [
     `$ xano profile:create production --account_origin https://account.xano.com --instance_origin https://instance.xano.com --access_token token123
 Profile 'production' created successfully at ~/.xano/credentials.yaml
 `,
@@ -42,15 +40,12 @@ Profile 'staging' created successfully at ~/.xano/credentials.yaml
     `$ xano profile:create dev -i https://dev-instance.xano.com -t token789 -w my-workspace -b feature-branch
 Profile 'dev' created successfully at ~/.xano/credentials.yaml
 `,
-    `$ xano profile:create dev -i https://dev-instance.xano.com -t token789 -w my-workspace -b feature-branch -j my-project
-Profile 'dev' created successfully at ~/.xano/credentials.yaml
-`,
     `$ xano profile:create production --account_origin https://account.xano.com --instance_origin https://instance.xano.com --access_token token123 --default
 Profile 'production' created successfully at ~/.xano/credentials.yaml
 Default profile set to 'production'
 `,
   ]
-static override flags = {
+  static override flags = {
     access_token: Flags.string({
       char: 't',
       description: 'Access token for the Xano Metadata API',
@@ -75,16 +70,6 @@ static override flags = {
       char: 'i',
       description: 'Instance origin URL',
       required: true,
-    }),
-    project: Flags.string({
-      char: 'j',
-      description: 'Project name',
-      required: false,
-    }),
-    run_base_url: Flags.string({
-      char: 'r',
-      description: 'Xano Run API base URL (default: https://app.xano.com/)',
-      required: false,
     }),
     workspace: Flags.string({
       char: 'w',
@@ -133,8 +118,6 @@ static override flags = {
       instance_origin: flags.instance_origin,
       ...(flags.workspace && {workspace: flags.workspace}),
       ...(flags.branch && {branch: flags.branch}),
-      ...(flags.project && {project: flags.project}),
-      ...(flags.run_base_url && {run_base_url: flags.run_base_url}),
     }
 
     // Set default if flag is provided

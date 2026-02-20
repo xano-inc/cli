@@ -13,7 +13,6 @@ interface ProfileConfig {
   branch?: string
   instance_origin: string
   name: string
-  project?: string
   workspace?: string
 }
 
@@ -39,11 +38,6 @@ interface Workspace {
 interface Branch {
   id: string
   label: string
-}
-
-interface Project {
-  id: string
-  name: string
 }
 
 interface UserInfo {
@@ -103,8 +97,6 @@ Opening browser for Xano login at https://custom.xano.com...`,
       // Step 4: Workspace selection
       let workspace: undefined | Workspace
       let branch: string | undefined
-      let project: string | undefined
-
       this.log('')
       this.log('Fetching available workspaces...')
       const workspaces = await this.fetchWorkspaces(token, instance.origin)
@@ -121,30 +113,20 @@ Opening browser for Xano login at https://custom.xano.com...`,
           if (branches.length > 0) {
             branch = await this.selectBranch(branches)
           }
-
-          // Step 6: Project selection
-          this.log('')
-          this.log('Fetching available projects...')
-          const projects = await this.fetchProjects(token, instance.origin, workspace.id, branch)
-
-          if (projects.length > 0) {
-            project = await this.selectProject(projects)
-          }
         }
       }
 
-      // Step 7: Profile name
+      // Step 6: Profile name
       this.log('')
       const profileName = await this.promptProfileName()
 
-      // Step 8: Save profile
+      // Step 7: Save profile
       await this.saveProfile({
         access_token: token,
         account_origin: flags.origin,
         branch,
         instance_origin: instance.origin,
         name: profileName,
-        project,
         workspace: workspace?.id,
       })
 
@@ -221,41 +203,6 @@ Opening browser for Xano login at https://custom.xano.com...`,
     }
 
     return []
-  }
-
-  private async fetchProjects(
-    accessToken: string,
-    origin: string,
-    workspaceId: string,
-    branchId?: string,
-  ): Promise<Project[]> {
-    try {
-      const branchParam = branchId ? `?branch=${branchId}` : ''
-      const response = await fetch(`${origin}/api:meta/workspace/${workspaceId}/project${branchParam}`, {
-        headers: {
-          accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        method: 'GET',
-      })
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`)
-      }
-
-      const data = (await response.json()) as unknown
-
-      if (Array.isArray(data)) {
-        return data.map((proj: {id?: string; name: string}) => ({
-          id: proj.id || proj.name,
-          name: proj.name,
-        }))
-      }
-
-      return []
-    } catch {
-      return []
-    }
   }
 
   private async fetchWorkspaces(accessToken: string, origin: string): Promise<Workspace[]> {
@@ -340,7 +287,6 @@ Opening browser for Xano login at https://custom.xano.com...`,
       instance_origin: profile.instance_origin,
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
-      ...(profile.project && {project: profile.project}),
     }
 
     // Set as default profile
@@ -389,25 +335,6 @@ Opening browser for Xano login at https://custom.xano.com...`,
     ])
 
     return instances.find((inst) => inst.id === instanceId)!
-  }
-
-  private async selectProject(projects: Project[]): Promise<string | undefined> {
-    const {selectedProject} = await inquirer.prompt([
-      {
-        choices: [
-          {name: '(Skip project)', value: ''},
-          ...projects.map((proj) => ({
-            name: proj.name,
-            value: proj.id,
-          })),
-        ],
-        message: 'Select a project',
-        name: 'selectedProject',
-        type: 'list',
-      },
-    ])
-
-    return selectedProject || undefined
   }
 
   private async selectWorkspace(workspaces: Workspace[]): Promise<undefined | Workspace> {

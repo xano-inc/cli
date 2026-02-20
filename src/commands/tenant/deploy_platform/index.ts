@@ -38,10 +38,10 @@ export default class TenantDeployPlatform extends BaseCommand {
   }
   static description = 'Deploy a platform version to a tenant'
   static examples = [
-    `$ xano tenant deploy-platform t1234-abcd-xyz1 --platform-id 5
+    `$ xano tenant deploy_platform t1234-abcd-xyz1 --platform_id 5
 Deployed platform 5 to tenant: My Tenant (my-tenant)
 `,
-    `$ xano tenant deploy-platform t1234-abcd-xyz1 --platform-id 5 -o json`,
+    `$ xano tenant deploy_platform t1234-abcd-xyz1 --platform_id 5 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -52,7 +52,7 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
       options: ['summary', 'json'],
       required: false,
     }),
-    'platform-id': Flags.integer({
+    platform_id: Flags.integer({
       description: 'Platform ID to deploy',
       required: true,
     }),
@@ -72,7 +72,7 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -88,13 +88,11 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
-      this.error(
-        'No workspace ID provided. Use --workspace flag or set one in your profile.',
-      )
+      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
     const tenantName = args.tenant_name
-    const platformId = flags['platform-id']
+    const platformId = flags.platform_id
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/platform/deploy`
 
     try {
@@ -103,8 +101,8 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
         {
           body: JSON.stringify({platform_id: platformId}),
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
             'Content-Type': 'application/json',
           },
           method: 'POST',
@@ -115,12 +113,10 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const tenant = await response.json() as Tenant
+      const tenant = (await response.json()) as Tenant
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
@@ -143,10 +139,7 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     try {

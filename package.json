@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.37",
+  "version": "0.0.38",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -70,24 +70,6 @@
       },
       "profile": {
         "description": "Manage CLI profiles and authentication"
-      },
-      "run": {
-        "description": "Execute XanoScript and manage Xano Run projects"
-      },
-      "run:env": {
-        "description": "Manage environment variables for a project"
-      },
-      "run:projects": {
-        "description": "Manage Xano Run projects"
-      },
-      "run:secrets": {
-        "description": "Manage secrets for a project"
-      },
-      "run:sessions": {
-        "description": "Manage Xano Run sessions"
-      },
-      "run:sink": {
-        "description": "Retrieve sink data from completed sessions"
       },
       "static_host": {
         "description": "Manage static hosting sites"

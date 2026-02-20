@@ -5,15 +5,12 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import {DEFAULT_RUN_BASE_URL} from '../../../lib/run-http-client.js'
-
 interface ProfileConfig {
   access_token: string
   account_origin: string
   branch?: string
   instance_origin: string
   name: string
-  project?: string
   workspace?: string
 }
 
@@ -41,21 +38,9 @@ interface Branch {
   label: string
 }
 
-interface Project {
-  id: string
-  name: string
-}
-
-interface RunProject {
-  access?: 'private' | 'public'
-  description?: string
-  id: string
-  name: string
-}
-
 export default class ProfileWizard extends Command {
   static description = 'Create a new profile configuration using an interactive wizard'
-static examples = [
+  static examples = [
     `$ xano profile:wizard
 Welcome to the Xano Profile Wizard!
 ? Enter your access token: ***...***
@@ -66,7 +51,7 @@ Welcome to the Xano Profile Wizard!
 Profile 'production' created successfully at ~/.xano/credentials.yaml
 `,
   ]
-static override flags = {
+  static override flags = {
     name: Flags.string({
       char: 'n',
       description: 'Profile name (skip prompt if provided)',
@@ -156,8 +141,6 @@ static override flags = {
       // Step 5: Workspace selection
       let workspace: string | undefined
       let branch: string | undefined
-      let project: string | undefined
-
       // Fetch workspaces from the selected instance
       this.log('')
       this.log('Fetching available workspaces...')
@@ -211,9 +194,9 @@ static override flags = {
                 choices: [
                   {name: '(Skip and use live branch)', value: ''},
                   ...branches.map((br) => ({
-                      name: br.label,
-                      value: br.id,
-                    })),
+                    name: br.label,
+                    value: br.id,
+                  })),
                 ],
                 message: 'Select a branch',
                 name: 'selectedBranch',
@@ -223,71 +206,21 @@ static override flags = {
 
             branch = selectedBranch || undefined
           }
-
-          // Step 6: Project selection
-          this.log('')
-          this.log('Fetching available projects...')
-          let projects: Project[] = []
-
-          try {
-            projects = await this.fetchProjects(accessToken, selectedInstance.origin, workspace, branch)
-          } catch (error) {
-            this.warn(`Failed to fetch projects: ${error instanceof Error ? error.message : String(error)}`)
-          }
-
-          // If projects were fetched, let user select one
-          if (projects.length > 0) {
-            this.log('')
-            const {selectedProject} = await inquirer.prompt([
-              {
-                choices: [
-                  {name: '(Skip project)', value: ''},
-                  ...projects.map((proj) => ({
-                      name: proj.name,
-                      value: proj.id,
-                    })),
-                ],
-                message: 'Select a project',
-                name: 'selectedProject',
-                type: 'list',
-              },
-            ])
-
-            project = selectedProject || undefined
-          }
         }
-      }
-
-      // Step 7: Fetch run projects and auto-select the first one if no project was selected
-      this.log('')
-      this.log('Fetching available run projects...')
-
-      try {
-        const runProjects = await this.fetchRunProjects(accessToken)
-        if (runProjects.length > 0) {
-          // Use run project if no metadata project was selected
-          if (!project) {
-            project = runProjects[0].id
-          }
-
-          this.log(`✓ Found ${runProjects.length} run project(s). Using "${runProjects[0].name}" as default.`)
-        } else {
-          this.log('No run projects found. You can create one later with "xano run projects create".')
-        }
-      } catch {
-        // Silently ignore - project will remain undefined
       }
 
       // Save profile
-      await this.saveProfile({
-        access_token: accessToken,
-        account_origin: flags.origin,
-        branch,
-        instance_origin: selectedInstance.origin,
-        name: profileName,
-        project,
-        workspace,
-      }, true)
+      await this.saveProfile(
+        {
+          access_token: accessToken,
+          account_origin: flags.origin,
+          branch,
+          instance_origin: selectedInstance.origin,
+          name: profileName,
+          workspace,
+        },
+        true,
+      )
 
       this.log('')
       this.log(`✓ Profile '${profileName}' created successfully!`)
@@ -389,71 +322,6 @@ static override flags = {
     return []
   }
 
-  private async fetchProjects(accessToken: string, origin: string, workspaceId: string, branchId?: string): Promise<Project[]> {
-    const branchParam = branchId ? `?branch=${branchId}` : ''
-    const response = await fetch(`${origin}/api:meta/workspace/${workspaceId}/project${branchParam}`, {
-      headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      method: 'GET',
-    })
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Unauthorized. Please check your access token.')
-      }
-
-      throw new Error(`API request failed with status ${response.status}`)
-    }
-
-    const data = (await response.json()) as any
-
-    // Transform API response to Project format
-    // Assuming the API returns an array or object with projects
-    if (Array.isArray(data)) {
-      return data.map((proj: any) => ({
-        id: proj.id || proj.name,
-        name: proj.name,
-      }))
-    }
-
-    // If it's an object, try to extract projects
-    if (data && typeof data === 'object') {
-      const projects = data.projects || data.data || []
-      if (Array.isArray(projects)) {
-        return projects.map((proj: any) => ({
-          id: proj.id || proj.name,
-          name: proj.name,
-        }))
-      }
-    }
-
-    return []
-  }
-
-  private async fetchRunProjects(accessToken: string, runBaseUrl: string = DEFAULT_RUN_BASE_URL): Promise<RunProject[]> {
-    const baseUrl = runBaseUrl.endsWith('/') ? runBaseUrl.slice(0, -1) : runBaseUrl
-    const response = await fetch(`${baseUrl}/api:run/project`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      method: 'GET',
-    })
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Unauthorized. Please check your access token.')
-      }
-
-      throw new Error(`API request failed with status ${response.status}`)
-    }
-
-    const data = (await response.json()) as unknown
-    return Array.isArray(data) ? data : []
-  }
-
   private async fetchWorkspaces(accessToken: string, origin: string): Promise<Workspace[]> {
     const response = await fetch(`${origin}/api:meta/workspace`, {
       headers: {
@@ -550,7 +418,6 @@ static override flags = {
       instance_origin: profile.instance_origin,
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
-      ...(profile.project && {project: profile.project}),
     }
 
     // Set as default if requested

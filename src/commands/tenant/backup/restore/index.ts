@@ -30,15 +30,15 @@ export default class TenantRestore extends BaseCommand {
   }
   static description = 'Restore a tenant from a backup. This replaces the current tenant data.'
   static examples = [
-    `$ xano tenant backup restore t1234-abcd-xyz1 --backup-id 10
+    `$ xano tenant backup restore t1234-abcd-xyz1 --backup_id 10
 Are you sure you want to restore tenant t1234-abcd-xyz1 from backup 10? This will replace current data. (y/N) y
 Restored tenant t1234-abcd-xyz1 from backup #10
 `,
-    `$ xano tenant backup restore t1234-abcd-xyz1 --backup-id 10 --force -o json`,
+    `$ xano tenant backup restore t1234-abcd-xyz1 --backup_id 10 --force -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    'backup-id': Flags.integer({
+    backup_id: Flags.integer({
       description: 'Backup ID to restore from',
       required: true,
     }),
@@ -71,7 +71,7 @@ Restored tenant t1234-abcd-xyz1 from backup #10
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -87,13 +87,11 @@ Restored tenant t1234-abcd-xyz1 from backup #10
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
-      this.error(
-        'No workspace ID provided. Use --workspace flag or set one in your profile.',
-      )
+      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
     const tenantName = args.tenant_name
-    const backupId = flags['backup-id']
+    const backupId = flags.backup_id
 
     if (!flags.force) {
       const confirmed = await this.confirm(
@@ -113,8 +111,8 @@ Restored tenant t1234-abcd-xyz1 from backup #10
         {
           body: JSON.stringify({backup_id: backupId}),
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
             'Content-Type': 'application/json',
           },
           method: 'POST',
@@ -125,12 +123,10 @@ Restored tenant t1234-abcd-xyz1 from backup #10
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const tenant = await response.json() as {state?: string}
+      const tenant = (await response.json()) as {state?: string}
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
@@ -167,10 +163,7 @@ Restored tenant t1234-abcd-xyz1 from backup #10
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     try {

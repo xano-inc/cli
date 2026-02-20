@@ -1,8 +1,8 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
 
 import BaseCommand from '../../../../base-command.js'
 
@@ -21,40 +21,46 @@ interface CredentialsFile {
   }
 }
 
-interface ExportLink {
-  src: string
-}
-
-export default class TenantBackupExport extends BaseCommand {
+export default class TenantLicenseSet extends BaseCommand {
   static override args = {
     tenant_name: Args.string({
-      description: 'Tenant name to export backup from',
+      description: 'Tenant name',
       required: true,
     }),
   }
-  static description = 'Export (download) a tenant backup to a local file'
+  static description = 'Set/update the license for a tenant'
   static examples = [
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10
-Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
+    `$ xano tenant license set my-tenant
+Reads from license_my-tenant.yaml
 `,
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10 --output ./backups/my-backup.tar.gz`,
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10 -o json`,
+    `$ xano tenant license set my-tenant --file ./license.yaml`,
+    `$ xano tenant license set my-tenant --value 'key: value'`,
+    `$ xano tenant license set my-tenant -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    backup_id: Flags.integer({
-      description: 'Backup ID to export',
-      required: true,
+    clean: Flags.boolean({
+      default: false,
+      description: 'Remove the source file after successful upload',
+      exclusive: ['value'],
+      required: false,
     }),
-    format: Flags.string({
+    file: Flags.string({
+      char: 'f',
+      description: 'Path to license file (default: license_<tenant_name>.yaml)',
+      exclusive: ['value'],
+      required: false,
+    }),
+    output: Flags.string({
       char: 'o',
       default: 'summary',
       description: 'Output format',
       options: ['summary', 'json'],
       required: false,
     }),
-    output: Flags.string({
-      description: 'Output file path (defaults to ./tenant-{name}-backup-{backup_id}.tar.gz)',
+    value: Flags.string({
+      description: 'Inline license value',
+      exclusive: ['file', 'clean'],
       required: false,
     }),
     workspace: Flags.string({
@@ -65,7 +71,22 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(TenantBackupExport)
+    const {args, flags} = await this.parse(TenantLicenseSet)
+
+    const tenantName = args.tenant_name
+    let licenseValue: string
+    let sourceFilePath: string | undefined
+
+    if (flags.value) {
+      licenseValue = flags.value
+    } else {
+      sourceFilePath = path.resolve(flags.file || `license_${tenantName}.yaml`)
+      if (!fs.existsSync(sourceFilePath)) {
+        this.error(`File not found: ${sourceFilePath}`)
+      }
+
+      licenseValue = fs.readFileSync(sourceFilePath, 'utf8')
+    }
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -92,21 +113,19 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
       this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
-    const tenantName = args.tenant_name
-    const backupId = flags.backup_id
-
-    // Step 1: Get signed download URL
-    const exportUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}/export`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/license`
 
     try {
       const response = await this.verboseFetch(
-        exportUrl,
+        apiUrl,
         {
+          body: JSON.stringify({value: licenseValue}),
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
+            'Content-Type': 'application/json',
           },
-          method: 'GET',
+          method: 'POST',
         },
         flags.verbose,
         profile.access_token,
@@ -117,62 +136,23 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const exportLink = (await response.json()) as ExportLink
+      const result = await response.json()
 
-      if (!exportLink.src) {
-        this.error('API did not return a download URL')
-      }
-
-      // Step 2: Download the file
-      const outputPath = flags.output || `tenant-${tenantName}-backup-${backupId}.tar.gz`
-      const resolvedPath = path.resolve(outputPath)
-
-      const downloadResponse = await fetch(exportLink.src)
-
-      if (!downloadResponse.ok) {
-        this.error(`Failed to download backup: ${downloadResponse.status} ${downloadResponse.statusText}`)
-      }
-
-      if (!downloadResponse.body) {
-        this.error('Download response has no body')
-      }
-
-      const fileStream = fs.createWriteStream(resolvedPath)
-      const reader = downloadResponse.body.getReader()
-
-      let totalBytes = 0
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop
-        const {done, value} = await reader.read()
-        if (done) break
-        fileStream.write(value)
-        totalBytes += value.length
-      }
-
-      fileStream.end()
-      await new Promise<void>((resolve, reject) => {
-        fileStream.on('finish', resolve)
-        fileStream.on('error', reject)
-      })
-
-      if (flags.format === 'json') {
-        this.log(
-          JSON.stringify(
-            {backup_id: backupId, bytes: totalBytes, file: resolvedPath, tenant_name: tenantName},
-            null,
-            2,
-          ),
-        )
+      if (flags.output === 'json') {
+        this.log(JSON.stringify(result, null, 2))
       } else {
-        const sizeMb = (totalBytes / 1024 / 1024).toFixed(2)
-        this.log(`Downloaded backup #${backupId} to ${resolvedPath} (${sizeMb} MB)`)
+        this.log(`Tenant license updated successfully for ${tenantName}`)
+      }
+
+      if (flags.clean && sourceFilePath && fs.existsSync(sourceFilePath)) {
+        fs.unlinkSync(sourceFilePath)
+        this.log(`Removed ${sourceFilePath}`)
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to export backup: ${error.message}`)
+        this.error(`Failed to set tenant license: ${error.message}`)
       } else {
-        this.error(`Failed to export backup: ${String(error)}`)
+        this.error(`Failed to set tenant license: ${String(error)}`)
       }
     }
   }

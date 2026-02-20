@@ -1,11 +1,10 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as readline from 'node:readline'
-import * as yaml from 'js-yaml'
 
-import BaseCommand from '../../../../base-command.js'
+import BaseCommand from '../../../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -22,32 +21,34 @@ interface CredentialsFile {
   }
 }
 
-export default class TenantBackupDelete extends BaseCommand {
+export default class TenantClusterLicenseSet extends BaseCommand {
   static override args = {
-    tenant_name: Args.string({
-      description: 'Tenant name that owns the backup',
+    cluster_id: Args.integer({
+      description: 'Tenant cluster ID',
       required: true,
     }),
   }
-  static description = 'Delete a tenant backup permanently. This action cannot be undone.'
+  static description = 'Set/update the license (kubeconfig) for a tenant cluster'
   static examples = [
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10
-Are you sure you want to delete backup #10? This action cannot be undone. (y/N) y
-Deleted backup #10
+    `$ xano tenant cluster license set 1
+Reads from kubeconfig-1.yaml
 `,
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10 --force`,
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10 -o json`,
+    `$ xano tenant cluster license set 1 --file ./kubeconfig.yaml`,
+    `$ xano tenant cluster license set 1 --value 'apiVersion: v1...'`,
+    `$ xano tenant cluster license set 1 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    backup_id: Flags.integer({
-      description: 'Backup ID to delete',
-      required: true,
-    }),
-    force: Flags.boolean({
-      char: 'f',
+    clean: Flags.boolean({
       default: false,
-      description: 'Skip confirmation prompt',
+      description: 'Remove the source file after successful upload',
+      exclusive: ['value'],
+      required: false,
+    }),
+    file: Flags.string({
+      char: 'f',
+      description: 'Path to kubeconfig file (default: kubeconfig_<cluster_id>.yaml)',
+      exclusive: ['value'],
       required: false,
     }),
     output: Flags.string({
@@ -57,15 +58,30 @@ Deleted backup #10
       options: ['summary', 'json'],
       required: false,
     }),
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (uses profile workspace if not provided)',
+    value: Flags.string({
+      description: 'Inline kubeconfig YAML value',
+      exclusive: ['file', 'clean'],
       required: false,
     }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(TenantBackupDelete)
+    const {args, flags} = await this.parse(TenantClusterLicenseSet)
+
+    const clusterId = args.cluster_id
+    let licenseValue: string
+    let sourceFilePath: string | undefined
+
+    if (flags.value) {
+      licenseValue = flags.value
+    } else {
+      sourceFilePath = path.resolve(flags.file || `kubeconfig_${clusterId}.yaml`)
+      if (!fs.existsSync(sourceFilePath)) {
+        this.error(`File not found: ${sourceFilePath}`)
+      }
+
+      licenseValue = fs.readFileSync(sourceFilePath, 'utf8')
+    }
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -87,35 +103,19 @@ Deleted backup #10
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    const workspaceId = flags.workspace || profile.workspace
-    if (!workspaceId) {
-      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
-    }
-
-    const tenantName = args.tenant_name
-    const backupId = flags.backup_id
-
-    if (!flags.force) {
-      const confirmed = await this.confirm(
-        `Are you sure you want to delete backup #${backupId}? This action cannot be undone.`,
-      )
-      if (!confirmed) {
-        this.log('Deletion cancelled.')
-        return
-      }
-    }
-
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}`
+    const apiUrl = `${profile.instance_origin}/api:meta/tenant/cluster/${clusterId}/license`
 
     try {
       const response = await this.verboseFetch(
         apiUrl,
         {
+          body: JSON.stringify({value: licenseValue}),
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
+            'Content-Type': 'application/json',
           },
-          method: 'DELETE',
+          method: 'POST',
         },
         flags.verbose,
         profile.access_token,
@@ -126,32 +126,25 @@ Deleted backup #10
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
+      const result = await response.json()
+
       if (flags.output === 'json') {
-        this.log(JSON.stringify({backup_id: backupId, deleted: true, tenant_name: tenantName}, null, 2))
+        this.log(JSON.stringify(result, null, 2))
       } else {
-        this.log(`Deleted backup #${backupId}`)
+        this.log(`Tenant cluster license updated successfully for cluster ${clusterId}`)
+      }
+
+      if (flags.clean && sourceFilePath && fs.existsSync(sourceFilePath)) {
+        fs.unlinkSync(sourceFilePath)
+        this.log(`Removed ${sourceFilePath}`)
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to delete backup: ${error.message}`)
+        this.error(`Failed to set tenant cluster license: ${error.message}`)
       } else {
-        this.error(`Failed to delete backup: ${String(error)}`)
+        this.error(`Failed to set tenant cluster license: ${String(error)}`)
       }
     }
-  }
-
-  private async confirm(message: string): Promise<boolean> {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    })
-
-    return new Promise((resolve) => {
-      rl.question(`${message} (y/N) `, (answer) => {
-        rl.close()
-        resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes')
-      })
-    })
   }
 
   private loadCredentials(): CredentialsFile {

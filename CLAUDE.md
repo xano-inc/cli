@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Xano CLI (`@xano/cli`) is a TypeScript command-line interface for Xano's Metadata API and Run API. It provides commands for managing profiles, workspaces, functions, xano.run projects/sessions, and static hosting - all from the terminal.
+Xano CLI (`@xano/cli`) is a TypeScript command-line interface for Xano's Metadata API. It provides commands for managing profiles, workspaces, branches, functions, releases, tenants, tests, and static hosting - all from the terminal.
 
 **Binary name:** `xano` (invoked as `xano <command>`)
 
@@ -70,7 +70,7 @@ npm test         # Run Mocha tests + lint
 
 ```bash
 ./bin/dev.js profile list
-./bin/dev.js run exec --file script.xs
+./bin/dev.js workspace list
 ```
 
 ## Project Structure
@@ -81,7 +81,8 @@ src/
 ├── help.ts                      # Custom oclif help class
 ├── index.ts                     # Entry point (re-exports oclif run)
 ├── commands/
-│   ├── profile/                 # Profile management (10 commands)
+│   ├── auth/                    # Browser-based authentication
+│   ├── profile/                 # Profile management (9 commands)
 │   │   ├── wizard.ts            # Interactive profile creation
 │   │   ├── create.ts            # Manual profile creation
 │   │   ├── list.ts              # List profiles
@@ -90,37 +91,28 @@ src/
 │   │   ├── edit.ts              # Edit profile
 │   │   ├── delete.ts            # Delete profile
 │   │   ├── me.ts                # Current user info
-│   │   ├── token.ts             # Token management
-│   │   └── project.ts           # Project settings
-│   ├── workspace/
-│   │   └── list.ts              # List workspaces
+│   │   └── token.ts             # Token management
+│   ├── workspace/               # Workspace management (CRUD, push, pull)
+│   ├── branch/                  # Branch management (CRUD, set_live)
 │   ├── function/                # Function management (4 commands)
 │   │   ├── list.ts
 │   │   ├── get.ts
 │   │   ├── create.ts
 │   │   └── edit.ts
-│   ├── run/                     # xano.run commands (19 commands)
-│   │   ├── exec.ts              # Execute XanoScript
-│   │   ├── info.ts              # Get document info
-│   │   ├── projects/            # Project CRUD
-│   │   ├── sessions/            # Session management
-│   │   ├── env/                 # Environment variables
-│   │   ├── secrets/             # Secret management
-│   │   └── sink/                # Sink data retrieval
+│   ├── release/                 # Release management (CRUD, import, export)
+│   ├── tenant/                  # Tenant management (CRUD, deploy, backups)
+│   ├── platform/                # Platform management (list, get)
+│   ├── unit_test/               # Unit test management (list, run, run_all)
+│   ├── workflow_test/           # Workflow test management (list, get, delete, run, run_all)
 │   └── static_host/             # Static hosting (4 commands)
 │       ├── list.ts
 │       └── build/
-└── lib/                         # Shared library code
-    ├── base-run-command.ts      # Base class for run commands (auth, HTTP client)
-    ├── run-http-client.ts       # HTTP client for Run API
-    └── run-types.ts             # TypeScript interfaces for Run API
 
 bin/
 ├── dev.js                       # Dev entry (ts-node with ESM loader)
 └── run.js                       # Production entry (compiled dist/)
 
 examples/
-├── ephemeral/                   # XanoScript job/service examples
 ├── function/                    # Function examples
 └── static_host/                 # Static host examples
 
@@ -130,9 +122,13 @@ test/
 
 ## Coding Conventions
 
+### Naming Convention
+
+**Use underscores, not dashes, for all identifiers:** directory names, filenames, variable names, and generated output files. This applies to command directories (e.g., `get_all/`, not `get-all/`) and default output filenames (e.g., `env_my-tenant.yaml`, not `env-my-tenant.yaml`).
+
 ### Command Structure
 
-Every command extends `BaseCommand` (or `BaseRunCommand` for run commands):
+Every command extends `BaseCommand`:
 
 ```typescript
 import {Flags} from '@oclif/core'
@@ -142,7 +138,7 @@ export default class MyCommand extends BaseCommand {
   static override description = 'Command description'
 
   static override examples = [
-    '$ xano my-topic my-command --flag value',
+    '$ xano my_topic my_command --flag value',
   ]
 
   static override flags = {
@@ -166,7 +162,29 @@ export default class MyCommand extends BaseCommand {
 | Class | Location | Purpose |
 |-------|----------|---------|
 | `BaseCommand` | `src/base-command.ts` | All commands - provides `-p/--profile` flag, credential loading |
-| `BaseRunCommand` | `src/lib/base-run-command.ts` | Run commands - adds HTTP client, project/profile init, `outputJson()` |
+
+### Argument Rules
+
+**Commands MUST have at most one positional argument.** Use flags for any additional named values.
+
+oclif sorts `static args` alphabetically by key name, not by declaration order. This means if you define two args like `tenant_name` and `env_name`, oclif will present them as `ENV_NAME TENANT_NAME` (alphabetically), which confuses users. The fix is to keep only one arg (the primary resource identifier) and move everything else to flags.
+
+```typescript
+// WRONG - multiple args will be alphabetically reordered
+static override args = {
+  tenant_name: Args.string({required: true}),
+  env_name: Args.string({required: true}),  // Will appear BEFORE tenant_name!
+}
+
+// RIGHT - one arg, rest are flags
+static override args = {
+  tenant_name: Args.string({required: true}),
+}
+static override flags = {
+  ...BaseCommand.baseFlags,
+  name: Flags.string({char: 'n', required: true}),
+}
+```
 
 ### Flag Patterns
 
@@ -174,24 +192,6 @@ export default class MyCommand extends BaseCommand {
 - **Output flag** (`-o`): `json` or `summary` format
 - **Workspace flag** (`-w`): Workspace ID override
 - **Stdin flag**: Accept input from stdin for piping
-
-### HTTP Client
-
-Run commands use `RunHttpClient` from `src/lib/run-http-client.ts`:
-
-```typescript
-// URL builders
-this.httpClient.buildUrl('/path')                    // Base URL + path
-this.httpClient.buildProjectUrl('/path')             // Base URL + /project/:id + path
-this.httpClient.buildSessionUrl(sessionId, '/path')  // Base URL + /session/:id + path
-
-// HTTP methods
-await this.httpClient.get<T>(url)
-await this.httpClient.post<T>(url, body)
-await this.httpClient.postXanoScript<T>(url, code)   // Content-Type: text/plain
-await this.httpClient.patch<T>(url, body)
-await this.httpClient.delete<T>(url, body)
-```
 
 ### Error Handling
 
@@ -209,22 +209,6 @@ protected outputJson(data: unknown): void {
 }
 ```
 
-## Key Types
-
-Types are defined in `src/lib/run-types.ts`:
-
-| Type | Purpose |
-|------|---------|
-| `ProfileConfig` | Profile credentials (origin, token, workspace, branch, project) |
-| `CredentialsFile` | Full credentials YAML structure |
-| `Project` | xano.run project (id, name, description, access) |
-| `Session` | xano.run session (id, status, uptime, url, doc) |
-| `Secret` | Secret (name, type: dockerconfigjson or service-account-token) |
-| `EnvVariable` | Environment variable (name, value) |
-| `RunResult` | Execution result with timing, response, endpoints |
-| `PaginatedResponse<T>` | Generic paginated API response |
-| `SinkData` | Tables and logs from completed sessions |
-
 ## Authentication & Profiles
 
 ### Credentials File
@@ -239,8 +223,6 @@ profiles:
     access_token: <token>
     workspace: <workspace_id>
     branch: <branch_id>
-    project: <project_id>
-    run_base_url: https://app.xano.com/
   production:
     instance_origin: https://prod.xano.com
     access_token: <token>
@@ -298,24 +280,11 @@ describe('command-name', () => {
 ### New Command
 
 1. Create file in `src/commands/<topic>/<command>.ts`
-2. Extend `BaseCommand` (or `BaseRunCommand` for run commands)
+2. Extend `BaseCommand`
 3. Define static `description`, `examples`, `flags`, `args`
 4. Implement `async run()` method
 5. Inherit `...BaseCommand.baseFlags` in flags
 6. Run `npm run build` to compile
-
-### New Run Subcommand
-
-1. Create file in `src/commands/run/<subtopic>/<command>.ts`
-2. Extend `BaseRunCommand`
-3. Call `await this.initRunCommand()` or `await this.initRunCommandWithProject()` in `run()`
-4. Use `this.httpClient` for API calls
-5. Use `this.outputJson()` for formatted output
-
-### New Types
-
-1. Add interfaces to `src/lib/run-types.ts`
-2. Follow existing naming conventions (no `I` prefix - plain interface names)
 
 ## Lint & Format
 

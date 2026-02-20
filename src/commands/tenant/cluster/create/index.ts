@@ -1,10 +1,10 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import BaseCommand from '../../../base-command.js'
+import BaseCommand from '../../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -21,52 +21,50 @@ interface CredentialsFile {
   }
 }
 
-interface Tenant {
-  display?: string
+interface TenantCluster {
+  created_at?: string
+  description?: string
+  domain?: string
   id: number
+  ingress?: Record<string, unknown>
   name: string
-  state?: string
+  type?: string
+  warm?: Record<string, unknown>
 }
 
-export default class TenantCreate extends BaseCommand {
-  static override args = {
-    display: Args.string({
-      description: 'Display name for the tenant',
-      required: true,
-    }),
-  }
-  static description = 'Create a new tenant in a workspace'
+export default class TenantClusterCreate extends BaseCommand {
+  static description = 'Create a new tenant cluster'
   static examples = [
-    `$ xano tenant create "Production"
-Created tenant: Production (production) - ID: 42
+    `$ xano tenant cluster create --name "us-east-1" --credentials_file ./kubeconfig.yaml
+Created tenant cluster: us-east-1 (standard) - ID: 3
 `,
-    `$ xano tenant create "Staging" --description "Staging env" --cluster_id 1 --platform_id 1 --license tier2 -o json`,
+    `$ xano tenant cluster create --name "eu-west-1" --credentials "..." --type run --description "EU run cluster" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    cluster_id: Flags.integer({
-      description: 'Cluster ID to deploy to (required for tier2/tier3)',
+    credentials: Flags.string({
+      description: 'Kubeconfig credentials (raw text)',
+      exclusive: ['credentials_file'],
+      required: false,
+    }),
+    credentials_file: Flags.string({
+      description: 'Path to kubeconfig credentials file',
+      exclusive: ['credentials'],
       required: false,
     }),
     description: Flags.string({
       char: 'd',
-      description: 'Tenant description',
+      description: 'Cluster description',
       required: false,
     }),
     domain: Flags.string({
-      description: 'Custom domain for the tenant',
+      description: 'Custom domain for the cluster',
       required: false,
     }),
-    ingress: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description: 'Enable ingress',
-    }),
-    license: Flags.string({
-      default: 'tier1',
-      description: 'License tier',
-      options: ['tier1', 'tier2', 'tier3'],
-      required: false,
+    name: Flags.string({
+      char: 'n',
+      description: 'Cluster name',
+      required: true,
     }),
     output: Flags.string({
       char: 'o',
@@ -75,24 +73,16 @@ Created tenant: Production (production) - ID: 42
       options: ['summary', 'json'],
       required: false,
     }),
-    platform_id: Flags.integer({
-      description: 'Platform ID to use',
-      required: false,
-    }),
-    tasks: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description: 'Enable background tasks',
-    }),
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (uses profile workspace if not provided)',
+    type: Flags.string({
+      default: 'standard',
+      description: 'Cluster type',
+      options: ['standard', 'run'],
       required: false,
     }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(TenantCreate)
+    const {flags} = await this.parse(TenantClusterCreate)
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -114,28 +104,31 @@ Created tenant: Production (production) - ID: 42
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    const workspaceId = flags.workspace || profile.workspace
-    if (!workspaceId) {
-      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
+    // Resolve credentials from flag or file
+    let credentialsValue: string
+    if (flags.credentials) {
+      credentialsValue = flags.credentials
+    } else if (flags.credentials_file) {
+      const filePath = path.resolve(flags.credentials_file)
+      if (!fs.existsSync(filePath)) {
+        this.error(`Credentials file not found: ${filePath}`)
+      }
+
+      credentialsValue = fs.readFileSync(filePath, 'utf8')
+    } else {
+      this.error('Either --credentials or --credentials_file must be provided')
     }
 
     const body: Record<string, unknown> = {
-      display: args.display,
-      ingress: flags.ingress,
-      license: flags.license,
-      tag: [],
-      tasks: flags.tasks,
+      credentials: credentialsValue,
+      name: flags.name,
+      type: flags.type,
     }
 
     if (flags.description) body.description = flags.description
-    if (flags.cluster_id) {
-      body.cluster_id = flags.cluster_id
-      body.license = 'tier3'
-    }
-    if (flags.platform_id) body.platform_id = flags.platform_id
     if (flags.domain) body.domain = flags.domain
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant`
+    const apiUrl = `${profile.instance_origin}/api:meta/tenant/cluster`
 
     try {
       const response = await this.verboseFetch(
@@ -158,21 +151,21 @@ Created tenant: Production (production) - ID: 42
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const tenant = (await response.json()) as Tenant
+      const cluster = (await response.json()) as TenantCluster
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(tenant, null, 2))
+        this.log(JSON.stringify(cluster, null, 2))
       } else {
-        this.log(`Created tenant: ${tenant.display || tenant.name} (${tenant.name}) - ID: ${tenant.id}`)
-        if (tenant.state) {
-          this.log(`  State: ${tenant.state}`)
-        }
+        const type = cluster.type ? ` (${cluster.type})` : ''
+        this.log(`Created tenant cluster: ${cluster.name}${type} - ID: ${cluster.id}`)
+        if (cluster.description) this.log(`  Description: ${cluster.description}`)
+        if (cluster.domain) this.log(`  Domain: ${cluster.domain}`)
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to create tenant: ${error.message}`)
+        this.error(`Failed to create tenant cluster: ${error.message}`)
       } else {
-        this.error(`Failed to create tenant: ${String(error)}`)
+        this.error(`Failed to create tenant cluster: ${String(error)}`)
       }
     }
   }

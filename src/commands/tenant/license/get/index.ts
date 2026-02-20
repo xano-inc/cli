@@ -1,8 +1,8 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as yaml from 'js-yaml'
 
 import BaseCommand from '../../../../base-command.js'
 
@@ -21,40 +21,41 @@ interface CredentialsFile {
   }
 }
 
-interface ExportLink {
-  src: string
-}
-
-export default class TenantBackupExport extends BaseCommand {
+export default class TenantLicenseGet extends BaseCommand {
   static override args = {
     tenant_name: Args.string({
-      description: 'Tenant name to export backup from',
+      description: 'Tenant name',
       required: true,
     }),
   }
-  static description = 'Export (download) a tenant backup to a local file'
+  static description = 'Get the license for a tenant'
   static examples = [
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10
-Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
+    `$ xano tenant license get my-tenant
+License saved to license_my-tenant.yaml
 `,
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10 --output ./backups/my-backup.tar.gz`,
-    `$ xano tenant backup export t1234-abcd-xyz1 --backup_id 10 -o json`,
+    `$ xano tenant license get my-tenant --file ./my-license.yaml
+License saved to my-license.yaml
+`,
+    `$ xano tenant license get my-tenant --view`,
+    `$ xano tenant license get my-tenant -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    backup_id: Flags.integer({
-      description: 'Backup ID to export',
-      required: true,
+    file: Flags.string({
+      char: 'f',
+      description: 'Output file path (default: license_<tenant_name>.yaml)',
+      required: false,
     }),
-    format: Flags.string({
+    output: Flags.string({
       char: 'o',
       default: 'summary',
       description: 'Output format',
       options: ['summary', 'json'],
       required: false,
     }),
-    output: Flags.string({
-      description: 'Output file path (defaults to ./tenant-{name}-backup-{backup_id}.tar.gz)',
+    view: Flags.boolean({
+      default: false,
+      description: 'Print license to stdout instead of saving to file',
       required: false,
     }),
     workspace: Flags.string({
@@ -65,7 +66,7 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(TenantBackupExport)
+    const {args, flags} = await this.parse(TenantLicenseGet)
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -93,14 +94,11 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
     }
 
     const tenantName = args.tenant_name
-    const backupId = flags.backup_id
-
-    // Step 1: Get signed download URL
-    const exportUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}/export`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/license`
 
     try {
       const response = await this.verboseFetch(
-        exportUrl,
+        apiUrl,
         {
           headers: {
             accept: 'application/json',
@@ -117,62 +115,27 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const exportLink = (await response.json()) as ExportLink
+      const license = await response.json()
 
-      if (!exportLink.src) {
-        this.error('API did not return a download URL')
-      }
+      // The license is a raw YAML string — write it directly, not yaml.dump'd
+      const licenseContent = typeof license === 'string' ? license : JSON.stringify(license, null, 2)
 
-      // Step 2: Download the file
-      const outputPath = flags.output || `tenant-${tenantName}-backup-${backupId}.tar.gz`
-      const resolvedPath = path.resolve(outputPath)
-
-      const downloadResponse = await fetch(exportLink.src)
-
-      if (!downloadResponse.ok) {
-        this.error(`Failed to download backup: ${downloadResponse.status} ${downloadResponse.statusText}`)
-      }
-
-      if (!downloadResponse.body) {
-        this.error('Download response has no body')
-      }
-
-      const fileStream = fs.createWriteStream(resolvedPath)
-      const reader = downloadResponse.body.getReader()
-
-      let totalBytes = 0
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop
-        const {done, value} = await reader.read()
-        if (done) break
-        fileStream.write(value)
-        totalBytes += value.length
-      }
-
-      fileStream.end()
-      await new Promise<void>((resolve, reject) => {
-        fileStream.on('finish', resolve)
-        fileStream.on('error', reject)
-      })
-
-      if (flags.format === 'json') {
-        this.log(
-          JSON.stringify(
-            {backup_id: backupId, bytes: totalBytes, file: resolvedPath, tenant_name: tenantName},
-            null,
-            2,
-          ),
-        )
+      if (flags.view || flags.output === 'json') {
+        if (flags.output === 'json') {
+          this.log(JSON.stringify(license, null, 2))
+        } else {
+          this.log(licenseContent)
+        }
       } else {
-        const sizeMb = (totalBytes / 1024 / 1024).toFixed(2)
-        this.log(`Downloaded backup #${backupId} to ${resolvedPath} (${sizeMb} MB)`)
+        const filePath = path.resolve(flags.file || `license_${tenantName}.yaml`)
+        fs.writeFileSync(filePath, licenseContent, 'utf8')
+        this.log(`License saved to ${filePath}`)
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to export backup: ${error.message}`)
+        this.error(`Failed to get tenant license: ${error.message}`)
       } else {
-        this.error(`Failed to export backup: ${String(error)}`)
+        this.error(`Failed to get tenant license: ${String(error)}`)
       }
     }
   }

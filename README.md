@@ -13,195 +13,345 @@ npm install -g @xano/cli
 
 ## Quick Start
 
-1. Create a profile with the wizard:
+1. Authenticate with Xano:
    ```bash
-   xano profile:wizard
+   xano auth
    ```
 
 2. List your workspaces:
    ```bash
-   xano workspace:list
+   xano workspace list
    ```
 
-3. Execute XanoScript code:
+3. Pull a workspace to local files:
    ```bash
-   xano run exec script.xs
+   xano workspace pull ./my-workspace
    ```
 
 ## Commands
 
-### Profile Management
-
-Profiles store your Xano credentials and default workspace/project settings.
+### Authentication
 
 ```bash
-# Create a profile interactively (auto-fetches run projects)
-xano profile:wizard
-
-# Create a profile manually
-xano profile:create myprofile -i https://instance.xano.com -t <access_token>
-
-# Create a profile with workspace and project
-xano profile:create myprofile -i https://instance.xano.com -t <access_token> -w my-workspace -j my-project
-
-# List profiles
-xano profile:list
-xano profile:list --details
-
-# Set default profile
-xano profile:set-default myprofile
-
-# Edit a profile
-xano profile:edit myprofile -w 123              # Set default workspace
-xano profile:edit myprofile -j my-project       # Set default project
-
-# Delete a profile
-xano profile:delete myprofile
+# Interactive browser-based authentication
+xano auth
 ```
 
-The `profile:wizard` command automatically fetches your run projects and sets the first one as the default for `xano run` commands.
+### Profiles
+
+Profiles store your Xano credentials and default workspace settings.
+
+```bash
+# Create a profile interactively
+xano profile wizard
+
+# Create a profile manually
+xano profile create myprofile -i https://instance.xano.com -t <access_token>
+
+# List profiles
+xano profile list
+
+# Get/set default profile
+xano profile get_default
+xano profile set_default myprofile
+
+# Edit a profile
+xano profile edit myprofile -w 123
+
+# Get current user info
+xano profile me
+
+# Print access token (useful for piping)
+xano profile token
+
+# Delete a profile
+xano profile delete myprofile
+```
 
 ### Workspaces
 
 ```bash
 # List all workspaces
-xano workspace:list
-xano workspace:list -o json
+xano workspace list
+
+# Get workspace details
+xano workspace get <workspace_id>
+
+# Create a workspace
+xano workspace create my-workspace
+xano workspace create my-workspace -d "My application workspace"
+
+# Edit a workspace
+xano workspace edit <workspace_id> --name "new-name" -d "Updated description"
+
+# Delete a workspace (confirmation required)
+xano workspace delete <workspace_id>
+xano workspace delete <workspace_id> --force
+
+# Pull workspace to local files
+xano workspace pull ./my-workspace
+xano workspace pull ./my-workspace -b dev              # Specific branch
+xano workspace pull ./my-workspace --env --records      # Include env vars and table records
+xano workspace pull ./my-workspace --draft              # Include draft changes
+
+# Push local files to workspace
+xano workspace push ./my-workspace
+xano workspace push ./my-workspace -b dev
+xano workspace push ./my-workspace --no-records         # Schema only
+xano workspace push ./my-workspace --no-env             # Skip env vars
+xano workspace push ./my-workspace --truncate           # Truncate tables before import
+```
+
+### Branches
+
+```bash
+# List branches
+xano branch list
+
+# Get branch details
+xano branch get <branch_id>
+
+# Create a branch
+xano branch create --label dev
+xano branch create -l feature-auth -s dev -d "Auth feature"
+
+# Edit a branch
+xano branch edit <branch_id> --label "new-label"
+
+# Set live branch
+xano branch set_live <branch_id>
+
+# Delete a branch
+xano branch delete <branch_id>
 ```
 
 ### Functions
 
 ```bash
-# List functions in a workspace
-xano function:list -w 40
-xano function:list -o json
+# List functions
+xano function list
 
-# Get a specific function
-xano function:get 145
-xano function:get 145 -o xs  # Output as XanoScript
+# Get a function
+xano function get <function_id>
+xano function get <function_id> -o xs                   # Output as XanoScript
 
 # Create a function from XanoScript
-xano function:create -f function.xs
-cat function.xs | xano function:create --stdin
+xano function create -f function.xs
+cat function.xs | xano function create --stdin
 
 # Edit a function
-xano function:edit 145           # Opens in $EDITOR
-xano function:edit 145 -f new.xs # Update from file
-xano function:edit 145 --publish # Publish after editing
+xano function edit <function_id>                        # Opens in $EDITOR
+xano function edit <function_id> -f new.xs              # Update from file
+xano function edit <function_id> --publish              # Publish after editing
 ```
 
-### Xano Run
-
-Execute XanoScript code and manage projects, sessions, environment variables, and secrets.
-
-#### Executing Code
+### Releases
 
 ```bash
-# Execute XanoScript (job or service)
-xano run exec script.xs                          # Single file
-xano run exec ./my-workspace                     # Directory (multidoc from .xs files)
-xano run exec https://example.com/script.xs     # From URL
-xano run exec script.xs -a args.json             # With input arguments (file)
-xano run exec script.xs -a https://ex.com/args.json  # With input arguments (URL)
-xano run exec script.xs --edit                   # Edit in $EDITOR first
-xano run exec script.xs --env API_KEY=secret     # With env overrides
-cat script.xs | xano run exec --stdin            # From stdin
+# List releases
+xano release list
 
-# Get document info (type, inputs, env vars)
-xano run info -f script.xs
+# Get release details
+xano release get <release_id>
+
+# Create a release
+xano release create --name "v1.0" --branch main
+xano release create --name "v1.1-hotfix" --branch main --hotfix
+
+# Edit a release
+xano release edit <release_id> --name "v1.0.1" -d "Updated description"
+
+# Export (download) a release
+xano release export <release_id>
+xano release export <release_id> --output ./backups/my-release.tar.gz
+
+# Import a release file
+xano release import --file ./my-release.tar.gz
+
+# Delete a release (confirmation required)
+xano release delete <release_id>
+xano release delete <release_id> --force
 ```
 
-When a directory is provided, all `.xs` files are collected recursively and combined into a multidoc (joined with `---` separators), similar to `xano workspace push`.
-
-#### Projects
+### Platforms
 
 ```bash
-# List projects
-xano run projects list
+# List platforms
+xano platform list
 
-# Create a project
-xano run projects create -n "My Project"
-xano run projects create -n "My Project" -d "Description"
-
-# Update a project
-xano run projects update <project-id> -n "New Name"
-xano run projects update <project-id> -d "New description"
-
-# Delete a project
-xano run projects delete <project-id>
-xano run projects delete <project-id> --force    # Skip confirmation
+# Get platform details
+xano platform get <platform_id>
 ```
 
-#### Sessions
+### Testing
+
+#### Unit Tests
 
 ```bash
-# List sessions
-xano run sessions list
+# List unit tests
+xano unit_test list
 
-# Get session details
-xano run sessions get <session-id>
+# Run a single unit test
+xano unit_test run <unit_test_id>
 
-# Start/stop a session
-xano run sessions start <session-id>
-xano run sessions stop <session-id>
-
-# Delete a session
-xano run sessions delete <session-id>
-xano run sessions delete <session-id> --force    # Skip confirmation
-
-# Get sink data for a completed session
-xano run sink get <session-id>
+# Run all unit tests
+xano unit_test run_all
 ```
 
-#### Environment Variables
+#### Workflow Tests
 
 ```bash
-# List environment variable keys
-xano run env list
+# List workflow tests
+xano workflow_test list
 
-# Set an environment variable
-xano run env set API_KEY my-secret-key
+# Get workflow test details
+xano workflow_test get <workflow_test_id>
 
-# Get an environment variable value
-xano run env get API_KEY
+# Run a single workflow test
+xano workflow_test run <workflow_test_id>
 
-# Delete an environment variable
-xano run env delete API_KEY
-xano run env delete API_KEY --force              # Skip confirmation
+# Run all workflow tests
+xano workflow_test run_all
+
+# Delete a workflow test
+xano workflow_test delete <workflow_test_id>
 ```
 
-#### Secrets
+### Tenants
+
+Manage tenants, their environment variables, backups, deployments, and clusters.
+
+#### CRUD
 
 ```bash
-# List secrets
-xano run secrets list
+# List tenants
+xano tenant list
 
-# Set a secret
-xano run secrets set docker-registry -t dockerconfigjson -v '{"auths":{...}}' -r ghcr.io
-xano run secrets set service-key -t service-account-token -v 'token-value'
+# Get tenant details
+xano tenant get <tenant_name>
 
-# Get a secret value
-xano run secrets get docker-registry
+# Create a tenant
+xano tenant create "My Tenant"
+xano tenant create "My Tenant" -d "Description" --cluster_id 1 --platform_id 5
 
-# Delete a secret
-xano run secrets delete docker-registry
-xano run secrets delete docker-registry --force  # Skip confirmation
+# Edit a tenant
+xano tenant edit <tenant_name> --display "New Name" -d "New description"
+
+# Delete a tenant (confirmation required)
+xano tenant delete <tenant_name>
+xano tenant delete <tenant_name> --force
+```
+
+#### Deployments
+
+```bash
+# Deploy a platform version
+xano tenant deploy_platform <tenant_name> --platform_id 5
+
+# Deploy a release
+xano tenant deploy_release <tenant_name> --release_id 10
+```
+
+#### Tenant License
+
+```bash
+# Get tenant license
+xano tenant license get <tenant_name>
+
+# Set tenant license
+xano tenant license set <tenant_name> --license tier2
+```
+
+#### Tenant Environment Variables
+
+```bash
+# List env var keys
+xano tenant env list <tenant_name>
+
+# Get a single env var
+xano tenant env get <tenant_name> --name DATABASE_URL
+
+# Set an env var
+xano tenant env set <tenant_name> --name DATABASE_URL --value postgres://...
+
+# Delete an env var
+xano tenant env delete <tenant_name> --name DATABASE_URL
+
+# Export all env vars to YAML
+xano tenant env get_all <tenant_name>
+xano tenant env get_all <tenant_name> --file ./env.yaml
+
+# Import all env vars from YAML (replaces existing)
+xano tenant env set_all <tenant_name>
+xano tenant env set_all <tenant_name> --file ./env.yaml --clean
+```
+
+#### Backups
+
+```bash
+# List backups
+xano tenant backup list <tenant_name>
+
+# Create a backup
+xano tenant backup create <tenant_name>
+
+# Export (download) a backup
+xano tenant backup export <tenant_name> --backup_id 10
+xano tenant backup export <tenant_name> --backup_id 10 --output ./backup.tar.gz
+
+# Import a backup file
+xano tenant backup import <tenant_name> --file ./backup.tar.gz
+
+# Restore from a backup
+xano tenant backup restore <tenant_name> --backup_id 10
+
+# Delete a backup (confirmation required)
+xano tenant backup delete <tenant_name> --backup_id 10
+xano tenant backup delete <tenant_name> --backup_id 10 --force
+```
+
+#### Clusters
+
+```bash
+# List clusters
+xano tenant cluster list
+
+# Get cluster details
+xano tenant cluster get <cluster_id>
+
+# Create a cluster
+xano tenant cluster create --name "us-east-1" --credentials_file ./kubeconfig.yaml
+xano tenant cluster create --name "eu-west-1" --type run -d "EU run cluster"
+
+# Edit a cluster
+xano tenant cluster edit <cluster_id> --name "us-east-1" -d "Updated" --domain "us-east.xano.io"
+
+# Delete a cluster (confirmation required)
+xano tenant cluster delete <cluster_id>
+xano tenant cluster delete <cluster_id> --force
+
+# Get cluster kubeconfig
+xano tenant cluster license get <cluster_id>
+
+# Set cluster kubeconfig
+xano tenant cluster license set <cluster_id>
+xano tenant cluster license set <cluster_id> --file ./kubeconfig.yaml
 ```
 
 ### Static Hosts
 
 ```bash
 # List static hosts
-xano static_host:list
+xano static_host list
 
 # Create a build
-xano static_host:build:create default -f ./build.zip -n "v1.0.0"
+xano static_host build create default -f ./build.zip -n "v1.0.0"
 
 # List builds
-xano static_host:build:list default
+xano static_host build list default
 
 # Get build details
-xano static_host:build:get default 52
+xano static_host build get default 52
 ```
 
 ## Global Options
@@ -220,7 +370,7 @@ All commands support these options:
 Use `-v` or `--verbose` to see detailed HTTP request and response information, useful for debugging:
 
 ```bash
-xano run exec script.xs -v
+xano workspace list -v
 ```
 
 This will show:
@@ -240,7 +390,6 @@ profiles:
     access_token: <token>
     workspace: <workspace_id>
     branch: <branch_id>
-    project: <project_id>
 default: default
 ```
 

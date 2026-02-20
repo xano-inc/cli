@@ -1,9 +1,8 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as readline from 'node:readline'
-import * as yaml from 'js-yaml'
 
 import BaseCommand from '../../../../base-command.js'
 
@@ -22,34 +21,29 @@ interface CredentialsFile {
   }
 }
 
-export default class TenantBackupDelete extends BaseCommand {
-  static override args = {
-    tenant_name: Args.string({
-      description: 'Tenant name that owns the backup',
-      required: true,
-    }),
-  }
-  static description = 'Delete a tenant backup permanently. This action cannot be undone.'
+interface TenantCluster {
+  created_at?: string
+  description?: string
+  domain?: string
+  id: number
+  ingress?: Record<string, unknown>
+  name: string
+  type?: string
+  warm?: Record<string, unknown>
+}
+
+export default class TenantClusterList extends BaseCommand {
+  static description = 'List all tenant clusters'
   static examples = [
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10
-Are you sure you want to delete backup #10? This action cannot be undone. (y/N) y
-Deleted backup #10
+    `$ xano tenant cluster list
+Tenant clusters:
+  - us-east-1 (standard) [ID: 1]
+  - eu-west-1 (run) [ID: 2]
 `,
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10 --force`,
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10 -o json`,
+    `$ xano tenant cluster list --output json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    backup_id: Flags.integer({
-      description: 'Backup ID to delete',
-      required: true,
-    }),
-    force: Flags.boolean({
-      char: 'f',
-      default: false,
-      description: 'Skip confirmation prompt',
-      required: false,
-    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -57,15 +51,10 @@ Deleted backup #10
       options: ['summary', 'json'],
       required: false,
     }),
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (uses profile workspace if not provided)',
-      required: false,
-    }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(TenantBackupDelete)
+    const {flags} = await this.parse(TenantClusterList)
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -87,25 +76,7 @@ Deleted backup #10
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    const workspaceId = flags.workspace || profile.workspace
-    if (!workspaceId) {
-      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
-    }
-
-    const tenantName = args.tenant_name
-    const backupId = flags.backup_id
-
-    if (!flags.force) {
-      const confirmed = await this.confirm(
-        `Are you sure you want to delete backup #${backupId}? This action cannot be undone.`,
-      )
-      if (!confirmed) {
-        this.log('Deletion cancelled.')
-        return
-      }
-    }
-
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}`
+    const apiUrl = `${profile.instance_origin}/api:meta/tenant/cluster`
 
     try {
       const response = await this.verboseFetch(
@@ -115,7 +86,7 @@ Deleted backup #10
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
           },
-          method: 'DELETE',
+          method: 'GET',
         },
         flags.verbose,
         profile.access_token,
@@ -126,32 +97,37 @@ Deleted backup #10
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      if (flags.output === 'json') {
-        this.log(JSON.stringify({backup_id: backupId, deleted: true, tenant_name: tenantName}, null, 2))
+      const data = (await response.json()) as TenantCluster[] | {items?: TenantCluster[]}
+
+      let clusters: TenantCluster[]
+      if (Array.isArray(data)) {
+        clusters = data
+      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
+        clusters = data.items
       } else {
-        this.log(`Deleted backup #${backupId}`)
+        this.error('Unexpected API response format')
+      }
+
+      if (flags.output === 'json') {
+        this.log(JSON.stringify(clusters, null, 2))
+      } else {
+        if (clusters.length === 0) {
+          this.log('No tenant clusters found')
+        } else {
+          this.log('Tenant clusters:')
+          for (const cluster of clusters) {
+            const type = cluster.type ? ` (${cluster.type})` : ''
+            this.log(`  - ${cluster.name}${type} [ID: ${cluster.id}]`)
+          }
+        }
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to delete backup: ${error.message}`)
+        this.error(`Failed to list tenant clusters: ${error.message}`)
       } else {
-        this.error(`Failed to delete backup: ${String(error)}`)
+        this.error(`Failed to list tenant clusters: ${String(error)}`)
       }
     }
-  }
-
-  private async confirm(message: string): Promise<boolean> {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    })
-
-    return new Promise((resolve) => {
-      rl.question(`${message} (y/N) `, (answer) => {
-        rl.close()
-        resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes')
-      })
-    })
   }
 
   private loadCredentials(): CredentialsFile {

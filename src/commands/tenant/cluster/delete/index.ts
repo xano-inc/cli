@@ -1,9 +1,8 @@
 import {Args, Flags} from '@oclif/core'
+import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as readline from 'node:readline'
-import * as yaml from 'js-yaml'
 
 import BaseCommand from '../../../../base-command.js'
 
@@ -22,28 +21,26 @@ interface CredentialsFile {
   }
 }
 
-export default class TenantBackupDelete extends BaseCommand {
+export default class TenantClusterDelete extends BaseCommand {
   static override args = {
-    tenant_name: Args.string({
-      description: 'Tenant name that owns the backup',
+    cluster_id: Args.integer({
+      description: 'Cluster ID to delete',
       required: true,
     }),
   }
-  static description = 'Delete a tenant backup permanently. This action cannot be undone.'
+  static description = 'Delete a tenant cluster. This action cannot be undone.'
   static examples = [
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10
-Are you sure you want to delete backup #10? This action cannot be undone. (y/N) y
-Deleted backup #10
+    `$ xano tenant cluster delete 3
+Are you sure you want to delete tenant cluster 3? This action cannot be undone. (y/N) y
+Tenant cluster 3 deleted successfully
 `,
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10 --force`,
-    `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10 -o json`,
+    `$ xano tenant cluster delete 3 --force
+Tenant cluster 3 deleted successfully
+`,
+    `$ xano tenant cluster delete 3 -f -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    backup_id: Flags.integer({
-      description: 'Backup ID to delete',
-      required: true,
-    }),
     force: Flags.boolean({
       char: 'f',
       default: false,
@@ -57,15 +54,10 @@ Deleted backup #10
       options: ['summary', 'json'],
       required: false,
     }),
-    workspace: Flags.string({
-      char: 'w',
-      description: 'Workspace ID (uses profile workspace if not provided)',
-      required: false,
-    }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(TenantBackupDelete)
+    const {args, flags} = await this.parse(TenantClusterDelete)
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -73,7 +65,7 @@ Deleted backup #10
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-          `Create a profile using 'xano profile create'`,
+        `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -87,17 +79,11 @@ Deleted backup #10
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    const workspaceId = flags.workspace || profile.workspace
-    if (!workspaceId) {
-      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
-    }
-
-    const tenantName = args.tenant_name
-    const backupId = flags.backup_id
+    const clusterId = args.cluster_id
 
     if (!flags.force) {
       const confirmed = await this.confirm(
-        `Are you sure you want to delete backup #${backupId}? This action cannot be undone.`,
+        `Are you sure you want to delete tenant cluster ${clusterId}? This action cannot be undone.`,
       )
       if (!confirmed) {
         this.log('Deletion cancelled.')
@@ -105,15 +91,15 @@ Deleted backup #10
       }
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/backup/${backupId}`
+    const apiUrl = `${profile.instance_origin}/api:meta/tenant/cluster/${clusterId}`
 
     try {
       const response = await this.verboseFetch(
         apiUrl,
         {
           headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${profile.access_token}`,
+            'accept': 'application/json',
+            'Authorization': `Bearer ${profile.access_token}`,
           },
           method: 'DELETE',
         },
@@ -123,24 +109,27 @@ Deleted backup #10
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        this.error(
+          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
+        )
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify({backup_id: backupId, deleted: true, tenant_name: tenantName}, null, 2))
+        this.log(JSON.stringify({cluster_id: clusterId, deleted: true}, null, 2))
       } else {
-        this.log(`Deleted backup #${backupId}`)
+        this.log(`Tenant cluster ${clusterId} deleted successfully`)
       }
     } catch (error) {
       if (error instanceof Error) {
-        this.error(`Failed to delete backup: ${error.message}`)
+        this.error(`Failed to delete tenant cluster: ${error.message}`)
       } else {
-        this.error(`Failed to delete backup: ${String(error)}`)
+        this.error(`Failed to delete tenant cluster: ${String(error)}`)
       }
     }
   }
 
   private async confirm(message: string): Promise<boolean> {
+    const readline = await import('node:readline')
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -159,7 +148,10 @@ Deleted backup #10
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
+      this.error(
+        `Credentials file not found at ${credentialsPath}\n` +
+        `Create a profile using 'xano profile create'`,
+      )
     }
 
     try {
