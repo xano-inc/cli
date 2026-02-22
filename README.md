@@ -312,8 +312,8 @@ xano tenant push ./my-tenant -t <tenant_name> --truncate
 # Deploy a platform version
 xano tenant deploy_platform <tenant_name> --platform_id 5
 
-# Deploy a release
-xano tenant deploy_release <tenant_name> --release_id 10
+# Deploy a release by name
+xano tenant deploy_release <tenant_name> --release v1.0
 ```
 
 #### Tenant License
