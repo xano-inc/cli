@@ -38,10 +38,10 @@ export default class TenantDeployRelease extends BaseCommand {
   }
   static description = 'Deploy a release to a tenant'
   static examples = [
-    `$ xano tenant deploy_release t1234-abcd-xyz1 --release_id 10
-Deployed release 10 to tenant: My Tenant (my-tenant)
+    `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0
+Deployed release "v1.0" to tenant: My Tenant (my-tenant)
 `,
-    `$ xano tenant deploy_release t1234-abcd-xyz1 --release_id 10 -o json`,
+    `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -52,8 +52,9 @@ Deployed release 10 to tenant: My Tenant (my-tenant)
       options: ['summary', 'json'],
       required: false,
     }),
-    release_id: Flags.integer({
-      description: 'Release ID to deploy',
+    release: Flags.string({
+      char: 'r',
+      description: 'Release name to deploy',
       required: true,
     }),
     workspace: Flags.string({
@@ -91,15 +92,15 @@ Deployed release 10 to tenant: My Tenant (my-tenant)
       this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
+    const releaseName = flags.release
     const tenantName = args.tenant_name
-    const releaseId = flags.release_id
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/deploy`
 
     try {
       const response = await this.verboseFetch(
         apiUrl,
         {
-          body: JSON.stringify({release_id: releaseId}),
+          body: JSON.stringify({release_name: releaseName}),
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
@@ -121,7 +122,7 @@ Deployed release 10 to tenant: My Tenant (my-tenant)
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
       } else {
-        this.log(`Deployed release ${releaseId} to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
+        this.log(`Deployed release "${releaseName}" to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.release?.name) this.log(`  Release: ${tenant.release.name}`)
       }
