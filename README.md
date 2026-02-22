@@ -35,6 +35,7 @@ npm install -g @xano/cli
 ```bash
 # Interactive browser-based authentication
 xano auth
+xano auth --origin https://custom.xano.com
 ```
 
 ### Profiles
@@ -50,6 +51,7 @@ xano profile create myprofile -i https://instance.xano.com -t <access_token>
 
 # List profiles
 xano profile list
+xano profile list --details                  # Show masked tokens and settings
 
 # Get/set default profile
 xano profile get_default
@@ -57,12 +59,16 @@ xano profile set_default myprofile
 
 # Edit a profile
 xano profile edit myprofile -w 123
+xano profile edit myprofile --remove-branch  # Remove branch from profile
 
 # Get current user info
 xano profile me
 
 # Print access token (useful for piping)
 xano profile token
+
+# Print workspace ID (useful for piping)
+xano profile workspace
 
 # Delete a profile
 xano profile delete myprofile
@@ -83,6 +89,9 @@ xano workspace create my-workspace -d "My application workspace"
 
 # Edit a workspace
 xano workspace edit <workspace_id> --name "new-name" -d "Updated description"
+xano workspace edit <workspace_id> --swagger             # Enable swagger docs
+xano workspace edit <workspace_id> --no-swagger          # Disable swagger docs
+xano workspace edit <workspace_id> --require-token       # Require token for docs
 
 # Delete a workspace (confirmation required)
 xano workspace delete <workspace_id>
@@ -104,25 +113,31 @@ xano workspace push ./my-workspace --truncate           # Truncate tables before
 
 ### Branches
 
+All branch commands use **branch labels** (e.g., `v1`, `dev`), not IDs.
+
 ```bash
 # List branches
 xano branch list
 
 # Get branch details
-xano branch get <branch_id>
+xano branch get <branch_label>
 
 # Create a branch
 xano branch create --label dev
 xano branch create -l feature-auth -s dev -d "Auth feature"
+xano branch create -l staging --color "#ebc346"
 
 # Edit a branch
-xano branch edit <branch_id> --label "new-label"
+xano branch edit <branch_label> --label "new-label"
+xano branch edit <branch_label> --color "#ff0000"
 
 # Set live branch
-xano branch set_live <branch_id>
+xano branch set_live <branch_label>
+xano branch set_live <branch_label> --force
 
 # Delete a branch
-xano branch delete <branch_id>
+xano branch delete <branch_label>
+xano branch delete <branch_label> --force
 ```
 
 ### Functions
@@ -130,10 +145,13 @@ xano branch delete <branch_id>
 ```bash
 # List functions
 xano function list
+xano function list --include_draft --include_xanoscript
+xano function list --sort created_at --order desc --page 1 --per_page 50
 
 # Get a function
 xano function get <function_id>
 xano function get <function_id> -o xs                   # Output as XanoScript
+xano function get <function_id> -o json
 
 # Create a function from XanoScript
 xano function create -f function.xs
@@ -142,35 +160,47 @@ cat function.xs | xano function create --stdin
 # Edit a function
 xano function edit <function_id>                        # Opens in $EDITOR
 xano function edit <function_id> -f new.xs              # Update from file
-xano function edit <function_id> --publish              # Publish after editing
+xano function edit <function_id> --no-publish           # Edit without publishing
 ```
 
 ### Releases
+
+All release commands use **release names** (e.g., `v1.0`), not IDs.
 
 ```bash
 # List releases
 xano release list
 
 # Get release details
-xano release get <release_id>
+xano release get <release_name>
 
 # Create a release
 xano release create --name "v1.0" --branch main
 xano release create --name "v1.1-hotfix" --branch main --hotfix
+xano release create --name "v1.0" --branch main --table-ids 1,2,3
 
 # Edit a release
-xano release edit <release_id> --name "v1.0.1" -d "Updated description"
+xano release edit <release_name> --name "v1.0-final" -d "Updated description"
 
 # Export (download) a release
-xano release export <release_id>
-xano release export <release_id> --output ./backups/my-release.tar.gz
+xano release export <release_name>
+xano release export <release_name> --output ./backups/my-release.tar.gz
 
 # Import a release file
 xano release import --file ./my-release.tar.gz
 
 # Delete a release (confirmation required)
-xano release delete <release_id>
-xano release delete <release_id> --force
+xano release delete <release_name>
+xano release delete <release_name> --force
+
+# Pull release to local files
+xano release pull ./my-release -r v1.0
+xano release pull ./my-release -r v1.0 --env --records
+
+# Push local files as a new release
+xano release push ./my-release -n "v2.0"
+xano release push ./my-release -n "v2.0" --hotfix -d "Critical fix"
+xano release push ./my-release -n "v2.0" --no-records --no-env
 ```
 
 ### Platforms
@@ -190,12 +220,14 @@ xano platform get <platform_id>
 ```bash
 # List unit tests
 xano unit_test list
+xano unit_test list --branch dev --obj-type function
 
 # Run a single unit test
 xano unit_test run <unit_test_id>
 
 # Run all unit tests
 xano unit_test run_all
+xano unit_test run_all --branch dev --obj-type function
 ```
 
 #### Workflow Tests
@@ -203,15 +235,19 @@ xano unit_test run_all
 ```bash
 # List workflow tests
 xano workflow_test list
+xano workflow_test list --branch dev
 
 # Get workflow test details
 xano workflow_test get <workflow_test_id>
+xano workflow_test get <workflow_test_id> -o xs          # Output as XanoScript
+xano workflow_test get <workflow_test_id> --include-draft
 
 # Run a single workflow test
 xano workflow_test run <workflow_test_id>
 
 # Run all workflow tests
 xano workflow_test run_all
+xano workflow_test run_all --branch dev
 
 # Delete a workflow test
 xano workflow_test delete <workflow_test_id>
@@ -240,6 +276,34 @@ xano tenant edit <tenant_name> --display "New Name" -d "New description"
 # Delete a tenant (confirmation required)
 xano tenant delete <tenant_name>
 xano tenant delete <tenant_name> --force
+```
+
+#### Impersonate
+
+```bash
+# Open a tenant in the browser
+xano tenant impersonate <tenant_name>
+
+# Print the URL without opening the browser
+xano tenant impersonate <tenant_name> --url-only
+
+# Output credentials as JSON
+xano tenant impersonate <tenant_name> -o json
+```
+
+#### Pull / Push
+
+```bash
+# Pull tenant to local files
+xano tenant pull ./my-tenant -t <tenant_name>
+xano tenant pull ./my-tenant -t <tenant_name> --env --records
+xano tenant pull ./my-tenant -t <tenant_name> --draft
+
+# Push local files to tenant
+xano tenant push ./my-tenant -t <tenant_name>
+xano tenant push ./my-tenant -t <tenant_name> --no-records
+xano tenant push ./my-tenant -t <tenant_name> --no-env
+xano tenant push ./my-tenant -t <tenant_name> --truncate
 ```
 
 #### Deployments
@@ -391,6 +455,16 @@ profiles:
     workspace: <workspace_id>
     branch: <branch_id>
 default: default
+```
+
+## Scripts
+
+### Bump Version
+
+```bash
+./scripts/bump-version.sh           # patch: 0.0.38 -> 0.0.39
+./scripts/bump-version.sh minor     # minor: 0.0.38 -> 0.1.0
+./scripts/bump-version.sh major     # major: 0.0.38 -> 1.0.0
 ```
 
 ## Help

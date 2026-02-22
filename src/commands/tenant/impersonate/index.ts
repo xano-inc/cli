@@ -22,12 +22,8 @@ interface CredentialsFile {
   }
 }
 
-interface ImpersonateCredentials {
-  _authToken: string
-  baseUrl: string
-  ephemeral?: boolean
-  headers: Record<string, string>
-  name: string
+interface ImpersonateResponse {
+  _ti: string
 }
 
 export default class TenantImpersonate extends BaseCommand {
@@ -55,6 +51,12 @@ Impersonation successful!
       default: 'summary',
       description: 'Output format',
       options: ['summary', 'json'],
+      required: false,
+    }),
+    'url-only': Flags.boolean({
+      char: 'u',
+      default: false,
+      description: 'Print the URL without opening the browser',
       required: false,
     }),
     workspace: Flags.string({
@@ -95,30 +97,24 @@ Impersonation successful!
     const tenantName = args.tenant_name
 
     try {
-      // Call Meta API to get impersonation credentials
-      const creds = await this.getImpersonateCredentials(profile, workspaceId, tenantName)
+      const response = await this.getImpersonateResponse(profile, workspaceId, tenantName)
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(creds, null, 2))
+        this.log(JSON.stringify(response, null, 2))
       } else {
-        // Open browser with credentials
         const frontendUrl = this.getFrontendUrl(profile.instance_origin)
         const params = new URLSearchParams({
-          _authToken: creds._authToken,
-          baseUrl: creds.baseUrl,
-          ephemeral: String(creds.ephemeral ?? false),
-          headers: JSON.stringify(creds.headers),
-          name: creds.name,
+          _ti: response._ti,
         })
         const impersonateUrl = `${frontendUrl}/tenant-impersonate?${params.toString()}`
 
-        if (flags.verbose) {
-          this.log(`URL: ${impersonateUrl}`)
+        if (flags['url-only']) {
+          this.log(impersonateUrl)
+        } else {
+          this.log('Opening browser...')
+          await open(impersonateUrl)
+          this.log('Impersonation successful!')
         }
-
-        this.log('Opening browser...')
-        await open(impersonateUrl)
-        this.log('Impersonation successful!')
       }
 
       process.exit(0)
@@ -131,11 +127,11 @@ Impersonation successful!
     }
   }
 
-  private async getImpersonateCredentials(
+  private async getImpersonateResponse(
     profile: ProfileConfig,
     workspaceId: string,
     tenantName: string,
-  ): Promise<ImpersonateCredentials> {
+  ): Promise<ImpersonateResponse> {
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${encodeURIComponent(tenantName)}/impersonate`
 
     const {verbose} = await this.parse(TenantImpersonate).then((r) => r.flags)
@@ -158,13 +154,13 @@ Impersonation successful!
       throw new Error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
     }
 
-    const creds = (await response.json()) as ImpersonateCredentials
+    const result = (await response.json()) as ImpersonateResponse
 
-    if (!creds._authToken) {
-      throw new Error('No authentication token returned from impersonate API')
+    if (!result._ti) {
+      throw new Error('No one-time token returned from impersonate API')
     }
 
-    return creds
+    return result
   }
 
   private getFrontendUrl(instanceOrigin: string): string {
