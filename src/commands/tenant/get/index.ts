@@ -28,6 +28,7 @@ interface Tenant {
   description?: string
   display?: string
   domain?: string
+  ephemeral?: boolean
   id: number
   ingress?: boolean
   license?: string
@@ -84,7 +85,7 @@ Tenant: My Tenant (my-tenant)
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -100,9 +101,7 @@ Tenant: My Tenant (my-tenant)
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
-      this.error(
-        'No workspace ID provided. Use --workspace flag or set one in your profile.',
-      )
+      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
     const tenantName = args.tenant_name
@@ -113,8 +112,8 @@ Tenant: My Tenant (my-tenant)
         apiUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -124,12 +123,10 @@ Tenant: My Tenant (my-tenant)
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const tenant = await response.json() as Tenant
+      const tenant = (await response.json()) as Tenant
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
@@ -145,6 +142,7 @@ Tenant: My Tenant (my-tenant)
         if (tenant.version !== undefined) this.log(`  Version: ${tenant.version}`)
         if (tenant.tasks !== undefined) this.log(`  Tasks: ${tenant.tasks}`)
         if (tenant.ingress !== undefined) this.log(`  Ingress: ${tenant.ingress}`)
+        if (tenant.ephemeral) this.log(`  Ephemeral: ${tenant.ephemeral}`)
         if (tenant.deployed_at) {
           const d = new Date(tenant.deployed_at)
           const deployedDate = Number.isNaN(d.getTime()) ? tenant.deployed_at : d.toISOString().split('T')[0]
@@ -165,10 +163,7 @@ Tenant: My Tenant (my-tenant)
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     try {

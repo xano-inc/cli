@@ -33,17 +33,17 @@ interface Release {
 
 export default class ReleaseEdit extends BaseCommand {
   static override args = {
-    release_id: Args.integer({
-      description: 'Release ID to edit',
+    release_name: Args.string({
+      description: 'Release name to edit',
       required: true,
     }),
   }
   static description = 'Edit an existing release'
   static examples = [
-    `$ xano release edit 10 --name "v1.0-final" --description "Updated description"
+    `$ xano release edit v1.0 --name "v1.0-final" --description "Updated description"
 Updated release: v1.0-final - ID: 10
 `,
-    `$ xano release edit 10 --description "New description" -o json`,
+    `$ xano release edit v1.0 --description "New description" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -101,7 +101,7 @@ Updated release: v1.0-final - ID: 10
       )
     }
 
-    const releaseId = args.release_id
+    const releaseId = await this.resolveReleaseName(profile, workspaceId, args.release_name, flags.verbose)
 
     const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release/${releaseId}`
     const headers = {
@@ -198,5 +198,51 @@ Updated release: v1.0-final - ID: 10
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
+  }
+
+  private async resolveReleaseName(
+    profile: ProfileConfig,
+    workspaceId: string,
+    releaseName: string,
+    verbose: boolean,
+  ): Promise<number> {
+    const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release`
+
+    const response = await this.verboseFetch(
+      listUrl,
+      {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      profile.access_token,
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      this.error(
+        `Failed to list releases: ${response.status} ${response.statusText}\n${errorText}`,
+      )
+    }
+
+    const data = await response.json() as Release[] | {items?: Release[]}
+    const releases: Release[] = Array.isArray(data)
+      ? data
+      : (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items))
+        ? data.items
+        : []
+
+    const match = releases.find(r => r.name === releaseName)
+    if (!match) {
+      const available = releases.map(r => r.name).join(', ')
+      this.error(
+        `Release '${releaseName}' not found.${available ? ` Available releases: ${available}` : ''}`,
+      )
+    }
+
+    return match.id
   }
 }

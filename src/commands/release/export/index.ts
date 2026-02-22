@@ -25,20 +25,25 @@ interface ExportLink {
   src: string
 }
 
+interface Release {
+  id: number
+  name: string
+}
+
 export default class ReleaseExport extends BaseCommand {
   static override args = {
-    release_id: Args.integer({
-      description: 'Release ID to export',
+    release_name: Args.string({
+      description: 'Release name to export',
       required: true,
     }),
   }
   static description = 'Export (download) a release to a local file'
   static examples = [
-    `$ xano release export 10
-Downloaded release #10 to ./release-10.tar.gz
+    `$ xano release export v1.0
+Downloaded release 'v1.0' to ./release-v1.0.tar.gz
 `,
-    `$ xano release export 10 --output ./backups/my-release.tar.gz`,
-    `$ xano release export 10 -o json`,
+    `$ xano release export v1.0 --output ./backups/my-release.tar.gz`,
+    `$ xano release export v1.0 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -50,7 +55,7 @@ Downloaded release #10 to ./release-10.tar.gz
       required: false,
     }),
     output: Flags.string({
-      description: 'Output file path (defaults to ./release-{id}.tar.gz)',
+      description: 'Output file path (defaults to ./release-{name}.tar.gz)',
       required: false,
     }),
     workspace: Flags.string({
@@ -90,7 +95,8 @@ Downloaded release #10 to ./release-10.tar.gz
       )
     }
 
-    const releaseId = args.release_id
+    const releaseName = args.release_name
+    const releaseId = await this.resolveReleaseName(profile, workspaceId, releaseName, flags.verbose)
 
     // Step 1: Get signed download URL
     const exportUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release/${releaseId}/export`
@@ -123,7 +129,8 @@ Downloaded release #10 to ./release-10.tar.gz
       }
 
       // Step 2: Download the file
-      const outputPath = flags.output || `release-${releaseId}.tar.gz`
+      const safeFilename = releaseName.replaceAll(/[^\w.-]/g, '_')
+      const outputPath = flags.output || `release-${safeFilename}.tar.gz`
       const resolvedPath = path.resolve(outputPath)
 
       const downloadResponse = await fetch(exportLink.src)
@@ -158,10 +165,10 @@ Downloaded release #10 to ./release-10.tar.gz
       })
 
       if (flags.format === 'json') {
-        this.log(JSON.stringify({bytes: totalBytes, file: resolvedPath, release_id: releaseId}, null, 2))
+        this.log(JSON.stringify({bytes: totalBytes, file: resolvedPath, release_name: releaseName}, null, 2))
       } else {
         const sizeMb = (totalBytes / 1024 / 1024).toFixed(2)
-        this.log(`Downloaded release #${releaseId} to ${resolvedPath} (${sizeMb} MB)`)
+        this.log(`Downloaded release '${releaseName}' to ${resolvedPath} (${sizeMb} MB)`)
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -195,5 +202,51 @@ Downloaded release #10 to ./release-10.tar.gz
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
+  }
+
+  private async resolveReleaseName(
+    profile: ProfileConfig,
+    workspaceId: string,
+    releaseName: string,
+    verbose: boolean,
+  ): Promise<number> {
+    const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release`
+
+    const response = await this.verboseFetch(
+      listUrl,
+      {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      profile.access_token,
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      this.error(
+        `Failed to list releases: ${response.status} ${response.statusText}\n${errorText}`,
+      )
+    }
+
+    const data = await response.json() as Release[] | {items?: Release[]}
+    const releases: Release[] = Array.isArray(data)
+      ? data
+      : (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items))
+        ? data.items
+        : []
+
+    const match = releases.find(r => r.name === releaseName)
+    if (!match) {
+      const available = releases.map(r => r.name).join(', ')
+      this.error(
+        `Release '${releaseName}' not found.${available ? ` Available releases: ${available}` : ''}`,
+      )
+    }
+
+    return match.id
   }
 }

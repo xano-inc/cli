@@ -57,6 +57,10 @@ Created tenant: Production (production) - ID: 42
       description: 'Custom domain for the tenant',
       required: false,
     }),
+    ephemeral: Flags.boolean({
+      default: false,
+      description: 'Mark tenant as ephemeral (allows push operations)',
+    }),
     ingress: Flags.boolean({
       allowNo: true,
       default: true,
@@ -121,6 +125,7 @@ Created tenant: Production (production) - ID: 42
 
     const body: Record<string, unknown> = {
       display: args.display,
+      ephemeral: flags.ephemeral,
       ingress: flags.ingress,
       license: flags.license,
       tag: [],

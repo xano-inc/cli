@@ -34,20 +34,20 @@ interface Release {
 
 export default class ReleaseGet extends BaseCommand {
   static override args = {
-    release_id: Args.integer({
-      description: 'Release ID to retrieve',
+    release_name: Args.string({
+      description: 'Release name to retrieve',
       required: true,
     }),
   }
   static description = 'Get details of a specific release'
   static examples = [
-    `$ xano release get 10
+    `$ xano release get v1.0
 Release: v1.0 - ID: 10
   Branch: main
   Description: Initial release
   Hotfix: false
 `,
-    `$ xano release get 10 -w 5 -o json`,
+    `$ xano release get v1.0 -w 5 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -95,7 +95,7 @@ Release: v1.0 - ID: 10
       )
     }
 
-    const releaseId = args.release_id
+    const releaseId = await this.resolveReleaseName(profile, workspaceId, args.release_name, flags.verbose)
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release/${releaseId}`
 
@@ -171,5 +171,51 @@ Release: v1.0 - ID: 10
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
+  }
+
+  private async resolveReleaseName(
+    profile: ProfileConfig,
+    workspaceId: string,
+    releaseName: string,
+    verbose: boolean,
+  ): Promise<number> {
+    const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release`
+
+    const response = await this.verboseFetch(
+      listUrl,
+      {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      profile.access_token,
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      this.error(
+        `Failed to list releases: ${response.status} ${response.statusText}\n${errorText}`,
+      )
+    }
+
+    const data = await response.json() as Release[] | {items?: Release[]}
+    const releases: Release[] = Array.isArray(data)
+      ? data
+      : (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items))
+        ? data.items
+        : []
+
+    const match = releases.find(r => r.name === releaseName)
+    if (!match) {
+      const available = releases.map(r => r.name).join(', ')
+      this.error(
+        `Release '${releaseName}' not found.${available ? ` Available releases: ${available}` : ''}`,
+      )
+    }
+
+    return match.id
   }
 }

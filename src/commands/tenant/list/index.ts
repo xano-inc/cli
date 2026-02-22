@@ -23,6 +23,7 @@ interface CredentialsFile {
 
 interface Tenant {
   display?: string
+  ephemeral?: boolean
   id: number
   license?: string
   name: string
@@ -64,7 +65,7 @@ Tenants in workspace 5:
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -80,9 +81,7 @@ Tenants in workspace 5:
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
-      this.error(
-        'No workspace ID provided. Use --workspace flag or set one in your profile.',
-      )
+      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant`
@@ -92,8 +91,8 @@ Tenants in workspace 5:
         apiUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -103,12 +102,10 @@ Tenants in workspace 5:
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const data = await response.json() as Tenant[] | {items?: Tenant[]; tenants?: Tenant[]}
+      const data = (await response.json()) as Tenant[] | {items?: Tenant[]; tenants?: Tenant[]}
 
       let tenants: Tenant[]
       if (Array.isArray(data)) {
@@ -131,7 +128,8 @@ Tenants in workspace 5:
           for (const tenant of tenants) {
             const state = tenant.state ? ` [${tenant.state}]` : ''
             const license = tenant.license ? ` - ${tenant.license}` : ''
-            this.log(`  - ${tenant.display || tenant.name} (${tenant.name})${state}${license}`)
+            const ephemeral = tenant.ephemeral ? ' [ephemeral]' : ''
+            this.log(`  - ${tenant.display || tenant.name} (${tenant.name})${state}${license}${ephemeral}`)
           }
         }
       }
@@ -149,10 +147,7 @@ Tenants in workspace 5:
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     try {

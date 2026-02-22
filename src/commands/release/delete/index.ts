@@ -21,23 +21,33 @@ interface CredentialsFile {
   }
 }
 
+interface Release {
+  branch?: string
+  created_at?: number
+  description?: string
+  hotfix?: boolean
+  id: number
+  name: string
+  resource_size?: number
+}
+
 export default class ReleaseDelete extends BaseCommand {
   static override args = {
-    release_id: Args.integer({
-      description: 'Release ID to delete',
+    release_name: Args.string({
+      description: 'Release name to delete',
       required: true,
     }),
   }
   static description = 'Delete a release permanently. This action cannot be undone.'
   static examples = [
-    `$ xano release delete 10
-Are you sure you want to delete release #10? This action cannot be undone. (y/N) y
-Deleted release #10
+    `$ xano release delete v1.0
+Are you sure you want to delete release 'v1.0'? This action cannot be undone. (y/N) y
+Deleted release 'v1.0'
 `,
-    `$ xano release delete 10 --force
-Deleted release #10
+    `$ xano release delete v1.0 --force
+Deleted release 'v1.0'
 `,
-    `$ xano release delete 10 -f -o json`,
+    `$ xano release delete v1.0 -f -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -91,17 +101,19 @@ Deleted release #10
       )
     }
 
-    const releaseId = args.release_id
+    const releaseName = args.release_name
 
     if (!flags.force) {
       const confirmed = await this.confirm(
-        `Are you sure you want to delete release #${releaseId}? This action cannot be undone.`,
+        `Are you sure you want to delete release '${releaseName}'? This action cannot be undone.`,
       )
       if (!confirmed) {
         this.log('Deletion cancelled.')
         return
       }
     }
+
+    const releaseId = await this.resolveReleaseName(profile, workspaceId, releaseName, flags.verbose)
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release/${releaseId}`
 
@@ -127,9 +139,9 @@ Deleted release #10
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify({deleted: true, release_id: releaseId}, null, 2))
+        this.log(JSON.stringify({deleted: true, release_name: releaseName}, null, 2))
       } else {
-        this.log(`Deleted release #${releaseId}`)
+        this.log(`Deleted release '${releaseName}'`)
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -178,5 +190,51 @@ Deleted release #10
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
+  }
+
+  private async resolveReleaseName(
+    profile: ProfileConfig,
+    workspaceId: string,
+    releaseName: string,
+    verbose: boolean,
+  ): Promise<number> {
+    const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release`
+
+    const response = await this.verboseFetch(
+      listUrl,
+      {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      profile.access_token,
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      this.error(
+        `Failed to list releases: ${response.status} ${response.statusText}\n${errorText}`,
+      )
+    }
+
+    const data = await response.json() as Release[] | {items?: Release[]}
+    const releases: Release[] = Array.isArray(data)
+      ? data
+      : (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items))
+        ? data.items
+        : []
+
+    const match = releases.find(r => r.name === releaseName)
+    if (!match) {
+      const available = releases.map(r => r.name).join(', ')
+      this.error(
+        `Release '${releaseName}' not found.${available ? ` Available releases: ${available}` : ''}`,
+      )
+    }
+
+    return match.id
   }
 }
