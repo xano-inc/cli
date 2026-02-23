@@ -31,7 +31,7 @@ interface UserInfo {
 
 export default class ProfileMe extends BaseCommand {
   static description = 'Get information about the currently authenticated user'
-static examples = [
+  static examples = [
     `$ xano profile:me
 User Information:
   ID: 1
@@ -52,7 +52,7 @@ User Information:
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     output: Flags.string({
       char: 'o',
@@ -76,7 +76,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile:create'`,
+          `Create a profile using 'xano profile:create'`,
       )
     }
 
@@ -100,8 +100,8 @@ static override flags = {
         apiUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -111,12 +111,10 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const data = await response.json() as UserInfo
+      const data = (await response.json()) as UserInfo
 
       // Output results
       if (flags.output === 'json') {
@@ -141,15 +139,35 @@ static override flags = {
           this.log(`  Created: ${date.toISOString()}`)
         }
 
-        // Display any other fields that aren't already shown
+        // Display extra fields from the API response
         const knownFields = new Set(['created_at', 'email', 'id', 'name'])
-        for (const [key, value] of Object.entries(data)) {
-          if (!knownFields.has(key) && value !== null && value !== undefined) {
-            if (typeof value === 'object') {
-              this.log(`  ${this.formatKey(key)}: ${JSON.stringify(value)}`)
-            } else {
-              this.log(`  ${this.formatKey(key)}: ${value}`)
+
+        // In default mode, show condensed instance info from extras
+        // In verbose mode, show all extra fields with full detail
+        const extras = data.extras as Record<string, unknown> | undefined
+        if (extras?.instance && typeof extras.instance === 'object') {
+          const inst = extras.instance as Record<string, unknown>
+          this.log('')
+          this.log('Instance Information:')
+          if (inst.id) this.log(`  ID: ${inst.id}`)
+          if (inst.name) this.log(`  Name: ${inst.name}`)
+          if (inst.display) this.log(`  Display: ${inst.display}`)
+        }
+
+        if (flags.verbose) {
+          knownFields.add('extras')
+          for (const [key, value] of Object.entries(data)) {
+            if (!knownFields.has(key) && value !== null && value !== undefined) {
+              if (typeof value === 'object') {
+                this.log(`  ${this.formatKey(key)}: ${JSON.stringify(value, null, 2)}`)
+              } else {
+                this.log(`  ${this.formatKey(key)}: ${value}`)
+              }
             }
+          }
+
+          if (extras) {
+            this.log(`  Extras: ${JSON.stringify(extras, null, 2)}`)
           }
         }
       }
@@ -166,7 +184,7 @@ static override flags = {
     // Convert snake_case to Title Case
     return key
       .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
   }
 
@@ -176,10 +194,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile:create'`)
     }
 
     // Read credentials file
