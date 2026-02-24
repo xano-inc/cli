@@ -109,6 +109,7 @@ xano workspace push ./my-workspace -b dev
 xano workspace push ./my-workspace --no-records         # Schema only
 xano workspace push ./my-workspace --no-env             # Skip env vars
 xano workspace push ./my-workspace --truncate           # Truncate tables before import
+xano workspace push ./my-workspace --no-sync-guids      # Skip writing GUIDs back to local files
 ```
 
 ### Branches
