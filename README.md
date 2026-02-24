@@ -106,10 +106,12 @@ xano workspace pull ./my-workspace --draft              # Include draft changes
 # Push local files to workspace
 xano workspace push ./my-workspace
 xano workspace push ./my-workspace -b dev
-xano workspace push ./my-workspace --no-records         # Schema only
-xano workspace push ./my-workspace --no-env             # Skip env vars
-xano workspace push ./my-workspace --truncate           # Truncate tables before import
-xano workspace push ./my-workspace --no-sync-guids      # Skip writing GUIDs back to local files
+xano workspace push ./my-workspace --partial             # No workspace block required
+xano workspace push ./my-workspace --delete              # Delete objects not in the push
+xano workspace push ./my-workspace --no-records          # Schema only
+xano workspace push ./my-workspace --no-env              # Skip env vars
+xano workspace push ./my-workspace --truncate            # Truncate tables before import
+xano workspace push ./my-workspace --no-sync-guids       # Skip writing GUIDs back to local files
 ```
 
 ### Branches

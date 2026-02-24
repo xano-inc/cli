@@ -51,6 +51,12 @@ Pushed 58 documents from ./backup
     `$ xano workspace push ./my-workspace -b dev
 Pushed 42 documents from ./my-workspace
 `,
+    `$ xano workspace push ./my-functions --partial
+Push some files without a workspace block (implies --no-delete)
+`,
+    `$ xano workspace push ./my-workspace --no-delete
+Patch files without deleting existing workspace objects
+`,
     `$ xano workspace push ./my-workspace --no-records
 Push schema only, skip importing table records
 `,
@@ -74,10 +80,21 @@ Push schema only, skip records and environment variables
       description: 'Branch name (optional if set in profile, defaults to live)',
       required: false,
     }),
+    delete: Flags.boolean({
+      allowNo: true,
+      default: false,
+      description: 'Delete workspace objects not included in the push (default: false)',
+      required: false,
+    }),
     env: Flags.boolean({
       allowNo: true,
       default: true,
       description: 'Include environment variables in import (default: true, use --no-env to exclude)',
+      required: false,
+    }),
+    partial: Flags.boolean({
+      default: false,
+      description: 'Partial push — workspace block is not required, existing objects are kept (implies --no-delete)',
       required: false,
     }),
     records: Flags.boolean({
@@ -192,10 +209,15 @@ Push schema only, skip records and environment variables
     // Determine branch from flag or profile
     const branch = flags.branch || profile.branch || ''
 
+    // --partial implies --no-delete
+    const shouldDelete = flags.partial ? false : flags.delete
+
     // Construct the API URL
     const queryParams = new URLSearchParams({
       branch,
+      delete: shouldDelete.toString(),
       env: flags.env.toString(),
+      partial: flags.partial.toString(),
       records: flags.records.toString(),
       truncate: flags.truncate.toString(),
     })
