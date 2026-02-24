@@ -257,12 +257,35 @@ Push schema only, skip records and environment variables
 
       // Write GUIDs back to local files
       if (flags['sync-guids'] && guidMap.length > 0) {
+        // Build a secondary lookup by type:name only (without verb/api_group)
+        // for cases where the server omits those fields
+        const baseKeyMap = new Map<string, string>()
+        for (const [key, fp] of documentFileMap) {
+          const baseKey = key.split(':').slice(0, 2).join(':')
+          // Only use base key if there's no ambiguity (single entry per base key)
+          if (baseKeyMap.has(baseKey)) {
+            baseKeyMap.set(baseKey, '') // Mark as ambiguous
+          } else {
+            baseKeyMap.set(baseKey, fp)
+          }
+        }
+
         let updatedCount = 0
         for (const entry of guidMap) {
           if (!entry.guid) continue
 
           const key = buildDocumentKey(entry.type, entry.name, entry.verb, entry.api_group)
-          const filePath = documentFileMap.get(key)
+          let filePath = documentFileMap.get(key)
+
+          // Fallback: try type:name only if full key didn't match
+          if (!filePath) {
+            const baseKey = `${entry.type}:${entry.name}`
+            const basePath = baseKeyMap.get(baseKey)
+            if (basePath) {
+              filePath = basePath
+            }
+          }
+
           if (!filePath) {
             if (flags.verbose) {
               this.log(`  No local file found for ${entry.type} "${entry.name}", skipping GUID sync`)
