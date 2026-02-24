@@ -5,6 +5,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
+import {buildDocumentKey, parseDocument} from '../../../utils/document-parser.js'
 
 interface ProfileConfig {
   access_token: string
@@ -19,6 +20,14 @@ interface CredentialsFile {
   profiles: {
     [key: string]: ProfileConfig
   }
+}
+
+interface GuidMapEntry {
+  api_group?: string
+  guid: string
+  name: string
+  type: string
+  verb?: string
 }
 
 export default class Push extends BaseCommand {
@@ -75,6 +84,12 @@ Push schema only, skip records and environment variables
       allowNo: true,
       default: true,
       description: 'Include records in import (default: true, use --no-records to exclude)',
+      required: false,
+    }),
+    'sync-guids': Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Write server-assigned GUIDs back to local files (use --no-sync-guids to skip)',
       required: false,
     }),
     truncate: Flags.boolean({
@@ -149,20 +164,30 @@ Push schema only, skip records and environment variables
       this.error(`No .xs files found in ${args.directory}`)
     }
 
-    // Read each file and join with --- separator
-    const documents: string[] = []
+    // Read each file and track file path alongside content
+    const documentEntries: Array<{content: string; filePath: string}> = []
     for (const filePath of files) {
       const content = fs.readFileSync(filePath, 'utf8').trim()
       if (content) {
-        documents.push(content)
+        documentEntries.push({content, filePath})
       }
     }
 
-    if (documents.length === 0) {
+    if (documentEntries.length === 0) {
       this.error(`All .xs files in ${args.directory} are empty`)
     }
 
-    const multidoc = documents.join('\n---\n')
+    const multidoc = documentEntries.map((d) => d.content).join('\n---\n')
+
+    // Build lookup map from document key to file path (for GUID writeback)
+    const documentFileMap = new Map<string, string>()
+    for (const entry of documentEntries) {
+      const parsed = parseDocument(entry.content)
+      if (parsed) {
+        const key = buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup)
+        documentFileMap.set(key, entry.filePath)
+      }
+    }
 
     // Determine branch from flag or profile
     const branch = flags.branch || profile.branch || ''
@@ -212,10 +237,51 @@ Push schema only, skip records and environment variables
         this.error(errorMessage)
       }
 
-      // Log the response if any
+      // Parse the response for GUID map
       const responseText = await response.text()
+      let guidMap: GuidMapEntry[] = []
+
       if (responseText && responseText !== 'null') {
-        this.log(responseText)
+        try {
+          const responseJson = JSON.parse(responseText)
+          if (responseJson?.guid_map && Array.isArray(responseJson.guid_map)) {
+            guidMap = responseJson.guid_map
+          }
+        } catch {
+          // Response is not JSON (e.g., older server version)
+          if (flags.verbose) {
+            this.log('Server response is not JSON; skipping GUID sync')
+          }
+        }
+      }
+
+      // Write GUIDs back to local files
+      if (flags['sync-guids'] && guidMap.length > 0) {
+        let updatedCount = 0
+        for (const entry of guidMap) {
+          if (!entry.guid) continue
+
+          const key = buildDocumentKey(entry.type, entry.name, entry.verb, entry.api_group)
+          const filePath = documentFileMap.get(key)
+          if (!filePath) {
+            if (flags.verbose) {
+              this.log(`  No local file found for ${entry.type} "${entry.name}", skipping GUID sync`)
+            }
+
+            continue
+          }
+
+          try {
+            const updated = syncGuidToFile(filePath, entry.guid)
+            if (updated) updatedCount++
+          } catch (error) {
+            this.warn(`Failed to sync GUID to ${filePath}: ${(error as Error).message}`)
+          }
+        }
+
+        if (updatedCount > 0) {
+          this.log(`Synced ${updatedCount} GUIDs to local files`)
+        }
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -225,7 +291,7 @@ Push schema only, skip records and environment variables
       }
     }
 
-    this.log(`Pushed ${documents.length} documents from ${args.directory}`)
+    this.log(`Pushed ${documentEntries.length} documents from ${args.directory}`)
   }
 
   /**
@@ -271,4 +337,63 @@ Push schema only, skip records and environment variables
       this.error(`Failed to parse credentials file: ${error}`)
     }
   }
+}
+
+const GUID_REGEX = /guid\s*=\s*(["'])([^"']*)\1/
+
+/**
+ * Sync a GUID into a local .xs file. Returns true if the file was modified.
+ *
+ * - If the file already has a matching GUID, returns false (no change).
+ * - If the file has a different GUID, updates it.
+ * - If the file has no GUID, inserts one before the final closing brace.
+ */
+function syncGuidToFile(filePath: string, guid: string): boolean {
+  const content = fs.readFileSync(filePath, 'utf8')
+  const existingMatch = content.match(GUID_REGEX)
+
+  if (existingMatch) {
+    // Already has a GUID
+    if (existingMatch[2] === guid) {
+      return false // Already matches
+    }
+
+    // Update existing GUID
+    const updated = content.replace(GUID_REGEX, `guid = "${guid}"`)
+    fs.writeFileSync(filePath, updated, 'utf8')
+    return true
+  }
+
+  // No GUID line exists — insert before the final closing brace of the top-level block
+  const lines = content.split('\n')
+  let insertIndex = -1
+
+  // Find the last closing brace (top-level block end)
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim() === '}') {
+      insertIndex = i
+      break
+    }
+  }
+
+  if (insertIndex === -1) {
+    return false // Could not find insertion point
+  }
+
+  // Determine indentation from the line above the closing brace
+  let indent = '  '
+  for (let i = insertIndex - 1; i >= 0; i--) {
+    if (lines[i].trim()) {
+      const indentMatch = lines[i].match(/^(\s+)/)
+      if (indentMatch) {
+        indent = indentMatch[1]
+      }
+
+      break
+    }
+  }
+
+  lines.splice(insertIndex, 0, `${indent}guid = "${guid}"`)
+  fs.writeFileSync(filePath, lines.join('\n'), 'utf8')
+  return true
 }

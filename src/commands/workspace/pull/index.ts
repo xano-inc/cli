@@ -7,6 +7,7 @@ import * as path from 'node:path'
 import snakeCase from 'lodash.snakecase'
 
 import BaseCommand from '../../../base-command.js'
+import {type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
 
 interface ProfileConfig {
   access_token: string
@@ -23,14 +24,6 @@ interface CredentialsFile {
   }
 }
 
-interface ParsedDocument {
-  apiGroup?: string
-  content: string
-  name: string
-  type: string
-  verb?: string
-}
-
 export default class Pull extends BaseCommand {
   static args = {
     directory: Args.string({
@@ -38,8 +31,8 @@ export default class Pull extends BaseCommand {
       required: true,
     }),
   }
-static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
-static examples = [
+  static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
+  static examples = [
     `$ xano workspace pull ./my-workspace
 Pulled 42 documents to ./my-workspace
 `,
@@ -56,7 +49,7 @@ Pulled 42 documents to ./my-workspace
 Pulled 42 documents to ./my-workspace
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
@@ -98,7 +91,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile:create'`,
+          `Create a profile using 'xano profile:create'`,
       )
     }
 
@@ -122,8 +115,8 @@ static override flags = {
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano workspace pull <directory> -w <workspace_id>\n` +
-        `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
+          `  1. Provide it as a flag: xano workspace pull <directory> -w <workspace_id>\n` +
+          `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
@@ -144,8 +137,8 @@ static override flags = {
     // Fetch multidoc from the API
     let responseText: string
     const requestHeaders = {
-      'accept': 'application/json',
-      'Authorization': `Bearer ${profile.access_token}`,
+      accept: 'application/json',
+      Authorization: `Bearer ${profile.access_token}`,
     }
 
     try {
@@ -161,9 +154,7 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
       responseText = await response.text()
@@ -186,7 +177,7 @@ static override flags = {
         continue
       }
 
-      const parsed = this.parseDocument(trimmed)
+      const parsed = parseDocument(trimmed)
       if (parsed) {
         documents.push(parsed)
       }
@@ -293,7 +284,7 @@ static override flags = {
 
       // Append numeric suffix for duplicates
       let filename: string
-      filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`;
+      filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')
@@ -309,10 +300,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile:create'`)
     }
 
     // Read credentials file
@@ -328,65 +316,6 @@ static override flags = {
     } catch (error) {
       this.error(`Failed to parse credentials file: ${error}`)
     }
-  }
-
-  /**
-   * Parse a single document to extract its type, name, and optional verb.
-   * Skips leading comment lines (starting with //) to find the first
-   * meaningful line containing the type keyword and name.
-   */
-  private parseDocument(content: string): null | ParsedDocument {
-    const lines = content.split('\n')
-
-    // Find the first non-comment line
-    let firstLine: null | string = null
-    for (const line of lines) {
-      const trimmedLine = line.trim()
-      if (trimmedLine && !trimmedLine.startsWith('//')) {
-        firstLine = trimmedLine
-        break
-      }
-    }
-
-    if (!firstLine) {
-      return null
-    }
-
-    // Parse the type keyword and name from the first meaningful line
-    // Expected formats:
-    //   type name {
-    //   type name verb=GET {
-    //   type "name with spaces" {
-    //   type "name with spaces" verb=PATCH {
-    const match = firstLine.match(/^(\w+)\s+("(?:[^"\\]|\\.)*"|\S+)(?:\s+(.*))?/)
-    if (!match) {
-      return null
-    }
-
-    const type = match[1]
-    let name = match[2]
-    const rest = match[3] || ''
-
-    // Strip surrounding quotes from the name
-    if (name.startsWith('"') && name.endsWith('"')) {
-      name = name.slice(1, -1)
-    }
-
-    // Extract verb if present (e.g., verb=GET)
-    let verb: string | undefined
-    const verbMatch = rest.match(/verb=(\S+)/)
-    if (verbMatch) {
-      verb = verbMatch[1]
-    }
-
-    // Extract api_group if present (e.g., api_group = "test")
-    let apiGroup: string | undefined
-    const apiGroupMatch = content.match(/api_group\s*=\s*"([^"]*)"/)
-    if (apiGroupMatch) {
-      apiGroup = apiGroupMatch[1]
-    }
-
-    return {apiGroup, content, name, type, verb}
   }
 
   /**
