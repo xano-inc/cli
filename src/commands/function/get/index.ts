@@ -330,7 +330,7 @@ static override flags = {
           choices,
           message: 'Select a function:',
           name: 'functionId',
-          type: 'list',
+          type: 'select',
         },
       ])
 

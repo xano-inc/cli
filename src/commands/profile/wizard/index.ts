@@ -1,3 +1,4 @@
+import {ExitPromptError} from '@inquirer/core'
 import {Args, Command, Flags} from '@oclif/core'
 import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
@@ -114,7 +115,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
           })),
           message: 'Select an instance',
           name: 'instanceId',
-          type: 'list',
+          type: 'select',
         },
       ])
 
@@ -166,7 +167,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
             ],
             message: 'Select a workspace (or skip to use default)',
             name: 'selectedWorkspace',
-            type: 'list',
+            type: 'select',
           },
         ])
 
@@ -200,7 +201,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
                 ],
                 message: 'Select a branch',
                 name: 'selectedBranch',
-                type: 'list',
+                type: 'select',
               },
             ])
 
@@ -225,7 +226,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       this.log('')
       this.log(`✓ Profile '${profileName}' created successfully!`)
     } catch (error) {
-      if (error instanceof Error && error.message.includes('User force closed the prompt')) {
+      if (error instanceof ExitPromptError) {
         this.log('Wizard cancelled.')
         process.exit(0)
       }

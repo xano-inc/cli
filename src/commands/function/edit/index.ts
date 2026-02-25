@@ -535,7 +535,7 @@ static override flags = {
           choices,
           message: 'Select a function to edit:',
           name: 'functionId',
-          type: 'list',
+          type: 'select',
         },
       ])
 

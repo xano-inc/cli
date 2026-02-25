@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.42",
+  "version": "0.0.43",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -11,7 +11,7 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
-    "inquirer": "^8.2.5",
+    "inquirer": "^13.3.0",
     "js-yaml": "^4.1.0",
     "lodash.snakecase": "^4.1.1",
     "open": "^11.0.0"
@@ -21,11 +21,10 @@
     "@oclif/prettier-config": "^0.2.1",
     "@oclif/test": "^4",
     "@types/chai": "^4",
-    "@types/inquirer": "^8.2.5",
     "@types/js-yaml": "^4.0.9",
     "@types/lodash.snakecase": "^4.1.9",
     "@types/mocha": "^10",
-    "@types/node": "^18",
+    "@types/node": "^20.19.33",
     "chai": "^4",
     "eslint": "^9",
     "eslint-config-oclif": "^6",
@@ -37,7 +36,7 @@
     "typescript": "^5"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.12.0"
   },
   "files": [
     "./bin",

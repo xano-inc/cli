@@ -1,3 +1,4 @@
+import {ExitPromptError} from '@inquirer/core'
 import {Command, Flags} from '@oclif/core'
 import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
@@ -136,7 +137,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
       // Ensure clean exit (the open() call can keep the event loop alive)
       process.exit(0)
     } catch (error) {
-      if (error instanceof Error && error.message.includes('User force closed the prompt')) {
+      if (error instanceof ExitPromptError) {
         this.log('Authentication cancelled.')
         return
       }
@@ -314,7 +315,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
         ],
         message: 'Select a branch',
         name: 'selectedBranch',
-        type: 'list',
+        type: 'select',
       },
     ])
 
@@ -330,7 +331,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
         })),
         message: 'Select an instance',
         name: 'instanceId',
-        type: 'list',
+        type: 'select',
       },
     ])
 
@@ -349,7 +350,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
         ],
         message: 'Select a workspace',
         name: 'selectedWorkspace',
-        type: 'list',
+        type: 'select',
       },
     ])
 
