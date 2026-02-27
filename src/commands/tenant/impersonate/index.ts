@@ -106,7 +106,7 @@ Impersonation successful!
         const params = new URLSearchParams({
           _ti: response._ti,
         })
-        const impersonateUrl = `${frontendUrl}/tenant-impersonate?${params.toString()}`
+        const impersonateUrl = `${frontendUrl}/impersonate?${params.toString()}`
 
         if (flags['url-only']) {
           this.log(impersonateUrl)

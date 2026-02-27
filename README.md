@@ -54,8 +54,8 @@ xano profile list
 xano profile list --details                  # Show masked tokens and settings
 
 # Get/set default profile
-xano profile get_default
-xano profile set_default myprofile
+xano profile get
+xano profile set myprofile
 
 # Edit a profile
 xano profile edit myprofile -w 123
@@ -468,6 +468,13 @@ profiles:
     workspace: <workspace_id>
     branch: <branch_id>
 default: default
+```
+
+### Update
+
+```bash
+# Update the CLI to the latest version
+xano update
 ```
 
 ## Scripts

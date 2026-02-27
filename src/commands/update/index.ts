@@ -1,3 +1,4 @@
+import {Flags} from '@oclif/core'
 import {execSync} from 'node:child_process'
 
 import BaseCommand from '../../base-command.js'
@@ -5,11 +6,16 @@ import BaseCommand from '../../base-command.js'
 export default class Update extends BaseCommand {
   static override description = 'Update the Xano CLI to the latest version'
 
-  static override examples = [
-    `$ xano update`,
-  ]
+  static override examples = [`$ xano update`, `$ xano update --check`]
+
+  static override flags = {
+    check: Flags.boolean({
+      description: 'Check for updates without installing',
+    }),
+  }
 
   async run(): Promise<void> {
+    const {flags} = await this.parse(Update)
     const currentVersion = this.config.version
 
     this.log(`Current version: ${currentVersion}`)
@@ -20,6 +26,11 @@ export default class Update extends BaseCommand {
 
       if (latest === currentVersion) {
         this.log(`Already up to date (${currentVersion})`)
+        return
+      }
+
+      if (flags.check) {
+        this.log(`Update available: ${currentVersion} → ${latest}`)
         return
       }
 
