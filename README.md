@@ -475,6 +475,9 @@ default: default
 ```bash
 # Update the CLI to the latest version
 xano update
+
+# Check for updates without installing
+xano update --check
 ```
 
 ## Scripts

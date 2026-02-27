@@ -9,6 +9,7 @@ export default class Update extends BaseCommand {
   static override examples = [`$ xano update`, `$ xano update --check`]
 
   static override flags = {
+    ...BaseCommand.flags,
     check: Flags.boolean({
       description: 'Check for updates without installing',
     }),

@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.46",
+  "version": "0.0.47",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
