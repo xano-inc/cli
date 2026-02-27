@@ -18,7 +18,7 @@ interface RepoInfo {
   url: string
 }
 
-export default class GitImport extends BaseCommand {
+export default class GitPull extends BaseCommand {
   static args = {
     directory: Args.string({
       description: 'Output directory for imported files',
@@ -26,16 +26,16 @@ export default class GitImport extends BaseCommand {
     }),
   }
 
-  static override description = 'Import XanoScript files from a git repository into a local directory'
+  static override description = 'Pull XanoScript files from a git repository into a local directory'
 
   static override examples = [
-    `$ xano workspace git import ./output -r https://github.com/owner/repo`,
-    `$ xano workspace git import ./output -r https://github.com/owner/repo/tree/main/path/to/dir`,
-    `$ xano workspace git import ./output -r https://github.com/owner/repo/blob/main/path/to/file.xs`,
-    `$ xano workspace git import ./output -r git@github.com:owner/repo.git`,
-    `$ xano workspace git import ./output -r https://github.com/owner/private-repo -t ghp_xxx`,
-    `$ xano workspace git import ./output -r https://gitlab.com/owner/repo/-/tree/master/path`,
-    `$ xano workspace git import ./output -r https://gitlab.com/owner/repo -b main`,
+    `$ xano workspace git pull ./output -r https://github.com/owner/repo`,
+    `$ xano workspace git pull ./output -r https://github.com/owner/repo/tree/main/path/to/dir`,
+    `$ xano workspace git pull ./output -r https://github.com/owner/repo/blob/main/path/to/file.xs`,
+    `$ xano workspace git pull ./output -r git@github.com:owner/repo.git`,
+    `$ xano workspace git pull ./output -r https://github.com/owner/private-repo -t ghp_xxx`,
+    `$ xano workspace git pull ./output -r https://gitlab.com/owner/repo/-/tree/master/path`,
+    `$ xano workspace git pull ./output -r https://gitlab.com/owner/repo -b main`,
   ]
 
   static override flags = {
@@ -63,7 +63,7 @@ export default class GitImport extends BaseCommand {
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(GitImport)
+    const {args, flags} = await this.parse(GitPull)
     const token = flags.token || ''
     const outputDir = path.resolve(args.directory)
 
@@ -75,7 +75,7 @@ export default class GitImport extends BaseCommand {
     const subPath = flags.path || repoInfo.pathInRepo
 
     // Create a temp directory for fetching
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xano-git-import-'))
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xano-git-pull-'))
 
     try {
       // Fetch repository contents
@@ -149,7 +149,7 @@ export default class GitImport extends BaseCommand {
       }
 
       const source = subPath ? `${flags.repo} (${subPath})` : flags.repo
-      this.log(`Imported ${writtenCount} documents from ${source} to ${args.directory}`)
+      this.log(`Pulled ${writtenCount} documents from ${source} to ${args.directory}`)
     } finally {
       // Clean up temp directory
       fs.rmSync(tempDir, {force: true, recursive: true})
