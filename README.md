@@ -112,6 +112,16 @@ xano workspace push ./my-workspace --no-records          # Schema only
 xano workspace push ./my-workspace --no-env              # Skip env vars
 xano workspace push ./my-workspace --truncate            # Truncate tables before import
 xano workspace push ./my-workspace --no-sync-guids       # Skip writing GUIDs back to local files
+
+# Import from a git repository to local files
+xano workspace git import ./output -r https://github.com/owner/repo
+xano workspace git import ./output -r https://github.com/owner/repo -b main
+xano workspace git import ./output -r https://github.com/owner/repo/tree/main/path/to/dir
+xano workspace git import ./output -r https://github.com/owner/repo/blob/main/file.xs
+xano workspace git import ./output -r git@github.com:owner/repo.git
+xano workspace git import ./output -r https://gitlab.com/owner/repo/-/tree/master/path
+xano workspace git import ./output -r https://github.com/owner/private-repo -t ghp_xxx
+xano workspace git import ./output -r https://github.com/owner/repo --path subdir
 ```
 
 ### Branches

@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.43",
+  "version": "0.0.44",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -93,6 +93,9 @@
       },
       "workspace": {
         "description": "Manage Xano workspaces"
+      },
+      "workspace:git": {
+        "description": "Import workspaces from git repositories"
       }
     }
   },
