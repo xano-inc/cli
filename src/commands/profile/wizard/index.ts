@@ -187,8 +187,8 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
             this.warn(`Failed to fetch branches: ${error instanceof Error ? error.message : String(error)}`)
           }
 
-          // If branches were fetched, let user select one
-          if (branches.length > 0) {
+          // If multiple branches exist, let user select one (skip if only one branch)
+          if (branches.length > 1) {
             this.log('')
             const {selectedBranch} = await inquirer.prompt([
               {

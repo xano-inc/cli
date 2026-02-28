@@ -152,6 +152,8 @@ User Information:
           if (inst.id) this.log(`  ID: ${inst.id}`)
           if (inst.name) this.log(`  Name: ${inst.name}`)
           if (inst.display) this.log(`  Display: ${inst.display}`)
+          if (profile.workspace) this.log(`  Workspace: ${profile.workspace}`)
+          if (profile.branch) this.log(`  Branch: ${profile.branch}`)
         }
 
         if (flags.verbose) {

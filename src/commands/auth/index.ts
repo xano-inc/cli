@@ -111,7 +111,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
           this.log('Fetching available branches...')
           const branches = await this.fetchBranches(token, instance.origin, workspace.id)
 
-          if (branches.length > 0) {
+          if (branches.length > 1) {
             branch = await this.selectBranch(branches)
           }
         }
