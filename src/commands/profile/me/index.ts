@@ -121,6 +121,8 @@ User Information:
         this.log(JSON.stringify(data, null, 2))
       } else {
         // summary format
+        this.log(`Profile: ${profileName}`)
+        this.log('')
         this.log('User Information:')
         if (data.id !== undefined) {
           this.log(`  ID: ${data.id}`)
