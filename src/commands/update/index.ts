@@ -36,7 +36,7 @@ export default class Update extends BaseCommand {
       }
 
       this.log(`Updating @xano/cli ${currentVersion} → ${latest}...`)
-      execSync('npm install -g @xano/cli@latest --fund false', {stdio: 'inherit'})
+      execSync('npm install -g @xano/cli@latest --no-fund', {stdio: 'inherit'})
       this.log(`Updated to ${latest}`)
     } catch (error) {
       this.error(`Failed to update: ${(error as Error).message}`)
