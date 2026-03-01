@@ -96,6 +96,8 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
     const tenantName = args.tenant_name
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/deploy`
 
+    const startTime = Date.now()
+
     try {
       const response = await this.verboseFetch(
         apiUrl,
@@ -122,9 +124,11 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
       } else {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
         this.log(`Deployed release "${releaseName}" to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.release?.name) this.log(`  Release: ${tenant.release.name}`)
+        this.log(`  Time: ${elapsed}s`)
       }
     } catch (error) {
       if (error instanceof Error) {

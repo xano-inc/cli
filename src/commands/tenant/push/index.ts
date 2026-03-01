@@ -217,6 +217,8 @@ Truncate all table records before importing
       'Content-Type': 'text/x-xanoscript',
     }
 
+    const startTime = Date.now()
+
     try {
       const response = await this.verboseFetch(
         apiUrl,
@@ -259,7 +261,8 @@ Truncate all table records before importing
       }
     }
 
-    this.log(`Pushed ${documents.length} documents to tenant ${tenantName} from ${args.directory}`)
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+    this.log(`Pushed ${documents.length} documents to tenant ${tenantName} from ${args.directory} in ${elapsed}s`)
   }
 
   /**

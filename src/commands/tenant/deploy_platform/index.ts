@@ -95,6 +95,8 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
     const platformId = flags.platform_id
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/platform/deploy`
 
+    const startTime = Date.now()
+
     try {
       const response = await this.verboseFetch(
         apiUrl,
@@ -121,9 +123,11 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
       } else {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
         this.log(`Deployed platform ${platformId} to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.platform?.name) this.log(`  Platform: ${tenant.platform.name}`)
+        this.log(`  Time: ${elapsed}s`)
       }
     } catch (error) {
       if (error instanceof Error) {

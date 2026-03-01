@@ -192,6 +192,8 @@ Output release details as JSON
       'Content-Type': 'text/x-xanoscript',
     }
 
+    const startTime = Date.now()
+
     try {
       const response = await this.verboseFetch(
         apiUrl,
@@ -221,7 +223,7 @@ Output release details as JSON
         this.error(errorMessage)
       }
 
-      const release = await response.json() as Release
+      const release = (await response.json()) as Release
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(release, null, 2))
@@ -230,7 +232,9 @@ Output release details as JSON
         if (release.branch) this.log(`  Branch: ${release.branch}`)
         if (release.hotfix) this.log(`  Hotfix: true`)
         if (release.description) this.log(`  Description: ${release.description}`)
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
         this.log(`  Documents: ${documents.length}`)
+        this.log(`  Time: ${elapsed}s`)
       }
     } catch (error) {
       if (error instanceof Error) {

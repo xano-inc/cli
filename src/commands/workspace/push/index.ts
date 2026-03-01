@@ -230,6 +230,8 @@ Push schema only, skip records and environment variables
       'Content-Type': 'text/x-xanoscript',
     }
 
+    const startTime = Date.now()
+
     try {
       const response = await this.verboseFetch(
         apiUrl,
@@ -336,7 +338,8 @@ Push schema only, skip records and environment variables
       }
     }
 
-    this.log(`Pushed ${documentEntries.length} documents from ${args.directory}`)
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+    this.log(`Pushed ${documentEntries.length} documents from ${args.directory} in ${elapsed}s`)
   }
 
   /**
