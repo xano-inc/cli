@@ -5,6 +5,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
+import {findFilesWithGuid} from '../../../utils/document-parser.js'
 
 interface ProfileConfig {
   access_token: string
@@ -187,20 +188,20 @@ Truncate all table records before importing
       this.error(`No .xs files found in ${args.directory}`)
     }
 
-    // Read each file and join with --- separator
-    const documents: string[] = []
+    // Read each file and track file path alongside content
+    const documentEntries: Array<{content: string; filePath: string}> = []
     for (const filePath of files) {
       const content = fs.readFileSync(filePath, 'utf8').trim()
       if (content) {
-        documents.push(content)
+        documentEntries.push({content, filePath})
       }
     }
 
-    if (documents.length === 0) {
+    if (documentEntries.length === 0) {
       this.error(`All .xs files in ${args.directory} are empty`)
     }
 
-    const multidoc = documents.join('\n---\n')
+    const multidoc = documentEntries.map((d) => d.content).join('\n---\n')
 
     // Construct the API URL
     const queryParams = new URLSearchParams({
@@ -245,12 +246,22 @@ Truncate all table records before importing
           errorMessage += `\n${errorText}`
         }
 
+        // Surface local files involved in duplicate GUID errors
+        const guidMatch = errorMessage.match(/Duplicate \w+ guid: (\S+)/)
+        if (guidMatch) {
+          const dupeFiles = findFilesWithGuid(documentEntries, guidMatch[1])
+          if (dupeFiles.length > 0) {
+            const relPaths = dupeFiles.map((f) => path.relative(inputDir, f))
+            errorMessage += `\n  Local files with this GUID:\n${relPaths.map((f) => `    ${f}`).join('\n')}`
+          }
+        }
+
         this.error(errorMessage)
       }
 
-      // Log the response if any
+      // Parse the response (suppress raw output; only show in verbose mode)
       const responseText = await response.text()
-      if (responseText && responseText !== 'null') {
+      if (responseText && responseText !== 'null' && flags.verbose) {
         this.log(responseText)
       }
     } catch (error) {
@@ -262,7 +273,7 @@ Truncate all table records before importing
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    this.log(`Pushed ${documents.length} documents to tenant ${tenantName} from ${args.directory} in ${elapsed}s`)
+    this.log(`Pushed ${documentEntries.length} documents to tenant ${tenantName} from ${args.directory} in ${elapsed}s`)
   }
 
   /**

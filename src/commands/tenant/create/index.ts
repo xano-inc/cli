@@ -140,6 +140,10 @@ Created tenant: Production (production) - ID: 42
     if (flags.platform_id) body.platform_id = flags.platform_id
     if (flags.domain) body.domain = flags.domain
 
+    if (flags.license === 'tier2' || flags.license === 'tier3' || flags.cluster_id) {
+      this.warn('This may take a few minutes. Please be patient.')
+    }
+
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant`
 
     try {

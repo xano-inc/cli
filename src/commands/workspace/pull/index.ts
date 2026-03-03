@@ -7,7 +7,7 @@ import * as path from 'node:path'
 import snakeCase from 'lodash.snakecase'
 
 import BaseCommand from '../../../base-command.js'
-import {type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
 
 interface ProfileConfig {
   access_token: string
@@ -194,6 +194,10 @@ Pulled 42 documents to ./my-workspace
     // Create the output directory if it doesn't exist
     fs.mkdirSync(outputDir, {recursive: true})
 
+    // Resolve api_group names to unique folder names, disambiguating collisions
+    // where different names produce the same snakeCase (e.g., "Authentication" vs "authentication")
+    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
+
     // Track filenames per type to handle duplicates
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
@@ -243,13 +247,13 @@ Pulled 42 documents to ./my-workspace
         typeDir = path.join(outputDir, 'realtime', 'trigger')
         baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'api_group') {
-        // api_group "test" → api/test/api_group.xs
-        const groupFolder = snakeCase(doc.name)
+        // api_group "test" → api/{resolved_folder}/{name}.xs
+        const groupFolder = getApiGroupFolder(doc.name)
         typeDir = path.join(outputDir, 'api', groupFolder)
-        baseName = 'api_group'
+        baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'query' && doc.apiGroup) {
-        // query in group "test" → api/test/{query_name}.xs
-        const groupFolder = snakeCase(doc.apiGroup)
+        // query in group "test" → api/{resolved_folder}/{query_name}.xs
+        const groupFolder = getApiGroupFolder(doc.apiGroup)
         const nameParts = doc.name.split('/')
         const leafName = nameParts.pop()!
         const folderParts = nameParts.map((part) => snakeCase(part))

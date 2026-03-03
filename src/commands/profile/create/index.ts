@@ -44,6 +44,9 @@ Profile 'dev' created successfully at ~/.xano/credentials.yaml
 Profile 'production' created successfully at ~/.xano/credentials.yaml
 Default profile set to 'production'
 `,
+    `$ xano profile:create selfhosted -i https://self-signed.example.com -t token123 --insecure
+Profile 'selfhosted' created successfully at ~/.xano/credentials.yaml
+`,
   ]
   static override flags = {
     access_token: Flags.string({
@@ -64,6 +67,12 @@ Default profile set to 'production'
     default: Flags.boolean({
       default: false,
       description: 'Set this profile as the default',
+      required: false,
+    }),
+    insecure: Flags.boolean({
+      char: 'k',
+      default: false,
+      description: 'Skip TLS certificate verification (for self-signed certificates)',
       required: false,
     }),
     instance_origin: Flags.string({
@@ -118,6 +127,7 @@ Default profile set to 'production'
       instance_origin: flags.instance_origin,
       ...(flags.workspace && {workspace: flags.workspace}),
       ...(flags.branch && {branch: flags.branch}),
+      ...(flags.insecure && {insecure: true}),
     }
 
     // Set default if flag is provided

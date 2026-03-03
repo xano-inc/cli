@@ -6,8 +6,8 @@ import * as path from 'node:path'
 
 import snakeCase from 'lodash.snakecase'
 
-import BaseCommand from '../../../../base-command.js'
-import {type ParsedDocument, parseDocument} from '../../../../utils/document-parser.js'
+import BaseCommand, {buildUserAgent} from '../../../../base-command.js'
+import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../../utils/document-parser.js'
 
 interface RepoInfo {
   host: 'github' | 'gitlab' | 'other'
@@ -124,11 +124,12 @@ export default class GitPull extends BaseCommand {
       // Write documents to output directory using the same file tree logic as workspace pull
       fs.mkdirSync(outputDir, {recursive: true})
 
+      const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
       const filenameCounters: Map<string, Map<string, number>> = new Map()
       let writtenCount = 0
 
       for (const doc of documents) {
-        const {baseName, typeDir} = this.resolveOutputPath(outputDir, doc)
+        const {baseName, typeDir} = this.resolveOutputPath(outputDir, doc, getApiGroupFolder)
 
         fs.mkdirSync(typeDir, {recursive: true})
 
@@ -225,7 +226,7 @@ export default class GitPull extends BaseCommand {
 
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'xano-cli',
+      'User-Agent': buildUserAgent(this.config.version),
     }
 
     if (token) {
@@ -398,7 +399,11 @@ export default class GitPull extends BaseCommand {
    * Resolve the output directory and base filename for a parsed document.
    * Uses the same type-to-directory mapping as workspace pull.
    */
-  private resolveOutputPath(outputDir: string, doc: ParsedDocument): {baseName: string; typeDir: string} {
+  private resolveOutputPath(
+    outputDir: string,
+    doc: ParsedDocument,
+    getApiGroupFolder: (name: string) => string,
+  ): {baseName: string; typeDir: string} {
     let typeDir: string
     let baseName: string
 
@@ -433,11 +438,11 @@ export default class GitPull extends BaseCommand {
       typeDir = path.join(outputDir, 'realtime', 'trigger')
       baseName = this.sanitizeFilename(doc.name)
     } else if (doc.type === 'api_group') {
-      const groupFolder = snakeCase(doc.name)
+      const groupFolder = getApiGroupFolder(doc.name)
       typeDir = path.join(outputDir, 'api', groupFolder)
-      baseName = 'api_group'
+      baseName = this.sanitizeFilename(doc.name)
     } else if (doc.type === 'query' && doc.apiGroup) {
-      const groupFolder = snakeCase(doc.apiGroup)
+      const groupFolder = getApiGroupFolder(doc.apiGroup)
       const nameParts = doc.name.split('/')
       const leafName = nameParts.pop()!
       const folderParts = nameParts.map((part) => snakeCase(part))

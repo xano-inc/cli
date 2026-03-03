@@ -4,7 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as yaml from 'js-yaml'
 
-import BaseCommand from '../../../../base-command.js'
+import BaseCommand, {buildUserAgent} from '../../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -127,7 +127,9 @@ Downloaded backup #10 to ./tenant-t1234-abcd-xyz1-backup-10.tar.gz
       const outputPath = flags.output || `tenant-${tenantName}-backup-${backupId}.tar.gz`
       const resolvedPath = path.resolve(outputPath)
 
-      const downloadResponse = await fetch(exportLink.src)
+      const downloadResponse = await fetch(exportLink.src, {
+        headers: {'User-Agent': buildUserAgent(this.config.version)},
+      })
 
       if (!downloadResponse.ok) {
         this.error(`Failed to download backup: ${downloadResponse.status} ${downloadResponse.statusText}`)

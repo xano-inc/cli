@@ -46,6 +46,12 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
     `$ xano profile:edit --remove-branch
 Profile 'default' updated successfully at ~/.xano/credentials.yaml
 `,
+    `$ xano profile:edit --insecure
+Profile 'default' updated successfully at ~/.xano/credentials.yaml
+`,
+    `$ xano profile:edit --remove-insecure
+Profile 'default' updated successfully at ~/.xano/credentials.yaml
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -64,6 +70,11 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
       description: 'Update branch name',
       required: false,
     }),
+    insecure: Flags.boolean({
+      default: false,
+      description: 'Enable insecure mode (skip TLS certificate verification)',
+      required: false,
+    }),
     instance_origin: Flags.string({
       char: 'i',
       description: 'Update instance origin URL',
@@ -72,6 +83,11 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
     'remove-branch': Flags.boolean({
       default: false,
       description: 'Remove branch from profile',
+      required: false,
+    }),
+    'remove-insecure': Flags.boolean({
+      default: false,
+      description: 'Remove insecure mode from profile',
       required: false,
     }),
     'remove-workspace': Flags.boolean({
@@ -132,8 +148,10 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
       flags.access_token ||
       flags.workspace ||
       flags.branch ||
+      flags.insecure ||
       flags['remove-workspace'] ||
-      flags['remove-branch']
+      flags['remove-branch'] ||
+      flags['remove-insecure']
 
     if (!hasFlags) {
       this.error('No fields specified to update. Use at least one flag to edit the profile.')
@@ -147,6 +165,7 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
       ...(flags.access_token !== undefined && {access_token: flags.access_token}),
       ...(flags.workspace !== undefined && {workspace: flags.workspace}),
       ...(flags.branch !== undefined && {branch: flags.branch}),
+      ...(flags.insecure && {insecure: true}),
     }
 
     // Handle removal flags
@@ -156,6 +175,10 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
 
     if (flags['remove-branch']) {
       delete updatedProfile.branch
+    }
+
+    if (flags['remove-insecure']) {
+      delete updatedProfile.insecure
     }
 
     credentials.profiles[profileName] = updatedProfile

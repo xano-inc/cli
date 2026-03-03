@@ -5,7 +5,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
-import {buildDocumentKey, parseDocument} from '../../../utils/document-parser.js'
+import {buildDocumentKey, findFilesWithGuid, parseDocument} from '../../../utils/document-parser.js'
 
 interface ProfileConfig {
   access_token: string
@@ -256,6 +256,16 @@ Push schema only, skip records and environment variables
           }
         } catch {
           errorMessage += `\n${errorText}`
+        }
+
+        // Surface local files involved in duplicate GUID errors
+        const guidMatch = errorMessage.match(/Duplicate \w+ guid: (\S+)/)
+        if (guidMatch) {
+          const dupeFiles = findFilesWithGuid(documentEntries, guidMatch[1])
+          if (dupeFiles.length > 0) {
+            const relPaths = dupeFiles.map((f) => path.relative(inputDir, f))
+            errorMessage += `\n  Local files with this GUID:\n${relPaths.map((f) => `    ${f}`).join('\n')}`
+          }
         }
 
         this.error(errorMessage)

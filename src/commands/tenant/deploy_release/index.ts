@@ -96,6 +96,8 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
     const tenantName = args.tenant_name
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/deploy`
 
+    this.warn('This may take a few minutes. Please be patient.')
+
     const startTime = Date.now()
 
     try {

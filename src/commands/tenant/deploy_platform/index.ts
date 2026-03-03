@@ -95,6 +95,8 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
     const platformId = flags.platform_id
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/platform/deploy`
 
+    this.warn('This may take a few minutes. Please be patient.')
+
     const startTime = Date.now()
 
     try {

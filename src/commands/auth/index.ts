@@ -8,10 +8,13 @@ import * as os from 'node:os'
 import {join} from 'node:path'
 import open from 'open'
 
+import {buildUserAgent} from '../../base-command.js'
+
 interface ProfileConfig {
   access_token: string
   account_origin: string
   branch?: string
+  insecure?: boolean
   instance_origin: string
   name: string
   workspace?: string
@@ -63,6 +66,11 @@ Profile 'default' created successfully!`,
 Opening browser for Xano login at https://custom.xano.com...`,
   ]
   static override flags = {
+    insecure: Flags.boolean({
+      char: 'k',
+      default: false,
+      description: 'Skip TLS certificate verification (for self-signed certificates)',
+    }),
     origin: Flags.string({
       char: 'o',
       default: 'https://app.xano.com',
@@ -72,6 +80,11 @@ Opening browser for Xano login at https://custom.xano.com...`,
 
   async run(): Promise<void> {
     const {flags} = await this.parse(Auth)
+
+    if (flags.insecure) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+      this.warn('TLS certificate verification is disabled (insecure mode)')
+    }
 
     try {
       // Step 1: Get token via browser auth
@@ -126,6 +139,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
         access_token: token,
         account_origin: flags.origin,
         branch,
+        ...(flags.insecure && {insecure: true}),
         instance_origin: instance.origin,
         name: profileName,
         workspace: workspace?.id,
@@ -146,13 +160,18 @@ Opening browser for Xano login at https://custom.xano.com...`,
     }
   }
 
+  private getHeaders(accessToken?: string): Record<string, string> {
+    return {
+      'User-Agent': buildUserAgent(this.config.version),
+      accept: 'application/json',
+      ...(accessToken && {Authorization: `Bearer ${accessToken}`}),
+    }
+  }
+
   private async fetchBranches(accessToken: string, origin: string, workspaceId: string): Promise<Branch[]> {
     try {
       const response = await fetch(`${origin}/api:meta/workspace/${workspaceId}/branch`, {
-        headers: {
-          accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: this.getHeaders(accessToken),
         method: 'GET',
       })
 
@@ -177,10 +196,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
 
   private async fetchInstances(accessToken: string, origin: string): Promise<Instance[]> {
     const response = await fetch(`${origin}/api:meta/instance`, {
-      headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: this.getHeaders(accessToken),
       method: 'GET',
     })
 
@@ -209,10 +225,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
   private async fetchWorkspaces(accessToken: string, origin: string): Promise<Workspace[]> {
     try {
       const response = await fetch(`${origin}/api:meta/workspace`, {
-        headers: {
-          accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: this.getHeaders(accessToken),
         method: 'GET',
       })
 
@@ -288,6 +301,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
       instance_origin: profile.instance_origin,
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
+      ...(profile.insecure && {insecure: true}),
     }
 
     // Set as default profile
@@ -559,10 +573,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
 
   private async validateToken(token: string, origin: string): Promise<UserInfo> {
     const response = await fetch(`${origin}/api:meta/auth/me`, {
-      headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: this.getHeaders(token),
       method: 'GET',
     })
 

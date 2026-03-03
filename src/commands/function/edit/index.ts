@@ -6,7 +6,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import BaseCommand from '../../../base-command.js'
+import BaseCommand, {buildUserAgent} from '../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -51,8 +51,8 @@ export default class FunctionEdit extends BaseCommand {
       required: false,
     }),
   }
-static description = 'Edit a function in a workspace'
-static examples = [
+  static description = 'Edit a function in a workspace'
+  static examples = [
     `$ xano function:edit 163
 # Fetches the function code and opens it in $EDITOR for editing
 Function updated successfully!
@@ -99,7 +99,7 @@ Name: my_function
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     edit: Flags.boolean({
       char: 'e',
@@ -152,7 +152,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile:create'`,
+          `Create a profile using 'xano profile:create'`,
       )
     }
 
@@ -181,14 +181,14 @@ static override flags = {
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano function:edit [function_id] -w <workspace_id>\n` +
-        `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
+          `  1. Provide it as a flag: xano function:edit [function_id] -w <workspace_id>\n` +
+          `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
     // If function_id is not provided, prompt user to select from list
     let functionId: string
-    functionId = args.function_id ? args.function_id : (await this.promptForFunctionId(profile, workspaceId));
+    functionId = args.function_id ? args.function_id : await this.promptForFunctionId(profile, workspaceId)
 
     // Read XanoScript content
     let xanoscript: string
@@ -252,8 +252,8 @@ static override flags = {
         {
           body: xanoscript,
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
             'Content-Type': 'text/x-xanoscript',
           },
           method: 'PUT',
@@ -264,12 +264,10 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const result = await response.json() as EditFunctionResponse
+      const result = (await response.json()) as EditFunctionResponse
 
       // Validate response
       if (!result || typeof result !== 'object') {
@@ -300,8 +298,7 @@ static override flags = {
 
     if (!editor) {
       this.error(
-        'No editor configured. Please set the EDITOR or VISUAL environment variable.\n' +
-        'Example: export EDITOR=vim',
+        'No editor configured. Please set the EDITOR or VISUAL environment variable.\n' + 'Example: export EDITOR=vim',
       )
     }
 
@@ -309,10 +306,7 @@ static override flags = {
     try {
       execSync(`which ${editor.split(' ')[0]}`, {stdio: 'ignore'})
     } catch {
-      this.error(
-        `Editor '${editor}' not found. Please set EDITOR to a valid editor.\n` +
-        'Example: export EDITOR=vim',
-      )
+      this.error(`Editor '${editor}' not found. Please set EDITOR to a valid editor.\n` + 'Example: export EDITOR=vim')
     }
 
     // Read the original file
@@ -356,7 +350,9 @@ static override flags = {
     const editor = process.env.EDITOR || process.env.VISUAL
 
     if (!editor) {
-      throw new Error('No editor configured. Please set the EDITOR or VISUAL environment variable. Example: export EDITOR=vim')
+      throw new Error(
+        'No editor configured. Please set the EDITOR or VISUAL environment variable. Example: export EDITOR=vim',
+      )
     }
 
     // Validate editor executable exists
@@ -415,8 +411,9 @@ static override flags = {
     try {
       const response = await fetch(apiUrl, {
         headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
+          'User-Agent': buildUserAgent(this.config.version),
+          accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
         },
         method: 'GET',
       })
@@ -426,7 +423,7 @@ static override flags = {
         throw new Error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const result = await response.json() as any
+      const result = (await response.json()) as any
 
       // Handle xanoscript as an object with status and value
       if (result.xanoscript) {
@@ -434,12 +431,11 @@ static override flags = {
           return result.xanoscript.value
         }
 
- if (typeof result.xanoscript === 'string') {
+        if (typeof result.xanoscript === 'string') {
           return result.xanoscript
         }
- 
-          throw new Error(`Invalid xanoscript format: ${JSON.stringify(result.xanoscript)}`)
-        
+
+        throw new Error(`Invalid xanoscript format: ${JSON.stringify(result.xanoscript)}`)
       }
 
       return ''
@@ -454,10 +450,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile:create'`)
     }
 
     // Read credentials file
@@ -491,20 +484,19 @@ static override flags = {
 
       const response = await fetch(listUrl, {
         headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
+          'User-Agent': buildUserAgent(this.config.version),
+          accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
         },
         method: 'GET',
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `Failed to fetch function list: ${response.status} ${response.statusText}\n${errorText}`,
-        )
+        this.error(`Failed to fetch function list: ${response.status} ${response.statusText}\n${errorText}`)
       }
 
-      const data = await response.json() as Function[] | FunctionListResponse
+      const data = (await response.json()) as Function[] | FunctionListResponse
 
       // Handle different response formats
       let functions: Function[]
@@ -524,7 +516,7 @@ static override flags = {
       }
 
       // Create choices for inquirer
-      const choices = functions.map(func => ({
+      const choices = functions.map((func) => ({
         name: `${func.name} (ID: ${func.id})${func.description ? ` - ${func.description}` : ''}`,
         value: func.id.toString(),
       }))

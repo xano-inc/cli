@@ -4,7 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as yaml from 'js-yaml'
 
-import BaseCommand from '../../../base-command.js'
+import BaseCommand, {buildUserAgent} from '../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -74,7 +74,7 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -90,9 +90,7 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
-      this.error(
-        'No workspace ID provided. Use --workspace flag or set one in your profile.',
-      )
+      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
     const releaseName = args.release_name
@@ -106,8 +104,8 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
         exportUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -117,12 +115,10 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const exportLink = await response.json() as ExportLink
+      const exportLink = (await response.json()) as ExportLink
 
       if (!exportLink.src) {
         this.error('API did not return a download URL')
@@ -133,12 +129,12 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
       const outputPath = flags.output || `release-${safeFilename}.tar.gz`
       const resolvedPath = path.resolve(outputPath)
 
-      const downloadResponse = await fetch(exportLink.src)
+      const downloadResponse = await fetch(exportLink.src, {
+        headers: {'User-Agent': buildUserAgent(this.config.version)},
+      })
 
       if (!downloadResponse.ok) {
-        this.error(
-          `Failed to download release: ${downloadResponse.status} ${downloadResponse.statusText}`,
-        )
+        this.error(`Failed to download release: ${downloadResponse.status} ${downloadResponse.statusText}`)
       }
 
       if (!downloadResponse.body) {
@@ -184,10 +180,7 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     try {
@@ -216,8 +209,8 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
       listUrl,
       {
         headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
+          accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
         },
         method: 'GET',
       },
@@ -227,24 +220,20 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
 
     if (!response.ok) {
       const errorText = await response.text()
-      this.error(
-        `Failed to list releases: ${response.status} ${response.statusText}\n${errorText}`,
-      )
+      this.error(`Failed to list releases: ${response.status} ${response.statusText}\n${errorText}`)
     }
 
-    const data = await response.json() as Release[] | {items?: Release[]}
+    const data = (await response.json()) as Release[] | {items?: Release[]}
     const releases: Release[] = Array.isArray(data)
       ? data
-      : (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items))
+      : data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)
         ? data.items
         : []
 
-    const match = releases.find(r => r.name === releaseName)
+    const match = releases.find((r) => r.name === releaseName)
     if (!match) {
-      const available = releases.map(r => r.name).join(', ')
-      this.error(
-        `Release '${releaseName}' not found.${available ? ` Available releases: ${available}` : ''}`,
-      )
+      const available = releases.map((r) => r.name).join(', ')
+      this.error(`Release '${releaseName}' not found.${available ? ` Available releases: ${available}` : ''}`)
     }
 
     return match.id

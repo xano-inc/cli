@@ -8,6 +8,7 @@ interface ProfileConfig {
   access_token: string
   account_origin: string
   branch?: string
+  insecure?: boolean
   instance_origin: string
   name: string
   project?: string
@@ -23,7 +24,7 @@ interface CredentialsFile {
 
 export default class ProfileList extends Command {
   static description = 'List all available profile configurations'
-static examples = [
+  static examples = [
     `$ xano profile:list
 Available profiles:
   - default
@@ -59,7 +60,7 @@ Profile: default
   Project: my-project
 `,
   ]
-static override flags = {
+  static override flags = {
     details: Flags.boolean({
       char: 'd',
       default: false,
@@ -127,6 +128,10 @@ static override flags = {
 
         if (profile.project) {
           this.log(`  Project: ${profile.project}`)
+        }
+
+        if (profile.insecure) {
+          this.log(`  Insecure: true`)
         }
 
         this.log('') // Empty line between profiles

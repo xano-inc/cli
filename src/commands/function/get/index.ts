@@ -5,7 +5,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import BaseCommand from '../../../base-command.js'
+import BaseCommand, {buildUserAgent} from '../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -46,8 +46,8 @@ export default class FunctionGet extends BaseCommand {
       required: false,
     }),
   }
-static description = 'Get a specific function from a workspace'
-static examples = [
+  static description = 'Get a specific function from a workspace'
+  static examples = [
     `$ xano function:get 145 -w 40
 Function: yo (ID: 145)
 Created: 2025-10-10 10:30:00
@@ -85,7 +85,7 @@ function yo {
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     include_draft: Flags.boolean({
       default: false,
@@ -124,7 +124,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile:create'`,
+          `Create a profile using 'xano profile:create'`,
       )
     }
 
@@ -148,14 +148,14 @@ static override flags = {
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano function:get [function_id] -w <workspace_id>\n` +
-        `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
+          `  1. Provide it as a flag: xano function:get [function_id] -w <workspace_id>\n` +
+          `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
     // If function_id is not provided, prompt user to select from list
     let functionId: string
-    functionId = args.function_id ? args.function_id : (await this.promptForFunctionId(profile, workspaceId));
+    functionId = args.function_id ? args.function_id : await this.promptForFunctionId(profile, workspaceId)
 
     // Build query parameters
     // Automatically set include_xanoscript to true if output format is xs
@@ -175,8 +175,8 @@ static override flags = {
         apiUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -186,12 +186,10 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const func = await response.json() as Function
+      const func = (await response.json()) as Function
 
       // Validate response is an object
       if (!func || typeof func !== 'object') {
@@ -249,10 +247,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile:create'`)
     }
 
     // Read credentials file
@@ -286,20 +281,19 @@ static override flags = {
 
       const response = await fetch(listUrl, {
         headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
+          'User-Agent': buildUserAgent(this.config.version),
+          accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
         },
         method: 'GET',
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `Failed to fetch function list: ${response.status} ${response.statusText}\n${errorText}`,
-        )
+        this.error(`Failed to fetch function list: ${response.status} ${response.statusText}\n${errorText}`)
       }
 
-      const data = await response.json() as Function[] | FunctionListResponse
+      const data = (await response.json()) as Function[] | FunctionListResponse
 
       // Handle different response formats
       let functions: Function[]
@@ -319,7 +313,7 @@ static override flags = {
       }
 
       // Create choices for inquirer
-      const choices = functions.map(func => ({
+      const choices = functions.map((func) => ({
         name: `${func.name} (ID: ${func.id})${func.description ? ` - ${func.description}` : ''}`,
         value: func.id.toString(),
       }))

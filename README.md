@@ -36,6 +36,7 @@ npm install -g @xano/cli
 # Interactive browser-based authentication
 xano auth
 xano auth --origin https://custom.xano.com
+xano auth --insecure                         # Skip TLS verification (self-signed certs)
 ```
 
 ### Profiles
@@ -48,6 +49,7 @@ xano profile wizard
 
 # Create a profile manually
 xano profile create myprofile -i https://instance.xano.com -t <access_token>
+xano profile create myprofile -i https://self-signed.example.com -t <token> --insecure
 
 # List profiles
 xano profile list
@@ -59,6 +61,8 @@ xano profile set myprofile
 
 # Edit a profile
 xano profile edit myprofile -w 123
+xano profile edit myprofile --insecure       # Enable insecure mode (self-signed certs)
+xano profile edit myprofile --remove-insecure # Disable insecure mode
 xano profile edit myprofile --remove-branch  # Remove branch from profile
 
 # Get current user info
@@ -467,8 +471,29 @@ profiles:
     access_token: <token>
     workspace: <workspace_id>
     branch: <branch_id>
+  self-hosted:
+    instance_origin: https://self-signed.example.com
+    access_token: <token>
+    insecure: true
 default: default
 ```
+
+### Self-Signed Certificates
+
+For environments using self-signed TLS certificates, use the `--insecure` (`-k`) flag to skip certificate verification:
+
+```bash
+# During authentication
+xano auth --insecure
+
+# When creating a profile
+xano profile create myprofile -i https://self-signed.example.com -t <token> -k
+
+# Add to an existing profile
+xano profile edit myprofile --insecure
+```
+
+When a profile has `insecure: true`, all commands using that profile will automatically skip TLS certificate verification. A warning is displayed when insecure mode is active.
 
 ### Update
 

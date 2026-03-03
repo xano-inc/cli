@@ -6,10 +6,13 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+import {buildUserAgent} from '../../../base-command.js'
+
 interface ProfileConfig {
   access_token: string
   account_origin: string
   branch?: string
+  insecure?: boolean
   instance_origin: string
   name: string
   workspace?: string
@@ -53,6 +56,12 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 `,
   ]
   static override flags = {
+    insecure: Flags.boolean({
+      char: 'k',
+      default: false,
+      description: 'Skip TLS certificate verification (for self-signed certificates)',
+      required: false,
+    }),
     name: Flags.string({
       char: 'n',
       description: 'Profile name (skip prompt if provided)',
@@ -68,6 +77,11 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 
   async run(): Promise<void> {
     const {flags} = await this.parse(ProfileWizard)
+
+    if (flags.insecure) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+      this.warn('TLS certificate verification is disabled (insecure mode)')
+    }
 
     this.log('Welcome to the Xano Profile Wizard!')
     this.log('')
@@ -216,6 +230,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
           access_token: accessToken,
           account_origin: flags.origin,
           branch,
+          ...(flags.insecure && {insecure: true}),
           instance_origin: selectedInstance.origin,
           name: profileName,
           workspace,
@@ -235,12 +250,17 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
     }
   }
 
+  private getHeaders(accessToken?: string): Record<string, string> {
+    return {
+      'User-Agent': buildUserAgent(this.config.version),
+      accept: 'application/json',
+      ...(accessToken && {Authorization: `Bearer ${accessToken}`}),
+    }
+  }
+
   private async fetchBranches(accessToken: string, origin: string, workspaceId: string): Promise<Branch[]> {
     const response = await fetch(`${origin}/api:meta/workspace/${workspaceId}/branch`, {
-      headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: this.getHeaders(accessToken),
       method: 'GET',
     })
 
@@ -279,10 +299,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 
   private async fetchInstances(accessToken: string, origin: string): Promise<Instance[]> {
     const response = await fetch(`${origin}/api:meta/instance`, {
-      headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: this.getHeaders(accessToken),
       method: 'GET',
     })
 
@@ -325,10 +342,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 
   private async fetchWorkspaces(accessToken: string, origin: string): Promise<Workspace[]> {
     const response = await fetch(`${origin}/api:meta/workspace`, {
-      headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: this.getHeaders(accessToken),
       method: 'GET',
     })
 
@@ -419,6 +433,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       instance_origin: profile.instance_origin,
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
+      ...(profile.insecure && {insecure: true}),
     }
 
     // Set as default if requested
