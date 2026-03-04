@@ -74,6 +74,10 @@ xano profile token
 # Print workspace ID (useful for piping)
 xano profile workspace
 
+# Interactively change the workspace on a profile
+xano profile workspace set
+xano profile workspace set -p production
+
 # Delete a profile
 xano profile delete myprofile
 ```

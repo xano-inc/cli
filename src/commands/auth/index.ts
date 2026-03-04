@@ -90,7 +90,6 @@ Opening browser for Xano login at https://custom.xano.com...`,
       // Step 1: Get token via browser auth
       this.log('Starting authentication flow...')
       const token = await this.startAuthServer(flags.origin)
-
       // Step 2: Validate token and get user info
       this.log('')
       this.log('Validating authentication...')
@@ -98,15 +97,29 @@ Opening browser for Xano login at https://custom.xano.com...`,
       this.log(`Authenticated as ${user.name} (${user.email})`)
 
       // Step 3: Fetch and select instance
-      this.log('')
-      this.log('Fetching available instances...')
-      const instances = await this.fetchInstances(token, flags.origin)
+      // Self-hosted instances (non-default origin) don't have /api:meta/instance
+      // The origin itself IS the instance
+      const isSelfHosted = !/^https:\/\/app\.(.*\.)?xano\.com$/.test(flags.origin)
+      let instance: Instance
 
-      if (instances.length === 0) {
-        this.error('No instances found. Please check your account.')
+      if (isSelfHosted) {
+        instance = {
+          display: flags.origin,
+          id: 'self-hosted',
+          name: 'self-hosted',
+          origin: flags.origin,
+        }
+      } else {
+        this.log('')
+        this.log('Fetching available instances...')
+        const instances = await this.fetchInstances(token, flags.origin)
+
+        if (instances.length === 0) {
+          this.error('No instances found. Please check your account.')
+        }
+
+        instance = await this.selectInstance(instances)
       }
-
-      const instance = await this.selectInstance(instances)
 
       // Step 4: Workspace selection
       let workspace: undefined | Workspace
