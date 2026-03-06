@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Args, Flags, ux} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -30,6 +30,26 @@ interface GuidMapEntry {
   verb?: string
 }
 
+interface DryRunSummary {
+  created: number
+  deleted: number
+  truncated: number
+  unchanged: number
+  updated: number
+}
+
+interface DryRunOperation {
+  action: string
+  details: string
+  name: string
+  type: string
+}
+
+interface DryRunResult {
+  operations: DryRunOperation[]
+  summary: Record<string, DryRunSummary>
+}
+
 export default class Push extends BaseCommand {
   static args = {
     directory: Args.string({
@@ -37,10 +57,17 @@ export default class Push extends BaseCommand {
       required: true,
     }),
   }
-  static override description = 'Push local documents to a workspace via the Xano Metadata API multidoc endpoint'
+  static override description =
+    'Push local documents to a workspace. Shows a preview of changes before pushing unless --yes is specified.'
   static override examples = [
     `$ xano workspace push ./my-workspace
-Pushed 42 documents from ./my-workspace
+Shows preview of changes, requires confirmation
+`,
+    `$ xano workspace push ./my-workspace --force
+Skip preview and push immediately (for CI/CD)
+`,
+    `$ xano workspace push ./my-workspace --delete
+Shows preview including deletions, requires confirmation
 `,
     `$ xano workspace push ./output -w 40
 Pushed 15 documents from ./output
@@ -54,9 +81,6 @@ Pushed 42 documents from ./my-workspace
     `$ xano workspace push ./my-functions --partial
 Push some files without a workspace block (implies --no-delete)
 `,
-    `$ xano workspace push ./my-workspace --no-delete
-Patch files without deleting existing workspace objects
-`,
     `$ xano workspace push ./my-workspace --no-records
 Push schema only, skip importing table records
 `,
@@ -65,12 +89,6 @@ Push without overwriting environment variables
 `,
     `$ xano workspace push ./my-workspace --truncate
 Truncate all table records before importing
-`,
-    `$ xano workspace push ./my-workspace --truncate --no-records
-Truncate all table records without importing new ones
-`,
-    `$ xano workspace push ./my-workspace --no-records --no-env
-Push schema only, skip records and environment variables
 `,
   ]
   static override flags = {
@@ -117,6 +135,11 @@ Push schema only, skip records and environment variables
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+    force: Flags.boolean({
+      default: false,
+      description: 'Skip preview and confirmation prompt (for CI/CD pipelines)',
       required: false,
     }),
   }
@@ -221,7 +244,6 @@ Push schema only, skip records and environment variables
       records: flags.records.toString(),
       truncate: flags.truncate.toString(),
     })
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
 
     // POST the multidoc to the API
     const requestHeaders = {
@@ -230,6 +252,129 @@ Push schema only, skip records and environment variables
       'Content-Type': 'text/x-xanoscript',
     }
 
+    // Preview mode: show what would change before pushing
+    if (!flags.force) {
+      const dryRunParams = new URLSearchParams(queryParams)
+      dryRunParams.set('dry_run', 'true')
+      // Always request delete info in dry-run so we can show remote-only items
+      dryRunParams.set('delete', 'true')
+      const dryRunUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${dryRunParams.toString()}`
+
+      try {
+        const dryRunResponse = await this.verboseFetch(
+          dryRunUrl,
+          {
+            body: multidoc,
+            headers: requestHeaders,
+            method: 'POST',
+          },
+          flags.verbose,
+          profile.access_token,
+        )
+
+        if (!dryRunResponse.ok) {
+          if (dryRunResponse.status === 404) {
+            // Dry-run endpoint not available on this instance
+            this.log('')
+            this.log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
+            this.log('')
+          } else {
+            const errorText = await dryRunResponse.text()
+            this.warn(`Push preview failed (${dryRunResponse.status}). Skipping preview.`)
+            if (flags.verbose) {
+              this.log(ux.colorize('dim', errorText))
+            }
+          }
+
+          if (process.stdin.isTTY) {
+            const confirmed = await this.confirm('Proceed with push?')
+            if (!confirmed) {
+              this.log('Push cancelled.')
+              return
+            }
+          }
+
+          // Skip the rest of preview logic
+        } else {
+          const dryRunText = await dryRunResponse.text()
+          const preview = JSON.parse(dryRunText) as DryRunResult
+
+          // Check if the server returned a valid dry-run response
+          if (preview && preview.summary) {
+            this.renderPreview(preview, shouldDelete)
+
+            // Check if there are any actual changes (exclude deletes when --delete is off)
+            const hasChanges = Object.values(preview.summary).some(
+              (c) => c.created > 0 || c.updated > 0 || (shouldDelete && c.deleted > 0) || c.truncated > 0,
+            )
+
+            if (!hasChanges) {
+              this.log('')
+              this.log('No changes to push.')
+              return
+            }
+
+            const hasDestructive = preview.operations.some(
+              (op: {action: string}) =>
+                (shouldDelete && (op.action === 'delete' || op.action === 'cascade_delete')) ||
+                op.action === 'truncate' ||
+                op.action === 'drop_field' ||
+                op.action === 'alter_field',
+            )
+            const message = hasDestructive
+              ? 'Proceed with push? This includes DESTRUCTIVE operations listed above.'
+              : 'Proceed with push?'
+
+            if (process.stdin.isTTY) {
+              const confirmed = await this.confirm(message)
+              if (!confirmed) {
+                this.log('Push cancelled.')
+                return
+              }
+            } else {
+              // Non-interactive: warn and proceed
+              this.warn('Non-interactive environment detected, proceeding without confirmation.')
+            }
+          } else {
+            // Server returned unexpected response (older version)
+            this.log('')
+            this.log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
+            this.log('')
+            if (process.stdin.isTTY) {
+              const confirmed = await this.confirm('Proceed with push?')
+              if (!confirmed) {
+                this.log('Push cancelled.')
+                return
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Ctrl+C or SIGINT — exit cleanly
+        if ((error as Error).name === 'AbortError' || (error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
+          this.log('\nPush cancelled.')
+          return
+        }
+
+        // If dry-run fails unexpectedly, proceed without preview
+        this.log('')
+        this.log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
+        if (flags.verbose) {
+          this.log(ux.colorize('dim', `  ${(error as Error).message}`))
+        }
+
+        this.log('')
+        if (process.stdin.isTTY) {
+          const confirmed = await this.confirm('Proceed with push?')
+          if (!confirmed) {
+            this.log('Push cancelled.')
+            return
+          }
+        }
+      }
+    }
+
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
     const startTime = Date.now()
 
     try {
@@ -350,6 +495,167 @@ Push schema only, skip records and environment variables
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
     this.log(`Pushed ${documentEntries.length} documents from ${args.directory} in ${elapsed}s`)
+  }
+
+  private async confirm(message: string): Promise<boolean> {
+    const readline = await import('node:readline')
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
+
+    return new Promise((resolve) => {
+      rl.on('close', () => {
+        resolve(false)
+      })
+      rl.question(`${message} (y/N) `, (answer) => {
+        rl.close()
+        resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes')
+      })
+    })
+  }
+
+  private renderPreview(result: DryRunResult, willDelete: boolean): void {
+    const typeLabels: Record<string, string> = {
+      addon: 'Addons',
+      agent: 'Agents',
+      api_group: 'API Groups',
+      function: 'Functions',
+      mcp_server: 'MCP Servers',
+      middleware: 'Middleware',
+      query: 'API Endpoints',
+      realtime_channel: 'Realtime Channels',
+      table: 'Tables',
+      task: 'Tasks',
+      tool: 'Tools',
+      toolset: 'Toolsets',
+      trigger: 'Triggers',
+      workflow_test: 'Workflow Tests',
+    }
+
+    this.log('')
+    this.log(ux.colorize('bold', '=== Push Preview ==='))
+    this.log('')
+
+    for (const [type, counts] of Object.entries(result.summary)) {
+      const label = typeLabels[type] || type
+      const parts: string[] = []
+
+      if (counts.created > 0) {
+        parts.push(ux.colorize('green', `+${counts.created} created`))
+      }
+
+      if (counts.updated > 0) {
+        parts.push(ux.colorize('yellow', `~${counts.updated} updated`))
+      }
+
+      if (willDelete && counts.deleted > 0) {
+        parts.push(ux.colorize('red', `-${counts.deleted} deleted`))
+      }
+
+      if (counts.truncated > 0) {
+        parts.push(ux.colorize('yellow', `${counts.truncated} truncated`))
+      }
+
+      if (parts.length > 0) {
+        this.log(`  ${label.padEnd(20)} ${parts.join('  ')}`)
+      }
+    }
+
+    const changes = result.operations.filter(
+      (op: {action: string}) =>
+        op.action === 'create' || op.action === 'update' || op.action === 'add_field' || op.action === 'update_field',
+    )
+    const destructive = result.operations.filter(
+      (op: {action: string}) =>
+        op.action === 'delete' ||
+        op.action === 'cascade_delete' ||
+        op.action === 'truncate' ||
+        op.action === 'drop_field' ||
+        op.action === 'alter_field',
+    )
+
+    if (changes.length > 0) {
+      this.log('')
+      this.log(ux.colorize('bold', '--- Changes ---'))
+      this.log('')
+
+      for (const op of changes) {
+        const color = op.action === 'update' || op.action === 'update_field' ? 'yellow' : 'green'
+        const actionLabel = op.action.toUpperCase()
+        this.log(`  ${ux.colorize(color, actionLabel.padEnd(16))} ${op.type.padEnd(18)} ${op.name}`)
+        if ((op.action === 'add_field' || op.action === 'update_field') && op.details) {
+          this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
+        }
+      }
+    }
+
+    // Split destructive ops by category
+    const deleteOps = destructive.filter(
+      (op: {action: string}) => op.action === 'delete' || op.action === 'cascade_delete',
+    )
+    const alwaysDestructive = destructive.filter(
+      (op: {action: string}) => op.action === 'truncate' || op.action === 'drop_field' || op.action === 'alter_field',
+    )
+
+    // Show destructive operations (deletes only when --delete, truncates/drop_field always)
+    const shownDestructive = [...(willDelete ? deleteOps : []), ...alwaysDestructive]
+    if (shownDestructive.length > 0) {
+      this.log('')
+      this.log(ux.colorize('bold', '--- Destructive Operations ---'))
+      this.log('')
+
+      for (const op of shownDestructive) {
+        const color = op.action === 'truncate' || op.action === 'alter_field' ? 'yellow' : 'red'
+        const actionLabel = op.action.toUpperCase()
+        this.log(`  ${ux.colorize(color, actionLabel.padEnd(16))} ${op.type.padEnd(18)} ${op.name}`)
+        if (op.details) {
+          this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
+        }
+      }
+    }
+
+    // Warn about potential field renames (add + drop on same table)
+    const addFieldTables = new Set(
+      result.operations
+        .filter((op: {action: string; name: string}) => op.action === 'add_field')
+        .map((op: {name: string}) => op.name),
+    )
+    const dropFieldTables = new Set(
+      result.operations
+        .filter((op: {action: string; name: string}) => op.action === 'drop_field')
+        .map((op: {name: string}) => op.name),
+    )
+    const renameCandidates = [...addFieldTables].filter((t) => dropFieldTables.has(t))
+    if (renameCandidates.length > 0) {
+      this.log('')
+      this.log(
+        ux.colorize(
+          'yellow',
+          `  Note: Table(s) ${renameCandidates.map((t) => `"${t}"`).join(', ')} have both added and dropped fields.`,
+        ),
+      )
+      this.log(
+        ux.colorize('yellow', '  If this is intended to be a field rename, use the Xano Admin — renaming is not'),
+      )
+      this.log(ux.colorize('yellow', '  currently available through the CLI or Metadata API.'))
+    }
+
+    // Show remote-only items when not using --delete
+    if (!willDelete && deleteOps.length > 0) {
+      this.log('')
+      this.log(ux.colorize('dim', '--- Remote Only (not included in push) ---'))
+      this.log('')
+
+      for (const op of deleteOps) {
+        this.log(ux.colorize('dim', `  ${op.type.padEnd(18)} ${op.name}`))
+      }
+
+      this.log('')
+      this.log(ux.colorize('dim', `  Use --delete to remove these ${deleteOps.length} item(s) from remote.`))
+    }
+
+    this.log('')
   }
 
   /**
