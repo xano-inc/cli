@@ -255,10 +255,9 @@ Truncate all table records before importing
     // Preview mode: show what would change before pushing
     if (!flags.force) {
       const dryRunParams = new URLSearchParams(queryParams)
-      dryRunParams.set('dry_run', 'true')
       // Always request delete info in dry-run so we can show remote-only items
       dryRunParams.set('delete', 'true')
-      const dryRunUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${dryRunParams.toString()}`
+      const dryRunUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc/dry-run?${dryRunParams.toString()}`
 
       try {
         const dryRunResponse = await this.verboseFetch(
@@ -276,7 +275,7 @@ Truncate all table records before importing
           if (dryRunResponse.status === 404) {
             // Dry-run endpoint not available on this instance
             this.log('')
-            this.log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
+            this.log(ux.colorize('dim', 'Push1 preview not yet available on this instance.'))
             this.log('')
           } else {
             const errorText = await dryRunResponse.text()
