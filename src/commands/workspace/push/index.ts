@@ -46,6 +46,7 @@ interface DryRunOperation {
 }
 
 interface DryRunResult {
+  workspace_name?: string
   operations: DryRunOperation[]
   summary: Record<string, DryRunSummary>
 }
@@ -275,7 +276,7 @@ Truncate all table records before importing
           if (dryRunResponse.status === 404) {
             // Dry-run endpoint not available on this instance
             this.log('')
-            this.log(ux.colorize('dim', 'Push1 preview not yet available on this instance.'))
+            this.log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
             this.log('')
           } else {
             const errorText = await dryRunResponse.text()
@@ -300,7 +301,7 @@ Truncate all table records before importing
 
           // Check if the server returned a valid dry-run response
           if (preview && preview.summary) {
-            this.renderPreview(preview, shouldDelete)
+            this.renderPreview(preview, shouldDelete, workspaceId)
 
             // Check if there are any actual changes (exclude deletes when --delete is off)
             const hasChanges = Object.values(preview.summary).some(
@@ -504,17 +505,19 @@ Truncate all table records before importing
     })
 
     return new Promise((resolve) => {
+      let answered = false
       rl.on('close', () => {
-        resolve(false)
+        if (!answered) resolve(false)
       })
       rl.question(`${message} (y/N) `, (answer) => {
+        answered = true
         rl.close()
         resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes')
       })
     })
   }
 
-  private renderPreview(result: DryRunResult, willDelete: boolean): void {
+  private renderPreview(result: DryRunResult, willDelete: boolean, workspaceId: string): void {
     const typeLabels: Record<string, string> = {
       addon: 'Addons',
       agent: 'Agents',
@@ -533,7 +536,8 @@ Truncate all table records before importing
     }
 
     this.log('')
-    this.log(ux.colorize('bold', '=== Push Preview ==='))
+    const wsLabel = result.workspace_name ? `${result.workspace_name} (${workspaceId})` : `Workspace ${workspaceId}`
+    this.log(ux.colorize('bold', `=== Push Preview: ${wsLabel} ===`))
     this.log('')
 
     for (const [type, counts] of Object.entries(result.summary)) {

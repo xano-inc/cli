@@ -4,6 +4,8 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+import {checkForUpdate} from './update-check.js'
+
 export interface ProfileConfig {
   access_token: string
   account_origin?: string
@@ -43,9 +45,33 @@ export default abstract class BaseCommand extends Command {
   // Override the flags property to include baseFlags
   static flags = BaseCommand.baseFlags
 
+  private updateNotice: string | null = null
+
   async init(): Promise<void> {
     await super.init()
     this.applyInsecureFromProfile()
+
+    const forceUpdateCheck = process.env.XANO_FORCE_UPDATE_CHECK === '1'
+    this.updateNotice = checkForUpdate(this.config.version, forceUpdateCheck)
+  }
+
+  async finally(_: Error | undefined): Promise<void> {
+    if (this.updateNotice && !this.isJsonOutput()) {
+      this.log(this.updateNotice)
+    }
+
+    await super.finally(_)
+  }
+
+  private isJsonOutput(): boolean {
+    const args = process.argv
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--output' && args[i + 1] === 'json') return true
+      if (args[i] === '-o' && args[i + 1] === 'json') return true
+      if (args[i] === '--output=json' || args[i] === '-o=json') return true
+    }
+
+    return false
   }
 
   /**
