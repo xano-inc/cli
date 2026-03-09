@@ -533,6 +533,7 @@ Truncate all table records before importing
       toolset: 'Toolsets',
       trigger: 'Triggers',
       workflow_test: 'Workflow Tests',
+      workspace: 'Workspace Settings',
     }
 
     this.log('')
