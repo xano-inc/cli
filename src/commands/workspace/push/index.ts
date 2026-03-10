@@ -100,15 +100,13 @@ Truncate all table records before importing
       required: false,
     }),
     delete: Flags.boolean({
-      allowNo: true,
       default: false,
-      description: 'Delete workspace objects not included in the push (default: false)',
+      description: 'Delete workspace objects not included in the push',
       required: false,
     }),
     env: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description: 'Include environment variables in import (default: true, use --no-env to exclude)',
+      default: false,
+      description: 'Include environment variables in import',
       required: false,
     }),
     partial: Flags.boolean({
@@ -117,9 +115,8 @@ Truncate all table records before importing
       required: false,
     }),
     records: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description: 'Include records in import (default: true, use --no-records to exclude)',
+      default: false,
+      description: 'Include records in import',
       required: false,
     }),
     'sync-guids': Flags.boolean({
@@ -588,7 +585,7 @@ Truncate all table records before importing
         const color = op.action === 'update' || op.action === 'update_field' ? 'yellow' : 'green'
         const actionLabel = op.action.toUpperCase()
         this.log(`  ${ux.colorize(color, actionLabel.padEnd(16))} ${op.type.padEnd(18)} ${op.name}`)
-        if ((op.action === 'add_field' || op.action === 'update_field') && op.details) {
+        if (op.details) {
           this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
         }
       }

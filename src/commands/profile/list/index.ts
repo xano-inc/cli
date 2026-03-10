@@ -1,4 +1,4 @@
-import {Command, Flags} from '@oclif/core'
+import {Command, Flags, ux} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -112,7 +112,7 @@ Profile: default
 
       for (const name of profileNames.sort()) {
         const profile = credentials.profiles[name]
-        const isDefault = credentials.default === name ? ' [DEFAULT]' : ''
+        const isDefault = credentials.default === name ? ` ${ux.colorize('yellow', '[DEFAULT]')}` : ''
         this.log(`Profile: ${name}${isDefault}`)
         this.log(`  Account Origin: ${profile.account_origin || '(not set)'}`)
         this.log(`  Instance Origin: ${profile.instance_origin}`)
@@ -139,8 +139,11 @@ Profile: default
     } else {
       this.log('Available profiles:')
       for (const name of profileNames.sort()) {
-        const isDefault = credentials.default === name ? ' [DEFAULT]' : ''
-        this.log(`  - ${name}${isDefault}`)
+        const profile = credentials.profiles[name]
+        const isDefault = credentials.default === name ? ` ${ux.colorize('yellow', '[DEFAULT]')}` : ''
+        const instance = profile.instance_origin ? ` (${profile.instance_origin.replace(/^https?:\/\//, '')}` : ' ('
+        const workspace = profile.workspace ? `, workspace: ${profile.workspace})` : ')'
+        this.log(`  - ${name}${isDefault}${instance}${workspace}`)
       }
     }
   }
