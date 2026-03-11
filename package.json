@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.75-beta.6",
+  "version": "0.0.76",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -109,6 +109,7 @@
     "prepack": "npm run build && oclif manifest && oclif readme",
     "prepublishOnly": "./scripts/check-publish-tag.sh",
     "publish:beta": "./scripts/bump-version.sh beta && npm run build && oclif manifest && npm publish --tag beta",
+    "publish:latest": "./scripts/bump-version.sh patch && npm run build && oclif manifest && npm publish",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md"
   },
