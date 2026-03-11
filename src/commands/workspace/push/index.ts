@@ -126,13 +126,6 @@ Truncate all table records before importing
       description: 'Write server-assigned GUIDs back to local files (use --no-sync-guids to skip)',
       required: false,
     }),
-    transaction: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description:
-        'Wrap import in a database transaction (use --no-transaction for debugging purposes)',
-      required: false,
-    }),
     truncate: Flags.boolean({
       default: false,
       description: 'Truncate all table records before importing',
@@ -248,7 +241,6 @@ Truncate all table records before importing
       env: flags.env.toString(),
       partial: flags.partial.toString(),
       records: flags.records.toString(),
-      transaction: flags.transaction.toString(),
       truncate: flags.truncate.toString(),
     })
 
