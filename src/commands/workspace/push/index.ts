@@ -272,7 +272,26 @@ Truncate all table records before importing
 
         if (!dryRunResponse.ok) {
           if (dryRunResponse.status === 404) {
-            // Dry-run endpoint not available on this instance
+            // Check if the workspace itself doesn't exist
+            const wsCheckUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}`
+            const wsCheckResponse = await this.verboseFetch(
+              wsCheckUrl,
+              {
+                headers: {
+                  accept: 'application/json',
+                  Authorization: `Bearer ${profile.access_token}`,
+                },
+                method: 'GET',
+              },
+              flags.verbose,
+              profile.access_token,
+            )
+
+            if (!wsCheckResponse.ok) {
+              this.error(`Workspace ${workspaceId} not found on this instance.`)
+            }
+
+            // Workspace exists — dry-run endpoint just not available
             this.log('')
             this.log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
             this.log('')
@@ -352,6 +371,11 @@ Truncate all table records before importing
         if ((error as Error).name === 'AbortError' || (error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
           this.log('\nPush cancelled.')
           return
+        }
+
+        // Re-throw oclif errors (e.g. from this.error()) so they exit properly
+        if (error instanceof Error && 'oclif' in error) {
+          throw error
         }
 
         // If dry-run fails unexpectedly, proceed without preview
