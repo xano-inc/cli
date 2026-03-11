@@ -42,6 +42,7 @@ interface DryRunOperation {
   action: string
   details: string
   name: string
+  reason?: string
   type: string
 }
 
@@ -298,7 +299,7 @@ Truncate all table records before importing
 
           // Check if the server returned a valid dry-run response
           if (preview && preview.summary) {
-            this.renderPreview(preview, shouldDelete, workspaceId)
+            this.renderPreview(preview, shouldDelete, workspaceId, flags.verbose)
 
             // Check if there are any actual changes (exclude deletes when --delete is off)
             const hasChanges = Object.values(preview.summary).some(
@@ -514,7 +515,7 @@ Truncate all table records before importing
     })
   }
 
-  private renderPreview(result: DryRunResult, willDelete: boolean, workspaceId: string): void {
+  private renderPreview(result: DryRunResult, willDelete: boolean, workspaceId: string, verbose = false): void {
     const typeLabels: Record<string, string> = {
       addon: 'Addons',
       agent: 'Agents',
@@ -588,6 +589,10 @@ Truncate all table records before importing
         if (op.details) {
           this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
         }
+
+        if (verbose && op.reason) {
+          this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `reason: ${op.reason}`)}`)
+        }
       }
     }
 
@@ -612,6 +617,10 @@ Truncate all table records before importing
         this.log(`  ${ux.colorize(color, actionLabel.padEnd(16))} ${op.type.padEnd(18)} ${op.name}`)
         if (op.details) {
           this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
+        }
+
+        if (verbose && op.reason) {
+          this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `reason: ${op.reason}`)}`)
         }
       }
     }
