@@ -40,11 +40,11 @@ Pushed 15 documents to tenant my-tenant from ./output
     `$ xano tenant push ./backup -t my-tenant --profile production
 Pushed 58 documents to tenant my-tenant from ./backup
 `,
-    `$ xano tenant push ./my-workspace -t my-tenant --no-records
-Push schema only, skip importing table records
+    `$ xano tenant push ./my-workspace -t my-tenant --records
+Include table records in import
 `,
-    `$ xano tenant push ./my-workspace -t my-tenant --no-env
-Push without overwriting environment variables
+    `$ xano tenant push ./my-workspace -t my-tenant --env
+Include environment variables in import
 `,
     `$ xano tenant push ./my-workspace -t my-tenant --truncate
 Truncate all table records before importing
@@ -53,21 +53,26 @@ Truncate all table records before importing
   static override flags = {
     ...BaseCommand.baseFlags,
     env: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description: 'Include environment variables in import (default: true, use --no-env to exclude)',
+      default: false,
+      description: 'Include environment variables in import',
       required: false,
     }),
     records: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description: 'Include records in import (default: true, use --no-records to exclude)',
+      default: false,
+      description: 'Include records in import',
       required: false,
     }),
     tenant: Flags.string({
       char: 't',
       description: 'Tenant name to push to',
       required: true,
+    }),
+    transaction: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description:
+        'Wrap import in a database transaction (use --no-transaction for debugging purposes)',
+      required: false,
     }),
     truncate: Flags.boolean({
       default: false,
@@ -207,6 +212,7 @@ Truncate all table records before importing
     const queryParams = new URLSearchParams({
       env: flags.env.toString(),
       records: flags.records.toString(),
+      transaction: flags.transaction.toString(),
       truncate: flags.truncate.toString(),
     })
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/multidoc?${queryParams.toString()}`

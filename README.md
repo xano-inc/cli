@@ -61,9 +61,11 @@ xano profile set myprofile
 
 # Edit a profile
 xano profile edit myprofile -w 123
+xano profile edit myprofile -b dev           # Set branch
 xano profile edit myprofile --insecure       # Enable insecure mode (self-signed certs)
 xano profile edit myprofile --remove-insecure # Disable insecure mode
 xano profile edit myprofile --remove-branch  # Remove branch from profile
+xano profile edit myprofile --remove-workspace # Remove workspace from profile
 
 # Get current user info
 xano profile me
@@ -80,6 +82,7 @@ xano profile workspace set -p production
 
 # Delete a profile
 xano profile delete myprofile
+xano profile delete myprofile --force
 ```
 
 ### Workspaces
@@ -116,10 +119,12 @@ xano workspace push ./my-workspace
 xano workspace push ./my-workspace -b dev
 xano workspace push ./my-workspace --partial             # No workspace block required
 xano workspace push ./my-workspace --delete              # Delete objects not in the push
-xano workspace push ./my-workspace --no-records          # Schema only
-xano workspace push ./my-workspace --no-env              # Skip env vars
+xano workspace push ./my-workspace --records             # Include table records
+xano workspace push ./my-workspace --env                 # Include environment variables
 xano workspace push ./my-workspace --truncate            # Truncate tables before import
 xano workspace push ./my-workspace --no-sync-guids       # Skip writing GUIDs back to local files
+xano workspace push ./my-workspace --no-transaction      # Skip wrapping import in a transaction (for large pushes)
+xano workspace push ./my-workspace --force               # Skip preview and confirmation (for CI/CD)
 
 # Pull from a git repository to local files
 xano workspace git pull ./output -r https://github.com/owner/repo
@@ -173,14 +178,18 @@ xano function list --sort created_at --order desc --page 1 --per_page 50
 xano function get <function_id>
 xano function get <function_id> -o xs                   # Output as XanoScript
 xano function get <function_id> -o json
+xano function get <function_id> --include_draft         # Include draft version
 
 # Create a function from XanoScript
 xano function create -f function.xs
+xano function create -f function.xs --edit              # Open in $EDITOR before creating
 cat function.xs | xano function create --stdin
 
 # Edit a function
 xano function edit <function_id>                        # Opens in $EDITOR
 xano function edit <function_id> -f new.xs              # Update from file
+xano function edit <function_id> -f new.xs --edit       # Open in $EDITOR before updating
+cat function.xs | xano function edit <function_id> --stdin  # Update from stdin
 xano function edit <function_id> --no-publish           # Edit without publishing
 ```
 
@@ -322,9 +331,10 @@ xano tenant pull ./my-tenant -t <tenant_name> --draft
 
 # Push local files to tenant
 xano tenant push ./my-tenant -t <tenant_name>
-xano tenant push ./my-tenant -t <tenant_name> --no-records
-xano tenant push ./my-tenant -t <tenant_name> --no-env
+xano tenant push ./my-tenant -t <tenant_name> --records    # Include table records
+xano tenant push ./my-tenant -t <tenant_name> --env        # Include environment variables
 xano tenant push ./my-tenant -t <tenant_name> --truncate
+xano tenant push ./my-tenant -t <tenant_name> --no-transaction  # Skip transaction (for large pushes)
 ```
 
 #### Deployments
