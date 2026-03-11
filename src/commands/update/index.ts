@@ -6,10 +6,13 @@ import BaseCommand from '../../base-command.js'
 export default class Update extends BaseCommand {
   static override description = 'Update the Xano CLI to the latest version'
 
-  static override examples = [`$ xano update`, `$ xano update --check`]
+  static override examples = [`$ xano update`, `$ xano update --check`, `$ xano update --beta`]
 
   static override flags = {
     ...BaseCommand.flags,
+    beta: Flags.boolean({
+      description: 'Update to the latest beta version',
+    }),
     check: Flags.boolean({
       description: 'Check for updates without installing',
     }),
@@ -22,8 +25,10 @@ export default class Update extends BaseCommand {
     this.log(`Current version: ${currentVersion}`)
     this.log('Checking for updates...')
 
+    const tag = flags.beta ? 'beta' : 'latest'
+
     try {
-      const latest = execSync('npm view @xano/cli version', {encoding: 'utf8'}).trim()
+      const latest = execSync(`npm view @xano/cli dist-tags.${tag}`, {encoding: 'utf8'}).trim()
 
       if (latest === currentVersion) {
         this.log(`Already up to date (${currentVersion})`)
@@ -36,7 +41,7 @@ export default class Update extends BaseCommand {
       }
 
       this.log(`Updating @xano/cli ${currentVersion} → ${latest}...`)
-      execSync('npm install -g @xano/cli@latest --no-fund', {stdio: 'inherit'})
+      execSync(`npm install -g @xano/cli@${tag} --no-fund`, {stdio: 'inherit'})
       this.log(`Updated to ${latest}`)
     } catch (error) {
       this.error(`Failed to update: ${(error as Error).message}`)

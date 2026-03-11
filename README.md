@@ -517,6 +517,12 @@ xano update
 
 # Check for updates without installing
 xano update --check
+
+# Update to the latest beta version
+xano update --beta
+
+# Check for beta updates without installing
+xano update --beta --check
 ```
 
 ## Scripts
