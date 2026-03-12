@@ -60,10 +60,13 @@ export default class Push extends BaseCommand {
     }),
   }
   static override description =
-    'Push local documents to a workspace. Shows a preview of changes before pushing unless --yes is specified.'
+    'Push local documents to a workspace. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only.'
   static override examples = [
     `$ xano workspace push ./my-workspace
 Shows preview of changes, requires confirmation
+`,
+    `$ xano workspace push ./my-workspace --dry-run
+Preview changes without pushing
 `,
     `$ xano workspace push ./my-workspace --force
 Skip preview and push immediately (for CI/CD)
@@ -103,6 +106,11 @@ Truncate all table records before importing
     delete: Flags.boolean({
       default: false,
       description: 'Delete workspace objects not included in the push',
+      required: false,
+    }),
+    'dry-run': Flags.boolean({
+      default: false,
+      description: 'Show preview of changes without pushing (exit after preview)',
       required: false,
     }),
     env: Flags.boolean({
@@ -252,7 +260,7 @@ Truncate all table records before importing
     }
 
     // Preview mode: show what would change before pushing
-    if (!flags.force) {
+    if (flags['dry-run'] || !flags.force) {
       const dryRunParams = new URLSearchParams(queryParams)
       // Always request delete info in dry-run so we can show remote-only items
       dryRunParams.set('delete', 'true')
@@ -309,6 +317,8 @@ Truncate all table records before importing
               this.log('Push cancelled.')
               return
             }
+          } else {
+            this.error('Non-interactive environment detected. Use --force to skip confirmation.')
           }
 
           // Skip the rest of preview logic
@@ -331,6 +341,10 @@ Truncate all table records before importing
               return
             }
 
+            if (flags['dry-run']) {
+              return
+            }
+
             const hasDestructive = preview.operations.some(
               (op: {action: string}) =>
                 (shouldDelete && (op.action === 'delete' || op.action === 'cascade_delete')) ||
@@ -349,8 +363,7 @@ Truncate all table records before importing
                 return
               }
             } else {
-              // Non-interactive: warn and proceed
-              this.warn('Non-interactive environment detected, proceeding without confirmation.')
+              this.error('Non-interactive environment detected. Use --force to skip confirmation.')
             }
           } else {
             // Server returned unexpected response (older version)
@@ -363,6 +376,8 @@ Truncate all table records before importing
                 this.log('Push cancelled.')
                 return
               }
+            } else {
+              this.error('Non-interactive environment detected. Use --force to skip confirmation.')
             }
           }
         }
@@ -392,6 +407,8 @@ Truncate all table records before importing
             this.log('Push cancelled.')
             return
           }
+        } else {
+          this.error('Non-interactive environment detected. Use --force to skip confirmation.')
         }
       }
     }
