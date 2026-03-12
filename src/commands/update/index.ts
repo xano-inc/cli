@@ -22,6 +22,7 @@ export default class Update extends BaseCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(Update)
     const currentVersion = this.config.version
+    this.updateNotice = null
 
     this.log(`Current version: ${currentVersion}`)
     this.log('Checking for updates...')
@@ -33,6 +34,7 @@ export default class Update extends BaseCommand {
 
       if (latest === currentVersion) {
         this.log(`Already up to date (${currentVersion})`)
+        clearUpdateCache()
         return
       }
 

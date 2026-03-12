@@ -45,7 +45,7 @@ export default abstract class BaseCommand extends Command {
   // Override the flags property to include baseFlags
   static flags = BaseCommand.baseFlags
 
-  private updateNotice: string | null = null
+  protected updateNotice: string | null = null
 
   async init(): Promise<void> {
     await super.init()
