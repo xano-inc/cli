@@ -123,6 +123,7 @@ xano workspace push ./my-workspace --delete              # Delete objects not in
 xano workspace push ./my-workspace --records             # Include table records
 xano workspace push ./my-workspace --env                 # Include environment variables
 xano workspace push ./my-workspace --truncate            # Truncate tables before import
+xano workspace push ./my-workspace --no-transaction      # Disable database transaction wrapping
 xano workspace push ./my-workspace --no-sync-guids       # Skip writing GUIDs back to local files
 xano workspace push ./my-workspace --force               # Skip preview and confirmation (for CI/CD)
 
@@ -331,9 +332,10 @@ xano tenant pull ./my-tenant -t <tenant_name> --draft
 
 # Push local files to tenant
 xano tenant push ./my-tenant -t <tenant_name>
-xano tenant push ./my-tenant -t <tenant_name> --records    # Include table records
-xano tenant push ./my-tenant -t <tenant_name> --env        # Include environment variables
+xano tenant push ./my-tenant -t <tenant_name> --records        # Include table records
+xano tenant push ./my-tenant -t <tenant_name> --env            # Include environment variables
 xano tenant push ./my-tenant -t <tenant_name> --truncate
+xano tenant push ./my-tenant -t <tenant_name> --no-transaction # Disable transaction wrapping
 ```
 
 #### Deployments

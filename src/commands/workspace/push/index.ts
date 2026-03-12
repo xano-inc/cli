@@ -134,6 +134,12 @@ Truncate all table records before importing
       description: 'Write server-assigned GUIDs back to local files (use --no-sync-guids to skip)',
       required: false,
     }),
+    transaction: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Wrap import in a database transaction (use --no-transaction for debugging purposes)',
+      required: false,
+    }),
     truncate: Flags.boolean({
       default: false,
       description: 'Truncate all table records before importing',
@@ -249,6 +255,7 @@ Truncate all table records before importing
       env: flags.env.toString(),
       partial: flags.partial.toString(),
       records: flags.records.toString(),
+      transaction: flags.transaction.toString(),
       truncate: flags.truncate.toString(),
     })
 
@@ -335,7 +342,32 @@ Truncate all table records before importing
               (c) => c.created > 0 || c.updated > 0 || (shouldDelete && c.deleted > 0) || c.truncated > 0,
             )
 
-            if (!hasChanges) {
+            // Detect if local files contain records that would be imported
+            const tablesWithRecords = flags.records
+              ? documentEntries
+                  .filter((d) => /^table\s+/m.test(d.content) && /\bitems\s*=\s*\[/m.test(d.content))
+                  .map((d) => {
+                    const nameMatch = d.content.match(/^table\s+(\S+)/m)
+                    const itemCount = (d.content.match(/^\s*\{$/gm) || []).length
+                    return {name: nameMatch ? nameMatch[1] : 'unknown', records: itemCount}
+                  })
+              : []
+            const hasLocalRecords = tablesWithRecords.length > 0
+
+            if (hasLocalRecords) {
+              this.log('')
+              this.log(ux.colorize('bold', '--- Records ---'))
+              this.log('')
+              for (const t of tablesWithRecords) {
+                this.log(
+                  `  ${ux.colorize('yellow', 'UPSERT'.padEnd(16))} ${'table'.padEnd(18)} ${t.name} (${t.records} records)`,
+                )
+              }
+
+              this.log('')
+            }
+
+            if (!hasChanges && !hasLocalRecords) {
               this.log('')
               this.log('No changes to push.')
               return

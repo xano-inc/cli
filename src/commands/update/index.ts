@@ -2,6 +2,7 @@ import {Flags} from '@oclif/core'
 import {execSync} from 'node:child_process'
 
 import BaseCommand from '../../base-command.js'
+import {clearUpdateCache} from '../../update-check.js'
 
 export default class Update extends BaseCommand {
   static override description = 'Update the Xano CLI to the latest version'
@@ -42,6 +43,7 @@ export default class Update extends BaseCommand {
 
       this.log(`Updating @xano/cli ${currentVersion} → ${latest}...`)
       execSync(`npm install -g @xano/cli@${tag} --no-fund`, {stdio: 'inherit'})
+      clearUpdateCache()
       this.log(`Updated to ${latest}`)
     } catch (error) {
       this.error(`Failed to update: ${(error as Error).message}`)

@@ -67,6 +67,12 @@ Truncate all table records before importing
       description: 'Tenant name to push to',
       required: true,
     }),
+    transaction: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Wrap import in a database transaction (use --no-transaction for debugging purposes)',
+      required: false,
+    }),
     truncate: Flags.boolean({
       default: false,
       description: 'Truncate all table records before importing',
@@ -205,6 +211,7 @@ Truncate all table records before importing
     const queryParams = new URLSearchParams({
       env: flags.env.toString(),
       records: flags.records.toString(),
+      transaction: flags.transaction.toString(),
       truncate: flags.truncate.toString(),
     })
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/multidoc?${queryParams.toString()}`

@@ -15,6 +15,18 @@ function isBeta(version: string): boolean {
   return version.includes('beta') || version.includes('alpha') || version.includes('rc')
 }
 
+/** Returns true if `latest` is a higher semver than `current`. */
+function isNewer(latest: string, current: string): boolean {
+  const a = latest.split('.').map(Number)
+  const b = current.split('.').map(Number)
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] ?? 0) > (b[i] ?? 0)) return true
+    if ((a[i] ?? 0) < (b[i] ?? 0)) return false
+  }
+
+  return false
+}
+
 function readCache(): UpdateCheckCache | null {
   try {
     if (!fs.existsSync(UPDATE_CHECK_FILE)) return null
@@ -26,6 +38,16 @@ function readCache(): UpdateCheckCache | null {
     return null
   } catch {
     return null
+  }
+}
+
+export function clearUpdateCache(): void {
+  try {
+    if (fs.existsSync(UPDATE_CHECK_FILE)) {
+      fs.unlinkSync(UPDATE_CHECK_FILE)
+    }
+  } catch {
+    // Silently fail
   }
 }
 
@@ -73,7 +95,7 @@ export function checkForUpdate(currentVersion: string, forceCheck = false): stri
     }
   }
 
-  if (!latestVersion || latestVersion === currentVersion) return null
+  if (!latestVersion || !isNewer(latestVersion, currentVersion)) return null
 
   const yellow = '\u001B[33m'
   const cyan = '\u001B[36m'
