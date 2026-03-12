@@ -117,6 +117,7 @@ xano workspace pull ./my-workspace --draft              # Include draft changes
 # Push local files to workspace
 xano workspace push ./my-workspace
 xano workspace push ./my-workspace -b dev
+xano workspace push ./my-workspace --dry-run             # Preview changes without pushing
 xano workspace push ./my-workspace --partial             # No workspace block required
 xano workspace push ./my-workspace --delete              # Delete objects not in the push
 xano workspace push ./my-workspace --records             # Include table records
