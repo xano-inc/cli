@@ -137,8 +137,9 @@ Tenant: My Tenant (my-tenant)
         if (tenant.xano_domain) this.log(`  Domain: ${tenant.xano_domain}`)
         if (tenant.domain) this.log(`  Custom Domain: ${tenant.domain}`)
         if (tenant.cluster?.name) this.log(`  Cluster: ${tenant.cluster.name}`)
-        const release = typeof tenant.release === 'string' ? tenant.release : tenant.release?.name
-        if (release) this.log(`  Release: ${release}`)
+        const releaseName = typeof tenant.release === 'string' ? tenant.release : tenant.release?.name
+        const releaseId = typeof tenant.release === 'object' ? tenant.release?.id : undefined
+        if (releaseName) this.log(`  Release: ${releaseName} (ID: ${releaseId})`)
         if (tenant.platform?.name) this.log(`  Platform: ${tenant.platform.name}`)
         if (tenant.version !== undefined) this.log(`  Version: ${tenant.version}`)
         if (tenant.tasks !== undefined) this.log(`  Tasks: ${tenant.tasks}`)

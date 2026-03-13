@@ -139,8 +139,9 @@ Tenants in workspace 5:
             const ephemeral = tenant.ephemeral ? ' [ephemeral]' : ''
             this.log(`  - ${tenant.display || tenant.name} (${tenant.name})${state}${license}${ephemeral}`)
             if (tenant.cluster?.name) this.log(`      Cluster: ${tenant.cluster.name}`)
-            const release = typeof tenant.release === 'string' ? tenant.release : tenant.release?.name
-            if (release) this.log(`      Release: ${release}`)
+            const releaseName = typeof tenant.release === 'string' ? tenant.release : tenant.release?.name
+            const releaseId = typeof tenant.release === 'object' ? tenant.release?.id : undefined
+            if (releaseName) this.log(`      Release: ${releaseName} (ID: ${releaseId})`)
             if (tenant.platform?.name) this.log(`      Platform: ${tenant.platform.name}`)
           }
         }
