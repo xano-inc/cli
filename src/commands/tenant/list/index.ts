@@ -22,11 +22,14 @@ interface CredentialsFile {
 }
 
 interface Tenant {
+  cluster?: {id?: number; name?: string}
   display?: string
   ephemeral?: boolean
   id: number
   license?: string
   name: string
+  platform?: {id?: number; name?: string}
+  release?: string | {id?: number; name?: string}
   state?: string
 }
 
@@ -36,7 +39,12 @@ export default class TenantList extends BaseCommand {
     `$ xano tenant list
 Tenants in workspace 5:
   - My Tenant (my-tenant) [ok] - tier1
+      Cluster: us-central
+      Release: r1
+      Platform: default
   - Staging (staging) [ok] - tier1
+      Cluster: us-central
+      Release: r1
 `,
     `$ xano tenant list -w 5 --output json`,
   ]
@@ -130,6 +138,10 @@ Tenants in workspace 5:
             const license = tenant.license ? ` - ${tenant.license}` : ''
             const ephemeral = tenant.ephemeral ? ' [ephemeral]' : ''
             this.log(`  - ${tenant.display || tenant.name} (${tenant.name})${state}${license}${ephemeral}`)
+            if (tenant.cluster?.name) this.log(`      Cluster: ${tenant.cluster.name}`)
+            const release = typeof tenant.release === 'string' ? tenant.release : tenant.release?.name
+            if (release) this.log(`      Release: ${release}`)
+            if (tenant.platform?.name) this.log(`      Platform: ${tenant.platform.name}`)
           }
         }
       }

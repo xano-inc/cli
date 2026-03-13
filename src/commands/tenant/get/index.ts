@@ -22,7 +22,7 @@ interface CredentialsFile {
 }
 
 interface Tenant {
-  cluster?: {name?: string}
+  cluster?: {id?: number; name?: string}
   created_at?: string
   deployed_at?: string
   description?: string
@@ -34,7 +34,7 @@ interface Tenant {
   license?: string
   name: string
   platform?: {id?: number; name?: string}
-  release?: {name?: string}
+  release?: string | {id?: number; name?: string}
   state?: string
   tasks?: boolean
   version?: number
@@ -137,7 +137,8 @@ Tenant: My Tenant (my-tenant)
         if (tenant.xano_domain) this.log(`  Domain: ${tenant.xano_domain}`)
         if (tenant.domain) this.log(`  Custom Domain: ${tenant.domain}`)
         if (tenant.cluster?.name) this.log(`  Cluster: ${tenant.cluster.name}`)
-        if (tenant.release?.name) this.log(`  Release: ${tenant.release.name}`)
+        const release = typeof tenant.release === 'string' ? tenant.release : tenant.release?.name
+        if (release) this.log(`  Release: ${release}`)
         if (tenant.platform?.name) this.log(`  Platform: ${tenant.platform.name}`)
         if (tenant.version !== undefined) this.log(`  Version: ${tenant.version}`)
         if (tenant.tasks !== undefined) this.log(`  Tasks: ${tenant.tasks}`)
