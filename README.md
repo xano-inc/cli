@@ -346,6 +346,10 @@ xano tenant deploy_platform <tenant_name> --platform_id 5
 
 # Deploy a release by name
 xano tenant deploy_release <tenant_name> --release v1.0
+
+# Deploy with a license override file
+xano tenant deploy_platform <tenant_name> --platform_id 5 --license ./license.yaml
+xano tenant deploy_release <tenant_name> --release v1.0 --license ./license.yaml
 ```
 
 #### Tenant License
