@@ -42,9 +42,15 @@ export default class TenantDeployPlatform extends BaseCommand {
 Deployed platform 5 to tenant: My Tenant (my-tenant)
 `,
     `$ xano tenant deploy_platform t1234-abcd-xyz1 --platform_id 5 -o json`,
+    `$ xano tenant deploy_platform t1234-abcd-xyz1 --platform_id 5 --license ./license.yaml`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    license: Flags.string({
+      char: 'l',
+      description: 'Path to a license override file to apply after deploy',
+      required: false,
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -122,6 +128,39 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
 
       const tenant = (await response.json()) as Tenant
 
+      // Apply license override if provided
+      if (flags.license) {
+        const licensePath = path.resolve(flags.license)
+        if (!fs.existsSync(licensePath)) {
+          this.error(`License file not found: ${licensePath}`)
+        }
+
+        const licenseValue = fs.readFileSync(licensePath, 'utf8')
+        const licenseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/license`
+
+        const licenseResponse = await this.verboseFetch(
+          licenseUrl,
+          {
+            body: JSON.stringify({value: licenseValue}),
+            headers: {
+              accept: 'application/json',
+              Authorization: `Bearer ${profile.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            method: 'POST',
+          },
+          flags.verbose,
+          profile.access_token,
+        )
+
+        if (!licenseResponse.ok) {
+          const errorText = await licenseResponse.text()
+          this.error(
+            `License override failed with status ${licenseResponse.status}: ${licenseResponse.statusText}\n${errorText}`,
+          )
+        }
+      }
+
       if (flags.output === 'json') {
         this.log(JSON.stringify(tenant, null, 2))
       } else {
@@ -129,6 +168,7 @@ Deployed platform 5 to tenant: My Tenant (my-tenant)
         this.log(`Deployed platform ${platformId} to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.platform?.name) this.log(`  Platform: ${tenant.platform.name}`)
+        if (flags.license) this.log(`  License: applied`)
         this.log(`  Time: ${elapsed}s`)
       }
     } catch (error) {
