@@ -337,6 +337,38 @@ Truncate all table records before importing
           if (preview && preview.summary) {
             this.renderPreview(preview, shouldDelete, workspaceId, flags.verbose)
 
+            // Check for critical errors that must block the push
+            const criticalOps = preview.operations.filter(
+              (op) => op.details?.includes('exception:') || op.details?.includes('mvp:placeholder'),
+            )
+
+            if (criticalOps.length > 0) {
+              this.log('')
+              this.log(ux.colorize('red', ux.colorize('bold', '=== CRITICAL ERRORS ===')))
+              this.log('')
+              this.log(
+                ux.colorize('red', 'The following items contain syntax errors or unresolved placeholder statements'),
+              )
+              this.log(ux.colorize('red', 'that would corrupt data if pushed. These must be resolved first:'))
+              this.log('')
+
+              for (const op of criticalOps) {
+                this.log(`  ${ux.colorize('red', 'BLOCKED'.padEnd(16))} ${op.type.padEnd(18)} ${op.name}`)
+                if (op.details) {
+                  this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
+                }
+              }
+
+              this.log('')
+              this.log(ux.colorize('red', `Push blocked: ${criticalOps.length} critical error(s) found.`))
+
+              if (!flags.force) {
+                return
+              }
+
+              this.log(ux.colorize('yellow', 'Proceeding anyway due to --force flag.'))
+            }
+
             // Check if there are any actual changes (exclude deletes when --delete is off)
             const hasChanges = Object.values(preview.summary).some(
               (c) => c.created > 0 || c.updated > 0 || (shouldDelete && c.deleted > 0) || c.truncated > 0,
