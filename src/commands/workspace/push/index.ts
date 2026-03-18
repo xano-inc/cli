@@ -60,19 +60,22 @@ export default class Push extends BaseCommand {
     }),
   }
   static override description =
-    'Push local documents to a workspace. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only.'
+    'Push local documents to a workspace. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only.'
   static override examples = [
     `$ xano workspace push ./my-workspace
-Shows preview of changes, requires confirmation
+Push only changed files (default partial mode)
+`,
+    `$ xano workspace push ./my-workspace --sync
+Push all files to the workspace
+`,
+    `$ xano workspace push ./my-workspace --sync --delete
+Push all files and delete remote objects not included
 `,
     `$ xano workspace push ./my-workspace --dry-run
 Preview changes without pushing
 `,
     `$ xano workspace push ./my-workspace --force
 Skip preview and push immediately (for CI/CD)
-`,
-    `$ xano workspace push ./my-workspace --delete
-Shows preview including deletions, requires confirmation
 `,
     `$ xano workspace push ./output -w 40
 Pushed 15 documents from ./output
@@ -82,9 +85,6 @@ Pushed 58 documents from ./backup
 `,
     `$ xano workspace push ./my-workspace -b dev
 Pushed 42 documents from ./my-workspace
-`,
-    `$ xano workspace push ./my-functions --partial
-Push some files without a workspace block (implies --no-delete)
 `,
     `$ xano workspace push ./my-workspace --no-records
 Push schema only, skip importing table records
@@ -105,7 +105,7 @@ Truncate all table records before importing
     }),
     delete: Flags.boolean({
       default: false,
-      description: 'Delete workspace objects not included in the push',
+      description: 'Delete workspace objects not included in the push (requires --sync)',
       required: false,
     }),
     'dry-run': Flags.boolean({
@@ -118,9 +118,9 @@ Truncate all table records before importing
       description: 'Include environment variables in import',
       required: false,
     }),
-    partial: Flags.boolean({
+    sync: Flags.boolean({
       default: false,
-      description: 'Partial push — workspace block is not required, existing objects are kept (implies --no-delete)',
+      description: 'Full push — send all files, not just changed ones. Required for --delete.',
       required: false,
     }),
     records: Flags.boolean({
@@ -128,10 +128,10 @@ Truncate all table records before importing
       description: 'Include records in import',
       required: false,
     }),
-    'sync-guids': Flags.boolean({
+    guids: Flags.boolean({
       allowNo: true,
       default: true,
-      description: 'Write server-assigned GUIDs back to local files (use --no-sync-guids to skip)',
+      description: 'Write server-assigned GUIDs back to local files (use --no-guids to skip)',
       required: false,
     }),
     transaction: Flags.boolean({
@@ -230,7 +230,7 @@ Truncate all table records before importing
       this.error(`All .xs files in ${args.directory} are empty`)
     }
 
-    const multidoc = documentEntries.map((d) => d.content).join('\n---\n')
+    let multidoc = documentEntries.map((d) => d.content).join('\n---\n')
 
     // Build lookup map from document key to file path (for GUID writeback)
     const documentFileMap = new Map<string, string>()
@@ -245,15 +245,20 @@ Truncate all table records before importing
     // Determine branch from flag or profile
     const branch = flags.branch || profile.branch || ''
 
-    // --partial implies --no-delete
-    const shouldDelete = flags.partial ? false : flags.delete
+    const isPartial = !flags.sync
+
+    if (flags.delete && isPartial) {
+      this.error('Cannot use --delete without --sync')
+    }
+
+    const shouldDelete = isPartial ? false : flags.delete
 
     // Construct the API URL
     const queryParams = new URLSearchParams({
       branch,
       delete: shouldDelete.toString(),
       env: flags.env.toString(),
-      partial: flags.partial.toString(),
+      partial: isPartial.toString(),
       records: flags.records.toString(),
       transaction: flags.transaction.toString(),
       truncate: flags.truncate.toString(),
@@ -267,10 +272,13 @@ Truncate all table records before importing
     }
 
     // Preview mode: show what would change before pushing
+    let dryRunPreview: DryRunResult | null = null
     if (flags['dry-run'] || !flags.force) {
       const dryRunParams = new URLSearchParams(queryParams)
-      // Always request delete info in dry-run so we can show remote-only items
-      dryRunParams.set('delete', 'true')
+      // Request delete info in dry-run so we can show remote-only items (skip for partial)
+      if (!isPartial) {
+        dryRunParams.set('delete', 'true')
+      }
       const dryRunUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc/dry-run?${dryRunParams.toString()}`
 
       try {
@@ -332,10 +340,11 @@ Truncate all table records before importing
         } else {
           const dryRunText = await dryRunResponse.text()
           const preview = JSON.parse(dryRunText) as DryRunResult
+          dryRunPreview = preview
 
           // Check if the server returned a valid dry-run response
           if (preview && preview.summary) {
-            this.renderPreview(preview, shouldDelete, workspaceId, flags.verbose)
+            this.renderPreview(preview, shouldDelete, workspaceId, flags.verbose, isPartial)
 
             // Check for critical errors that must block the push
             const criticalOps = preview.operations.filter(
@@ -477,6 +486,30 @@ Truncate all table records before importing
       }
     }
 
+    // For partial pushes, filter to only changed documents
+    if (isPartial && dryRunPreview) {
+      const changedKeys = new Set(
+        dryRunPreview.operations
+          .filter((op) => op.action !== 'unchanged' && op.action !== 'delete' && op.action !== 'cascade_delete')
+          .map((op) => `${op.type}:${op.name}`),
+      )
+
+      const filteredEntries = documentEntries.filter((entry) => {
+        const parsed = parseDocument(entry.content)
+        if (!parsed) return true
+        // For queries, operation name includes verb (e.g., "path/{id} DELETE")
+        const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
+        return changedKeys.has(`${parsed.type}:${opName}`)
+      })
+
+      if (filteredEntries.length === 0) {
+        this.log('No changes to push.')
+        return
+      }
+
+      multidoc = filteredEntries.map((d) => d.content).join('\n---\n')
+    }
+
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc?${queryParams.toString()}`
     const startTime = Date.now()
 
@@ -538,7 +571,7 @@ Truncate all table records before importing
       }
 
       // Write GUIDs back to local files
-      if (flags['sync-guids'] && guidMap.length > 0) {
+      if (flags.guids && guidMap.length > 0) {
         // Build a secondary lookup by type:name only (without verb/api_group)
         // for cases where the server omits those fields
         const baseKeyMap = new Map<string, string>()
@@ -597,7 +630,8 @@ Truncate all table records before importing
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    this.log(`Pushed ${documentEntries.length} documents from ${args.directory} in ${elapsed}s`)
+    const pushedCount = multidoc.split('\n---\n').length
+    this.log(`Pushed ${pushedCount} documents from ${args.directory} in ${elapsed}s`)
   }
 
   private async confirm(message: string): Promise<boolean> {
@@ -620,7 +654,13 @@ Truncate all table records before importing
     })
   }
 
-  private renderPreview(result: DryRunResult, willDelete: boolean, workspaceId: string, verbose = false): void {
+  private renderPreview(
+    result: DryRunResult,
+    willDelete: boolean,
+    workspaceId: string,
+    verbose = false,
+    partial = false,
+  ): void {
     const typeLabels: Record<string, string> = {
       addon: 'Addons',
       agent: 'Agents',
@@ -642,6 +682,10 @@ Truncate all table records before importing
     this.log('')
     const wsLabel = result.workspace_name ? `${result.workspace_name} (${workspaceId})` : `Workspace ${workspaceId}`
     this.log(ux.colorize('bold', `=== Push Preview: ${wsLabel} ===`))
+    if (!partial) {
+      this.log(ux.colorize('red', '  --sync: all documents will be sent, including unchanged'))
+    }
+
     this.log('')
 
     for (const [type, counts] of Object.entries(result.summary)) {
@@ -756,8 +800,8 @@ Truncate all table records before importing
       this.log(ux.colorize('yellow', '  currently available through the CLI or Metadata API.'))
     }
 
-    // Show remote-only items when not using --delete
-    if (!willDelete && deleteOps.length > 0) {
+    // Show remote-only items when not using --delete (skip for partial pushes)
+    if (!willDelete && !partial && deleteOps.length > 0) {
       this.log('')
       this.log(ux.colorize('dim', '--- Remote Only (not included in push) ---'))
       this.log('')

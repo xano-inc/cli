@@ -114,17 +114,17 @@ xano workspace pull ./my-workspace -b dev              # Specific branch
 xano workspace pull ./my-workspace --env --records      # Include env vars and table records
 xano workspace pull ./my-workspace --draft              # Include draft changes
 
-# Push local files to workspace
+# Push local files to workspace (only changed files by default)
 xano workspace push ./my-workspace
 xano workspace push ./my-workspace -b dev
+xano workspace push ./my-workspace --sync                # Full push — send all files, not just changed ones
+xano workspace push ./my-workspace --sync --delete       # Full push + delete remote objects not included
 xano workspace push ./my-workspace --dry-run             # Preview changes without pushing
-xano workspace push ./my-workspace --partial             # No workspace block required
-xano workspace push ./my-workspace --delete              # Delete objects not in the push
 xano workspace push ./my-workspace --records             # Include table records
 xano workspace push ./my-workspace --env                 # Include environment variables
 xano workspace push ./my-workspace --truncate            # Truncate tables before import
 xano workspace push ./my-workspace --no-transaction      # Disable database transaction wrapping
-xano workspace push ./my-workspace --no-sync-guids       # Skip writing GUIDs back to local files
+xano workspace push ./my-workspace --no-guids             # Skip writing GUIDs back to local files
 xano workspace push ./my-workspace --force               # Skip preview and confirmation (for CI/CD)
 
 # Pull from a git repository to local files
