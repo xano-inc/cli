@@ -96,11 +96,17 @@ Push without overwriting environment variables
     `$ xano workspace push ./my-workspace --truncate
 Truncate all table records before importing
 `,
-    `$ xano workspace push ./my-workspace -f "**/func*"
+    `$ xano workspace push ./my-workspace -i "**/func*"
 Push only files matching the glob pattern
 `,
-    `$ xano workspace push ./my-workspace -f "function/*" -f "table/*"
+    `$ xano workspace push ./my-workspace -i "function/*" -i "table/*"
 Push files matching multiple patterns
+`,
+    `$ xano workspace push ./my-workspace -e "table/*"
+Push all files except tables
+`,
+    `$ xano workspace push ./my-workspace -i "function/*" -e "**/test*"
+Push functions but exclude test files
 `,
   ]
   static override flags = {
@@ -157,10 +163,17 @@ Push files matching multiple patterns
       description: 'Workspace ID (optional if set in profile)',
       required: false,
     }),
-    filter: Flags.string({
-      char: 'f',
+    exclude: Flags.string({
+      char: 'e',
       description:
-        'Glob pattern to filter files (e.g. "**/func*", "table/*.xs"). Matched against relative paths from the push directory.',
+        'Glob pattern to exclude files (e.g. "table/*", "**/test*"). Matched against relative paths from the push directory.',
+      multiple: true,
+      required: false,
+    }),
+    include: Flags.string({
+      char: 'i',
+      description:
+        'Glob pattern to include files (e.g. "**/func*", "table/*.xs"). Matched against relative paths from the push directory.',
       multiple: true,
       required: false,
     }),
@@ -228,24 +241,39 @@ Push files matching multiple patterns
     const allFiles = this.collectFiles(inputDir)
     let files = allFiles
 
-    // Apply glob filter(s) if specified
-    if (flags.filter && flags.filter.length > 0) {
-      files = allFiles.filter((f) => {
+    // Apply glob include(s) if specified
+    if (flags.include && flags.include.length > 0) {
+      files = files.filter((f) => {
         const rel = path.relative(inputDir, f)
-        return flags.filter!.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
+        return flags.include!.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
       })
 
       this.log('')
-      this.log(`  ${ux.colorize('dim', 'Filter:')}  ${flags.filter.map((p) => ux.colorize('cyan', p)).join(', ')}`)
+      this.log(`  ${ux.colorize('dim', 'Include:')} ${flags.include.map((p) => ux.colorize('cyan', p)).join(', ')}`)
       this.log(
         `  ${ux.colorize('dim', 'Matched:')} ${ux.colorize('bold', String(files.length))} of ${allFiles.length} files`,
       )
     }
 
+    // Apply glob exclude(s) if specified
+    if (flags.exclude && flags.exclude.length > 0) {
+      const beforeCount = files.length
+      files = files.filter((f) => {
+        const rel = path.relative(inputDir, f)
+        return !flags.exclude!.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
+      })
+
+      this.log('')
+      this.log(`  ${ux.colorize('dim', 'Exclude:')} ${flags.exclude.map((p) => ux.colorize('cyan', p)).join(', ')}`)
+      this.log(
+        `  ${ux.colorize('dim', 'Kept:')}    ${ux.colorize('bold', String(files.length))} of ${beforeCount} files (excluded ${beforeCount - files.length})`,
+      )
+    }
+
     if (files.length === 0) {
       this.error(
-        flags.filter
-          ? `No .xs files match filter ${flags.filter.join(', ')} in ${args.directory}`
+        flags.include || flags.exclude
+          ? `No .xs files remain after ${[flags.include ? `include ${flags.include.join(', ')}` : '', flags.exclude ? `exclude ${flags.exclude.join(', ')}` : ''].filter(Boolean).join(' and ')} in ${args.directory}`
           : `No .xs files found in ${args.directory}`,
       )
     }
