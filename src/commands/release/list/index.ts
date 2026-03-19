@@ -66,7 +66,7 @@ Releases in workspace 5:
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -82,9 +82,7 @@ Releases in workspace 5:
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
-      this.error(
-        'No workspace ID provided. Use --workspace flag or set one in your profile.',
-      )
+      this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release`
@@ -94,8 +92,8 @@ Releases in workspace 5:
         apiUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -105,12 +103,10 @@ Releases in workspace 5:
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const data = await response.json() as Release[] | {items?: Release[]}
+      const data = (await response.json()) as Release[] | {items?: Release[]}
 
       let releases: Release[]
       if (Array.isArray(data)) {
@@ -131,7 +127,10 @@ Releases in workspace 5:
           for (const release of releases) {
             const branch = release.branch ? ` - ${release.branch}` : ''
             const hotfix = release.hotfix ? ' [hotfix]' : ''
-            this.log(`  - ${release.name} (ID: ${release.id})${branch}${hotfix}`)
+            const createdAt = release.created_at
+              ? ` (${new Date(release.created_at).toLocaleString(undefined, {timeZoneName: 'short'})})`
+              : ''
+            this.log(`  - ${release.name} (ID: ${release.id})${branch}${hotfix}${createdAt}`)
           }
         }
       }
@@ -149,10 +148,7 @@ Releases in workspace 5:
     const credentialsPath = path.join(configDir, 'credentials.yaml')
 
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     try {
