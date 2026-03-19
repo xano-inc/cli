@@ -450,7 +450,8 @@ Push functions but exclude test files
                   .filter((d) => /^table\s+/m.test(d.content) && /\bitems\s*=\s*\[/m.test(d.content))
                   .map((d) => {
                     const nameMatch = d.content.match(/^table\s+(\S+)/m)
-                    const itemCount = (d.content.match(/^\s*\{$/gm) || []).length
+                    const itemsMatch = d.content.match(/\bitems\s*=\s*\[([\s\S]*?)\n\s*\]/)
+                    const itemCount = itemsMatch ? (itemsMatch[1].match(/^\s*\{/gm) || []).length : 0
                     return {name: nameMatch ? nameMatch[1] : 'unknown', records: itemCount}
                   })
               : []
