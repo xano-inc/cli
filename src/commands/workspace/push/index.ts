@@ -1,5 +1,6 @@
 import {Args, Flags, ux} from '@oclif/core'
 import * as yaml from 'js-yaml'
+import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -95,6 +96,12 @@ Push without overwriting environment variables
     `$ xano workspace push ./my-workspace --truncate
 Truncate all table records before importing
 `,
+    `$ xano workspace push ./my-workspace -f "**/func*"
+Push only files matching the glob pattern
+`,
+    `$ xano workspace push ./my-workspace -f "function/*" -f "table/*"
+Push files matching multiple patterns
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -148,6 +155,13 @@ Truncate all table records before importing
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+    filter: Flags.string({
+      char: 'f',
+      description:
+        'Glob pattern to filter files (e.g. "**/func*", "table/*.xs"). Matched against relative paths from the push directory.',
+      multiple: true,
       required: false,
     }),
     force: Flags.boolean({
@@ -211,10 +225,29 @@ Truncate all table records before importing
     }
 
     // Collect all .xs files from the directory tree
-    const files = this.collectFiles(inputDir)
+    const allFiles = this.collectFiles(inputDir)
+    let files = allFiles
+
+    // Apply glob filter(s) if specified
+    if (flags.filter && flags.filter.length > 0) {
+      files = allFiles.filter((f) => {
+        const rel = path.relative(inputDir, f)
+        return flags.filter!.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
+      })
+
+      this.log('')
+      this.log(`  ${ux.colorize('dim', 'Filter:')}  ${flags.filter.map((p) => ux.colorize('cyan', p)).join(', ')}`)
+      this.log(
+        `  ${ux.colorize('dim', 'Matched:')} ${ux.colorize('bold', String(files.length))} of ${allFiles.length} files`,
+      )
+    }
 
     if (files.length === 0) {
-      this.error(`No .xs files found in ${args.directory}`)
+      this.error(
+        flags.filter
+          ? `No .xs files match filter ${flags.filter.join(', ')} in ${args.directory}`
+          : `No .xs files found in ${args.directory}`,
+      )
     }
 
     // Read each file and track file path alongside content
@@ -499,7 +532,10 @@ Truncate all table records before importing
         if (!parsed) return true
         // For queries, operation name includes verb (e.g., "path/{id} DELETE")
         const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
-        return changedKeys.has(`${parsed.type}:${opName}`)
+        if (changedKeys.has(`${parsed.type}:${opName}`)) return true
+        // Keep table documents that contain records when --records is active
+        if (flags.records && parsed.type === 'table' && /\bitems\s*=\s*\[/m.test(entry.content)) return true
+        return false
       })
 
       if (filteredEntries.length === 0) {
