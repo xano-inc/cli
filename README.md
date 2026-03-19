@@ -124,8 +124,11 @@ xano workspace push ./my-workspace --records             # Include table records
 xano workspace push ./my-workspace --env                 # Include environment variables
 xano workspace push ./my-workspace --truncate            # Truncate tables before import
 xano workspace push ./my-workspace --no-transaction      # Disable database transaction wrapping
-xano workspace push ./my-workspace --no-guids             # Skip writing GUIDs back to local files
+xano workspace push ./my-workspace --no-guids            # Skip writing GUIDs back to local files
 xano workspace push ./my-workspace --force               # Skip preview and confirmation (for CI/CD)
+xano workspace push ./my-workspace -i "function/*"       # Push only matching files
+xano workspace push ./my-workspace -e "table/*"          # Push all files except tables
+xano workspace push ./my-workspace -i "function/*" -e "**/test*"  # Include functions, exclude tests
 
 # Pull from a git repository to local files
 xano workspace git pull ./output -r https://github.com/owner/repo

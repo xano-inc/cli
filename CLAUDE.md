@@ -277,6 +277,17 @@ describe('command-name', () => {
 
 ## Adding New Features
 
+### README.md is the Source of Truth for Users
+
+**CRITICAL: Any time you add, rename, or remove a command, flag, argument, or example, you MUST update `README.md` to match.** The README is the primary documentation users see. If the code changes but the README doesn't, users get wrong information.
+
+This includes:
+
+- Adding a new command → add it to the relevant section in README
+- Adding/renaming/removing a flag → update the command's examples in README
+- Changing default behavior → update the description in README
+- Adding examples to a command's `static examples` → add matching examples to README
+
 ### New Command
 
 1. Create file in `src/commands/<topic>/<command>.ts`
@@ -285,6 +296,7 @@ describe('command-name', () => {
 4. Implement `async run()` method
 5. Inherit `...BaseCommand.baseFlags` in flags
 6. Run `npm run build` to compile
+7. **Update `README.md`** with the new command and usage examples
 
 ## Lint & Format
 
