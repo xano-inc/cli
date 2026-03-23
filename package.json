@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.94",
+  "version": "0.0.95-beta.2",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -66,6 +66,15 @@
       "branch": {
         "description": "Manage workspace branches"
       },
+      "ephemeral": {
+        "description": "Manage ephemeral tenants"
+      },
+      "ephemeral:unit_test": {
+        "description": "Manage and run unit tests for ephemeral tenants"
+      },
+      "ephemeral:workflow_test": {
+        "description": "Manage and run workflow tests for ephemeral tenants"
+      },
       "function": {
         "description": "Manage reusable functions in a workspace"
       },
@@ -86,6 +95,12 @@
       },
       "tenant:backup": {
         "description": "Manage tenant backups"
+      },
+      "tenant:unit_test": {
+        "description": "Manage and run unit tests for tenants"
+      },
+      "tenant:workflow_test": {
+        "description": "Manage and run workflow tests for tenants"
       },
       "unit_test": {
         "description": "Manage and run unit tests"

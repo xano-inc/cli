@@ -235,6 +235,11 @@ xano release pull ./my-release -r v1.0 --env --records
 xano release push ./my-release -n "v2.0"
 xano release push ./my-release -n "v2.0" --hotfix -d "Critical fix"
 xano release push ./my-release -n "v2.0" --no-records --no-env
+
+# Deploy a release to its workspace as a new branch
+xano release deploy "v1.0"
+xano release deploy "v1.0" --branch "restore-v1" --no-set_live
+xano release deploy "v1.0" -w 40 -o json
 ```
 
 ### Platforms
@@ -438,6 +443,20 @@ xano tenant cluster license get <cluster_id>
 # Set cluster kubeconfig
 xano tenant cluster license set <cluster_id>
 xano tenant cluster license set <cluster_id> --file ./kubeconfig.yaml
+```
+
+### Ephemeral
+
+Manage ephemeral tenants. Ephemeral tenants are workspace-agnostic (tier1 only) and do not run background tasks.
+
+```bash
+# Create an ephemeral tenant
+xano ephemeral create "My Ephemeral"
+xano ephemeral create "CI Tenant" -d "For CI/CD" -o json
+
+# Get ephemeral tenant details
+xano ephemeral get <tenant_name>
+xano ephemeral get <tenant_name> -o json
 ```
 
 ### Static Hosts

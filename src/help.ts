@@ -42,6 +42,9 @@ export default class Help extends BaseHelp {
   formatCommands(commands: Command.Loadable[]): string {
     if (commands.length === 0 && PROMOTED_COMMANDS.length === 0) return ''
 
+    // Check before IDs are mutated: root help has top-level commands (no colons)
+    const isRootHelp = commands.some((c) => !c.id.includes(':'))
+
     const entries: Array<[string, string]> = commands
       .filter((c) => (this.opts.hideAliasesFromRoot ? !c.aliases?.includes(c.id) : true))
       .filter((c) => c.id !== 'plugins')
@@ -51,8 +54,11 @@ export default class Help extends BaseHelp {
         return [c.id, summary ? summary.replace(/\u001B\[\d+m/g, '') : ''] as [string, string]
       })
 
-    for (const promoted of PROMOTED_COMMANDS) {
-      entries.push([promoted.label, promoted.description])
+    // Only add promoted commands at the root level, not within a specific topic
+    if (isRootHelp) {
+      for (const promoted of PROMOTED_COMMANDS) {
+        entries.push([promoted.label, promoted.description])
+      }
     }
 
     entries.sort((a, b) => a[0].localeCompare(b[0]))

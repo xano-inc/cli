@@ -155,7 +155,7 @@ Truncate all table records before importing
       if (!tenantData.ephemeral) {
         this.error(
           `Tenant '${tenantName}' is not ephemeral. Push is only allowed for ephemeral tenants.\n` +
-            `Create an ephemeral tenant with: xano tenant create "name" --ephemeral`,
+            `Create an ephemeral tenant with: xano ephemeral create "name"`,
         )
       }
     } catch (error) {
