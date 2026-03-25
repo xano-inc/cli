@@ -307,7 +307,8 @@ xano tenant get <tenant_name>
 
 # Create a tenant
 xano tenant create "My Tenant"
-xano tenant create "My Tenant" -d "Description" --cluster_id 1 --platform_id 5
+xano tenant create "My Tenant" -d "Description" --type tier2 --cluster_id 1 --platform_id 5
+xano tenant create "My Tenant" --type tier2 --cluster_id 1 --license ./license.yaml
 
 # Edit a tenant
 xano tenant edit <tenant_name> --display "New Name" -d "New description"

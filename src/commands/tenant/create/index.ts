@@ -40,7 +40,8 @@ export default class TenantCreate extends BaseCommand {
     `$ xano tenant create "Production"
 Created tenant: Production (production) - ID: 42
 `,
-    `$ xano tenant create "Staging" --description "Staging env" --cluster_id 1 --platform_id 1 --license tier2 -o json`,
+    `$ xano tenant create "Staging" --description "Staging env" --cluster_id 1 --platform_id 1 --type tier2 -o json`,
+    `$ xano tenant create "Staging" --type tier2 --cluster_id 1 --license ./license.yaml`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -63,9 +64,8 @@ Created tenant: Production (production) - ID: 42
       description: 'Enable ingress',
     }),
     license: Flags.string({
-      default: 'tier1',
-      description: 'License tier',
-      options: ['tier1', 'tier2', 'tier3'],
+      char: 'l',
+      description: 'Path to a license override file to apply during creation',
       required: false,
     }),
     output: Flags.string({
@@ -77,6 +77,12 @@ Created tenant: Production (production) - ID: 42
     }),
     platform_id: Flags.integer({
       description: 'Platform ID to use',
+      required: false,
+    }),
+    type: Flags.string({
+      default: 'tier1',
+      description: 'Tenant type',
+      options: ['tier1', 'tier2', 'tier3'],
       required: false,
     }),
     tasks: Flags.boolean({
@@ -122,7 +128,7 @@ Created tenant: Production (production) - ID: 42
     const body: Record<string, unknown> = {
       display: args.display,
       ingress: flags.ingress,
-      license: flags.license,
+      license: flags.type,
       tag: [],
       tasks: flags.tasks,
     }
@@ -135,7 +141,18 @@ Created tenant: Production (production) - ID: 42
     if (flags.platform_id) body.platform_id = flags.platform_id
     if (flags.domain) body.domain = flags.domain
 
-    if (flags.license === 'tier2' || flags.license === 'tier3' || flags.cluster_id) {
+    if (flags.license) {
+      const licensePath = path.resolve(flags.license)
+      if (!fs.existsSync(licensePath)) {
+        this.error(`License file not found: ${licensePath}`)
+      }
+
+      const licenseContent = fs.readFileSync(licensePath, 'utf8')
+      body.license_overrides = yaml.load(licenseContent)
+    }
+
+    const effectiveType = flags.cluster_id ? 'tier3' : flags.type
+    if (effectiveType === 'tier2' || effectiveType === 'tier3') {
       this.warn('This may take a few minutes. Please be patient.')
     }
 
@@ -171,6 +188,8 @@ Created tenant: Production (production) - ID: 42
         if (tenant.state) {
           this.log(`  State: ${tenant.state}`)
         }
+
+        if (flags.license) this.log(`  License: applied`)
       }
     } catch (error) {
       if (error instanceof Error) {
