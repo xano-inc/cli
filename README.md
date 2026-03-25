@@ -445,18 +445,25 @@ xano tenant cluster license set <cluster_id>
 xano tenant cluster license set <cluster_id> --file ./kubeconfig.yaml
 ```
 
-### Ephemeral
+### Sandbox
 
-Manage ephemeral tenants. Ephemeral tenants are workspace-agnostic (tier1 only) and do not run background tasks.
+Manage your sandbox tenant. Each user has a single sandbox tenant that is auto-provisioned on first use.
 
 ```bash
-# Create an ephemeral tenant
-xano ephemeral create "My Ephemeral"
-xano ephemeral create "CI Tenant" -d "For CI/CD" -o json
+# Get your sandbox tenant (creates if needed)
+xano sandbox get
+xano sandbox get -o json
 
-# Get ephemeral tenant details
-xano ephemeral get <tenant_name>
-xano ephemeral get <tenant_name> -o json
+# Push/pull workspace data
+xano sandbox push ./my-workspace
+xano sandbox pull ./my-tenant
+
+# Impersonate (open in browser)
+xano sandbox impersonate
+
+# Reset all workspace data
+xano sandbox reset
+xano sandbox reset --force
 ```
 
 ### Static Hosts

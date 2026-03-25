@@ -28,7 +28,7 @@ interface Tenant {
   description?: string
   display?: string
   domain?: string
-  ephemeral?: boolean
+  type?: string
   id: number
   ingress?: boolean
   license?: string
@@ -144,7 +144,7 @@ Tenant: My Tenant (my-tenant)
         if (tenant.version !== undefined) this.log(`  Version: ${tenant.version}`)
         if (tenant.tasks !== undefined) this.log(`  Tasks: ${tenant.tasks}`)
         if (tenant.ingress !== undefined) this.log(`  Ingress: ${tenant.ingress}`)
-        if (tenant.ephemeral) this.log(`  Ephemeral: ${tenant.ephemeral}`)
+        if (tenant.type) this.log(`  Type: ${tenant.type}`)
         if (tenant.deployed_at) {
           const d = new Date(tenant.deployed_at)
           const deployedDate = Number.isNaN(d.getTime()) ? tenant.deployed_at : d.toISOString().split('T')[0]

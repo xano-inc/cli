@@ -24,7 +24,7 @@ interface CredentialsFile {
 interface Tenant {
   cluster?: {id?: number; name?: string}
   display?: string
-  ephemeral?: boolean
+  type?: string
   id: number
   license?: string
   name: string
@@ -136,8 +136,8 @@ Tenants in workspace 5:
           for (const tenant of tenants) {
             const state = tenant.state ? ` [${tenant.state}]` : ''
             const license = tenant.license ? ` - ${tenant.license}` : ''
-            const ephemeral = tenant.ephemeral ? ' [ephemeral]' : ''
-            this.log(`  - ${tenant.display || tenant.name} (${tenant.name})${state}${license}${ephemeral}`)
+            const typeLabel = tenant.type && tenant.type !== 'standard' ? ` [${tenant.type}]` : ''
+            this.log(`  - ${tenant.display || tenant.name} (${tenant.name})${state}${license}${typeLabel}`)
             if (tenant.cluster?.name) this.log(`      Cluster: ${tenant.cluster.name}`)
             const releaseName = typeof tenant.release === 'string' ? tenant.release : tenant.release?.name
             const releaseId = typeof tenant.release === 'object' ? tenant.release?.id : undefined

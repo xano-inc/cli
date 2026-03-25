@@ -129,51 +129,6 @@ Truncate all table records before importing
 
     const tenantName = flags.tenant
 
-    // Fetch tenant details and verify it's ephemeral
-    const tenantApiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}`
-    try {
-      const tenantResponse = await this.verboseFetch(
-        tenantApiUrl,
-        {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${profile.access_token}`,
-          },
-          method: 'GET',
-        },
-        flags.verbose,
-        profile.access_token,
-      )
-
-      if (!tenantResponse.ok) {
-        const errorText = await tenantResponse.text()
-        this.error(`Failed to fetch tenant '${tenantName}' (${tenantResponse.status}): ${errorText}`)
-      }
-
-      const tenantData = (await tenantResponse.json()) as {ephemeral?: boolean; name: string}
-
-      if (!tenantData.ephemeral) {
-        this.error(
-          `Tenant '${tenantName}' is not ephemeral. Push is only allowed for ephemeral tenants.\n` +
-            `Create an ephemeral tenant with: xano ephemeral create "name"`,
-        )
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('is not ephemeral')) {
-        throw error
-      }
-
-      if (error instanceof Error && error.message.includes('Failed to fetch tenant')) {
-        throw error
-      }
-
-      if (error instanceof Error) {
-        this.error(`Failed to verify tenant: ${error.message}`)
-      } else {
-        this.error(`Failed to verify tenant: ${String(error)}`)
-      }
-    }
-
     // Resolve the input directory
     const inputDir = path.resolve(args.directory)
 

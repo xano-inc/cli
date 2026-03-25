@@ -381,6 +381,34 @@ Push functions but exclude test files
             this.log('')
           } else {
             const errorText = await dryRunResponse.text()
+
+            // Check if push is disabled on this workspace
+            try {
+              const errorJson = JSON.parse(errorText)
+              if (errorJson.message?.includes('Push is disabled')) {
+                this.log('')
+                this.log(ux.colorize('red', ux.colorize('bold', 'Direct push to this workspace is disabled.')))
+                this.log(ux.colorize('dim', 'To apply changes to the workspace, use the sandbox review flow:'))
+                this.log(
+                  `  ${ux.colorize('cyan', 'xano sandbox push')}    ${ux.colorize('dim', '— push changes to your sandbox')}`,
+                )
+                this.log(
+                  `  ${ux.colorize('cyan', 'xano sandbox review')}  ${ux.colorize('dim', '— edit any logic, inspect the snapshot diff, and promote changes to the workspace')}`,
+                )
+                this.log('')
+                this.log(
+                  ux.colorize(
+                    'dim',
+                    'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.',
+                  ),
+                )
+                this.log('')
+                return
+              }
+            } catch {
+              // Not JSON, fall through
+            }
+
             this.warn(`Push preview failed (${dryRunResponse.status}). Skipping preview.`)
             if (flags.verbose) {
               this.log(ux.colorize('dim', errorText))
@@ -599,6 +627,17 @@ Push functions but exclude test files
           errorMessage += `: ${errorJson.message}`
           if (errorJson.payload?.param) {
             errorMessage += `\n  Parameter: ${errorJson.payload.param}`
+          }
+
+          // Provide clear guidance when push is disabled
+          if (errorJson.message?.includes('Push is disabled')) {
+            this.error(
+              `Push is disabled for this workspace.\n\n` +
+                `To enable, go to Workspace Settings and turn on "Allow Push".\n\n` +
+                `Alternatively, use sandbox commands:\n` +
+                `  xano sandbox push ${args.directory}\n` +
+                `  xano sandbox impersonate`,
+            )
           }
         } catch {
           errorMessage += `\n${errorText}`

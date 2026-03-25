@@ -26,6 +26,17 @@ export function buildUserAgent(version: string): string {
   return `xano-cli/${version} (${process.platform}; ${process.arch}) node/${process.version}`
 }
 
+export interface SandboxTenant {
+  created_at?: string
+  description?: string
+  display?: string
+  ephemeral?: boolean
+  id: number
+  name: string
+  state?: string
+  xano_domain?: string
+}
+
 export default abstract class BaseCommand extends Command {
   static baseFlags = {
     profile: Flags.string({
@@ -132,6 +143,58 @@ export default abstract class BaseCommand extends Command {
     }
 
     return null
+  }
+
+  /**
+   * Get or create the singleton sandbox environment for the authenticated user.
+   * Returns the sandbox object (existing or newly created).
+   */
+  protected async getOrCreateSandbox(profile: ProfileConfig, verbose: boolean): Promise<SandboxTenant> {
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/me`
+
+    const response = await this.verboseFetch(
+      apiUrl,
+      {
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      profile.access_token,
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      this.error(`Failed to get sandbox environment: ${response.status} ${response.statusText}\n${errorText}`)
+    }
+
+    return (await response.json()) as SandboxTenant
+  }
+
+  /**
+   * Resolve profile from flags, validating instance_origin and access_token exist.
+   */
+  protected resolveProfile(flags: {profile?: string}): {profile: ProfileConfig; profileName: string} {
+    const profileName = flags.profile || this.getDefaultProfile()
+    const credentials = this.loadCredentialsFile()
+
+    if (!credentials || !(profileName in credentials.profiles)) {
+      this.error(`Profile '${profileName}' not found.\n` + `Create a profile using 'xano profile create'`)
+    }
+
+    const profile = credentials.profiles[profileName]
+
+    if (!profile.instance_origin) {
+      this.error(`Profile '${profileName}' is missing instance_origin`)
+    }
+
+    if (!profile.access_token) {
+      this.error(`Profile '${profileName}' is missing access_token`)
+    }
+
+    return {profile, profileName}
   }
 
   /**
