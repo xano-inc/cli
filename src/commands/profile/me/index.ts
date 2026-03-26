@@ -156,7 +156,33 @@ User Information:
           if (inst.id) this.log(`  ID: ${inst.id}`)
           if (inst.name) this.log(`  Name: ${inst.name}`)
           if (inst.display) this.log(`  Display: ${inst.display}`)
-          if (profile.workspace) this.log(`  Workspace: ${profile.workspace}`)
+          if (profile.workspace) {
+            let wsLabel = String(profile.workspace)
+            try {
+              const wsResponse = await this.verboseFetch(
+                `${profile.instance_origin}/api:meta/workspace/${profile.workspace}`,
+                {
+                  headers: {
+                    accept: 'application/json',
+                    Authorization: `Bearer ${profile.access_token}`,
+                  },
+                  method: 'GET',
+                },
+                false,
+                profile.access_token,
+              )
+
+              if (wsResponse.ok) {
+                const ws = (await wsResponse.json()) as {name?: string}
+                if (ws.name) wsLabel = `${ws.name} (ID: ${profile.workspace})`
+              }
+            } catch {
+              // Fall back to just showing the ID
+            }
+
+            this.log(`  Workspace: ${wsLabel}`)
+          }
+
           if (profile.branch) this.log(`  Branch: ${profile.branch}`)
         }
 

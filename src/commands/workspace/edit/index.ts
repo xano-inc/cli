@@ -30,6 +30,7 @@ interface Workspace {
   }
   id: number
   name: string
+  preferences?: {allow_push?: boolean}
   swagger?: boolean
   updated_at?: number
 }
@@ -41,8 +42,8 @@ export default class WorkspaceEdit extends BaseCommand {
       required: false,
     }),
   }
-static description = 'Edit an existing workspace via the Xano Metadata API'
-static examples = [
+  static description = 'Edit an existing workspace via the Xano Metadata API'
+  static examples = [
     `$ xano workspace edit 123 --name "new-name"
 Updated workspace: new-name (ID: 123)
 `,
@@ -63,8 +64,13 @@ Updated workspace: my-workspace (ID: 123)
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
+    'allow-push': Flags.boolean({
+      allowNo: true,
+      description: 'Enable or disable direct CLI push to this workspace',
+      required: false,
+    }),
     description: Flags.string({
       char: 'd',
       description: 'New description for the workspace',
@@ -107,7 +113,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -127,7 +133,7 @@ static override flags = {
     if (!workspaceId) {
       this.error(
         'No workspace ID provided. Either pass a workspace ID as an argument or set one in your profile.\n' +
-        'Usage: xano workspace edit <workspace_id> [flags]',
+          'Usage: xano workspace edit <workspace_id> [flags]',
       )
     }
 
@@ -136,6 +142,7 @@ static override flags = {
       description?: string
       documentation?: {require_token?: boolean}
       name?: string
+      preferences?: {allow_push?: boolean}
       swagger?: boolean
     } = {}
 
@@ -155,11 +162,15 @@ static override flags = {
       body.documentation = {require_token: flags['require-token']}
     }
 
+    if (flags['allow-push'] !== undefined) {
+      body.preferences = {allow_push: flags['allow-push']}
+    }
+
     // Check if at least one field is being updated
     if (Object.keys(body).length === 0) {
       this.error(
-        'No fields specified to update. Use --name, --description, --swagger, or --require-token flags.\n' +
-        'Example: xano workspace edit 123 --name "new-name"',
+        'No fields specified to update. Use --name, --description, --swagger, --require-token, or --allow-push flags.\n' +
+          'Example: xano workspace edit 123 --name "new-name"',
       )
     }
 
@@ -173,8 +184,8 @@ static override flags = {
         {
           body: JSON.stringify(body),
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
             'Content-Type': 'application/json',
           },
           method: 'PUT',
@@ -185,12 +196,10 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const workspace = await response.json() as Workspace
+      const workspace = (await response.json()) as Workspace
 
       // Output results
       if (flags.output === 'json') {
@@ -209,6 +218,10 @@ static override flags = {
         if (workspace.documentation?.require_token !== undefined) {
           this.log(`  Require Token: ${workspace.documentation.require_token}`)
         }
+
+        if (workspace.preferences?.allow_push !== undefined) {
+          this.log(`  Allow Push: ${workspace.preferences.allow_push}`)
+        }
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -225,10 +238,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     // Read credentials file

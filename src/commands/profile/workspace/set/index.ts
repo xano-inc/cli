@@ -58,7 +58,8 @@ Workspace updated to 'Production API' (xyz789) on profile 'production'
     const {selectedWorkspace} = await inquirer.prompt([
       {
         choices: workspaces.map((ws) => ({
-          name: String(ws.id) === String(profile.workspace) ? `${ws.name} (current)` : ws.name,
+          name:
+            String(ws.id) === String(profile.workspace) ? `${ws.name} (${ws.id}) (current)` : `${ws.name} (${ws.id})`,
           value: ws.id,
         })),
         message: 'Select a workspace',

@@ -371,7 +371,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
         choices: [
           {name: '(Skip workspace)', value: ''},
           ...workspaces.map((ws) => ({
-            name: ws.name,
+            name: `${ws.name} (${ws.id})`,
             value: ws.id,
           })),
         ],

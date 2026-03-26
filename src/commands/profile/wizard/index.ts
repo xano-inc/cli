@@ -175,7 +175,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
             choices: [
               {name: '(Skip workspace)', value: ''},
               ...workspaces.map((ws) => ({
-                name: ws.name,
+                name: `${ws.name} (${ws.id})`,
                 value: ws.id,
               })),
             ],

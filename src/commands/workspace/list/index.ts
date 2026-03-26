@@ -22,7 +22,7 @@ interface CredentialsFile {
 }
 
 interface Workspace {
-  created_at?: number
+  created_at?: string
   id: number
   name: string
   // Add other workspace properties as needed
@@ -35,7 +35,7 @@ interface WorkspaceListResponse {
 
 export default class WorkspaceList extends BaseCommand {
   static description = 'List all workspaces from the Xano Metadata API'
-static examples = [
+  static examples = [
     `$ xano workspace:list
 Available workspaces:
   - workspace-1 (ID: 1)
@@ -72,8 +72,12 @@ Available workspaces:
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
+    latest: Flags.boolean({
+      default: false,
+      description: 'Sort by newest first (descending ID)',
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -96,7 +100,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile:create'`,
+          `Create a profile using 'xano profile:create'`,
       )
     }
 
@@ -120,8 +124,8 @@ static override flags = {
         apiUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -131,12 +135,10 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const data = await response.json() as Workspace[] | WorkspaceListResponse
+      const data = (await response.json()) as Workspace[] | WorkspaceListResponse
 
       // Handle different response formats
       let workspaces: Workspace[]
@@ -149,6 +151,10 @@ static override flags = {
         this.error('Unexpected API response format')
       }
 
+      if (flags.latest) {
+        workspaces.sort((a, b) => b.id - a.id)
+      }
+
       // Output results
       if (flags.output === 'json') {
         this.log(JSON.stringify(workspaces, null, 2))
@@ -159,10 +165,11 @@ static override flags = {
         } else {
           this.log('Available workspaces:')
           for (const workspace of workspaces) {
+            const created = workspace.created_at ? ` (created: ${workspace.created_at.split(' ')[0]})` : ''
             if (workspace.id === undefined) {
-              this.log(`  - ${workspace.name}`)
+              this.log(`  - ${workspace.name}${created}`)
             } else {
-              this.log(`  - ${workspace.name} (ID: ${workspace.id})`)
+              this.log(`  - ${workspace.name} (ID: ${workspace.id})${created}`)
             }
           }
         }
@@ -182,10 +189,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile:create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile:create'`)
     }
 
     // Read credentials file

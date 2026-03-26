@@ -22,11 +22,12 @@ interface CredentialsFile {
 }
 
 interface Workspace {
-  created_at?: number
+  created_at?: string
   description?: string
   id: number
   name: string
-  updated_at?: number
+  preferences?: {allow_push?: boolean}
+  updated_at?: string
 }
 
 export default class WorkspaceGet extends BaseCommand {
@@ -36,8 +37,8 @@ export default class WorkspaceGet extends BaseCommand {
       required: false,
     }),
   }
-static description = 'Get details of a specific workspace from the Xano Metadata API'
-static examples = [
+  static description = 'Get details of a specific workspace from the Xano Metadata API'
+  static examples = [
     `$ xano workspace get 123
 Workspace: my-workspace (ID: 123)
   Description: My workspace description
@@ -57,7 +58,7 @@ Workspace: my-workspace (ID: 123)
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     output: Flags.string({
       char: 'o',
@@ -81,7 +82,7 @@ static override flags = {
     if (!(profileName in credentials.profiles)) {
       this.error(
         `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-        `Create a profile using 'xano profile create'`,
+          `Create a profile using 'xano profile create'`,
       )
     }
 
@@ -101,7 +102,7 @@ static override flags = {
     if (!workspaceId) {
       this.error(
         'No workspace ID provided. Either pass a workspace ID as an argument or set one in your profile.\n' +
-        'Usage: xano workspace get <workspace_id>',
+          'Usage: xano workspace get <workspace_id>',
       )
     }
 
@@ -114,8 +115,8 @@ static override flags = {
         apiUrl,
         {
           headers: {
-            'accept': 'application/json',
-            'Authorization': `Bearer ${profile.access_token}`,
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
           },
           method: 'GET',
         },
@@ -125,12 +126,10 @@ static override flags = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
-        )
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const workspace = await response.json() as Workspace
+      const workspace = (await response.json()) as Workspace
 
       // Output results
       if (flags.output === 'json') {
@@ -143,13 +142,17 @@ static override flags = {
         }
 
         if (workspace.created_at) {
-          const createdDate = new Date(workspace.created_at * 1000).toISOString().split('T')[0]
+          const createdDate = new Date(workspace.created_at).toISOString().split('T')[0]
           this.log(`  Created: ${createdDate}`)
         }
 
         if (workspace.updated_at) {
-          const updatedDate = new Date(workspace.updated_at * 1000).toISOString().split('T')[0]
+          const updatedDate = new Date(workspace.updated_at).toISOString().split('T')[0]
           this.log(`  Updated: ${updatedDate}`)
+        }
+
+        if (workspace.preferences?.allow_push !== undefined) {
+          this.log(`  Allow Push: ${workspace.preferences.allow_push}`)
         }
       }
     } catch (error) {
@@ -167,10 +170,7 @@ static override flags = {
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {
-      this.error(
-        `Credentials file not found at ${credentialsPath}\n` +
-        `Create a profile using 'xano profile create'`,
-      )
+      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile create'`)
     }
 
     // Read credentials file
