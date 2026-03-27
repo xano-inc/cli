@@ -40,10 +40,7 @@ Review session started!
     const {flags} = await this.parse(SandboxReview)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${encodeURIComponent(tenantName)}/impersonate`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/impersonate`
 
     try {
       const response = await this.verboseFetch(

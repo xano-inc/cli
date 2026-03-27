@@ -47,15 +47,12 @@ Unit tests:
     const {flags} = await this.parse(SandboxUnitTestList)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
     const params = new URLSearchParams()
     params.set('per_page', '10000')
     if (flags.branch) params.set('branch', flags.branch)
     if (flags['obj-type']) params.set('obj_type', flags['obj-type'])
 
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${encodeURIComponent(tenantName)}/unit_test?${params}`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/unit_test?${params}`
 
     try {
       const response = await this.verboseFetch(
@@ -93,7 +90,7 @@ Unit tests:
         if (tests.length === 0) {
           this.log('No unit tests found')
         } else {
-          this.log(`Unit tests for sandbox environment ${tenantName}:`)
+          this.log(`Unit tests for sandbox environment:`)
           for (const test of tests) {
             this.log(`  - ${test.name} (ID: ${test.id}) [${test.obj_type}: ${test.obj_name}]`)
           }

@@ -40,10 +40,7 @@ Reads from env_<tenant>.yaml
     const {flags} = await this.parse(SandboxEnvSetAll)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
-    const sourceFilePath = path.resolve(flags.file || `env_${tenantName}.yaml`)
+    const sourceFilePath = path.resolve(flags.file || `env.yaml`)
 
     if (!fs.existsSync(sourceFilePath)) {
       this.error(`File not found: ${sourceFilePath}`)
@@ -58,7 +55,7 @@ Reads from env_<tenant>.yaml
 
     const envs = Object.entries(envMap).map(([name, value]) => ({name, value: String(value)}))
 
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/env_all`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/env_all`
 
     try {
       const response = await this.verboseFetch(
@@ -85,7 +82,7 @@ Reads from env_<tenant>.yaml
         const result = await response.json()
         this.log(JSON.stringify(result, null, 2))
       } else {
-        this.log(`All environment variables updated for sandbox environment ${tenantName} (${envs.length} variables)`)
+        this.log(`All environment variables updated for sandbox environment (${envs.length} variables)`)
       }
 
       if (flags.clean && fs.existsSync(sourceFilePath)) {

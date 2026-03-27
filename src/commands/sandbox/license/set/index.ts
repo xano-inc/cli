@@ -46,16 +46,13 @@ Reads from license_<tenant>.yaml
     const {flags} = await this.parse(SandboxLicenseSet)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
     let licenseValue: string
     let sourceFilePath: string | undefined
 
     if (flags.value) {
       licenseValue = flags.value
     } else {
-      sourceFilePath = path.resolve(flags.file || `license_${tenantName}.yaml`)
+      sourceFilePath = path.resolve(flags.file || `license.yaml`)
       if (!fs.existsSync(sourceFilePath)) {
         this.error(`File not found: ${sourceFilePath}`)
       }
@@ -63,7 +60,7 @@ Reads from license_<tenant>.yaml
       licenseValue = fs.readFileSync(sourceFilePath, 'utf8')
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/license`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/license`
 
     try {
       const response = await this.verboseFetch(
@@ -91,7 +88,7 @@ Reads from license_<tenant>.yaml
       if (flags.output === 'json') {
         this.log(JSON.stringify(result, null, 2))
       } else {
-        this.log(`Sandbox environment license updated successfully for ${tenantName}`)
+        this.log(`Sandbox environment license updated successfully`)
       }
 
       if (flags.clean && sourceFilePath && fs.existsSync(sourceFilePath)) {

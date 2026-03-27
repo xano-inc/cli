@@ -16,7 +16,7 @@ export default class SandboxPush extends BaseCommand {
   static override description = 'Push local documents to your sandbox environment via multidoc import'
   static override examples = [
     `$ xano sandbox push ./my-workspace
-Pushed 42 documents to sandbox environment tc24-abcd-x1y2 from ./my-workspace
+Pushed 42 documents to sandbox environment from ./my-workspace
 `,
     `$ xano sandbox push ./backup --records --env`,
     `$ xano sandbox push ./my-workspace --truncate`,
@@ -49,9 +49,6 @@ Pushed 42 documents to sandbox environment tc24-abcd-x1y2 from ./my-workspace
   async run(): Promise<void> {
     const {args, flags} = await this.parse(SandboxPush)
     const {profile} = this.resolveProfile(flags)
-
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
 
     const inputDir = path.resolve(args.directory)
 
@@ -89,7 +86,7 @@ Pushed 42 documents to sandbox environment tc24-abcd-x1y2 from ./my-workspace
       transaction: flags.transaction.toString(),
       truncate: flags.truncate.toString(),
     })
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/multidoc?${queryParams.toString()}`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/multidoc?${queryParams.toString()}`
 
     const startTime = Date.now()
 
@@ -148,9 +145,7 @@ Pushed 42 documents to sandbox environment tc24-abcd-x1y2 from ./my-workspace
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    this.log(
-      `Pushed ${documentEntries.length} documents to sandbox environment ${tenantName} from ${args.directory} in ${elapsed}s`,
-    )
+    this.log(`Pushed ${documentEntries.length} documents to sandbox environment from ${args.directory} in ${elapsed}s`)
   }
 
   private collectFiles(dir: string): string[] {

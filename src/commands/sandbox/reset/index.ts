@@ -7,7 +7,7 @@ export default class SandboxReset extends BaseCommand {
   static examples = [
     `$ xano sandbox reset
 Are you sure you want to reset your sandbox environment? All workspace data and drafts will be cleared. (y/N) y
-Reset sandbox environment tc24-abcd-x1y2
+Sandbox environment has been reset.
 `,
     `$ xano sandbox reset --force`,
   ]
@@ -25,9 +25,6 @@ Reset sandbox environment tc24-abcd-x1y2
     const {flags} = await this.parse(SandboxReset)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
     if (!flags.force) {
       const confirmed = await this.confirm(
         `Are you sure you want to reset your sandbox environment? All workspace data and drafts will be cleared.`,
@@ -38,7 +35,7 @@ Reset sandbox environment tc24-abcd-x1y2
       }
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${encodeURIComponent(tenantName)}/reset`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/reset`
 
     try {
       const response = await this.verboseFetch(

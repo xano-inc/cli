@@ -39,9 +39,7 @@ License saved to license_<tenant>.yaml
     const {flags} = await this.parse(SandboxLicenseGet)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/license`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/license`
 
     try {
       const response = await this.verboseFetch(
@@ -73,7 +71,7 @@ License saved to license_<tenant>.yaml
           this.log(licenseContent)
         }
       } else {
-        const filePath = path.resolve(flags.file || `license_${tenantName}.yaml`)
+        const filePath = path.resolve(flags.file || `license.yaml`)
         fs.writeFileSync(filePath, licenseContent, 'utf8')
         this.log(`License saved to ${filePath}`)
       }

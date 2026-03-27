@@ -38,13 +38,11 @@ Environment variable 'DATABASE_URL' deleted
     const {flags} = await this.parse(SandboxEnvDelete)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
     const envName = flags.name
 
     if (!flags.force) {
       const confirmed = await this.confirm(
-        `Are you sure you want to delete environment variable '${envName}' from sandbox environment ${tenantName}?`,
+        `Are you sure you want to delete environment variable '${envName}' from sandbox environment?`,
       )
       if (!confirmed) {
         this.log('Deletion cancelled.')
@@ -52,7 +50,7 @@ Environment variable 'DATABASE_URL' deleted
       }
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/env/${envName}`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/env/${envName}`
 
     try {
       const response = await this.verboseFetch(
@@ -74,9 +72,9 @@ Environment variable 'DATABASE_URL' deleted
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify({deleted: true, env_name: envName, tenant_name: tenantName}, null, 2))
+        this.log(JSON.stringify({deleted: true, env_name: envName}, null, 2))
       } else {
-        this.log(`Environment variable '${envName}' deleted from sandbox environment ${tenantName}`)
+        this.log(`Environment variable '${envName}' deleted from sandbox environment`)
       }
     } catch (error) {
       if (error instanceof Error) {

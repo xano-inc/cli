@@ -27,9 +27,7 @@ Environment variables for sandbox environment:
     const {flags} = await this.parse(SandboxEnvList)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/env_key`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/env_key`
 
     try {
       const response = await this.verboseFetch(
@@ -57,9 +55,9 @@ Environment variables for sandbox environment:
       } else {
         const envVars = data.env || []
         if (envVars.length === 0) {
-          this.log(`No environment variables found for sandbox environment ${tenantName}`)
+          this.log(`No environment variables found for sandbox environment`)
         } else {
-          this.log(`Environment variables for sandbox environment ${tenantName}:`)
+          this.log(`Environment variables for sandbox environment:`)
           for (const envVar of envVars) {
             this.log(`  - ${envVar.name}`)
           }

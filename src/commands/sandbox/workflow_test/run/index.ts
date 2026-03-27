@@ -38,10 +38,7 @@ Result: PASS (0.25s)
     const {args, flags} = await this.parse(SandboxWorkflowTestRun)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${encodeURIComponent(tenantName)}/workflow_test/${args.workflow_test_id}/run`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/workflow_test/${args.workflow_test_id}/run`
 
     try {
       if (flags.output === 'summary') {

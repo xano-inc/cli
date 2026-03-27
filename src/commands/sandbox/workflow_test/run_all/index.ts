@@ -54,10 +54,7 @@ Results: 2 passed, 1 failed
     const {flags} = await this.parse(SandboxWorkflowTestRunAll)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
-    const baseUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${encodeURIComponent(tenantName)}/workflow_test`
+    const baseUrl = `${profile.instance_origin}/api:meta/sandbox/workflow_test`
 
     try {
       // Step 1: List all workflow tests

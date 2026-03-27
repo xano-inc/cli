@@ -40,9 +40,7 @@ Environment variables saved to env_<tenant>.yaml
     const {flags} = await this.parse(SandboxEnvGetAll)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/env_all`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/env_all`
 
     try {
       const response = await this.verboseFetch(
@@ -71,7 +69,7 @@ Environment variables saved to env_<tenant>.yaml
         const envYaml = yaml.dump(envMap, {lineWidth: -1, sortKeys: true})
         this.log(envYaml.trimEnd())
       } else {
-        const filePath = path.resolve(flags.file || `env_${tenantName}.yaml`)
+        const filePath = path.resolve(flags.file || `env.yaml`)
         const envYaml = yaml.dump(envMap, {lineWidth: -1, sortKeys: true})
         fs.writeFileSync(filePath, envYaml, 'utf8')
         this.log(`Environment variables saved to ${filePath}`)

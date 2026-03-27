@@ -34,10 +34,8 @@ Environment variable 'DATABASE_URL' set
     const {flags} = await this.parse(SandboxEnvSet)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
     const envName = flags.name
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/env/${envName}`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/env/${envName}`
 
     const body = {
       env: {
@@ -71,7 +69,7 @@ Environment variable 'DATABASE_URL' set
         const result = await response.json()
         this.log(JSON.stringify(result, null, 2))
       } else {
-        this.log(`Environment variable '${envName}' set for sandbox environment ${tenantName}`)
+        this.log(`Environment variable '${envName}' set for sandbox environment`)
       }
     } catch (error) {
       if (error instanceof Error) {

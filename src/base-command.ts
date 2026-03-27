@@ -33,6 +33,7 @@ export interface SandboxTenant {
   ephemeral?: boolean
   id: number
   name: string
+  sandbox_expires_at?: string | number
   state?: string
   xano_domain?: string
 }

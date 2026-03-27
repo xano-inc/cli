@@ -37,14 +37,11 @@ Workflow tests:
     const {flags} = await this.parse(SandboxWorkflowTestList)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
     const params = new URLSearchParams()
     params.set('per_page', '10000')
     if (flags.branch) params.set('branch', flags.branch)
 
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${encodeURIComponent(tenantName)}/workflow_test?${params}`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/workflow_test?${params}`
 
     try {
       const response = await this.verboseFetch(
@@ -82,7 +79,7 @@ Workflow tests:
         if (tests.length === 0) {
           this.log('No workflow tests found')
         } else {
-          this.log(`Workflow tests for sandbox environment ${tenantName}:`)
+          this.log(`Workflow tests for sandbox environment:`)
           for (const test of tests) {
             this.log(`  - ${test.name} (ID: ${test.id})`)
           }

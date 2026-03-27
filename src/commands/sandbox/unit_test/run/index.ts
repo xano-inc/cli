@@ -38,10 +38,7 @@ Result: PASS
     const {args, flags} = await this.parse(SandboxUnitTestRun)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${encodeURIComponent(tenantName)}/unit_test/${encodeURIComponent(args.unit_test_id)}/run`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/unit_test/${encodeURIComponent(args.unit_test_id)}/run`
 
     try {
       if (flags.output === 'summary') {

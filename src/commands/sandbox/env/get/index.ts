@@ -30,10 +30,8 @@ postgres://localhost:5432/mydb
     const {flags} = await this.parse(SandboxEnvGet)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
     const envName = flags.name
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/env/${envName}`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/env/${envName}`
 
     try {
       const response = await this.verboseFetch(
@@ -61,7 +59,7 @@ postgres://localhost:5432/mydb
       } else if (envVar) {
         this.log(envVar.value)
       } else {
-        this.log(`Environment variable '${envName}' not found for sandbox environment ${tenantName}`)
+        this.log(`Environment variable '${envName}' not found for sandbox environment`)
       }
     } catch (error) {
       if (error instanceof Error) {

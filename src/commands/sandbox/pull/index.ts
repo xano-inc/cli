@@ -18,7 +18,7 @@ export default class SandboxPull extends BaseCommand {
   static override description = 'Pull documents from your sandbox environment and split into individual files'
   static override examples = [
     `$ xano sandbox pull ./my-sandbox
-Pulled 42 documents from sandbox environment tc24-abcd-x1y2 to ./my-sandbox
+Pulled 42 documents from sandbox environment to ./my-sandbox
 `,
     `$ xano sandbox pull ./backup --env --records`,
   ]
@@ -45,16 +45,13 @@ Pulled 42 documents from sandbox environment tc24-abcd-x1y2 to ./my-sandbox
     const {args, flags} = await this.parse(SandboxPull)
     const {profile} = this.resolveProfile(flags)
 
-    const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
-    const tenantName = tenant.name
-
     const queryParams = new URLSearchParams({
       env: flags.env.toString(),
       include_draft: flags.draft.toString(),
       records: flags.records.toString(),
     })
 
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/tenant/${tenantName}/multidoc?${queryParams.toString()}`
+    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/multidoc?${queryParams.toString()}`
 
     let responseText: string
 
@@ -192,7 +189,7 @@ Pulled 42 documents from sandbox environment tc24-abcd-x1y2 to ./my-sandbox
       writtenCount++
     }
 
-    this.log(`Pulled ${writtenCount} documents from sandbox environment ${tenantName} to ${args.directory}`)
+    this.log(`Pulled ${writtenCount} documents from sandbox environment to ${args.directory}`)
   }
 
   private sanitizeFilename(name: string): string {

@@ -36,6 +36,18 @@ Sandbox Environment: (tc24-abcd-x1y2)
         this.log(`Sandbox Environment: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.xano_domain) this.log(`  Domain: ${tenant.xano_domain}`)
+        if (tenant.sandbox_expires_at) {
+          const expiresAt = new Date(tenant.sandbox_expires_at)
+          if (!isNaN(expiresAt.getTime())) {
+            const msLeft = expiresAt.getTime() - Date.now()
+            if (msLeft > 0) {
+              const minsLeft = Math.ceil(msLeft / 60_000)
+              this.log(`  Session expires: ${expiresAt.toLocaleString()} (${minsLeft} min remaining)`)
+            } else {
+              this.log(`  Session expires: ${expiresAt.toLocaleString()} (expired)`)
+            }
+          }
+        }
       }
     } catch (error) {
       if (error instanceof Error) {
