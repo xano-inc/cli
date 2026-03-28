@@ -839,7 +839,7 @@ Push functions but exclude test files
         const color = op.action === 'update' || op.action === 'update_field' ? 'yellow' : 'green'
         const actionLabel = op.action.toUpperCase()
         this.log(`  ${ux.colorize(color, actionLabel.padEnd(16))} ${op.type.padEnd(18)} ${op.name}`)
-        if (op.details) {
+        if (verbose && op.details) {
           this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
         }
 
@@ -868,7 +868,7 @@ Push functions but exclude test files
         const color = op.action === 'truncate' || op.action === 'alter_field' ? 'yellow' : 'red'
         const actionLabel = op.action.toUpperCase()
         this.log(`  ${ux.colorize(color, actionLabel.padEnd(16))} ${op.type.padEnd(18)} ${op.name}`)
-        if (op.details) {
+        if (verbose && op.details) {
           this.log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', op.details)}`)
         }
 

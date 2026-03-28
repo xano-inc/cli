@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "0.0.95-beta.6",
+  "version": "0.0.95-beta.8",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -32,7 +32,7 @@
     "eslint-config-oclif": "^6",
     "eslint-config-prettier": "^10",
     "mocha": "^10",
-    "oclif": "^4",
+    "oclif": "4.22.77",
     "shx": "^0.3.3",
     "ts-node": "^10",
     "typescript": "^5"
