@@ -57,8 +57,8 @@ Environment variables saved to env_<tenant>.yaml
       )
 
       if (!response.ok) {
-        const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        const message = await this.parseApiError(response, 'API request failed')
+        this.error(message)
       }
 
       const envMap = (await response.json()) as Record<string, string>

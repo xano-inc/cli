@@ -70,8 +70,8 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       )
 
       if (!response.ok) {
-        const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        const message = await this.parseApiError(response, 'API request failed')
+        this.error(message)
       }
 
       responseText = await response.text()

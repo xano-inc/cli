@@ -48,8 +48,8 @@ postgres://localhost:5432/mydb
       )
 
       if (!response.ok) {
-        const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        const message = await this.parseApiError(response, 'API request failed')
+        this.error(message)
       }
 
       const envVar = (await response.json()) as {name: string; value: string} | null

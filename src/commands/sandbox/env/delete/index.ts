@@ -67,8 +67,8 @@ Environment variable 'DATABASE_URL' deleted
       )
 
       if (!response.ok) {
-        const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        const message = await this.parseApiError(response, 'API request failed')
+        this.error(message)
       }
 
       if (flags.output === 'json') {

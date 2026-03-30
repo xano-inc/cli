@@ -126,6 +126,11 @@ Pushed 42 documents to sandbox environment from ./my-workspace
           errorMessage += `\n${errorText}`
         }
 
+        // Provide guidance when sandbox access is denied (free plan restriction)
+        if (response.status === 500 && errorMessage.includes('Access Denied')) {
+          this.error('Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.')
+        }
+
         const guidMatch = errorMessage.match(/Duplicate \w+ guid: (\S+)/)
         if (guidMatch) {
           const dupeFiles = findFilesWithGuid(documentEntries, guidMatch[1])

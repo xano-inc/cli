@@ -57,8 +57,8 @@ Review session started!
       )
 
       if (!response.ok) {
-        const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        const message = await this.parseApiError(response, 'API request failed')
+        this.error(message)
       }
 
       const result = (await response.json()) as ImpersonateResponse

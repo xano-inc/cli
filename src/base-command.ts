@@ -167,8 +167,8 @@ export default abstract class BaseCommand extends Command {
     )
 
     if (!response.ok) {
-      const errorText = await response.text()
-      this.error(`Failed to get sandbox environment: ${response.status} ${response.statusText}\n${errorText}`)
+      const message = await this.parseApiError(response, 'Failed to get sandbox environment')
+      this.error(message)
     }
 
     return (await response.json()) as SandboxTenant
@@ -196,6 +196,33 @@ export default abstract class BaseCommand extends Command {
     }
 
     return {profile, profileName}
+  }
+
+  /**
+   * Parse an API error response and return a clean error message.
+   * Extracts the message from JSON responses and adds context for common errors.
+   */
+  protected async parseApiError(response: Response, fallbackPrefix: string): Promise<string> {
+    const errorText = await response.text()
+    let message = `${fallbackPrefix} (${response.status})`
+
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.message) {
+        message = errorJson.message
+      }
+    } catch {
+      if (errorText) {
+        message += `\n${errorText}`
+      }
+    }
+
+    // Provide guidance when sandbox access is denied (free plan restriction)
+    if (response.status === 500 && message === 'Access Denied.') {
+      message = 'Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.'
+    }
+
+    return message
   }
 
   /**
