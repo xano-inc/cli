@@ -429,8 +429,8 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
     // Add or update the profile
     credentials.profiles[profile.name] = {
       access_token: profile.access_token,
-      account_origin: profile.account_origin,
-      instance_origin: profile.instance_origin,
+      account_origin: (profile.account_origin || '').replace(/\/+$/, ''),
+      instance_origin: profile.instance_origin.replace(/\/+$/, ''),
       ...(profile.workspace && {workspace: profile.workspace}),
       ...(profile.branch && {branch: profile.branch}),
       ...(profile.insecure && {insecure: true}),

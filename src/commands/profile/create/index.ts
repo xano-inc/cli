@@ -123,8 +123,8 @@ Profile 'selfhosted' created successfully at ~/.xano/credentials.yaml
 
     credentials.profiles[args.name] = {
       access_token: flags.access_token,
-      account_origin: flags.account_origin ?? '',
-      instance_origin: flags.instance_origin,
+      account_origin: (flags.account_origin ?? '').replace(/\/+$/, ''),
+      instance_origin: flags.instance_origin.replace(/\/+$/, ''),
       ...(flags.workspace && {workspace: flags.workspace}),
       ...(flags.branch && {branch: flags.branch}),
       ...(flags.insecure && {insecure: true}),
