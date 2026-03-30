@@ -402,6 +402,7 @@ Push functions but exclude test files
                     'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.',
                   ),
                 )
+                this.log(ux.colorize('dim', 'Note: This setting does not apply to Free plan instances.'))
                 this.log('')
                 return
               }
@@ -633,7 +634,8 @@ Push functions but exclude test files
           if (errorJson.message?.includes('Push is disabled')) {
             this.error(
               `Push is disabled for this workspace.\n\n` +
-                `To enable, go to Workspace Settings and turn on "Allow Push".\n\n` +
+                `To enable, go to Workspace Settings and turn on "Allow Push".\n` +
+                `Note: This setting does not apply to Free plan instances.\n\n` +
                 `Alternatively, use sandbox commands:\n` +
                 `  xano sandbox push ${args.directory}\n` +
                 `  xano sandbox impersonate`,
