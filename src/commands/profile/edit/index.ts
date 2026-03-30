@@ -160,8 +160,8 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
     // Update only the fields that were provided
     const updatedProfile = {
       ...existingProfile,
-      ...(flags.account_origin !== undefined && {account_origin: flags.account_origin}),
-      ...(flags.instance_origin !== undefined && {instance_origin: flags.instance_origin}),
+      ...(flags.account_origin !== undefined && {account_origin: flags.account_origin.replace(/\/+$/, '')}),
+      ...(flags.instance_origin !== undefined && {instance_origin: flags.instance_origin.replace(/\/+$/, '')}),
       ...(flags.access_token !== undefined && {access_token: flags.access_token}),
       ...(flags.workspace !== undefined && {workspace: flags.workspace}),
       ...(flags.branch !== undefined && {branch: flags.branch}),
