@@ -1,10 +1,10 @@
-import {Args, Flags} from '@oclif/core'
+import {Args, Flags, ux} from '@oclif/core'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {findFilesWithGuid} from '../../../utils/document-parser.js'
-
-import * as fs from 'node:fs'
-import * as path from 'node:path'
+import {type BadReference, checkReferences} from '../../../utils/reference-checker.js'
 
 export default class SandboxPush extends BaseCommand {
   static args = {
@@ -76,6 +76,12 @@ Pushed 42 documents to sandbox environment from ./my-workspace
 
     if (documentEntries.length === 0) {
       this.error(`All .xs files in ${args.directory} are empty`)
+    }
+
+    // Check for bad cross-references within the local file set
+    const badRefs = checkReferences(documentEntries)
+    if (badRefs.length > 0) {
+      this.renderBadReferences(badRefs)
     }
 
     const multidoc = documentEntries.map((d) => d.content).join('\n---\n')
@@ -162,5 +168,28 @@ Pushed 42 documents to sandbox environment from ./my-workspace
     }
 
     return files.sort()
+  }
+
+  private renderBadReferences(badRefs: BadReference[]): void {
+    this.log('')
+    this.log(ux.colorize('yellow', ux.colorize('bold', '=== Unresolved References ===')))
+    this.log('')
+    this.log(
+      ux.colorize(
+        'yellow',
+        "The following references point to objects that don't exist in this push or on the server.",
+      ),
+    )
+    this.log(ux.colorize('yellow', 'These will become placeholder statements after import.'))
+    this.log('')
+
+    for (const ref of badRefs) {
+      this.log(`  ${ux.colorize('yellow', 'WARNING'.padEnd(16))} ${ref.sourceType.padEnd(18)} ${ref.source}`)
+      this.log(
+        `  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `${ref.statementType} → ${ref.targetType} "${ref.target}" does not exist`)}`,
+      )
+    }
+
+    this.log('')
   }
 }

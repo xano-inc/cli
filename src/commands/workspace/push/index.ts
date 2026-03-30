@@ -7,6 +7,7 @@ import * as path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {buildDocumentKey, findFilesWithGuid, parseDocument} from '../../../utils/document-parser.js'
+import {type BadReference, checkReferences} from '../../../utils/reference-checker.js'
 
 interface ProfileConfig {
   access_token: string
@@ -336,10 +337,10 @@ Push functions but exclude test files
     let dryRunPreview: DryRunResult | null = null
     if (flags['dry-run'] || !flags.force) {
       const dryRunParams = new URLSearchParams(queryParams)
-      // Request delete info in dry-run so we can show remote-only items (skip for partial)
-      if (!isPartial) {
-        dryRunParams.set('delete', 'true')
-      }
+      // Always request delete info in dry-run so we can:
+      // 1. Show remote-only items (in --sync mode)
+      // 2. Know what exists on the server (to filter unresolved reference warnings)
+      dryRunParams.set('delete', 'true')
       const dryRunUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/multidoc/dry-run?${dryRunParams.toString()}`
 
       try {
@@ -435,6 +436,12 @@ Push functions but exclude test files
           // Check if the server returned a valid dry-run response
           if (preview && preview.summary) {
             this.renderPreview(preview, shouldDelete, workspaceId, flags.verbose, isPartial)
+
+            // Check for bad cross-references, using dry-run operations to avoid false positives
+            const badRefs = checkReferences(documentEntries, preview.operations)
+            if (badRefs.length > 0) {
+              this.renderBadReferences(badRefs)
+            }
 
             // Check for critical errors that must block the push
             const criticalOps = preview.operations.filter(
@@ -574,6 +581,15 @@ Push functions but exclude test files
         } else {
           this.error('Non-interactive environment detected. Use --force to skip confirmation.')
         }
+      }
+    }
+
+    // Show bad references in force mode (preview mode shows them inline)
+    if (flags.force) {
+      const badRefs = checkReferences(documentEntries)
+      if (badRefs.length > 0) {
+        this.log('')
+        this.renderBadReferences(badRefs)
       }
     }
 
@@ -941,6 +957,28 @@ Push functions but exclude test files
     }
 
     return files.sort()
+  }
+
+  private renderBadReferences(badRefs: BadReference[]): void {
+    this.log(ux.colorize('yellow', ux.colorize('bold', '=== Unresolved References ===')))
+    this.log('')
+    this.log(
+      ux.colorize(
+        'yellow',
+        "The following references point to objects that don't exist in this push or on the server.",
+      ),
+    )
+    this.log(ux.colorize('yellow', 'These will become placeholder statements after import.'))
+    this.log('')
+
+    for (const ref of badRefs) {
+      this.log(`  ${ux.colorize('yellow', 'WARNING'.padEnd(16))} ${ref.sourceType.padEnd(18)} ${ref.source}`)
+      this.log(
+        `  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `${ref.statementType} → ${ref.targetType} "${ref.target}" does not exist`)}`,
+      )
+    }
+
+    this.log('')
   }
 
   private loadCredentials(): CredentialsFile {
