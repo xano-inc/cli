@@ -58,6 +58,7 @@ Deleted workflow test 42
         this.log(`Deleted workflow test ${args.workflow_test_id}`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to delete workflow test: ${error.message}`)
       } else {

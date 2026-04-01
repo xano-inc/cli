@@ -97,6 +97,7 @@ Unit tests:
         }
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to list unit tests: ${error.message}`)
       } else {

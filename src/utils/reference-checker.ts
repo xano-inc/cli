@@ -50,6 +50,15 @@ const REFERENCE_PATTERNS: ReferencePattern[] = [
     regex: /^\s*workflow_test\.call\s+("(?:[^"\\]|\\.)*"|[^\s{]+)/gm,
     targetType: 'workflow_test',
   },
+  // db.* statements reference tables: db.get, db.query, db.add, db.edit, db.add_or_edit, db.delete, db.bulk_add, db.bulk_delete, db.count
+  {
+    keyword: 'db.*',
+    regex:
+      /^\s*db\.(?:get|query|add|edit|add_or_edit|delete|bulk_add|bulk_delete|count)\s+("(?:[^"\\]|\\.)*"|[^\s{]+)/gm,
+    targetType: 'table',
+  },
+  // Schema foreign key references: table = "name" inside field definitions
+  {keyword: 'table (FK)', regex: /\btable\s*=\s*"([^"]*)"/gm, targetType: 'table'},
 ]
 
 /**
@@ -167,8 +176,8 @@ export function checkReferences(
       while ((match = pattern.regex.exec(doc.content)) !== null) {
         const rawName = stripQuotes(match[1])
 
-        // Skip empty names (e.g., action.call "" is valid for integration actions)
-        if (!rawName) continue
+        // Skip empty names only for action.call (valid for integration actions)
+        if (!rawName && pattern.keyword === 'action.call') continue
 
         const {targetType} = pattern
         const knownNames = registry.get(targetType)

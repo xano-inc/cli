@@ -77,6 +77,7 @@ Environment variable 'DATABASE_URL' deleted
         this.log(`Environment variable '${envName}' deleted from sandbox environment`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to delete sandbox environment variable: ${error.message}`)
       } else {

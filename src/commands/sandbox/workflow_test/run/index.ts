@@ -82,6 +82,7 @@ Result: PASS (0.25s)
         }
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to run workflow test: ${error.message}`)
       } else {

@@ -75,6 +75,7 @@ Environment variables saved to env_<tenant>.yaml
         this.log(`Environment variables saved to ${filePath}`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to get sandbox environment variables: ${error.message}`)
       } else {

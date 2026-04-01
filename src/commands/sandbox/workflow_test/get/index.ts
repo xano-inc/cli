@@ -57,6 +57,7 @@ export default class SandboxWorkflowTestGet extends BaseCommand {
         if (t.description) this.log(`  Description: ${t.description}`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to get workflow test: ${error.message}`)
       } else {

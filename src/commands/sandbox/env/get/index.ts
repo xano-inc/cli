@@ -62,6 +62,7 @@ postgres://localhost:5432/mydb
         this.log(`Environment variable '${envName}' not found for sandbox environment`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to get sandbox environment variable: ${error.message}`)
       } else {

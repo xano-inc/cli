@@ -64,6 +64,7 @@ Environment variables for sandbox environment:
         }
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to list sandbox environment variables: ${error.message}`)
       } else {

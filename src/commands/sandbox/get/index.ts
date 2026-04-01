@@ -50,6 +50,7 @@ Sandbox Environment: (tc24-abcd-x1y2)
         }
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to get sandbox environment: ${error.message}`)
       } else {

@@ -87,6 +87,7 @@ Review session started!
 
       process.exit(0)
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to open sandbox review: ${error.message}`)
       } else {

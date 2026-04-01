@@ -86,6 +86,7 @@ Workflow tests:
         }
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to list workflow tests: ${error.message}`)
       } else {

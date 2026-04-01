@@ -76,6 +76,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
 
       responseText = await response.text()
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to fetch multidoc: ${error.message}`)
       } else {

@@ -72,6 +72,7 @@ Environment variable 'DATABASE_URL' set
         this.log(`Environment variable '${envName}' set for sandbox environment`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to set sandbox environment variable: ${error.message}`)
       } else {

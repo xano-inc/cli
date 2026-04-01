@@ -76,6 +76,7 @@ License saved to license_<tenant>.yaml
         this.log(`License saved to ${filePath}`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to get sandbox environment license: ${error.message}`)
       } else {

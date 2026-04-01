@@ -84,6 +84,7 @@ Result: PASS
         }
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to run unit test: ${error.message}`)
       } else {

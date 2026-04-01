@@ -172,6 +172,7 @@ Results: 4 passed, 1 failed
             }
           }
         } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
           const message = error instanceof Error ? error.message : String(error)
           results.push({
             message,
@@ -202,6 +203,7 @@ Results: 4 passed, 1 failed
         process.exitCode = 1
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to run unit tests: ${error.message}`)
       } else {

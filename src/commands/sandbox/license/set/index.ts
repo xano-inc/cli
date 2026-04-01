@@ -96,6 +96,7 @@ Reads from license_<tenant>.yaml
         this.log(`Removed ${sourceFilePath}`)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to set sandbox environment license: ${error.message}`)
       } else {

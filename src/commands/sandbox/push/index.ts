@@ -148,6 +148,7 @@ Pushed 42 documents to sandbox environment from ./my-workspace
         this.log(responseText)
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to push multidoc: ${error.message}`)
       } else {
