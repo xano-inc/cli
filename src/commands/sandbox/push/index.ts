@@ -4,7 +4,7 @@ import * as path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {findFilesWithGuid} from '../../../utils/document-parser.js'
-import {type BadReference, checkReferences} from '../../../utils/reference-checker.js'
+import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from '../../../utils/reference-checker.js'
 
 export default class SandboxPush extends BaseCommand {
   static args = {
@@ -82,6 +82,12 @@ Pushed 42 documents to sandbox environment from ./my-workspace
     const badRefs = checkReferences(documentEntries)
     if (badRefs.length > 0) {
       this.renderBadReferences(badRefs)
+    }
+
+    // Check for indexes referencing non-existent schema fields
+    const badIndexes = checkTableIndexes(documentEntries)
+    if (badIndexes.length > 0) {
+      this.renderBadIndexes(badIndexes)
     }
 
     const multidoc = documentEntries.map((d) => d.content).join('\n---\n')
@@ -174,6 +180,26 @@ Pushed 42 documents to sandbox environment from ./my-workspace
     }
 
     return files.sort()
+  }
+
+  private renderBadIndexes(badIndexes: BadIndex[]): void {
+    this.log('')
+    this.log(ux.colorize('red', ux.colorize('bold', '=== CRITICAL: Invalid Indexes ===')))
+    this.log('')
+    this.log(
+      ux.colorize('red', 'The following tables have indexes referencing fields that do not exist in the schema.'),
+    )
+    this.log(ux.colorize('red', 'These will cause the import to fail.'))
+    this.log('')
+
+    for (const idx of badIndexes) {
+      this.log(`  ${ux.colorize('red', 'CRITICAL'.padEnd(16))} ${'table'.padEnd(18)} ${idx.table}`)
+      this.log(
+        `  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `${idx.indexType} index → field "${idx.field}" does not exist in schema`)}`,
+      )
+    }
+
+    this.log('')
   }
 
   private renderBadReferences(badRefs: BadReference[]): void {

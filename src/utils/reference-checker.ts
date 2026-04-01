@@ -197,3 +197,107 @@ export function checkReferences(
 
   return badRefs
 }
+
+export interface BadIndex {
+  field: string
+  indexType: string
+  table: string
+}
+
+/**
+ * Check table documents for indexes that reference fields not in the schema.
+ * Parses the XanoScript table format to extract schema field names and index field names.
+ */
+export function checkTableIndexes(documents: Array<{content: string}>): BadIndex[] {
+  const badIndexes: BadIndex[] = []
+
+  for (const doc of documents) {
+    const parsed = parseDocument(doc.content)
+    if (!parsed || parsed.type !== 'table') continue
+
+    const schemaFields = extractSchemaFields(doc.content)
+    const indexes = extractIndexes(doc.content)
+
+    for (const idx of indexes) {
+      for (const field of idx.fields) {
+        if (!schemaFields.has(field)) {
+          badIndexes.push({
+            field,
+            indexType: idx.type,
+            table: parsed.name,
+          })
+        }
+      }
+    }
+  }
+
+  return badIndexes
+}
+
+function extractSchemaFields(content: string): Set<string> {
+  // id and created_at are auto-added during import
+  const fields = new Set<string>(['id', 'created_at'])
+
+  // Find the schema block by matching braces
+  const schemaStart = content.match(/\bschema\s*\{/)
+  if (!schemaStart || schemaStart.index === undefined) return fields
+
+  let depth = 0
+  let blockStart = -1
+  let blockEnd = -1
+  for (let i = schemaStart.index; i < content.length; i++) {
+    if (content[i] === '{') {
+      if (depth === 0) blockStart = i + 1
+      depth++
+    } else if (content[i] === '}') {
+      depth--
+      if (depth === 0) {
+        blockEnd = i
+        break
+      }
+    }
+  }
+
+  if (blockStart < 0 || blockEnd < 0) return fields
+
+  const schemaBlock = content.slice(blockStart, blockEnd)
+  // Match field declarations: "type name" or "type name?" or "type name?=default"
+  const fieldRegex = /^\s*\w+\s+(\w+)[?\s{]/gm
+  let match: null | RegExpExecArray
+  while ((match = fieldRegex.exec(schemaBlock)) !== null) {
+    fields.add(match[1])
+  }
+
+  return fields
+}
+
+function extractIndexes(content: string): Array<{fields: string[]; type: string}> {
+  const indexes: Array<{fields: string[]; type: string}> = []
+
+  // Match the index array: index = [ ... ]
+  const indexMatch = content.match(/\bindex\s*=\s*\[([\s\S]*?)\n\s*\]/)
+  if (!indexMatch) return indexes
+
+  const indexBlock = indexMatch[1]
+  // Match each index object: {type: "btree", field: [{name: "col", op: "desc"}]}
+  const entryRegex = /\{([^}]+)\}/g
+  let match: null | RegExpExecArray
+  while ((match = entryRegex.exec(indexBlock)) !== null) {
+    const entry = match[1]
+    const typeMatch = entry.match(/type:\s*"(\w+)"/)
+    const type = typeMatch ? typeMatch[1] : 'unknown'
+
+    const fieldNames: string[] = []
+    const nameRegex = /name:\s*"(\w*)"/g
+    let nameMatch: null | RegExpExecArray
+    while ((nameMatch = nameRegex.exec(entry)) !== null) {
+      fieldNames.push(nameMatch[1])
+    }
+
+    if (fieldNames.length > 0) {
+      indexes.push({fields: fieldNames, type})
+    }
+  }
+
+  return indexes
+}
