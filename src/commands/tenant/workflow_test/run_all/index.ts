@@ -85,40 +85,9 @@ Results: 2 passed, 1 failed
       this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
-    // Resolve tenant to get its workspace
-    const tenantUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${encodeURIComponent(flags.tenant)}`
-    let tenantWorkspaceId: string
+    const tenantName = encodeURIComponent(flags.tenant)
 
-    try {
-      const tenantResponse = await this.verboseFetch(
-        tenantUrl,
-        {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${profile.access_token}`,
-          },
-          method: 'GET',
-        },
-        flags.verbose,
-        profile.access_token,
-      )
-
-      if (!tenantResponse.ok) {
-        const errorText = await tenantResponse.text()
-        this.error(`Failed to find tenant '${flags.tenant}': ${tenantResponse.status}\n${errorText}`)
-      }
-
-      const tenant = (await tenantResponse.json()) as {workspace?: {id?: number}}
-      tenantWorkspaceId = String(tenant.workspace?.id || workspaceId)
-    } catch (error) {
-      if (error instanceof Error) {
-        this.error(`Failed to resolve tenant: ${error.message}`)
-      } else {
-        this.error(`Failed to resolve tenant: ${String(error)}`)
-      }
-    }
-
-    const baseUrl = `${profile.instance_origin}/api:meta/workspace/${tenantWorkspaceId}/workflow_test`
+    const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/workflow_test`
 
     try {
       const listParams = new URLSearchParams()

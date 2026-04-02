@@ -78,45 +78,14 @@ Unit tests for tenant my-tenant:
       this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
-    // Resolve tenant to get its workspace
-    const tenantUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${encodeURIComponent(flags.tenant)}`
-    let tenantWorkspaceId: string
-
-    try {
-      const tenantResponse = await this.verboseFetch(
-        tenantUrl,
-        {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${profile.access_token}`,
-          },
-          method: 'GET',
-        },
-        flags.verbose,
-        profile.access_token,
-      )
-
-      if (!tenantResponse.ok) {
-        const errorText = await tenantResponse.text()
-        this.error(`Failed to find tenant '${flags.tenant}': ${tenantResponse.status}\n${errorText}`)
-      }
-
-      const tenant = (await tenantResponse.json()) as {workspace?: {id?: number}}
-      tenantWorkspaceId = String(tenant.workspace?.id || workspaceId)
-    } catch (error) {
-      if (error instanceof Error) {
-        this.error(`Failed to resolve tenant: ${error.message}`)
-      } else {
-        this.error(`Failed to resolve tenant: ${String(error)}`)
-      }
-    }
+    const tenantName = encodeURIComponent(flags.tenant)
 
     const params = new URLSearchParams()
     params.set('per_page', '10000')
     if (flags.branch) params.set('branch', flags.branch)
     if (flags['obj-type']) params.set('obj_type', flags['obj-type'])
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${tenantWorkspaceId}/unit_test?${params}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/unit_test?${params}`
 
     try {
       const response = await this.verboseFetch(
