@@ -145,6 +145,8 @@ xano workspace git pull ./output -r https://github.com/owner/repo --path subdir
 
 All branch commands use **branch labels** (e.g., `v1`, `dev`), not IDs.
 
+The `v1` branch is the default branch and always exists. It cannot be created, edited, or deleted.
+
 ```bash
 # List branches
 xano branch list
@@ -153,9 +155,9 @@ xano branch list
 xano branch get <branch_label>
 
 # Create a branch
-xano branch create --label dev
-xano branch create -l feature-auth -s dev -d "Auth feature"
-xano branch create -l staging --color "#ebc346"
+xano branch create dev
+xano branch create feature-auth -s dev -d "Auth feature"
+xano branch create staging --color "#ebc346"
 
 # Edit a branch
 xano branch edit <branch_label> --label "new-label"
