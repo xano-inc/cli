@@ -388,7 +388,22 @@ Push functions but exclude test files
               const errorJson = JSON.parse(errorText)
               if (errorJson.message?.includes('Push is disabled')) {
                 this.log('')
-                this.log(ux.colorize('red', ux.colorize('bold', 'Direct push to this workspace is disabled.')))
+                this.log(
+                  ux.colorize(
+                    'red',
+                    ux.colorize(
+                      'bold',
+                      'Direct push is disabled to protect your production workspace from unintended changes.',
+                    ),
+                  ),
+                )
+                this.log(
+                  ux.colorize(
+                    'dim',
+                    'Use your sandbox environment to test and review changes before applying them to your production workspace.',
+                  ),
+                )
+                this.log('')
                 this.log(ux.colorize('dim', 'To apply changes to the workspace, use the sandbox review flow:'))
                 this.log(
                   `  ${ux.colorize('cyan', 'xano sandbox push')}    ${ux.colorize('dim', '— push changes to your sandbox')}`,
@@ -403,7 +418,13 @@ Push functions but exclude test files
                     'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.',
                   ),
                 )
-                this.log(ux.colorize('dim', 'Note: This setting does not apply to Free plan instances.'))
+                this.log('')
+                this.log(
+                  ux.colorize(
+                    'dim',
+                    "Note: Free plan instances don't include sandbox environments, so direct push is always enabled.",
+                  ),
+                )
                 this.log('')
                 return
               }
@@ -655,12 +676,13 @@ Push functions but exclude test files
           // Provide clear guidance when push is disabled
           if (errorJson.message?.includes('Push is disabled')) {
             this.error(
-              `Push is disabled for this workspace.\n\n` +
-                `To enable, go to Workspace Settings and turn on "Allow Push".\n` +
-                `Note: This setting does not apply to Free plan instances.\n\n` +
+              `Direct push is disabled to protect your production workspace from unintended changes.\n` +
+                `Use your sandbox environment to test and review changes before applying them to your production workspace.\n\n` +
                 `Alternatively, use sandbox commands:\n` +
                 `  xano sandbox push ${args.directory}\n` +
-                `  xano sandbox impersonate`,
+                `  xano sandbox review\n\n` +
+                `To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.\n\n` +
+                `Note: Free plan instances don't include sandbox environments, so direct push is always enabled.`,
             )
           }
         } catch {
@@ -970,9 +992,11 @@ Push functions but exclude test files
     this.log(ux.colorize('red', ux.colorize('bold', '=== CRITICAL: Invalid Indexes ===')))
     this.log('')
     this.log(
-      ux.colorize('red', 'The following tables have indexes referencing fields that do not exist in the schema.'),
+      ux.colorize(
+        'red',
+        'The following tables have indexed referencing fields that do not exist in the schema, which may cause related issues.',
+      ),
     )
-    this.log(ux.colorize('red', 'These will cause the import to fail.'))
     this.log('')
 
     for (const idx of badIndexes) {

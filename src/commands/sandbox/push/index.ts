@@ -187,9 +187,11 @@ Pushed 42 documents to sandbox environment from ./my-workspace
     this.log(ux.colorize('red', ux.colorize('bold', '=== CRITICAL: Invalid Indexes ===')))
     this.log('')
     this.log(
-      ux.colorize('red', 'The following tables have indexes referencing fields that do not exist in the schema.'),
+      ux.colorize(
+        'red',
+        'The following tables have indexed referencing fields that do not exist in the schema, which may cause related issues.',
+      ),
     )
-    this.log(ux.colorize('red', 'These will cause the import to fail.'))
     this.log('')
 
     for (const idx of badIndexes) {
