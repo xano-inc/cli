@@ -41,6 +41,7 @@ export default class TenantDeployRelease extends BaseCommand {
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0
 Deployed release "v1.0" to tenant: My Tenant (my-tenant)
 `,
+    `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0 --no-transaction`,
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0 -o json`,
   ]
   static override flags = {
@@ -56,6 +57,12 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       char: 'r',
       description: 'Release name to deploy',
       required: true,
+    }),
+    transaction: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Wrap deployment in a database transaction (use --no-transaction to disable)',
+      required: false,
     }),
     workspace: Flags.string({
       char: 'w',
@@ -104,7 +111,7 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       const response = await this.verboseFetch(
         apiUrl,
         {
-          body: JSON.stringify({release_name: releaseName}),
+          body: JSON.stringify({release_name: releaseName, transaction: flags.transaction}),
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
@@ -130,6 +137,7 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
         this.log(`Deployed release "${releaseName}" to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.release?.name) this.log(`  Release: ${tenant.release.name}`)
+        this.log(`  Transaction: ${flags.transaction ? 'enabled' : 'disabled'}`)
         this.log(`  Time: ${elapsed}s`)
       }
     } catch (error) {
