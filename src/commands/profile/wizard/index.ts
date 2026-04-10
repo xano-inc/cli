@@ -6,7 +6,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import {buildUserAgent} from '../../../base-command.js'
+import {buildUserAgent, resolveCredentialsPath} from '../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -56,6 +56,12 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 `,
   ]
   static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
+      env: 'XANO_CONFIG',
+      required: false,
+    }),
     insecure: Flags.boolean({
       char: 'k',
       default: false,
@@ -236,6 +242,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
           workspace,
         },
         true,
+        flags.config,
       )
 
       this.log('')
@@ -381,8 +388,7 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
 
   private getDefaultProfileName(): string {
     try {
-      const configDir = path.join(os.homedir(), '.xano')
-      const credentialsPath = path.join(configDir, 'credentials.yaml')
+      const credentialsPath = resolveCredentialsPath()
 
       if (!fs.existsSync(credentialsPath)) {
         return 'default'
@@ -401,11 +407,11 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
     }
   }
 
-  private async saveProfile(profile: ProfileConfig, setAsDefault: boolean = false): Promise<void> {
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+  private async saveProfile(profile: ProfileConfig, setAsDefault: boolean = false, configPath?: string): Promise<void> {
+    const credentialsPath = resolveCredentialsPath(configPath)
+    const configDir = path.dirname(credentialsPath)
 
-    // Ensure the .xano directory exists
+    // Ensure the directory exists
     if (!fs.existsSync(configDir)) {
       fs.mkdirSync(configDir, {recursive: true})
     }

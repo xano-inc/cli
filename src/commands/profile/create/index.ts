@@ -4,7 +4,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import BaseCommand from '../../../base-command.js'
+import {resolveCredentialsPath} from '../../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -49,6 +49,12 @@ Profile 'selfhosted' created successfully at ~/.xano/credentials.yaml
 `,
   ]
   static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
+      env: 'XANO_CONFIG',
+      required: false,
+    }),
     access_token: Flags.string({
       char: 't',
       description: 'Access token for the Xano Metadata API',
@@ -90,10 +96,10 @@ Profile 'selfhosted' created successfully at ~/.xano/credentials.yaml
   async run(): Promise<void> {
     const {args, flags} = await this.parse(ProfileCreate)
 
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+    const credentialsPath = resolveCredentialsPath(flags.config)
+    const configDir = path.dirname(credentialsPath)
 
-    // Ensure the .xano directory exists
+    // Ensure the directory exists
     if (!fs.existsSync(configDir)) {
       fs.mkdirSync(configDir, {recursive: true})
       this.log(`Created directory: ${configDir}`)

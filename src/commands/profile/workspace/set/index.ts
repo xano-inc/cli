@@ -71,7 +71,7 @@ Workspace updated to 'Production API' (xyz789) on profile 'production'
     profile.workspace = selectedWorkspace
     credentials.profiles[profileName] = profile
 
-    const credentialsPath = path.join(os.homedir(), '.xano', 'credentials.yaml')
+    const credentialsPath = this.getCredentialsPath()
 
     const yamlContent = yaml.dump(credentials, {
       indent: 2,

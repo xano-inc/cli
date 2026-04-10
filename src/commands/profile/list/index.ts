@@ -4,6 +4,8 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+import {resolveCredentialsPath} from '../../../base-command.js'
+
 interface ProfileConfig {
   access_token: string
   account_origin: string
@@ -61,6 +63,12 @@ Profile: default
 `,
   ]
   static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
+      env: 'XANO_CONFIG',
+      required: false,
+    }),
     details: Flags.boolean({
       char: 'd',
       default: false,
@@ -72,8 +80,7 @@ Profile: default
   async run(): Promise<void> {
     const {flags} = await this.parse(ProfileList)
 
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+    const credentialsPath = resolveCredentialsPath(flags.config)
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {

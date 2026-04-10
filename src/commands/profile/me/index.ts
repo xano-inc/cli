@@ -221,8 +221,7 @@ User Information:
   }
 
   private loadCredentials(): CredentialsFile {
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+    const credentialsPath = this.getCredentialsPath()
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {

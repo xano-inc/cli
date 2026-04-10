@@ -491,6 +491,7 @@ All commands support these options:
 
 | Flag | Description |
 |------|-------------|
+| `-c, --config` | Path to credentials file (or set `XANO_CONFIG` env var). Default: `~/.xano/credentials.yaml` |
 | `-p, --profile` | Profile to use (or set `XANO_PROFILE` env var) |
 | `-w, --workspace` | Workspace ID (overrides profile default) |
 | `-o, --output` | Output format: `summary` (default) or `json` |
@@ -511,7 +512,18 @@ This will show:
 
 ## Configuration
 
-Profiles are stored in `~/.xano/credentials.yaml`:
+Profiles are stored in `~/.xano/credentials.yaml` by default. You can use a different credentials file with:
+
+```bash
+# Via flag
+xano profile list -c /path/to/other-credentials.yaml
+
+# Via environment variable
+export XANO_CONFIG=/path/to/other-credentials.yaml
+xano workspace list
+```
+
+### Credentials File Format
 
 ```yaml
 profiles:

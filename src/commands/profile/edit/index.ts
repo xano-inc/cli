@@ -108,8 +108,7 @@ Profile 'default' updated successfully at ~/.xano/credentials.yaml
     // Use provided name or default profile
     const profileName = args.name || this.getDefaultProfile()
 
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+    const credentialsPath = this.getCredentialsPath()
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {

@@ -213,7 +213,9 @@ protected outputJson(data: unknown): void {
 
 ### Credentials File
 
-Location: `~/.xano/credentials.yaml`
+Default location: `~/.xano/credentials.yaml`
+
+Override with `-c/--config` flag or `XANO_CONFIG` environment variable.
 
 ```yaml
 profiles:
@@ -228,6 +230,12 @@ profiles:
     access_token: <token>
 default: default
 ```
+
+### Credentials File Selection Priority
+
+1. `-c/--config` flag
+2. `XANO_CONFIG` environment variable
+3. Default: `~/.xano/credentials.yaml`
 
 ### Profile Selection Priority
 

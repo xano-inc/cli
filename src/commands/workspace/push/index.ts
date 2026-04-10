@@ -2,7 +2,6 @@ import {Args, Flags, ux} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
-import * as os from 'node:os'
 import * as path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
@@ -1032,8 +1031,7 @@ Push functions but exclude test files
   }
 
   private loadCredentials(): CredentialsFile {
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+    const credentialsPath = this.getCredentialsPath()
 
     // Check if credentials file exists
     if (!fs.existsSync(credentialsPath)) {

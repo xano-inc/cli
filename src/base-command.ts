@@ -38,8 +38,27 @@ export interface SandboxTenant {
   xano_domain?: string
 }
 
+/**
+ * Resolve the credentials file path from flag, env var, or default.
+ * Checks (in order): explicit configPath arg, XANO_CONFIG env var, ~/.xano/credentials.yaml
+ */
+export function resolveCredentialsPath(configPath?: string): string {
+  const explicit = configPath || process.env.XANO_CONFIG
+  if (explicit) {
+    return path.resolve(explicit)
+  }
+
+  return path.join(os.homedir(), '.xano', 'credentials.yaml')
+}
+
 export default abstract class BaseCommand extends Command {
   static baseFlags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
+      env: 'XANO_CONFIG',
+      required: false,
+    }),
     profile: Flags.string({
       char: 'p',
       description: 'Profile to use (uses default profile if not specified)',
@@ -126,11 +145,22 @@ export default abstract class BaseCommand extends Command {
   }
 
   /**
-   * Load and parse the credentials file. Returns null if the file doesn't exist.
+   * Get the resolved credentials file path, respecting --config flag and XANO_CONFIG env var.
+   * Reads -c/--config from process.argv directly because oclif doesn't set this.flags
+   * from parsed results — the static flags property is the flag definition, not parsed values.
    */
+  protected getCredentialsPath(): string {
+    const args = process.argv
+    for (let i = 0; i < args.length; i++) {
+      if ((args[i] === '--config' || args[i] === '-c') && args[i + 1]) return resolveCredentialsPath(args[i + 1])
+      if (args[i]?.startsWith('--config=')) return resolveCredentialsPath(args[i].slice('--config='.length))
+    }
+
+    return resolveCredentialsPath()
+  }
+
   protected loadCredentialsFile(): CredentialsFile | null {
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+    const credentialsPath = this.getCredentialsPath()
 
     if (!fs.existsSync(credentialsPath)) {
       return null

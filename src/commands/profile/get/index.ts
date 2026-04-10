@@ -1,8 +1,10 @@
-import {Command} from '@oclif/core'
+import {Command, Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+
+import {resolveCredentialsPath} from '../../../base-command.js'
 
 interface CredentialsFile {
   default?: string
@@ -18,10 +20,19 @@ export default class ProfileGet extends Command {
 production
 `,
   ]
+  static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
+      env: 'XANO_CONFIG',
+      required: false,
+    }),
+  }
 
   async run(): Promise<void> {
-    const configDir = path.join(os.homedir(), '.xano')
-    const credentialsPath = path.join(configDir, 'credentials.yaml')
+    const {flags} = await this.parse(ProfileGet)
+
+    const credentialsPath = resolveCredentialsPath(flags.config)
 
     if (!fs.existsSync(credentialsPath)) {
       this.error(`Credentials file not found at ${credentialsPath}. No profiles exist.`)

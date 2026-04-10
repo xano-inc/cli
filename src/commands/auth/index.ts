@@ -5,10 +5,10 @@ import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as http from 'node:http'
 import * as os from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import open from 'open'
 
-import {buildUserAgent} from '../../base-command.js'
+import {buildUserAgent, resolveCredentialsPath} from '../../base-command.js'
 
 interface ProfileConfig {
   access_token: string
@@ -66,6 +66,12 @@ Profile 'default' created successfully!`,
 Opening browser for Xano login at https://custom.xano.com...`,
   ]
   static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
+      env: 'XANO_CONFIG',
+      required: false,
+    }),
     insecure: Flags.boolean({
       char: 'k',
       default: false,
@@ -148,15 +154,18 @@ Opening browser for Xano login at https://custom.xano.com...`,
       const profileName = await this.promptProfileName()
 
       // Step 7: Save profile
-      await this.saveProfile({
-        access_token: token,
-        account_origin: flags.origin,
-        branch,
-        ...(flags.insecure && {insecure: true}),
-        instance_origin: instance.origin,
-        name: profileName,
-        workspace: workspace?.id,
-      })
+      await this.saveProfile(
+        {
+          access_token: token,
+          account_origin: flags.origin,
+          branch,
+          ...(flags.insecure && {insecure: true}),
+          instance_origin: instance.origin,
+          name: profileName,
+          workspace: workspace?.id,
+        },
+        flags.config,
+      )
 
       this.log('')
       this.log(`Profile '${profileName}' created successfully!`)
@@ -282,13 +291,13 @@ Opening browser for Xano login at https://custom.xano.com...`,
     return profileName.trim() || 'default'
   }
 
-  private async saveProfile(profile: ProfileConfig): Promise<void> {
-    const configDir = join(os.homedir(), '.xano')
-    const credentialsPath = join(configDir, 'credentials.yaml')
+  private async saveProfile(profile: ProfileConfig, configPath?: string): Promise<void> {
+    const credentialsPath = resolveCredentialsPath(configPath)
+    const credDir = dirname(credentialsPath)
 
-    // Ensure the .xano directory exists
-    if (!fs.existsSync(configDir)) {
-      fs.mkdirSync(configDir, {recursive: true})
+    // Ensure the directory exists
+    if (!fs.existsSync(credDir)) {
+      fs.mkdirSync(credDir, {recursive: true})
     }
 
     // Read existing credentials file or create new structure
