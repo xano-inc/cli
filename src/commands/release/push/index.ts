@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -32,36 +32,35 @@ interface Release {
 }
 
 export default class ReleasePush extends BaseCommand {
-  static args = {
-    directory: Args.string({
-      description: 'Directory containing .xs documents to create the release from',
-      required: true,
-    }),
-  }
   static override description = 'Create a new release from local XanoScript files via the multidoc endpoint'
   static override examples = [
-    `$ xano release push ./my-release -n "v1.0"
-Created release: v1.0 - ID: 10
+    `$ xano release push -n "v1.0"
+Created release: v1.0 - ID: 10 (from current directory)
 `,
-    `$ xano release push ./output -n "v2.0" -w 40 -d "Major update"
+    `$ xano release push -d ./output -n "v2.0" -w 40 --description "Major update"
 Created release: v2.0 - ID: 15
 `,
-    `$ xano release push ./backup -n "v1.1-hotfix" --hotfix --profile production
+    `$ xano release push -d ./backup -n "v1.1-hotfix" --hotfix --profile production
 Created release: v1.1-hotfix - ID: 20
 `,
-    `$ xano release push ./my-release -n "v1.0" --no-records --no-env
+    `$ xano release push -n "v1.0" --no-records --no-env
 Create release from schema only, skip records and environment variables
 `,
-    `$ xano release push ./my-release -n "v1.0" -o json
+    `$ xano release push -n "v1.0" -o json
 Output release details as JSON
 `,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
     description: Flags.string({
-      char: 'd',
       default: '',
       description: 'Release description',
+      required: false,
+    }),
+    directory: Flags.string({
+      char: 'd',
+      default: '.',
+      description: 'Directory containing .xs documents to create the release from (defaults to current directory)',
       required: false,
     }),
     env: Flags.boolean({
@@ -101,7 +100,7 @@ Output release details as JSON
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(ReleasePush)
+    const {flags} = await this.parse(ReleasePush)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -137,13 +136,13 @@ Output release details as JSON
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano release push <directory> -n <name> -w <workspace_id>\n` +
+          `  1. Provide it as a flag: xano release push -n <name> -w <workspace_id>\n` +
           `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
     // Resolve the input directory
-    const inputDir = path.resolve(args.directory)
+    const inputDir = path.resolve(flags.directory)
 
     if (!fs.existsSync(inputDir)) {
       this.error(`Directory not found: ${inputDir}`)
@@ -157,7 +156,7 @@ Output release details as JSON
     const files = this.collectFiles(inputDir)
 
     if (files.length === 0) {
-      this.error(`No .xs files found in ${args.directory}`)
+      this.error(`No .xs files found in ${flags.directory}`)
     }
 
     // Read each file and track file path alongside content
@@ -170,7 +169,7 @@ Output release details as JSON
     }
 
     if (documentEntries.length === 0) {
-      this.error(`All .xs files in ${args.directory} are empty`)
+      this.error(`All .xs files in ${flags.directory} are empty`)
     }
 
     const multidoc = documentEntries.map((d) => d.content).join('\n---\n')

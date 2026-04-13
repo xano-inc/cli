@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -24,29 +24,30 @@ interface CredentialsFile {
 }
 
 export default class Pull extends BaseCommand {
-  static args = {
-    directory: Args.string({
-      description: 'Output directory for pulled documents',
-      required: true,
-    }),
-  }
   static override description = 'Pull a tenant multidoc from the Xano Metadata API and split into individual files'
   static override examples = [
-    `$ xano tenant pull ./my-tenant -t my-tenant
+    `$ xano tenant pull -t my-tenant
+Pulled 42 documents from tenant my-tenant to current directory
+`,
+    `$ xano tenant pull -d ./my-tenant -t my-tenant
 Pulled 42 documents from tenant my-tenant to ./my-tenant
 `,
-    `$ xano tenant pull ./output -t my-tenant -w 40
+    `$ xano tenant pull -d ./output -t my-tenant -w 40
 Pulled 15 documents from tenant my-tenant to ./output
 `,
-    `$ xano tenant pull ./backup -t my-tenant --profile production --env --records
-Pulled 58 documents from tenant my-tenant to ./backup
+    `$ xano tenant pull -t my-tenant --profile production --env --records
+Pulled 58 documents from tenant my-tenant
 `,
-    `$ xano tenant pull ./my-tenant -t my-tenant --draft
-Pulled 42 documents from tenant my-tenant to ./my-tenant
-`,
+    `$ xano tenant pull -t my-tenant --draft`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    directory: Flags.string({
+      char: 'd',
+      default: '.',
+      description: 'Output directory for pulled documents (defaults to current directory)',
+      required: false,
+    }),
     draft: Flags.boolean({
       default: false,
       description: 'Include draft versions',
@@ -75,7 +76,7 @@ Pulled 42 documents from tenant my-tenant to ./my-tenant
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(Pull)
+    const {flags} = await this.parse(Pull)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -111,7 +112,7 @@ Pulled 42 documents from tenant my-tenant to ./my-tenant
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano tenant pull <directory> -t <tenant_name> -w <workspace_id>\n` +
+          `  1. Provide it as a flag: xano tenant pull -t <tenant_name> -w <workspace_id>\n` +
           `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
@@ -183,7 +184,7 @@ Pulled 42 documents from tenant my-tenant to ./my-tenant
     }
 
     // Resolve the output directory
-    const outputDir = path.resolve(args.directory)
+    const outputDir = path.resolve(flags.directory)
 
     // Create the output directory if it doesn't exist
     fs.mkdirSync(outputDir, {recursive: true})
@@ -288,7 +289,7 @@ Pulled 42 documents from tenant my-tenant to ./my-tenant
       writtenCount++
     }
 
-    this.log(`Pulled ${writtenCount} documents from tenant ${tenantName} to ${args.directory}`)
+    this.log(`Pulled ${writtenCount} documents from tenant ${tenantName} to ${flags.directory}`)
   }
 
   private loadCredentials(): CredentialsFile {

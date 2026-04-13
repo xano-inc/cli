@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -19,23 +19,17 @@ interface RepoInfo {
 }
 
 export default class GitPull extends BaseCommand {
-  static args = {
-    directory: Args.string({
-      description: 'Output directory for imported files',
-      required: true,
-    }),
-  }
-
   static override description = 'Pull XanoScript files from a git repository into a local directory'
 
   static override examples = [
-    `$ xano workspace git pull ./output -r https://github.com/owner/repo`,
-    `$ xano workspace git pull ./output -r https://github.com/owner/repo/tree/main/path/to/dir`,
-    `$ xano workspace git pull ./output -r https://github.com/owner/repo/blob/main/path/to/file.xs`,
-    `$ xano workspace git pull ./output -r git@github.com:owner/repo.git`,
-    `$ xano workspace git pull ./output -r https://github.com/owner/private-repo -t ghp_xxx`,
-    `$ xano workspace git pull ./output -r https://gitlab.com/owner/repo/-/tree/master/path`,
-    `$ xano workspace git pull ./output -r https://gitlab.com/owner/repo -b main`,
+    `$ xano workspace git pull -r https://github.com/owner/repo`,
+    `$ xano workspace git pull -d ./output -r https://github.com/owner/repo`,
+    `$ xano workspace git pull -r https://github.com/owner/repo/tree/main/path/to/dir`,
+    `$ xano workspace git pull -r https://github.com/owner/repo/blob/main/path/to/file.xs`,
+    `$ xano workspace git pull -r git@github.com:owner/repo.git`,
+    `$ xano workspace git pull -r https://github.com/owner/private-repo -t ghp_xxx`,
+    `$ xano workspace git pull -r https://gitlab.com/owner/repo/-/tree/master/path`,
+    `$ xano workspace git pull -r https://gitlab.com/owner/repo -b main`,
   ]
 
   static override flags = {
@@ -43,6 +37,12 @@ export default class GitPull extends BaseCommand {
     branch: Flags.string({
       char: 'b',
       description: 'Branch, tag, or ref to fetch (defaults to repository default branch)',
+      required: false,
+    }),
+    directory: Flags.string({
+      char: 'd',
+      default: '.',
+      description: 'Output directory for imported files (defaults to current directory)',
       required: false,
     }),
     path: Flags.string({
@@ -63,9 +63,9 @@ export default class GitPull extends BaseCommand {
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(GitPull)
+    const {flags} = await this.parse(GitPull)
     const token = flags.token || ''
-    const outputDir = path.resolve(args.directory)
+    const outputDir = path.resolve(flags.directory)
 
     // Normalize the URL to extract owner/repo/ref/path from various formats
     const repoInfo = this.parseRepoUrl(flags.repo)
@@ -150,7 +150,7 @@ export default class GitPull extends BaseCommand {
       }
 
       const source = subPath ? `${flags.repo} (${subPath})` : flags.repo
-      this.log(`Pulled ${writtenCount} documents from ${source} to ${args.directory}`)
+      this.log(`Pulled ${writtenCount} documents from ${source} to ${flags.directory}`)
     } finally {
       // Clean up temp directory
       fs.rmSync(tempDir, {force: true, recursive: true})

@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 
 import snakeCase from 'lodash.snakecase'
 
@@ -9,21 +9,24 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 export default class SandboxPull extends BaseCommand {
-  static args = {
-    directory: Args.string({
-      description: 'Output directory for pulled documents',
-      required: true,
-    }),
-  }
   static override description = 'Pull documents from your sandbox environment and split into individual files'
   static override examples = [
-    `$ xano sandbox pull ./my-sandbox
+    `$ xano sandbox pull
+Pulled 42 documents from sandbox environment to current directory
+`,
+    `$ xano sandbox pull -d ./my-sandbox
 Pulled 42 documents from sandbox environment to ./my-sandbox
 `,
-    `$ xano sandbox pull ./backup --env --records`,
+    `$ xano sandbox pull --env --records`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    directory: Flags.string({
+      char: 'd',
+      default: '.',
+      description: 'Output directory for pulled documents (defaults to current directory)',
+      required: false,
+    }),
     draft: Flags.boolean({
       default: false,
       description: 'Include draft versions',
@@ -42,7 +45,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(SandboxPull)
+    const {flags} = await this.parse(SandboxPull)
     const {profile} = this.resolveProfile(flags)
 
     const queryParams = new URLSearchParams({
@@ -104,7 +107,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       return
     }
 
-    const outputDir = path.resolve(args.directory)
+    const outputDir = path.resolve(flags.directory)
     fs.mkdirSync(outputDir, {recursive: true})
 
     const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
@@ -190,7 +193,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       writtenCount++
     }
 
-    this.log(`Pulled ${writtenCount} documents from sandbox environment to ${args.directory}`)
+    this.log(`Pulled ${writtenCount} documents from sandbox environment to ${flags.directory}`)
   }
 
   private sanitizeFilename(name: string): string {

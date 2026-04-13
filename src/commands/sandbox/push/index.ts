@@ -1,36 +1,109 @@
-import {Args, Flags, ux} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import {resolve} from 'node:path'
+import open from 'open'
 
 import BaseCommand from '../../../base-command.js'
-import {findFilesWithGuid} from '../../../utils/document-parser.js'
-import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from '../../../utils/reference-checker.js'
+import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
 
 export default class SandboxPush extends BaseCommand {
-  static args = {
-    directory: Args.string({
-      description: 'Directory containing documents to push (as produced by sandbox pull or workspace pull)',
-      required: true,
-    }),
-  }
-  static override description = 'Push local documents to your sandbox environment via multidoc import'
+  static override description =
+    'Push local documents to your sandbox environment via multidoc import. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only.'
   static override examples = [
-    `$ xano sandbox push ./my-workspace
-Pushed 42 documents to sandbox environment from ./my-workspace
+    `$ xano sandbox push
+Push from current directory (default partial mode)
 `,
-    `$ xano sandbox push ./backup --records --env`,
-    `$ xano sandbox push ./my-workspace --truncate`,
+    `$ xano sandbox push -d ./my-workspace
+Push from a specific directory
+`,
+    `$ xano sandbox push --sync
+Push all files to the sandbox
+`,
+    `$ xano sandbox push --sync --delete
+Push all files and delete remote objects not included
+`,
+    `$ xano sandbox push --dry-run
+Preview changes without pushing
+`,
+    `$ xano sandbox push --force
+Skip preview and push immediately
+`,
+    `$ xano sandbox push --records --env`,
+    `$ xano sandbox push --truncate`,
+    `$ xano sandbox push -i "**/func*"
+Push only files matching the glob pattern
+`,
+    `$ xano sandbox push -i "function/*" -i "table/*"
+Push files matching multiple patterns
+`,
+    `$ xano sandbox push -e "table/*"
+Push all files except tables
+`,
+    `$ xano sandbox push --review
+Push and open sandbox review in the browser
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    directory: Flags.string({
+      char: 'd',
+      default: '.',
+      description: 'Directory containing documents to push (defaults to current directory)',
+      required: false,
+    }),
+    delete: Flags.boolean({
+      default: false,
+      description: 'Delete sandbox objects not included in the push (requires --sync)',
+      required: false,
+    }),
+    'dry-run': Flags.boolean({
+      default: false,
+      description: 'Show preview of changes without pushing (exit after preview)',
+      required: false,
+    }),
     env: Flags.boolean({
       default: false,
       description: 'Include environment variables in import',
       required: false,
     }),
+    exclude: Flags.string({
+      char: 'e',
+      description:
+        'Glob pattern to exclude files (e.g. "table/*", "**/test*"). Matched against relative paths from the push directory.',
+      multiple: true,
+      required: false,
+    }),
+    force: Flags.boolean({
+      default: false,
+      description: 'Skip preview and confirmation prompt (for CI/CD pipelines)',
+      required: false,
+    }),
+    guids: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Write server-assigned GUIDs back to local files (use --no-guids to skip)',
+      required: false,
+    }),
+    include: Flags.string({
+      char: 'i',
+      description:
+        'Glob pattern to include files (e.g. "**/func*", "table/*.xs"). Matched against relative paths from the push directory.',
+      multiple: true,
+      required: false,
+    }),
     records: Flags.boolean({
       default: false,
       description: 'Include records in import',
+      required: false,
+    }),
+    review: Flags.boolean({
+      default: false,
+      description: 'Open sandbox review in the browser after pushing',
+      required: false,
+    }),
+    sync: Flags.boolean({
+      default: false,
+      description: 'Full push — send all files, not just changed ones. Required for --delete.',
       required: false,
     }),
     transaction: Flags.boolean({
@@ -47,10 +120,10 @@ Pushed 42 documents to sandbox environment from ./my-workspace
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(SandboxPush)
+    const {flags} = await this.parse(SandboxPush)
     const {profile} = this.resolveProfile(flags)
 
-    const inputDir = path.resolve(args.directory)
+    const inputDir = resolve(flags.directory)
 
     if (!fs.existsSync(inputDir)) {
       this.error(`Directory not found: ${inputDir}`)
@@ -60,170 +133,92 @@ Pushed 42 documents to sandbox environment from ./my-workspace
       this.error(`Not a directory: ${inputDir}`)
     }
 
-    const files = this.collectFiles(inputDir)
+    const baseUrl = `${profile.instance_origin}/api:meta/sandbox`
 
-    if (files.length === 0) {
-      this.error(`No .xs files found in ${args.directory}`)
+    const target: PushTarget = {
+      buildDryRunUrl: (params) => `${baseUrl}/multidoc/dry-run?${params.toString()}`,
+      buildPushUrl: (params) => `${baseUrl}/multidoc?${params.toString()}`,
+      label: 'sandbox environment',
+      supportsBranches: false,
+      supportsPartial: false,
     }
 
-    const documentEntries: Array<{content: string; filePath: string}> = []
-    for (const filePath of files) {
-      const content = fs.readFileSync(filePath, 'utf8').trim()
-      if (content) {
-        documentEntries.push({content, filePath})
-      }
+    const pushFlags: PushFlags = {
+      delete: flags.delete,
+      'dry-run': flags['dry-run'],
+      env: flags.env,
+      exclude: flags.exclude,
+      force: flags.force,
+      guids: flags.guids,
+      include: flags.include,
+      records: flags.records,
+      sync: flags.sync,
+      transaction: flags.transaction,
+      truncate: flags.truncate,
+      verbose: flags.verbose,
     }
 
-    if (documentEntries.length === 0) {
-      this.error(`All .xs files in ${args.directory} are empty`)
+    await executePush(
+      {
+        accessToken: profile.access_token,
+        branch: '',
+        command: this,
+        inputDir,
+        verboseFetch: this.verboseFetch.bind(this),
+      },
+      target,
+      pushFlags,
+    )
+
+    if (flags.review) {
+      await this.openReview(profile.instance_origin, profile.access_token, flags.verbose)
     }
+  }
 
-    // Check for bad cross-references within the local file set
-    const badRefs = checkReferences(documentEntries)
-    if (badRefs.length > 0) {
-      this.renderBadReferences(badRefs)
-    }
-
-    // Check for indexes referencing non-existent schema fields
-    const badIndexes = checkTableIndexes(documentEntries)
-    if (badIndexes.length > 0) {
-      this.renderBadIndexes(badIndexes)
-    }
-
-    const multidoc = documentEntries.map((d) => d.content).join('\n---\n')
-
-    const queryParams = new URLSearchParams({
-      env: flags.env.toString(),
-      records: flags.records.toString(),
-      transaction: flags.transaction.toString(),
-      truncate: flags.truncate.toString(),
-    })
-    const apiUrl = `${profile.instance_origin}/api:meta/sandbox/multidoc?${queryParams.toString()}`
-
-    const startTime = Date.now()
-
-    try {
-      const response = await this.verboseFetch(
-        apiUrl,
-        {
-          body: multidoc,
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${profile.access_token}`,
-            'Content-Type': 'text/x-xanoscript',
-          },
-          method: 'POST',
+  private async openReview(instanceOrigin: string, accessToken: string, verbose: boolean): Promise<void> {
+    const response = await this.verboseFetch(
+      `${instanceOrigin}/api:meta/sandbox/impersonate`,
+      {
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
-        flags.verbose,
-        profile.access_token,
-      )
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        let errorMessage = `Push failed (${response.status})`
-
-        try {
-          const errorJson = JSON.parse(errorText)
-          errorMessage += `: ${errorJson.message}`
-          if (errorJson.payload?.param) {
-            errorMessage += `\n  Parameter: ${errorJson.payload.param}`
-          }
-        } catch {
-          errorMessage += `\n${errorText}`
-        }
-
-        // Provide guidance when sandbox access is denied (free plan restriction)
-        if (response.status === 500 && errorMessage.includes('Access Denied')) {
-          this.error('Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.')
-        }
-
-        const guidMatch = errorMessage.match(/Duplicate \w+ guid: (\S+)/)
-        if (guidMatch) {
-          const dupeFiles = findFilesWithGuid(documentEntries, guidMatch[1])
-          if (dupeFiles.length > 0) {
-            const relPaths = dupeFiles.map((f) => path.relative(inputDir, f))
-            errorMessage += `\n  Local files with this GUID:\n${relPaths.map((f) => `    ${f}`).join('\n')}`
-          }
-        }
-
-        this.error(errorMessage)
-      }
-
-      const responseText = await response.text()
-      if (responseText && responseText !== 'null' && flags.verbose) {
-        this.log(responseText)
-      }
-    } catch (error) {
-      if (error instanceof Error && 'oclif' in error) throw error
-      if (error instanceof Error) {
-        this.error(`Failed to push multidoc: ${error.message}`)
-      } else {
-        this.error(`Failed to push multidoc: ${String(error)}`)
-      }
-    }
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    this.log(`Pushed ${documentEntries.length} documents to sandbox environment from ${args.directory} in ${elapsed}s`)
-  }
-
-  private collectFiles(dir: string): string[] {
-    const files: string[] = []
-    const entries = fs.readdirSync(dir, {withFileTypes: true})
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        files.push(...this.collectFiles(fullPath))
-      } else if (entry.isFile() && entry.name.endsWith('.xs')) {
-        files.push(fullPath)
-      }
-    }
-
-    return files.sort()
-  }
-
-  private renderBadIndexes(badIndexes: BadIndex[]): void {
-    this.log('')
-    this.log(ux.colorize('red', ux.colorize('bold', '=== CRITICAL: Invalid Indexes ===')))
-    this.log('')
-    this.log(
-      ux.colorize(
-        'red',
-        'The following tables have indexed referencing fields that do not exist in the schema, which may cause related issues.',
-      ),
+        method: 'GET',
+      },
+      verbose,
+      accessToken,
     )
-    this.log('')
 
-    for (const idx of badIndexes) {
-      this.log(`  ${ux.colorize('red', 'CRITICAL'.padEnd(16))} ${'table'.padEnd(18)} ${idx.table}`)
-      this.log(
-        `  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `${idx.indexType} index → field "${idx.field}" does not exist in schema`)}`,
-      )
+    if (!response.ok) {
+      const message = await this.parseApiError(response, 'Failed to open sandbox review')
+      this.error(message)
     }
 
-    this.log('')
+    const result = (await response.json()) as {_ti: string}
+
+    if (!result._ti) {
+      this.error('No one-time token returned from impersonate API')
+    }
+
+    const frontendUrl = this.getFrontendUrl(instanceOrigin)
+    const params = new URLSearchParams({_ti: result._ti})
+    const reviewUrl = `${frontendUrl}/impersonate?${params.toString()}`
+
+    this.log('Opening sandbox review...')
+    await open(reviewUrl)
   }
 
-  private renderBadReferences(badRefs: BadReference[]): void {
-    this.log('')
-    this.log(ux.colorize('yellow', ux.colorize('bold', '=== Unresolved References ===')))
-    this.log('')
-    this.log(
-      ux.colorize(
-        'yellow',
-        "The following references point to objects that don't exist in this push or on the server.",
-      ),
-    )
-    this.log(ux.colorize('yellow', 'These will become placeholder statements after import.'))
-    this.log('')
-
-    for (const ref of badRefs) {
-      this.log(`  ${ux.colorize('yellow', 'WARNING'.padEnd(16))} ${ref.sourceType.padEnd(18)} ${ref.source}`)
-      this.log(
-        `  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `${ref.statementType} → ${ref.targetType} "${ref.target}" does not exist`)}`,
-      )
+  private getFrontendUrl(instanceOrigin: string): string {
+    try {
+      const url = new URL(instanceOrigin)
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        url.port = '4200'
+        return url.origin
+      }
+    } catch {
+      // fall through
     }
 
-    this.log('')
+    return instanceOrigin
   }
 }

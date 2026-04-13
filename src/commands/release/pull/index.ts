@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -29,26 +29,29 @@ interface Release {
 }
 
 export default class ReleasePull extends BaseCommand {
-  static args = {
-    directory: Args.string({
-      description: 'Output directory for pulled documents',
-      required: true,
-    }),
-  }
   static override description = 'Pull a release multidoc from the Xano Metadata API and split into individual files'
   static override examples = [
-    `$ xano release pull ./my-release -r v1.0
+    `$ xano release pull -r v1.0
+Pulled 42 documents from release 'v1.0' to current directory
+`,
+    `$ xano release pull -d ./my-release -r v1.0
 Pulled 42 documents from release 'v1.0' to ./my-release
 `,
-    `$ xano release pull ./output -r v1.0 -w 40
+    `$ xano release pull -d ./output -r v1.0 -w 40
 Pulled 15 documents from release 'v1.0' to ./output
 `,
-    `$ xano release pull ./backup -r v1.0 --profile production --env --records
-Pulled 58 documents from release 'v1.0' to ./backup
+    `$ xano release pull -r v1.0 --profile production --env --records
+Pulled 58 documents from release 'v1.0'
 `,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    directory: Flags.string({
+      char: 'd',
+      default: '.',
+      description: 'Output directory for pulled documents (defaults to current directory)',
+      required: false,
+    }),
     env: Flags.boolean({
       default: false,
       description: 'Include environment variables',
@@ -72,7 +75,7 @@ Pulled 58 documents from release 'v1.0' to ./backup
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(ReleasePull)
+    const {flags} = await this.parse(ReleasePull)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -108,7 +111,7 @@ Pulled 58 documents from release 'v1.0' to ./backup
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano release pull <directory> -r <release_name> -w <workspace_id>\n` +
+          `  1. Provide it as a flag: xano release pull -r <release_name> -w <workspace_id>\n` +
           `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
@@ -180,7 +183,7 @@ Pulled 58 documents from release 'v1.0' to ./backup
     }
 
     // Resolve the output directory
-    const outputDir = path.resolve(args.directory)
+    const outputDir = path.resolve(flags.directory)
 
     // Create the output directory if it doesn't exist
     fs.mkdirSync(outputDir, {recursive: true})
@@ -285,7 +288,7 @@ Pulled 58 documents from release 'v1.0' to ./backup
       writtenCount++
     }
 
-    this.log(`Pulled ${writtenCount} documents from release '${releaseName}' to ${args.directory}`)
+    this.log(`Pulled ${writtenCount} documents from release '${releaseName}' to ${flags.directory}`)
   }
 
   private loadCredentials(): CredentialsFile {

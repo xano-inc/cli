@@ -92,6 +92,7 @@ src/
 │   │   ├── delete.ts            # Delete profile
 │   │   ├── me.ts                # Current user info
 │   │   └── token.ts             # Token management
+│   ├── sandbox/                 # Sandbox management (push, pull, reset, env, tests)
 │   ├── workspace/               # Workspace management (CRUD, push, pull)
 │   ├── branch/                  # Branch management (CRUD, set_live)
 │   ├── function/                # Function management (4 commands)
@@ -119,6 +120,14 @@ examples/
 test/
 └── commands/                    # Mocha test files
 ```
+
+### Key Utilities
+
+| File | Purpose |
+|------|---------|
+| `src/utils/multidoc-push.ts` | Shared push logic for both `sandbox push` and `workspace push` — file collection, glob filtering, dry-run preview, confirmation, partial push, GUID sync, validation rendering |
+| `src/utils/document-parser.ts` | XanoScript document parsing — type/name/verb/guid extraction, document key building |
+| `src/utils/reference-checker.ts` | Cross-reference validation and table index checking |
 
 ## Coding Conventions
 
