@@ -138,6 +138,8 @@ Push and open sandbox review in the browser
     const target: PushTarget = {
       buildDryRunUrl: (params) => `${baseUrl}/multidoc/dry-run?${params.toString()}`,
       buildPushUrl: (params) => `${baseUrl}/multidoc?${params.toString()}`,
+      cliVersion: this.config.version,
+      instanceOrigin: profile.instance_origin,
       label: 'sandbox environment',
       supportsBranches: false,
       supportsPartial: false,

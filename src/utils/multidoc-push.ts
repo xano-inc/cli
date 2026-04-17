@@ -28,6 +28,10 @@ export interface PushTarget {
   buildDryRunUrl: (queryParams: URLSearchParams) => null | string
   /** Build the actual push URL */
   buildPushUrl: (queryParams: URLSearchParams) => string
+  /** CLI version string */
+  cliVersion: string
+  /** Instance origin URL (e.g., "https://x123-abcd-1234.xano.io") */
+  instanceOrigin: string
   /** Human-readable label for log messages (e.g., "sandbox environment", "workspace 40") */
   label: string
   /** Does this target support branches? */
@@ -218,13 +222,30 @@ const TYPE_LABELS: Record<string, string> = {
 function renderPreview(
   result: DryRunResult,
   willDelete: boolean,
-  targetLabel: string,
+  target: PushTarget,
   verbose: boolean,
   partial: boolean,
   log: (msg: string) => void,
 ): void {
   log('')
-  log(ux.colorize('bold', `=== Push Preview: ${targetLabel} ===`))
+  log(ux.colorize('bold', `=== Push Preview: ${target.label} ===`))
+
+  let instanceHost = target.instanceOrigin
+  try {
+    instanceHost = new URL(target.instanceOrigin).hostname
+  } catch {}
+
+  const contextParts: string[] = [
+    `instance: ${instanceHost}`,
+  ]
+  if (result.workspace_name && target.supportsBranches) {
+    contextParts.push(`workspace: ${result.workspace_name}`)
+  }
+
+  contextParts.push(`cli: v${target.cliVersion}`)
+
+  log(ux.colorize('dim', `  ${contextParts.join('  |  ')}`))
+
   if (!partial) {
     log(ux.colorize('red', '  --sync: all documents will be sent, including unchanged'))
   }
@@ -538,7 +559,7 @@ export async function executePush(
       )
 
       if (!dryRunResponse.ok) {
-        await handleDryRunError(dryRunResponse, command, flags)
+        await handleDryRunError(dryRunResponse, command, flags, target)
         // If we get here, the user confirmed to proceed without preview
       } else {
         const dryRunText = await dryRunResponse.text()
@@ -546,7 +567,7 @@ export async function executePush(
         dryRunPreview = preview
 
         if (preview && preview.summary) {
-          renderPreview(preview, shouldDelete, target.label, flags.verbose, isPartial, log)
+          renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log)
 
           // Check for bad cross-references using dry-run operations to avoid false positives
           const badRefs = checkReferences(documentEntries, preview.operations)
@@ -828,10 +849,26 @@ async function handleDryRunError(
   response: Response,
   command: Command,
   flags: PushFlags,
+  target: PushTarget,
 ): Promise<void> {
   const log = command.log.bind(command)
 
   if (response.status === 404) {
+    const errorText = await response.text()
+
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.message) {
+        command.error(errorJson.message)
+      }
+    } catch {
+      // Not JSON
+    }
+
+    if (target.supportsBranches) {
+      command.error('Workspace not found. Check the workspace ID and try again.')
+    }
+
     log('')
     log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
     log('')
@@ -881,10 +918,7 @@ async function handleDryRunError(
           ),
         )
         log('')
-        // Exit cleanly — this is workspace-specific, but harmless for sandbox since
-        // sandbox won't receive this error
-        command.exit(0)
-        return
+        process.exit(0)
       }
     } catch {
       // Not JSON, fall through

@@ -261,8 +261,8 @@ function extractSchemaFields(content: string): Set<string> {
   if (blockStart < 0 || blockEnd < 0) return fields
 
   const schemaBlock = content.slice(blockStart, blockEnd)
-  // Match field declarations: "type name" or "type name?" or "type name?=default"
-  const fieldRegex = /^\s*\w+\s+(\w+)[?\s{]/gm
+  // Match field declarations: "type name" or "type? name" or "type name?=default"
+  const fieldRegex = /^\s*\w+\??\s+(\w+)[?\s{]/gm
   let match: null | RegExpExecArray
   while ((match = fieldRegex.exec(schemaBlock)) !== null) {
     fields.add(match[1])

@@ -173,6 +173,8 @@ Push functions but exclude test files
     const target: PushTarget = {
       buildDryRunUrl: (params) => `${baseUrl}/multidoc/dry-run?${params.toString()}`,
       buildPushUrl: (params) => `${baseUrl}/multidoc?${params.toString()}`,
+      cliVersion: this.config.version,
+      instanceOrigin: profile.instance_origin,
       label: `workspace ${workspaceId}`,
       supportsBranches: true,
       supportsPartial: true,
