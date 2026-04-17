@@ -729,6 +729,8 @@ export async function executePush(
     const filteredEntries = documentEntries.filter((entry) => {
       const parsed = parseDocument(entry.content)
       if (!parsed) return true
+      // Workspace settings always use a fixed key in dry-run regardless of the actual name
+      if (parsed.type === 'workspace' && changedKeys.has('workspace:workspace')) return true
       const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
       if (changedKeys.has(`${parsed.type}:${opName}`)) return true
       // Keep table documents that contain records when --records is active

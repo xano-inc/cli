@@ -142,7 +142,7 @@ Push and open sandbox review in the browser
       instanceOrigin: profile.instance_origin,
       label: 'sandbox environment',
       supportsBranches: false,
-      supportsPartial: false,
+      supportsPartial: true,
     }
 
     const pushFlags: PushFlags = {
