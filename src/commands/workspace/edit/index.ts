@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 
@@ -34,27 +34,21 @@ interface Workspace {
 }
 
 export default class WorkspaceEdit extends BaseCommand {
-  static override args = {
-    workspace_id: Args.integer({
-      description: 'Workspace ID to edit (uses profile workspace if not provided)',
-      required: false,
-    }),
-  }
   static description = 'Edit an existing workspace via the Xano Metadata API'
   static examples = [
-    `$ xano workspace edit 123 --name "new-name"
+    `$ xano workspace edit -w 123 --name "new-name"
 Updated workspace: new-name (ID: 123)
 `,
     `$ xano workspace edit --name "updated-workspace" --description "Updated description"
 Updated workspace: updated-workspace (ID: 123)
   Description: Updated description
 `,
-    `$ xano workspace edit 123 --swagger --require-token
+    `$ xano workspace edit -w 123 --swagger --require-token
 Updated workspace: my-workspace (ID: 123)
   Swagger: enabled
   Require Token: true
 `,
-    `$ xano workspace edit 123 --no-swagger -o json
+    `$ xano workspace edit -w 123 --no-swagger -o json
 {
   "id": 123,
   "name": "my-workspace",
@@ -96,10 +90,15 @@ Updated workspace: my-workspace (ID: 123)
       description: 'Enable or disable swagger documentation',
       required: false,
     }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (uses profile workspace if not provided)',
+      required: false,
+    }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(WorkspaceEdit)
+    const {flags} = await this.parse(WorkspaceEdit)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -126,12 +125,12 @@ Updated workspace: my-workspace (ID: 123)
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    // Get workspace ID from args or profile
-    const workspaceId = args.workspace_id || profile.workspace
+    // Get workspace ID from flag or profile
+    const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
       this.error(
-        'No workspace ID provided. Either pass a workspace ID as an argument or set one in your profile.\n' +
-          'Usage: xano workspace edit <workspace_id> [flags]',
+        'No workspace ID provided. Use -w flag or set one in your profile.\n' +
+          'Usage: xano workspace edit -w <workspace_id> [flags]',
       )
     }
 

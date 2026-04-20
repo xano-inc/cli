@@ -92,21 +92,21 @@ xano profile delete myprofile --force
 xano workspace list
 
 # Get workspace details
-xano workspace get <workspace_id>
+xano workspace get -w <workspace_id>
 
 # Create a workspace
 xano workspace create my-workspace
 xano workspace create my-workspace -d "My application workspace"
 
 # Edit a workspace
-xano workspace edit <workspace_id> --name "new-name" -d "Updated description"
-xano workspace edit <workspace_id> --swagger             # Enable swagger docs
-xano workspace edit <workspace_id> --no-swagger          # Disable swagger docs
-xano workspace edit <workspace_id> --require-token       # Require token for docs
+xano workspace edit -w <workspace_id> --name "new-name" -d "Updated description"
+xano workspace edit -w <workspace_id> --swagger          # Enable swagger docs
+xano workspace edit -w <workspace_id> --no-swagger       # Disable swagger docs
+xano workspace edit -w <workspace_id> --require-token    # Require token for docs
 
 # Delete a workspace (confirmation required)
-xano workspace delete <workspace_id>
-xano workspace delete <workspace_id> --force
+xano workspace delete -w <workspace_id>
+xano workspace delete -w <workspace_id> --force
 
 # Pull workspace to local files (defaults to current directory)
 xano workspace pull
@@ -153,6 +153,7 @@ The `v1` branch is the default branch and always exists. It cannot be created, e
 ```bash
 # List branches
 xano branch list
+xano branch list -w <workspace_id>
 
 # Get branch details
 xano branch get <branch_label>
@@ -214,9 +215,9 @@ xano release list
 xano release get <release_name>
 
 # Create a release
-xano release create --name "v1.0" --branch main
-xano release create --name "v1.1-hotfix" --branch main --hotfix
-xano release create --name "v1.0" --branch main --table-ids 1,2,3
+xano release create "v1.0" --branch main
+xano release create "v1.1-hotfix" --branch main --hotfix
+xano release create "v1.0" --branch main --table-ids 1,2,3
 
 # Edit a release
 xano release edit <release_name> --name "v1.0-final" -d "Updated description"
@@ -243,10 +244,11 @@ xano release push -d ./my-release -n "v2.0"
 xano release push -n "v2.0" --hotfix --description "Critical fix"
 xano release push -n "v2.0" --no-records --no-env
 
-# Deploy a release to its workspace as a new branch
+# Deploy a release to its workspace as a new branch (confirmation required)
 xano release deploy "v1.0"
+xano release deploy "v1.0" --force
 xano release deploy "v1.0" --branch "restore-v1" --no-set_live
-xano release deploy "v1.0" -w 40 -o json
+xano release deploy "v1.0" -w 40 -o json --force
 ```
 
 ### Platforms

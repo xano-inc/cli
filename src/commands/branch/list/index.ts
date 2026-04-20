@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 
@@ -27,21 +27,15 @@ interface Branch {
 }
 
 export default class BranchList extends BaseCommand {
-  static override args = {
-    workspace_id: Args.integer({
-      description: 'Workspace ID (uses profile workspace if not provided)',
-      required: false,
-    }),
-  }
-static description = 'List all branches in a workspace'
-static examples = [
+  static description = 'List all branches in a workspace'
+  static examples = [
     `$ xano branch list
 Available branches:
   - v1 (live)
   - dev
   - staging
 `,
-    `$ xano branch list 123
+    `$ xano branch list -w 123
 Available branches:
   - v1 (live)
   - feature-auth
@@ -57,7 +51,7 @@ Available branches:
 ]
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     output: Flags.string({
       char: 'o',
@@ -66,10 +60,15 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (uses profile workspace if not provided)',
+      required: false,
+    }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(BranchList)
+    const {flags} = await this.parse(BranchList)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -96,12 +95,12 @@ static override flags = {
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    // Get workspace ID from args or profile
-    const workspaceId = args.workspace_id || profile.workspace
+    // Get workspace ID from flag or profile
+    const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
       this.error(
-        'No workspace ID provided. Either pass a workspace ID as an argument or set one in your profile.\n' +
-        'Usage: xano branch list [workspace_id]',
+        'No workspace ID provided. Use -w flag or set one in your profile.\n' +
+        'Usage: xano branch list -w <workspace_id>',
       )
     }
 

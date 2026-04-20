@@ -20,16 +20,26 @@ export default class ReleaseDeploy extends BaseCommand {
   static description = 'Deploy a release to its workspace as a new branch'
   static examples = [
     `$ xano release deploy "v1.0"
+Are you sure you want to deploy release "v1.0"? (y/N) y
 Deployed release "v1.0" to workspace 40 (branch: v1.0, set live)
 `,
+    `$ xano release deploy "v1.0" --force
+Deployed release "v1.0" to workspace 40 (branch: v1.0)
+`,
     `$ xano release deploy "v1.0" --branch "restore-v1" --no-set_live`,
-    `$ xano release deploy "v1.0" -w 40 -o json`,
+    `$ xano release deploy "v1.0" -w 40 -o json --force`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
       description: 'Branch label for the new branch (defaults to release branch name)',
+      required: false,
+    }),
+    force: Flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'Skip confirmation prompt',
       required: false,
     }),
     output: Flags.string({
@@ -85,6 +95,16 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0, set live)
 
     if (flags.branch) body.branch = flags.branch
 
+    if (!flags.force) {
+      const confirmed = await this.confirm(
+        `Are you sure you want to deploy release "${args.release_name}" to workspace ${workspaceId}?`
+      )
+      if (!confirmed) {
+        this.log('Deploy cancelled.')
+        return
+      }
+    }
+
     this.warn('This may take a few minutes. Please be patient.')
 
     const startTime = Date.now()
@@ -129,5 +149,20 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0, set live)
         this.error(`Failed to deploy release: ${String(error)}`)
       }
     }
+  }
+
+  private async confirm(message: string): Promise<boolean> {
+    const readline = await import('node:readline')
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
+
+    return new Promise((resolve) => {
+      rl.question(`${message} (y/N) `, (answer) => {
+        rl.close()
+        resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes')
+      })
+    })
   }
 }

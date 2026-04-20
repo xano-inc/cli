@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 
@@ -20,29 +20,23 @@ interface CredentialsFile {
 }
 
 export default class WorkspaceDelete extends BaseCommand {
-  static override args = {
-    workspace_id: Args.integer({
-      description: 'Workspace ID to delete',
-      required: true,
-    }),
-  }
-static description = 'Delete a workspace via the Xano Metadata API. Cannot delete workspaces with active tenants.'
-static examples = [
-    `$ xano workspace delete 123
+  static description = 'Delete a workspace via the Xano Metadata API. Cannot delete workspaces with active tenants.'
+  static examples = [
+    `$ xano workspace delete -w 123
 Are you sure you want to delete workspace 123? This action cannot be undone. (y/N) y
 Deleted workspace 123
 `,
-    `$ xano workspace delete 123 --force
+    `$ xano workspace delete -w 123 --force
 Deleted workspace 123
 `,
-    `$ xano workspace delete 123 -f -o json
+    `$ xano workspace delete -w 123 -f -o json
 {
   "deleted": true,
   "workspace_id": 123
 }
 `,
   ]
-static override flags = {
+  static override flags = {
     ...BaseCommand.baseFlags,
     force: Flags.boolean({
       char: 'f',
@@ -57,10 +51,15 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID to delete (uses profile workspace if not provided)',
+      required: false,
+    }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(WorkspaceDelete)
+    const {flags} = await this.parse(WorkspaceDelete)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -87,7 +86,14 @@ static override flags = {
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    const workspaceId = args.workspace_id
+    // Get workspace ID from flag or profile
+    const workspaceId = flags.workspace || profile.workspace
+    if (!workspaceId) {
+      this.error(
+        'No workspace ID provided. Use -w flag or set one in your profile.\n' +
+        'Usage: xano workspace delete -w <workspace_id>',
+      )
+    }
 
     // Confirmation prompt unless --force is used
     if (!flags.force) {

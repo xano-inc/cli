@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core'
+import {Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 
@@ -29,15 +29,9 @@ interface Workspace {
 }
 
 export default class WorkspaceGet extends BaseCommand {
-  static override args = {
-    workspace_id: Args.integer({
-      description: 'Workspace ID to get details for (uses profile workspace if not provided)',
-      required: false,
-    }),
-  }
   static description = 'Get details of a specific workspace from the Xano Metadata API'
   static examples = [
-    `$ xano workspace get 123
+    `$ xano workspace get -w 123
 Workspace: my-workspace (ID: 123)
   Description: My workspace description
   Created: 2024-01-15
@@ -49,7 +43,7 @@ Workspace: my-workspace (ID: 123)
   "description": "My workspace description"
 }
 `,
-    `$ xano workspace get 456 -p production -o json
+    `$ xano workspace get -w 456 -p production -o json
 {
   "id": 456,
   "name": "production-workspace"
@@ -65,10 +59,15 @@ Workspace: my-workspace (ID: 123)
       options: ['summary', 'json'],
       required: false,
     }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Workspace ID (uses profile workspace if not provided)',
+      required: false,
+    }),
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(WorkspaceGet)
+    const {flags} = await this.parse(WorkspaceGet)
 
     // Get profile name (default or from flag/env)
     const profileName = flags.profile || this.getDefaultProfile()
@@ -95,12 +94,12 @@ Workspace: my-workspace (ID: 123)
       this.error(`Profile '${profileName}' is missing access_token`)
     }
 
-    // Get workspace ID from args or profile
-    const workspaceId = args.workspace_id || profile.workspace
+    // Get workspace ID from flag or profile
+    const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
       this.error(
-        'No workspace ID provided. Either pass a workspace ID as an argument or set one in your profile.\n' +
-          'Usage: xano workspace get <workspace_id>',
+        'No workspace ID provided. Use -w flag or set one in your profile.\n' +
+          'Usage: xano workspace get -w <workspace_id>',
       )
     }
 

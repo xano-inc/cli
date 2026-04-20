@@ -1,4 +1,4 @@
-import {Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 
@@ -30,12 +30,18 @@ interface Release {
 }
 
 export default class ReleaseCreate extends BaseCommand {
+  static override args = {
+    name: Args.string({
+      description: 'Name for the release',
+      required: true,
+    }),
+  }
   static description = 'Create a new release in a workspace'
   static examples = [
-    `$ xano release create --name "v1.0" --branch main
+    `$ xano release create "v1.0" --branch main
 Created release: v1.0 - ID: 10
 `,
-    `$ xano release create --name "v1.1-hotfix" --branch main --hotfix --description "Critical fix" -o json`,
+    `$ xano release create "v1.1-hotfix" --branch main --hotfix --description "Critical fix" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -53,11 +59,6 @@ Created release: v1.0 - ID: 10
       default: false,
       description: 'Mark as a hotfix release',
       required: false,
-    }),
-    name: Flags.string({
-      char: 'n',
-      description: 'Name for the release',
-      required: true,
     }),
     output: Flags.string({
       char: 'o',
@@ -78,7 +79,7 @@ Created release: v1.0 - ID: 10
   }
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(ReleaseCreate)
+    const {args, flags} = await this.parse(ReleaseCreate)
 
     const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentials()
@@ -110,7 +111,7 @@ Created release: v1.0 - ID: 10
     const body: Record<string, unknown> = {
       branch: flags.branch,
       hotfix: flags.hotfix,
-      name: flags.name,
+      name: args.name,
     }
 
     if (flags.description) body.description = flags.description
