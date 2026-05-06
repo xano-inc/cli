@@ -207,6 +207,10 @@ Pulled 58 documents from release 'v1.0'
         // workspace_trigger → workspace/trigger/{name}.xs
         typeDir = path.join(outputDir, 'workspace', 'trigger')
         baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'error_trigger') {
+        // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
+        typeDir = path.join(outputDir, 'workspace', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'agent') {
         // agent → ai/agent/{name}.xs
         typeDir = path.join(outputDir, 'ai', 'agent')

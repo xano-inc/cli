@@ -413,6 +413,10 @@ export default class GitPull extends BaseCommand {
     } else if (doc.type === 'workspace_trigger') {
       typeDir = path.join(outputDir, 'workspace', 'trigger')
       baseName = this.sanitizeFilename(doc.name)
+    } else if (doc.type === 'error_trigger') {
+      // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
+      typeDir = path.join(outputDir, 'workspace', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
     } else if (doc.type === 'agent') {
       typeDir = path.join(outputDir, 'ai', 'agent')
       baseName = this.sanitizeFilename(doc.name)
