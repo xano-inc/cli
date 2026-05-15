@@ -151,9 +151,10 @@ All branch commands use **branch labels** (e.g., `v1`, `dev`), not IDs.
 The `v1` branch is the default branch and always exists. It cannot be created, edited, or deleted.
 
 ```bash
-# List branches
+# List branches (backup branches are hidden by default)
 xano branch list
 xano branch list -w <workspace_id>
+xano branch list --backups        # include backup branches
 
 # Get branch details
 xano branch get <branch_label>
