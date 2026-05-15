@@ -86,7 +86,21 @@ interface DryRunResult {
 
 // Minimum total operations before a workspace mismatch is treated as worth interrupting for.
 // Small change sets (e.g., editing a single function) aren't worth a reset prompt.
-const WORKSPACE_MISMATCH_THRESHOLD = 25
+export const WORKSPACE_MISMATCH_THRESHOLD = 10
+
+/**
+ * Sum all impactful operations in a dry-run summary. `deleted` is only counted when the
+ * caller actually intends to apply deletions (sync mode), matching what the user will see.
+ */
+export function countSummaryChanges(
+  summary: Record<string, {created: number; deleted: number; truncated: number; updated: number}>,
+  shouldDelete: boolean,
+): number {
+  return Object.values(summary).reduce(
+    (sum, c) => sum + c.created + c.updated + (shouldDelete ? c.deleted : 0) + c.truncated,
+    0,
+  )
+}
 
 // ── File Collection ─────────────────────────────────────────────────────────
 
@@ -385,7 +399,7 @@ function renderPreview(
   log('')
 }
 
-function findLocalWorkspaceName(entries: Array<{content: string; filePath: string}>): null | string {
+export function findLocalWorkspaceName(entries: Array<{content: string; filePath: string}>): null | string {
   for (const entry of entries) {
     const parsed = parseDocument(entry.content)
     if (parsed?.type === 'workspace') return parsed.name
@@ -677,10 +691,7 @@ export async function executePush(
           // pushed and the change set is large enough that stale state is a real risk.
           if (target.warnOnWorkspaceMismatch && preview.workspace_name) {
             const localWorkspaceName = findLocalWorkspaceName(documentEntries)
-            const totalChanges = Object.values(preview.summary).reduce(
-              (sum, c) => sum + c.created + c.updated + (shouldDelete ? c.deleted : 0) + c.truncated,
-              0,
-            )
+            const totalChanges = countSummaryChanges(preview.summary, shouldDelete)
             if (
               localWorkspaceName &&
               localWorkspaceName !== preview.workspace_name &&
@@ -710,7 +721,7 @@ export async function executePush(
                 }
               } else {
                 command.error(
-                  'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first, or use --force to override.',
+                  'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first to start clean.',
                 )
               }
             }
