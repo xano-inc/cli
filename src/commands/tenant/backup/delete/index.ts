@@ -27,7 +27,8 @@ export default class TenantBackupDelete extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Delete a tenant backup permanently. This action cannot be undone.'
+  static description =
+    '[CRITICAL] NEVER delete a backup without explicit user confirmation; this removes your restore point. Deletes a tenant backup permanently.'
   static examples = [
     `$ xano tenant backup delete t1234-abcd-xyz1 --backup_id 10
 Are you sure you want to delete backup #10? This action cannot be undone. (y/N) y
@@ -45,7 +46,8 @@ Deleted backup #10
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description:
+        '[CRITICAL] NEVER delete a backup without explicit user confirmation; this removes your restore point. Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

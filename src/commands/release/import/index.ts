@@ -26,7 +26,8 @@ interface ImportResult {
 
 export default class ReleaseImport extends BaseCommand {
   static override args = {}
-  static description = 'Import a release file into a workspace'
+  static description =
+    '[IMPORTANT] ALWAYS confirm with the user before importing a release. Imports a release file into a workspace.'
   static examples = [
     `$ xano release import --file ./my-release.tar.gz
 Imported release as #15

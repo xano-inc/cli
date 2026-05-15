@@ -33,7 +33,8 @@ export default class BranchSetLive extends BaseCommand {
       required: true,
     }),
   }
-static description = 'Set a branch as the live (active) branch for API requests'
+static description =
+    '[IMPORTANT] ALWAYS confirm with the user before changing the live branch. Sets a branch as the live (active) branch for API requests.'
 static examples = [
     `$ xano branch set-live staging
 Are you sure you want to set 'staging' as the live branch? (y/N) y
@@ -56,7 +57,7 @@ static override flags = {
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[IMPORTANT] NEVER run without explicit user confirmation. Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

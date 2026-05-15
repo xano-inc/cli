@@ -17,7 +17,8 @@ Environment variable 'DATABASE_URL' deleted
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description:
+        '[IMPORTANT] ALWAYS confirm with the user before deleting an environment variable. Skips the confirmation prompt.',
       required: false,
     }),
     name: Flags.string({

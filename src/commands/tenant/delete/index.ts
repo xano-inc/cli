@@ -42,7 +42,7 @@ Deleted tenant t1234-abcd-xyz1
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[CRITICAL] NEVER run without explicit user confirmation. Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

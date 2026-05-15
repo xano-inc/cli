@@ -32,7 +32,8 @@ interface Release {
 }
 
 export default class ReleasePush extends BaseCommand {
-  static override description = 'Create a new release from local XanoScript files via the multidoc endpoint'
+  static override description =
+    '[IMPORTANT] ALWAYS confirm with the user before creating a release from local files. Creates a new release from local XanoScript files via the multidoc endpoint.'
   static override examples = [
     `$ xano release push -n "v1.0"
 Created release: v1.0 - ID: 10 (from current directory)

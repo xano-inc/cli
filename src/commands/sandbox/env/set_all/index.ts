@@ -7,7 +7,7 @@ import BaseCommand from '../../../../base-command.js'
 
 export default class SandboxEnvSetAll extends BaseCommand {
   static description =
-    'Set all environment variables for a sandbox environment from a YAML file (replaces all existing)'
+    '[CRITICAL] STOP and confirm with the user; this replaces all environment variables with the imported file. Sets all environment variables for a sandbox environment from a YAML file.'
   static examples = [
     `$ xano sandbox env set_all
 Reads from env_<tenant>.yaml

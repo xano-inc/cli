@@ -27,7 +27,8 @@ export default class TenantEnvSetAll extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Set all environment variables for a tenant from a YAML file (replaces all existing)'
+  static description =
+    '[CRITICAL] STOP and confirm with the user; this replaces all environment variables with the imported file. Sets all environment variables for a tenant from a YAML file.'
   static examples = [
     `$ xano tenant env set_all my-tenant
 Reads from env_my-tenant.yaml

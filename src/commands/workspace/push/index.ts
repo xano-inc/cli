@@ -7,7 +7,7 @@ import {executePush, type PushFlags, type PushTarget} from '../../../utils/multi
 
 export default class Push extends BaseCommand {
   static override description =
-    'Push local documents to a workspace. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only.'
+    '[IMPORTANT] ALWAYS run --dry-run first and show the user the output before pushing. Push local documents to a workspace. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only.'
   static override examples = [
     `$ xano workspace push
 Push from current directory (default partial mode)
@@ -73,7 +73,8 @@ Push functions but exclude test files
     }),
     delete: Flags.boolean({
       default: false,
-      description: 'Delete workspace objects not included in the push (requires --sync)',
+      description:
+        '[CRITICAL] STOP and confirm with the user before running. Delete workspace objects not included in the push (requires --sync).',
       required: false,
     }),
     'dry-run': Flags.boolean({
@@ -95,7 +96,8 @@ Push functions but exclude test files
     }),
     force: Flags.boolean({
       default: false,
-      description: 'Skip preview and confirmation prompt (for CI/CD pipelines)',
+      description:
+        '[CRITICAL] NEVER run without explicit user confirmation. Skips preview and confirmation prompt (for CI/CD pipelines).',
       required: false,
     }),
     guids: Flags.boolean({
@@ -113,7 +115,8 @@ Push functions but exclude test files
     }),
     records: Flags.boolean({
       default: false,
-      description: 'Include records in import',
+      description:
+        '[CRITICAL] ALWAYS show the user a preview before pushing live data. Includes table records in import.',
       required: false,
     }),
     sync: Flags.boolean({
@@ -124,12 +127,13 @@ Push functions but exclude test files
     transaction: Flags.boolean({
       allowNo: true,
       default: true,
-      description: 'Wrap import in a database transaction (use --no-transaction for debugging purposes)',
+      description:
+        'Wrap import in a database transaction (use --no-transaction for debugging purposes). [CRITICAL] DO NOT run with --no-transaction without explicit user confirmation; this disables rollback.',
       required: false,
     }),
     truncate: Flags.boolean({
       default: false,
-      description: 'Truncate all table records before importing',
+      description: '[CRITICAL] STOP and confirm with the user; this truncates live tables before importing.',
       required: false,
     }),
     workspace: Flags.string({
