@@ -34,7 +34,7 @@ npm install -g @xano/cli
 
 Destructive commands include imperative safety prefixes in their help text and flag descriptions so automated agents (e.g. Claude Code, Cursor) pause before running them in auto-accept mode:
 
-- **`[CRITICAL]`** — Agents must STOP and confirm with the user before running. Used for irreversible or high-blast-radius operations, including (but not limited to) `--force` deletions, `workspace push --records`, `workspace/sandbox push --truncate`, `--no-transaction`, `--sync --delete`, backup restore/delete, cluster delete, `env set_all`, `sandbox reset`, `sandbox delete`, `profile delete`, and tenant deploys.
+- **`[CRITICAL]`** — Agents must STOP and confirm with the user before running. Used for irreversible or high-blast-radius operations, including (but not limited to) `--force` deletions, `workspace edit --allow-push`, `workspace push --records`, `workspace/sandbox push --truncate`, `--no-transaction`, `--sync --delete`, backup restore/delete, cluster delete, `env set_all`, `sandbox reset`, `sandbox delete`, `profile delete`, and tenant deploys.
 - **`[IMPORTANT]`** — Agents should confirm with the user (and prefer `--dry-run` previews where applicable). Used for base `workspace push` and `sandbox push`, `branch set_live`, `release import`, `release push`, `release deploy`, and single-variable env / workflow-test deletes.
 
 These warnings are layer 1 of broader push-safety work; ephemeral sandbox environments and push preview remain the structural safeguards.
