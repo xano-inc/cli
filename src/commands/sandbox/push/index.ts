@@ -143,6 +143,7 @@ Push and open sandbox review in the browser
       label: 'sandbox environment',
       supportsBranches: false,
       supportsPartial: true,
+      warnOnWorkspaceMismatch: true,
     }
 
     const pushFlags: PushFlags = {

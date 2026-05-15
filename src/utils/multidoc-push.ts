@@ -38,6 +38,12 @@ export interface PushTarget {
   supportsBranches: boolean
   /** Does this target support the partial query param? */
   supportsPartial: boolean
+  /**
+   * Warn when the workspace embedded in the local push differs from the workspace currently
+   * loaded on the target (per dry-run). Used by sandbox push because the sandbox is shared
+   * across workspaces and pushing onto a different workspace can leave stale state behind.
+   */
+  warnOnWorkspaceMismatch?: boolean
 }
 
 export interface PushContext {
@@ -77,6 +83,10 @@ interface DryRunResult {
   summary: Record<string, DryRunSummary>
   workspace_name?: string
 }
+
+// Minimum total operations before a workspace mismatch is treated as worth interrupting for.
+// Small change sets (e.g., editing a single function) aren't worth a reset prompt.
+const WORKSPACE_MISMATCH_THRESHOLD = 25
 
 // ── File Collection ─────────────────────────────────────────────────────────
 
@@ -375,6 +385,15 @@ function renderPreview(
   log('')
 }
 
+function findLocalWorkspaceName(entries: Array<{content: string; filePath: string}>): null | string {
+  for (const entry of entries) {
+    const parsed = parseDocument(entry.content)
+    if (parsed?.type === 'workspace') return parsed.name
+  }
+
+  return null
+}
+
 // ── Confirmation ────────────────────────────────────────────────────────────
 
 export async function confirm(message: string): Promise<boolean> {
@@ -652,6 +671,49 @@ export async function executePush(
 
           if (flags['dry-run']) {
             return
+          }
+
+          // Warn when the sandbox currently holds a different workspace than the one being
+          // pushed and the change set is large enough that stale state is a real risk.
+          if (target.warnOnWorkspaceMismatch && preview.workspace_name) {
+            const localWorkspaceName = findLocalWorkspaceName(documentEntries)
+            const totalChanges = Object.values(preview.summary).reduce(
+              (sum, c) => sum + c.created + c.updated + (shouldDelete ? c.deleted : 0) + c.truncated,
+              0,
+            )
+            if (
+              localWorkspaceName &&
+              localWorkspaceName !== preview.workspace_name &&
+              totalChanges >= WORKSPACE_MISMATCH_THRESHOLD
+            ) {
+              log('')
+              log(ux.colorize('yellow', ux.colorize('bold', '=== Workspace Mismatch ===')))
+              log('')
+              log(
+                ux.colorize(
+                  'yellow',
+                  `Sandbox currently holds workspace "${preview.workspace_name}", but you're pushing "${localWorkspaceName}" with ${totalChanges} changes.`,
+                ),
+              )
+              log(
+                ux.colorize(
+                  'yellow',
+                  'Pushing on top of a different workspace can leave stale data behind. Run `xano sandbox reset` first to start clean.',
+                ),
+              )
+              log('')
+              if (process.stdin.isTTY) {
+                const proceed = await confirm('Continue with push anyway?')
+                if (!proceed) {
+                  log('Push cancelled. Run `xano sandbox reset` then retry.')
+                  return
+                }
+              } else {
+                command.error(
+                  'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first, or use --force to override.',
+                )
+              }
+            }
           }
 
           // Confirm with user
