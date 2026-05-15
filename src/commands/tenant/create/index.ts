@@ -34,7 +34,8 @@ export default class TenantCreate extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Create a new tenant in a workspace'
+  static description =
+    '[IMPORTANT] ALWAYS confirm with the user before creating a tier2/tier3 tenant; this provisions billable infrastructure on a cluster. Creates a new tenant in a workspace.'
   static examples = [
     `$ xano tenant create "Production"
 Created tenant: Production (production) - ID: 42

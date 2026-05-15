@@ -63,7 +63,8 @@ Updated tenant: New Name (my-tenant) - ID: 42
     }),
     ingress: Flags.boolean({
       allowNo: true,
-      description: 'Enable/disable ingress',
+      description:
+        '[IMPORTANT] ALWAYS confirm with the user before disabling ingress; this takes the tenant offline from the public network. Enables/disables ingress.',
       required: false,
     }),
     output: Flags.string({
@@ -79,12 +80,14 @@ Updated tenant: New Name (my-tenant) - ID: 42
     }),
     rbac: Flags.boolean({
       allowNo: true,
-      description: 'Enable/disable RBAC',
+      description:
+        '[CRITICAL] NEVER disable RBAC without explicit user confirmation; this removes role-based access controls on the tenant. Enables/disables RBAC.',
       required: false,
     }),
     tasks: Flags.boolean({
       allowNo: true,
-      description: 'Enable/disable background tasks',
+      description:
+        '[IMPORTANT] ALWAYS confirm with the user before disabling background tasks; this stops scheduled jobs on the tenant. Enables/disables background tasks.',
       required: false,
     }),
     workspace: Flags.string({
