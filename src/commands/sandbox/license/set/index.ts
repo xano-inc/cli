@@ -18,7 +18,8 @@ Reads from license_<tenant>.yaml
     ...BaseCommand.baseFlags,
     clean: Flags.boolean({
       default: false,
-      description: 'Remove the source file after successful upload',
+      description:
+        '[IMPORTANT] ALWAYS confirm with the user before deleting the source license file after upload. Removes the source file after successful upload.',
       exclusive: ['value'],
       required: false,
     }),

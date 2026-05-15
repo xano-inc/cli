@@ -4,7 +4,7 @@ import BaseCommand from '../../../base-command.js'
 
 export default class SandboxDelete extends BaseCommand {
   static description =
-    'Delete your sandbox environment completely (debugging only — it will be re-created on next access)'
+    '[CRITICAL] NEVER run without explicit user confirmation; this destroys all sandbox data. Deletes your sandbox environment completely (debugging only — it will be re-created on next access).'
   static examples = [
     `$ xano sandbox delete
 Are you sure you want to DELETE your sandbox environment? This destroys all data. (y/N) y
@@ -17,7 +17,7 @@ Sandbox environment deleted.
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
   }

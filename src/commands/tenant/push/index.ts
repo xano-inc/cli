@@ -1,7 +1,8 @@
 import {Command} from '@oclif/core'
 
 export default class Push extends Command {
-  static override description = 'Direct tenant push is not supported. Deploy through a release or use the sandbox (xano sandbox push).'
+  static override description =
+    'Direct tenant push is not supported — deploy through a release or use the sandbox (xano sandbox push).'
 
   async run(): Promise<void> {
     this.error(

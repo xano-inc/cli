@@ -40,7 +40,7 @@ Deleted workflow test 1
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[IMPORTANT] NEVER run without explicit user confirmation. Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

@@ -34,7 +34,8 @@ export default class TenantDeployRelease extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Deploy a release to a tenant'
+  static description =
+    '[CRITICAL] STOP and confirm with the user before deploying a release to a tenant; this mutates the live tenant. Deploys a release to a tenant.'
   static examples = [
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0
 Deployed release "v1.0" to tenant: My Tenant (my-tenant)

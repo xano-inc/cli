@@ -8,7 +8,7 @@ import {executePush, type PushFlags, type PushTarget} from '../../../utils/multi
 
 export default class SandboxPush extends BaseCommand {
   static override description =
-    'Push local documents to your sandbox environment via multidoc import. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only. Include/exclude glob filters are intentionally not supported on sandbox push — partial pushes can hide deletions during review and lead to data loss when promoted to the workspace. Large pushes against a sandbox loaded with a different workspace will prompt for confirmation; run `xano sandbox reset` first to start clean.'
+    '[IMPORTANT] ALWAYS run --dry-run first and show the user the output before pushing. Push local documents to your sandbox environment via multidoc import. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only. Include/exclude glob filters are intentionally not supported on sandbox push — partial pushes can hide deletions during review and lead to data loss when promoted to the workspace. Large pushes against a sandbox loaded with a different workspace will prompt for confirmation; run `xano sandbox reset` first to start clean.'
   static override examples = [
     `$ xano sandbox push
 Push from current directory (default partial mode)
@@ -86,12 +86,13 @@ Push and open sandbox review in the browser
     transaction: Flags.boolean({
       allowNo: true,
       default: true,
-      description: 'Wrap import in a database transaction (use --no-transaction for debugging purposes)',
+      description:
+        '[CRITICAL] DO NOT run with --no-transaction without explicit user confirmation; this disables rollback. Wraps import in a database transaction (use --no-transaction for debugging purposes).',
       required: false,
     }),
     truncate: Flags.boolean({
       default: false,
-      description: 'Truncate all table records before importing',
+      description: '[CRITICAL] STOP and confirm with the user; this truncates live tables before importing.',
       required: false,
     }),
   }

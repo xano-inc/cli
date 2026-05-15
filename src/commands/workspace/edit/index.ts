@@ -60,7 +60,8 @@ Updated workspace: my-workspace (ID: 123)
     ...BaseCommand.baseFlags,
     'allow-push': Flags.boolean({
       allowNo: true,
-      description: 'Enable or disable direct CLI push to this workspace (not applicable on Free plan)',
+      description:
+        '[CRITICAL] NEVER enable without explicit user confirmation; this unlocks direct CLI push to the workspace and is the gate that protects production from destructive push operations. Enables or disables direct CLI push to this workspace (not applicable on Free plan).',
       required: false,
     }),
     description: Flags.string({

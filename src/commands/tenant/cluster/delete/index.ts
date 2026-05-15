@@ -26,7 +26,8 @@ export default class TenantClusterDelete extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Delete a tenant cluster. This action cannot be undone.'
+  static description =
+    '[CRITICAL] NEVER run without explicit user confirmation; this removes an entire cluster. Deletes a tenant cluster permanently.'
   static examples = [
     `$ xano tenant cluster delete 3
 Are you sure you want to delete tenant cluster 3? This action cannot be undone. (y/N) y
@@ -42,7 +43,7 @@ Tenant cluster 3 deleted successfully
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

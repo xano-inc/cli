@@ -26,7 +26,8 @@ export default class TenantRestore extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Restore a tenant from a backup. This replaces the current tenant data.'
+  static description =
+    '[CRITICAL] STOP and confirm with the user; this overwrites current tenant state. Restores a tenant from a backup, replacing current tenant data.'
   static examples = [
     `$ xano tenant backup restore t1234-abcd-xyz1 --backup_id 10
 Are you sure you want to restore tenant t1234-abcd-xyz1 from backup 10? This will replace current data. (y/N) y
@@ -43,7 +44,7 @@ Restored tenant t1234-abcd-xyz1 from backup #10
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

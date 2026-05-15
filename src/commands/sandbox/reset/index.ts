@@ -3,7 +3,8 @@ import {Flags} from '@oclif/core'
 import BaseCommand from '../../../base-command.js'
 
 export default class SandboxReset extends BaseCommand {
-  static description = 'Reset your sandbox environment (clears all workspace data and drafts)'
+  static description =
+    '[CRITICAL] NEVER run without explicit user confirmation; this clears all workspace data and drafts. Resets your sandbox environment.'
   static examples = [
     `$ xano sandbox reset
 Are you sure you want to reset your sandbox environment? All workspace data and drafts will be cleared. (y/N) y
@@ -16,7 +17,7 @@ Sandbox environment has been reset.
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
   }
