@@ -29,7 +29,8 @@ export default class ProfileDelete extends Command {
       required: true,
     }),
   }
-static description = 'Delete a profile configuration'
+static description =
+    '[CRITICAL] NEVER run without explicit user confirmation; this removes saved credentials from the local config. Deletes a profile configuration.'
 static examples = [
     `$ xano profile:delete old-profile
 Are you sure you want to delete profile 'old-profile'? (y/n): y
@@ -52,7 +53,7 @@ static override flags = {
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[CRITICAL] NEVER run without explicit user confirmation. Skips the confirmation prompt.',
       required: false,
     }),
   }

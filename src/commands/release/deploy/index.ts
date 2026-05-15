@@ -17,7 +17,8 @@ export default class ReleaseDeploy extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Deploy a release to its workspace as a new branch'
+  static description =
+    '[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch.'
   static examples = [
     `$ xano release deploy "v1.0"
 Are you sure you want to deploy release "v1.0"? (y/N) y
@@ -39,7 +40,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description: 'Skip confirmation prompt',
+      description: '[IMPORTANT] NEVER run without explicit user confirmation. Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({
@@ -51,7 +52,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
     }),
     set_live: Flags.boolean({
       default: false,
-      description: 'Set the new branch as live',
+      description: '[CRITICAL] STOP and confirm with the user before setting the deployed branch as live.',
       required: false,
     }),
     workspace: Flags.string({

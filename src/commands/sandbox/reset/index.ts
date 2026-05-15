@@ -17,8 +17,7 @@ Sandbox environment has been reset.
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description:
-        '[CRITICAL] NEVER run without explicit user confirmation; this clears all workspace data and drafts. Skips the confirmation prompt.',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
   }

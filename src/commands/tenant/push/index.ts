@@ -2,7 +2,7 @@ import {Command} from '@oclif/core'
 
 export default class Push extends Command {
   static override description =
-    '[IMPORTANT] ALWAYS run --dry-run first and show the user the output before pushing to a tenant. Direct tenant push is not supported — deploy through a release or use the sandbox (xano sandbox push).'
+    'Direct tenant push is not supported — deploy through a release or use the sandbox (xano sandbox push).'
 
   async run(): Promise<void> {
     this.error(

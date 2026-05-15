@@ -116,7 +116,7 @@ Push functions but exclude test files
     records: Flags.boolean({
       default: false,
       description:
-        '[CRITICAL] ALWAYS show the user a preview before pushing live data. Includes table records in import.',
+        '[CRITICAL] STOP and confirm with the user; this pushes live table records. Includes table records in import.',
       required: false,
     }),
     sync: Flags.boolean({
@@ -128,7 +128,7 @@ Push functions but exclude test files
       allowNo: true,
       default: true,
       description:
-        'Wrap import in a database transaction (use --no-transaction for debugging purposes). [CRITICAL] DO NOT run with --no-transaction without explicit user confirmation; this disables rollback.',
+        '[CRITICAL] DO NOT run with --no-transaction without explicit user confirmation; this disables rollback. Wraps import in a database transaction (use --no-transaction for debugging purposes).',
       required: false,
     }),
     truncate: Flags.boolean({

@@ -87,7 +87,7 @@ Push and open sandbox review in the browser
       allowNo: true,
       default: true,
       description:
-        'Wrap import in a database transaction (use --no-transaction for debugging purposes). [CRITICAL] DO NOT run with --no-transaction without explicit user confirmation; this disables rollback.',
+        '[CRITICAL] DO NOT run with --no-transaction without explicit user confirmation; this disables rollback. Wraps import in a database transaction (use --no-transaction for debugging purposes).',
       required: false,
     }),
     truncate: Flags.boolean({

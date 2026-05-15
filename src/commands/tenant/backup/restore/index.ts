@@ -44,8 +44,7 @@ Restored tenant t1234-abcd-xyz1 from backup #10
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description:
-        '[CRITICAL] NEVER run without explicit user confirmation; this overwrites current tenant state. Skips the confirmation prompt.',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

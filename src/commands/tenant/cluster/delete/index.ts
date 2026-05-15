@@ -43,8 +43,7 @@ Tenant cluster 3 deleted successfully
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description:
-        '[CRITICAL] NEVER run without explicit user confirmation; this removes an entire cluster. Skips the confirmation prompt.',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

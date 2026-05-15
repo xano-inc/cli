@@ -42,8 +42,7 @@ Environment variable 'DATABASE_URL' deleted from tenant my-tenant
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description:
-        '[IMPORTANT] ALWAYS confirm with the user before deleting an environment variable. Skips the confirmation prompt.',
+      description: '[IMPORTANT] NEVER run without explicit user confirmation. Skips the confirmation prompt.',
       required: false,
     }),
     name: Flags.string({

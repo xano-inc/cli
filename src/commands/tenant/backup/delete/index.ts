@@ -46,8 +46,7 @@ Deleted backup #10
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description:
-        '[CRITICAL] NEVER delete a backup without explicit user confirmation; this removes your restore point. Skips the confirmation prompt.',
+      description: '[CRITICAL] Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

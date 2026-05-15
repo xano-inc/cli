@@ -40,8 +40,7 @@ Deleted workflow test 1
     force: Flags.boolean({
       char: 'f',
       default: false,
-      description:
-        '[IMPORTANT] ALWAYS confirm with the user before deleting a workflow test definition. Skips the confirmation prompt.',
+      description: '[IMPORTANT] NEVER run without explicit user confirmation. Skips the confirmation prompt.',
       required: false,
     }),
     output: Flags.string({

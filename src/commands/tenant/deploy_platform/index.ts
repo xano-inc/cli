@@ -35,7 +35,8 @@ export default class TenantDeployPlatform extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Deploy a platform version to a tenant'
+  static description =
+    '[CRITICAL] STOP and confirm with the user before deploying a platform version to a tenant; this mutates the live tenant. Deploys a platform version to a tenant.'
   static examples = [
     `$ xano tenant deploy_platform t1234-abcd-xyz1 --platform_id 5
 Deployed platform 5 to tenant: My Tenant (my-tenant)
