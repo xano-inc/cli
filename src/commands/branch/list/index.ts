@@ -19,11 +19,15 @@ interface CredentialsFile {
   }
 }
 
-interface Branch {
+export interface Branch {
   backup: boolean
   created_at: string
   label: string
   live: boolean
+}
+
+export function filterBackups(branches: Branch[], includeBackups: boolean): Branch[] {
+  return includeBackups ? branches : branches.filter((b) => !b.backup)
 }
 
 export default class BranchList extends BaseCommand {
@@ -40,6 +44,12 @@ Available branches:
   - v1 (live)
   - feature-auth
 `,
+    `$ xano branch list --backups
+Available branches:
+  - v1 (live)
+  - dev
+  - backup_2024_01_15 (backup)
+`,
     `$ xano branch list --output json
 [
   {
@@ -53,6 +63,11 @@ Available branches:
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    backups: Flags.boolean({
+      default: false,
+      description: 'Include backup branches in the output',
+      required: false,
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -129,7 +144,8 @@ Available branches:
         )
       }
 
-      const branches = await response.json() as Branch[]
+      const allBranches = await response.json() as Branch[]
+      const branches = filterBackups(allBranches, flags.backups)
 
       // Output results
       if (flags.output === 'json') {
