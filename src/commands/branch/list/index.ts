@@ -19,11 +19,15 @@ interface CredentialsFile {
   }
 }
 
-interface Branch {
+export interface Branch {
   backup: boolean
   created_at: string
   label: string
   live: boolean
+}
+
+export function filterBackups(branches: Branch[], includeBackups: boolean): Branch[] {
+  return includeBackups ? branches : branches.filter((b) => !b.backup)
 }
 
 export default class BranchList extends BaseCommand {
@@ -141,7 +145,7 @@ Available branches:
       }
 
       const allBranches = await response.json() as Branch[]
-      const branches = flags.backups ? allBranches : allBranches.filter((b) => !b.backup)
+      const branches = filterBackups(allBranches, flags.backups)
 
       // Output results
       if (flags.output === 'json') {
