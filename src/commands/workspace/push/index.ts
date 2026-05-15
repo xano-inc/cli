@@ -116,7 +116,7 @@ Push functions but exclude test files
     records: Flags.boolean({
       default: false,
       description:
-        '[CRITICAL] STOP and confirm with the user; this pushes live table records. Includes table records in import.',
+        '[CRITICAL] STOP and ALWAYS run --dry-run first to show the user a preview before pushing live table records. Includes table records in import.',
       required: false,
     }),
     sync: Flags.boolean({
