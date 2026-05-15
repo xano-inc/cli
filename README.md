@@ -482,8 +482,6 @@ xano sandbox push --records --env                        # Include records and e
 xano sandbox push --truncate                             # Truncate tables before import
 xano sandbox push --no-guids                             # Skip writing GUIDs back to local files
 xano sandbox push --force                                # Skip preview and confirmation
-xano sandbox push -i "function/*"                        # Push only matching files
-xano sandbox push -e "table/*"                           # Push all files except tables
 xano sandbox push --review                               # Push and open sandbox review in the browser
 
 # Review (open in browser)

@@ -8,7 +8,7 @@ import {executePush, type PushFlags, type PushTarget} from '../../../utils/multi
 
 export default class SandboxPush extends BaseCommand {
   static override description =
-    'Push local documents to your sandbox environment via multidoc import. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only.'
+    'Push local documents to your sandbox environment via multidoc import. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only. Include/exclude glob filters are intentionally not supported on sandbox push — partial pushes can hide deletions during review and lead to data loss when promoted to the workspace.'
   static override examples = [
     `$ xano sandbox push
 Push from current directory (default partial mode)
@@ -30,15 +30,6 @@ Skip preview and push immediately
 `,
     `$ xano sandbox push --records --env`,
     `$ xano sandbox push --truncate`,
-    `$ xano sandbox push -i "**/func*"
-Push only files matching the glob pattern
-`,
-    `$ xano sandbox push -i "function/*" -i "table/*"
-Push files matching multiple patterns
-`,
-    `$ xano sandbox push -e "table/*"
-Push all files except tables
-`,
     `$ xano sandbox push --review
 Push and open sandbox review in the browser
 `,
@@ -66,13 +57,6 @@ Push and open sandbox review in the browser
       description: 'Include environment variables in import',
       required: false,
     }),
-    exclude: Flags.string({
-      char: 'e',
-      description:
-        'Glob pattern to exclude files (e.g. "table/*", "**/test*"). Matched against relative paths from the push directory.',
-      multiple: true,
-      required: false,
-    }),
     force: Flags.boolean({
       default: false,
       description: 'Skip preview and confirmation prompt (for CI/CD pipelines)',
@@ -82,13 +66,6 @@ Push and open sandbox review in the browser
       allowNo: true,
       default: true,
       description: 'Write server-assigned GUIDs back to local files (use --no-guids to skip)',
-      required: false,
-    }),
-    include: Flags.string({
-      char: 'i',
-      description:
-        'Glob pattern to include files (e.g. "**/func*", "table/*.xs"). Matched against relative paths from the push directory.',
-      multiple: true,
       required: false,
     }),
     records: Flags.boolean({
@@ -149,10 +126,8 @@ Push and open sandbox review in the browser
       delete: flags.delete,
       'dry-run': flags['dry-run'],
       env: flags.env,
-      exclude: flags.exclude,
       force: flags.force,
       guids: flags.guids,
-      include: flags.include,
       records: flags.records,
       sync: flags.sync,
       transaction: flags.transaction,
