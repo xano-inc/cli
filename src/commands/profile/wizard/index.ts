@@ -38,6 +38,7 @@ interface Workspace {
 }
 
 interface Branch {
+  backup?: boolean
   id: string
   label: string
 }
@@ -284,20 +285,26 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
     // Transform API response to Branch format
     // Assuming the API returns an array or object with branches
     if (Array.isArray(data)) {
-      return data.map((br: any) => ({
-        id: br.id || br.label,
-        label: br.label,
-      }))
+      return data
+        .filter((br: any) => !br.backup)
+        .map((br: any) => ({
+          backup: br.backup,
+          id: br.id || br.label,
+          label: br.label,
+        }))
     }
 
     // If it's an object, try to extract branches
     if (data && typeof data === 'object') {
       const branches = data.branches || data.data || []
       if (Array.isArray(branches)) {
-        return branches.map((br: any) => ({
-          id: br.id || br.name,
-          label: br.label,
-        }))
+        return branches
+          .filter((br: any) => !br.backup)
+          .map((br: any) => ({
+            backup: br.backup,
+            id: br.id || br.name,
+            label: br.label,
+          }))
       }
     }
 
