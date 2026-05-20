@@ -40,6 +40,7 @@ interface Workspace {
 }
 
 interface Branch {
+  backup?: boolean
   id: string
   label: string
 }
@@ -204,10 +205,13 @@ Opening browser for Xano login at https://custom.xano.com...`,
       const data = (await response.json()) as unknown
 
       if (Array.isArray(data)) {
-        return data.map((br: {id?: string; label: string}) => ({
-          id: br.id || br.label,
-          label: br.label,
-        }))
+        return data
+          .filter((br: {backup?: boolean}) => !br.backup)
+          .map((br: {backup?: boolean; id?: string; label: string}) => ({
+            backup: br.backup,
+            id: br.id || br.label,
+            label: br.label,
+          }))
       }
 
       return []
