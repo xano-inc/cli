@@ -1,6 +1,6 @@
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import {dirname, join, resolve} from 'node:path'
 
 import type {ProfileConfig} from '../base-command.js'
 
@@ -17,7 +17,11 @@ export interface LocalProfileConfig {
 
 const RECOGNIZED_KEYS = ['profile', 'workspace', 'instance_origin', 'account_origin', 'branch'] as const
 
-/** Fields that may be layered onto a resolved profile (everything except the profile pointer). */
+/**
+ * Fields that may be layered onto a resolved profile (everything except the profile pointer).
+ * NOTE: `insecure` is intentionally NOT listed here — a project file must never silently
+ * disable TLS verification (security boundary).
+ */
 const OVERRIDE_KEYS = ['workspace', 'instance_origin', 'account_origin', 'branch'] as const
 
 /**
@@ -74,16 +78,16 @@ export function applyLocalOverrides(base: ProfileConfig, local: LocalProfileConf
  * Walk up from `startDir` to the filesystem root, returning the path of the
  * first profile.yaml found, or null if none exists.
  */
-export function findLocalProfilePath(startDir: string): string | null {
-  let dir = path.resolve(startDir)
+export function findLocalProfilePath(startDir: string): null | string {
+  let dir = resolve(startDir)
 
   while (true) {
-    const candidate = path.join(dir, LOCAL_PROFILE_FILENAME)
+    const candidate = join(dir, LOCAL_PROFILE_FILENAME)
     if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
       return candidate
     }
 
-    const parent = path.dirname(dir)
+    const parent = dirname(dir)
     if (parent === dir) {
       return null
     }
