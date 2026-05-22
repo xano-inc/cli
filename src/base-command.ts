@@ -65,10 +65,15 @@ export function resolveCredentialsPath(configPath?: string): string {
  * whether the project-local profile.yaml should be ignored (explicit wins).
  */
 export function argvHasProfileFlag(argv: string[], env: NodeJS.ProcessEnv): boolean {
+  // XANO_PROFILE is checked directly (not via oclif's flag env binding) because
+  // this runs in init(), before flags are parsed and available on the command.
   if (env.XANO_PROFILE) {
     return true
   }
 
+  // Scan the raw argv so we catch any token form the user might type
+  // (`-p prod`, `--profile prod`, `--profile=prod`, `-p=prod`) regardless of
+  // how oclif ultimately parses it.
   for (const arg of argv) {
     if (arg === '-p' || arg === '--profile' || arg.startsWith('--profile=') || arg.startsWith('-p=')) {
       return true
@@ -103,6 +108,8 @@ export default abstract class BaseCommand extends Command {
   // Override the flags property to include baseFlags
   static flags = BaseCommand.baseFlags
 
+  // Resolved project-local profile.yaml, set once in init() before run().
+  // Null when none was found or when an explicit -p/XANO_PROFILE overrides it.
   protected localProfile: null | {config: LocalProfileConfig; path: string} = null
   protected updateNotice: string | null = null
 
@@ -125,6 +132,9 @@ export default abstract class BaseCommand extends Command {
       return null
     }
 
+    // Walks up to the filesystem root (git-style). parseLocalProfile returns
+    // null for a profile.yaml with no recognized keys, so an unrelated file
+    // belonging to another tool is ignored rather than hijacked.
     const filePath = findLocalProfilePath(process.cwd())
     if (!filePath) {
       return null
