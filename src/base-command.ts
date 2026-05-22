@@ -5,6 +5,14 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 import {checkForUpdate} from './update-check.js'
+import {
+  applyLocalOverrides,
+  findLocalProfilePath,
+  formatLocalProfileBanner,
+  type LocalProfileConfig,
+  parseLocalProfile,
+  resolveProfileSelection,
+} from './utils/local-config.js'
 
 export interface ProfileConfig {
   access_token: string
@@ -51,6 +59,25 @@ export function resolveCredentialsPath(configPath?: string): string {
   return path.join(os.homedir(), '.xano', 'credentials.yaml')
 }
 
+/**
+ * Detect whether an explicit profile was requested via -p/--profile or the
+ * XANO_PROFILE env var. Used at init() time, before flags are parsed, to decide
+ * whether the project-local profile.yaml should be ignored (explicit wins).
+ */
+export function argvHasProfileFlag(argv: string[], env: NodeJS.ProcessEnv): boolean {
+  if (env.XANO_PROFILE) {
+    return true
+  }
+
+  for (const arg of argv) {
+    if (arg === '-p' || arg === '--profile' || arg.startsWith('--profile=') || arg.startsWith('-p=')) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export default abstract class BaseCommand extends Command {
   static baseFlags = {
     config: Flags.string({
@@ -76,14 +103,58 @@ export default abstract class BaseCommand extends Command {
   // Override the flags property to include baseFlags
   static flags = BaseCommand.baseFlags
 
+  protected localProfile: null | {config: LocalProfileConfig; path: string} = null
   protected updateNotice: string | null = null
 
   async init(): Promise<void> {
     await super.init()
+    this.localProfile = this.loadLocalProfile()
     this.applyInsecureFromProfile()
+    this.maybePrintLocalProfileBanner()
 
     const forceUpdateCheck = process.env.XANO_FORCE_UPDATE_CHECK === '1'
     this.updateNotice = checkForUpdate(this.config.version, forceUpdateCheck)
+  }
+
+  /**
+   * Find and parse the nearest project-local profile.yaml, unless an explicit
+   * -p/XANO_PROFILE was given (in which case the local file is ignored).
+   */
+  private loadLocalProfile(): null | {config: LocalProfileConfig; path: string} {
+    if (argvHasProfileFlag(process.argv, process.env)) {
+      return null
+    }
+
+    const filePath = findLocalProfilePath(process.cwd())
+    if (!filePath) {
+      return null
+    }
+
+    let config: LocalProfileConfig | null
+    try {
+      config = parseLocalProfile(fs.readFileSync(filePath, 'utf8'))
+    } catch (error) {
+      this.error(`${filePath}: ${(error as Error).message}`)
+    }
+
+    if (!config) {
+      this.warn(`Ignoring ${filePath}: no recognized profile keys found.`)
+      return null
+    }
+
+    return {config, path: filePath}
+  }
+
+  /** Print the one-line target banner when a local profile.yaml is in effect. */
+  private maybePrintLocalProfileBanner(): void {
+    if (!this.localProfile || this.isJsonOutput()) {
+      return
+    }
+
+    const {config, path: filePath} = this.localProfile
+    const profileName = config.profile ?? this.getDefaultProfile()
+    const relativePath = path.relative(process.cwd(), filePath) || path.basename(filePath)
+    this.log(formatLocalProfileBanner(profileName, config.workspace, relativePath))
   }
 
   async finally(_: Error | undefined): Promise<void> {
@@ -111,7 +182,8 @@ export default abstract class BaseCommand extends Command {
    */
   protected applyInsecureFromProfile(): void {
     try {
-      const profileName = (this as any).flags?.profile || this.getDefaultProfile()
+      const profileName =
+        (this as any).flags?.profile || this.localProfile?.config.profile || this.getDefaultProfile()
       const credentials = this.loadCredentialsFile()
       if (!credentials) return
 
@@ -205,17 +277,28 @@ export default abstract class BaseCommand extends Command {
   }
 
   /**
-   * Resolve profile from flags, validating instance_origin and access_token exist.
+   * Resolve the profile from flags and any project-local profile.yaml,
+   * validating instance_origin and access_token exist.
+   * Precedence: -p/XANO_PROFILE > profile.yaml > credentials default.
    */
   protected resolveProfile(flags: {profile?: string}): {profile: ProfileConfig; profileName: string} {
-    const profileName = flags.profile || this.getDefaultProfile()
     const credentials = this.loadCredentialsFile()
+    const {applyLocal, profileName} = resolveProfileSelection({
+      defaultProfile: this.getDefaultProfile(),
+      explicitProfile: flags.profile,
+      hasLocal: Boolean(this.localProfile),
+      localProfileName: this.localProfile?.config.profile,
+    })
 
     if (!credentials || !(profileName in credentials.profiles)) {
       this.error(`Profile '${profileName}' not found.\n` + `Create a profile using 'xano profile create'`)
     }
 
-    const profile = credentials.profiles[profileName]
+    let profile = credentials.profiles[profileName]
+
+    if (applyLocal && this.localProfile) {
+      profile = applyLocalOverrides(profile, this.localProfile.config)
+    }
 
     if (!profile.instance_origin) {
       this.error(`Profile '${profileName}' is missing instance_origin`)
