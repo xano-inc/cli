@@ -75,6 +75,38 @@ export function applyLocalOverrides(base: ProfileConfig, local: LocalProfileConf
 }
 
 /**
+ * Decide which profile name to use and whether local overrides apply.
+ * Precedence: explicit -p/XANO_PROFILE > local profile.yaml > credentials default.
+ * An explicit profile disables the local file entirely (name and overrides).
+ */
+export function resolveProfileSelection(params: {
+  defaultProfile: string
+  explicitProfile?: string
+  hasLocal: boolean
+  localProfileName?: string
+}): {applyLocal: boolean; profileName: string} {
+  if (params.explicitProfile) {
+    return {applyLocal: false, profileName: params.explicitProfile}
+  }
+
+  if (params.hasLocal) {
+    return {applyLocal: true, profileName: params.localProfileName ?? params.defaultProfile}
+  }
+
+  return {applyLocal: false, profileName: params.defaultProfile}
+}
+
+/** Format the one-line banner shown when a local profile.yaml is in effect. */
+export function formatLocalProfileBanner(
+  profileName: string,
+  workspace: string | undefined,
+  relativePath: string,
+): string {
+  const workspaceClause = workspace ? ` (workspace ${workspace})` : ''
+  return `Using profile '${profileName}'${workspaceClause} · ${relativePath}`
+}
+
+/**
  * Walk up from `startDir` to the filesystem root, returning the path of the
  * first profile.yaml found, or null if none exists.
  */

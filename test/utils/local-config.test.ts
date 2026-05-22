@@ -7,8 +7,10 @@ import {join} from 'node:path'
 import {
   applyLocalOverrides,
   findLocalProfilePath,
+  formatLocalProfileBanner,
   LOCAL_PROFILE_FILENAME,
   parseLocalProfile,
+  resolveProfileSelection,
 } from '../../src/utils/local-config.js'
 
 describe('local-config', () => {
@@ -89,6 +91,57 @@ describe('local-config', () => {
     it('does not mutate the base profile', () => {
       applyLocalOverrides(base, {workspace: '999'})
       expect(base.workspace).to.equal('118')
+    })
+  })
+
+  describe('resolveProfileSelection', () => {
+    it('uses the explicit profile and skips local overrides when -p/env is set', () => {
+      const result = resolveProfileSelection({
+        defaultProfile: 'default',
+        explicitProfile: 'heimstaden',
+        hasLocal: true,
+        localProfileName: 'brice-dev',
+      })
+      expect(result).to.deep.equal({applyLocal: false, profileName: 'heimstaden'})
+    })
+
+    it('uses the local profile name and applies overrides when no explicit profile', () => {
+      const result = resolveProfileSelection({
+        defaultProfile: 'default',
+        hasLocal: true,
+        localProfileName: 'brice-dev',
+      })
+      expect(result).to.deep.equal({applyLocal: true, profileName: 'brice-dev'})
+    })
+
+    it('falls back to the default profile but still applies overrides when local omits a name', () => {
+      const result = resolveProfileSelection({
+        defaultProfile: 'default',
+        hasLocal: true,
+      })
+      expect(result).to.deep.equal({applyLocal: true, profileName: 'default'})
+    })
+
+    it('uses the default profile when there is no local file', () => {
+      const result = resolveProfileSelection({
+        defaultProfile: 'default',
+        hasLocal: false,
+      })
+      expect(result).to.deep.equal({applyLocal: false, profileName: 'default'})
+    })
+  })
+
+  describe('formatLocalProfileBanner', () => {
+    it('includes the workspace when one is given', () => {
+      expect(formatLocalProfileBanner('brice-dev', '110', 'profile.yaml')).to.equal(
+        "Using profile 'brice-dev' (workspace 110) · profile.yaml",
+      )
+    })
+
+    it('omits the workspace clause when not given', () => {
+      expect(formatLocalProfileBanner('brice-dev', undefined, 'profile.yaml')).to.equal(
+        "Using profile 'brice-dev' · profile.yaml",
+      )
     })
   })
 
