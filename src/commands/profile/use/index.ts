@@ -38,11 +38,11 @@ export default class ProfileUse extends Command {
       required: true,
     }),
   }
-static description =
+  static description =
     'Pin a profile for the current project by writing a local profile.yaml. ' +
     'When present, the CLI uses this profile (and any overrides) instead of the default, ' +
     'unless -p/--profile or XANO_PROFILE is set.'
-static examples = [
+  static examples = [
     `$ xano profile use brice-dev
 Wrote profile.yaml pinning profile 'brice-dev'
 `,
@@ -50,7 +50,8 @@ Wrote profile.yaml pinning profile 'brice-dev'
 Wrote profile.yaml pinning profile 'brice-dev' (workspace 110)
 `,
     `$ xano profile use brice-dev -w 110 --gitignore
-Wrote profile.yaml and added it to .gitignore
+Wrote profile.yaml pinning profile 'brice-dev' (workspace 110)
+Added profile.yaml to .gitignore
 `,
   ]
   static override flags = {
@@ -107,7 +108,12 @@ Wrote profile.yaml and added it to .gitignore
       this.warn(`Overwriting existing ${LOCAL_PROFILE_FILENAME}`)
     }
 
-    fs.writeFileSync(filePath, yaml.dump(config, {indent: 2, lineWidth: -1, noRefs: true}), 'utf8')
+    try {
+      fs.writeFileSync(filePath, yaml.dump(config, {indent: 2, lineWidth: -1, noRefs: true}), 'utf8')
+    } catch (error) {
+      this.error(`Failed to write ${LOCAL_PROFILE_FILENAME}: ${error}`)
+    }
+
     const workspaceNote = flags.workspace ? ` (workspace ${flags.workspace})` : ''
     this.log(`Wrote ${LOCAL_PROFILE_FILENAME} pinning profile '${args.name}'${workspaceNote}`)
 
@@ -122,7 +128,13 @@ Wrote profile.yaml and added it to .gitignore
       )
     }
 
-    const parsed = yaml.load(fs.readFileSync(credentialsPath, 'utf8')) as CredentialsFile
+    let parsed: CredentialsFile
+    try {
+      parsed = yaml.load(fs.readFileSync(credentialsPath, 'utf8')) as CredentialsFile
+    } catch (error) {
+      this.error(`Failed to parse credentials file: ${error}`)
+    }
+
     if (!parsed || typeof parsed !== 'object' || !('profiles' in parsed)) {
       this.error('Credentials file has invalid format.')
     }
