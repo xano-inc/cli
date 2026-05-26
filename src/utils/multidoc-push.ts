@@ -102,6 +102,47 @@ export function countSummaryChanges(
   )
 }
 
+/**
+ * Filter document entries down to the ones the dry-run preview reports as changed,
+ * used to send only the changed documents during a partial (non-`--sync`) push.
+ *
+ * The preview keys each operation as `${type}:${name}` (with the verb appended for
+ * API endpoints). Local documents are matched against that set.
+ *
+ * Triggers need special handling: they are authored with specific subtypes
+ * (workspace_trigger, error_trigger, table_trigger, agent_trigger,
+ * mcp_server_trigger, realtime_trigger) but the server buckets every one under the
+ * generic `trigger` type in the preview. We therefore match a local trigger against
+ * both its specific type and the generic `trigger` type — otherwise partial pushes
+ * silently drop triggers, requiring `--sync --force` to include them (DEV-7084).
+ */
+export function filterChangedEntries(
+  entries: Array<{content: string; filePath: string}>,
+  operations: Array<{action: string; name: string; type: string}>,
+  includeRecords: boolean,
+): Array<{content: string; filePath: string}> {
+  const changedKeys = new Set(
+    operations
+      .filter((op) => op.action !== 'unchanged' && op.action !== 'delete' && op.action !== 'cascade_delete')
+      .map((op) => `${op.type}:${op.name}`),
+  )
+
+  return entries.filter((entry) => {
+    const parsed = parseDocument(entry.content)
+    if (!parsed) return true
+    // Workspace settings always use a fixed key in dry-run regardless of the actual name
+    if (parsed.type === 'workspace' && changedKeys.has('workspace:workspace')) return true
+    const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
+    if (changedKeys.has(`${parsed.type}:${opName}`)) return true
+    // The dry-run preview reports all trigger subtypes under the generic `trigger`
+    // type, so match triggers against that bucket too (DEV-7084).
+    if (parsed.type.endsWith('_trigger') && changedKeys.has(`trigger:${opName}`)) return true
+    // Keep table documents that contain records when --records is active
+    if (includeRecords && parsed.type === 'table' && /\bitems\s*=\s*\[/m.test(entry.content)) return true
+    return false
+  })
+}
+
 // ── File Collection ─────────────────────────────────────────────────────────
 
 /**
@@ -793,23 +834,7 @@ export async function executePush(
   // ── Partial push: filter to changed documents only ────────────────────
 
   if (isPartial && dryRunPreview) {
-    const changedKeys = new Set(
-      dryRunPreview.operations
-        .filter((op) => op.action !== 'unchanged' && op.action !== 'delete' && op.action !== 'cascade_delete')
-        .map((op) => `${op.type}:${op.name}`),
-    )
-
-    const filteredEntries = documentEntries.filter((entry) => {
-      const parsed = parseDocument(entry.content)
-      if (!parsed) return true
-      // Workspace settings always use a fixed key in dry-run regardless of the actual name
-      if (parsed.type === 'workspace' && changedKeys.has('workspace:workspace')) return true
-      const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
-      if (changedKeys.has(`${parsed.type}:${opName}`)) return true
-      // Keep table documents that contain records when --records is active
-      if (flags.records && parsed.type === 'table' && /\bitems\s*=\s*\[/m.test(entry.content)) return true
-      return false
-    })
+    const filteredEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
 
     if (filteredEntries.length === 0) {
       log('No changes to push.')
