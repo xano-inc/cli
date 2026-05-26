@@ -89,6 +89,11 @@ xano profile workspace
 xano profile workspace set
 xano profile workspace set -p production
 
+# Pin a profile for the current project (writes ./profile.yaml)
+xano profile use brice-dev
+xano profile use brice-dev -w 110       # pin and override the workspace
+xano profile use brice-dev --gitignore  # also add profile.yaml to .gitignore
+
 # Delete a profile
 xano profile delete myprofile
 xano profile delete myprofile --force
@@ -574,6 +579,63 @@ profiles:
     insecure: true
 default: default
 ```
+
+### Project-local profile (`profile.yaml`)
+
+To avoid accidentally targeting the wrong workspace, pin a project to a profile
+by adding a `profile.yaml` file at the project root. The CLI searches the
+current directory and walks up parent directories (like `.git`) to find it.
+
+`profile.yaml` contains **no secrets** — it references a profile by name; the
+access token always comes from `~/.xano/credentials.yaml`. An `access_token`
+key is rejected.
+
+```yaml
+# ./profile.yaml
+profile: brice-dev        # which credentials.yaml profile to use
+workspace: 110            # optional override
+instance_origin: https://x62j-rlqn-vpsk.dev.xano.io   # optional override
+account_origin: https://app.dev.xano.com              # optional override
+branch: dev-feature       # optional override
+```
+
+When a `profile.yaml` is in effect, every command prints the active target,
+e.g. `Using profile 'brice-dev' (workspace 110) · profile.yaml` (suppressed for
+`--output json`).
+
+Generate one with `xano profile use`:
+
+```bash
+xano profile use brice-dev -w 110     # writes ./profile.yaml; prompts to .gitignore
+xano profile use brice-dev --no-gitignore
+```
+
+**Profile selection precedence:**
+
+1. `-p/--profile` flag
+2. `XANO_PROFILE` environment variable
+3. `profile.yaml` (`profile:` field, plus field overrides)
+4. Default profile from the credentials file
+
+An explicit `-p/--profile` or `XANO_PROFILE` ignores `profile.yaml` entirely.
+
+#### `xano profile use <name>`
+
+Pin a profile for the current project by writing a local `profile.yaml`.
+
+```bash
+xano profile use brice-dev              # pin profile 'brice-dev' for this project
+xano profile use brice-dev -w 110       # pin and override the workspace
+xano profile use brice-dev --gitignore  # also add profile.yaml to .gitignore
+```
+
+| Flag | Description |
+|------|-------------|
+| `-w, --workspace` | Override workspace for this project |
+| `-b, --branch` | Override branch for this project |
+| `-i, --instance_origin` | Override instance origin |
+| `-a, --account_origin` | Override account origin |
+| `--gitignore` / `--no-gitignore` | Add (or skip adding) `profile.yaml` to `.gitignore` without prompting |
 
 ### Self-Signed Certificates
 
