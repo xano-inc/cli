@@ -95,9 +95,9 @@ xano profile workspace set
 xano profile workspace set -p production
 
 # Pin a profile for the current project (writes ./profile.yaml)
-xano profile use brice-dev
-xano profile use brice-dev -w 110       # pin and override the workspace
-xano profile use brice-dev --gitignore  # also add profile.yaml to .gitignore
+xano profile use staging
+xano profile use staging -w 110       # pin and override the workspace
+xano profile use staging --gitignore  # also add profile.yaml to .gitignore
 
 # Delete a profile
 xano profile delete myprofile
@@ -597,15 +597,15 @@ key is rejected.
 
 ```yaml
 # ./profile.yaml
-profile: brice-dev        # which credentials.yaml profile to use
+profile: staging          # which credentials.yaml profile to use
 workspace: 110            # optional override
-instance_origin: https://x62j-rlqn-vpsk.dev.xano.io   # optional override
-account_origin: https://app.dev.xano.com              # optional override
-branch: dev-feature       # optional override
+instance_origin: https://your-instance.xano.io        # optional override
+account_origin: https://app.xano.com                  # optional override
+branch: main              # optional override
 ```
 
 When a `profile.yaml` is in effect, every command prints the active target,
-e.g. `Using profile 'brice-dev' (workspace 110) · profile.yaml` (suppressed for
+e.g. `Using profile 'staging' (workspace 110) · profile.yaml` (suppressed for
 `--output json`).
 
 Generate one with `xano profile use`. It writes a self-documenting
@@ -614,8 +614,8 @@ you can edit it without consulting the docs) and offers to add it to
 `.gitignore` — skipping that prompt when it is already ignored:
 
 ```bash
-xano profile use brice-dev -w 110     # writes ./profile.yaml; prompts to .gitignore
-xano profile use brice-dev --no-gitignore
+xano profile use staging -w 110     # writes ./profile.yaml; prompts to .gitignore
+xano profile use staging --no-gitignore
 ```
 
 The generated file looks like:
@@ -626,7 +626,7 @@ The generated file looks like:
 # Precedence: an explicit -p/--profile or XANO_PROFILE overrides this file entirely.
 
 # Profile to use (a profile name from ~/.xano/credentials.yaml):
-profile: brice-dev
+profile: staging
 
 # Optional per-project overrides — uncomment and edit any you need:
 workspace: 110
@@ -649,9 +649,9 @@ An explicit `-p/--profile` or `XANO_PROFILE` ignores `profile.yaml` entirely.
 Pin a profile for the current project by writing a local `profile.yaml`.
 
 ```bash
-xano profile use brice-dev              # pin profile 'brice-dev' for this project
-xano profile use brice-dev -w 110       # pin and override the workspace
-xano profile use brice-dev --gitignore  # also add profile.yaml to .gitignore
+xano profile use staging              # pin profile 'staging' for this project
+xano profile use staging -w 110       # pin and override the workspace
+xano profile use staging --gitignore  # also add profile.yaml to .gitignore
 ```
 
 | Flag | Description |

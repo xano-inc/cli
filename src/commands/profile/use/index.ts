@@ -75,14 +75,14 @@ export default class ProfileUse extends Command {
     'When present, the CLI uses this profile (and any overrides) instead of the default, ' +
     'unless -p/--profile or XANO_PROFILE is set.'
   static examples = [
-    `$ xano profile use brice-dev
-Wrote profile.yaml pinning profile 'brice-dev'
+    `$ xano profile use staging
+Wrote profile.yaml pinning profile 'staging'
 `,
-    `$ xano profile use brice-dev -w 110
-Wrote profile.yaml pinning profile 'brice-dev' (workspace 110)
+    `$ xano profile use staging -w 110
+Wrote profile.yaml pinning profile 'staging' (workspace 110)
 `,
-    `$ xano profile use brice-dev -w 110 --gitignore
-Wrote profile.yaml pinning profile 'brice-dev' (workspace 110)
+    `$ xano profile use staging -w 110 --gitignore
+Wrote profile.yaml pinning profile 'staging' (workspace 110)
 Added profile.yaml to .gitignore
 `,
   ]

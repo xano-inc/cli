@@ -33,13 +33,13 @@ describe('profile use helpers', () => {
 
   describe('buildProfileYaml', () => {
     it('emits profile: <name> uncommented', () => {
-      const output = buildProfileYaml({profile: 'brice-dev'})
-      expect(output).to.contain('profile: brice-dev')
-      expect(output).not.to.match(/^#.*profile: brice-dev/m)
+      const output = buildProfileYaml({profile: 'staging'})
+      expect(output).to.contain('profile: staging')
+      expect(output).not.to.match(/^#.*profile: staging/m)
     })
 
     it('emits a set workspace field uncommented and unset fields commented', () => {
-      const output = buildProfileYaml({profile: 'brice-dev', workspace: '110'})
+      const output = buildProfileYaml({profile: 'staging', workspace: '110'})
       expect(output).to.contain('workspace: 110')
       expect(output).not.to.match(/^#.*workspace: 110/m)
       expect(output).to.match(/^# instance_origin:/m)
@@ -48,7 +48,7 @@ describe('profile use helpers', () => {
     })
 
     it('comments all four override fields when only profile is set', () => {
-      const output = buildProfileYaml({profile: 'brice-dev'})
+      const output = buildProfileYaml({profile: 'staging'})
       expect(output).to.match(/^# workspace:/m)
       expect(output).to.match(/^# instance_origin:/m)
       expect(output).to.match(/^# account_origin:/m)
@@ -56,13 +56,13 @@ describe('profile use helpers', () => {
     })
 
     it('round-trips through parseLocalProfile correctly', () => {
-      const config = {branch: 'dev', profile: 'brice-dev', workspace: '110'}
+      const config = {branch: 'dev', profile: 'staging', workspace: '110'}
       const parsed = parseLocalProfile(buildProfileYaml(config))
-      expect(parsed).to.deep.equal({branch: 'dev', profile: 'brice-dev', workspace: '110'})
+      expect(parsed).to.deep.equal({branch: 'dev', profile: 'staging', workspace: '110'})
     })
 
     it('ends with a trailing newline', () => {
-      const output = buildProfileYaml({profile: 'brice-dev'})
+      const output = buildProfileYaml({profile: 'staging'})
       expect(output).to.match(/\n$/)
     })
   })
