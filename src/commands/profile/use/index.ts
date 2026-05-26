@@ -31,6 +31,38 @@ export function ensureGitignoreEntry(
   return {changed: true, content: `${base}${entry}\n`}
 }
 
+const OVERRIDE_FIELDS = [
+  {key: 'workspace', placeholder: '123'},
+  {key: 'instance_origin', placeholder: 'https://your-instance.xano.io'},
+  {key: 'account_origin', placeholder: 'https://app.xano.com'},
+  {key: 'branch', placeholder: 'main'},
+] as const
+
+/**
+ * Build a self-documenting profile.yaml string from a LocalProfileConfig.
+ * Set fields are emitted uncommented; unset fields appear as commented placeholders.
+ */
+export function buildProfileYaml(config: LocalProfileConfig): string {
+  const lines: string[] = [
+    '# Xano project-local profile — pins this project to a profile in ~/.xano/credentials.yaml.',
+    '# No secrets here: the access token always comes from credentials.yaml.',
+    '# Precedence: an explicit -p/--profile or XANO_PROFILE overrides this file entirely.',
+    '',
+    '# Profile to use (a profile name from ~/.xano/credentials.yaml):',
+    `profile: ${config.profile}`,
+    '',
+    '# Optional per-project overrides — uncomment and edit any you need:',
+  ]
+
+  for (const {key, placeholder} of OVERRIDE_FIELDS) {
+    const value = config[key]
+    lines.push(value === undefined ? `# ${key}: ${placeholder}` : `${key}: ${value}`)
+  }
+
+  lines.push('')
+  return lines.join('\n')
+}
+
 export default class ProfileUse extends Command {
   static args = {
     name: Args.string({
@@ -109,7 +141,7 @@ Added profile.yaml to .gitignore
     }
 
     try {
-      fs.writeFileSync(filePath, yaml.dump(config, {indent: 2, lineWidth: -1, noRefs: true}), 'utf8')
+      fs.writeFileSync(filePath, buildProfileYaml(config), 'utf8')
     } catch (error) {
       this.error(`Failed to write ${LOCAL_PROFILE_FILENAME}: ${error}`)
     }
@@ -147,6 +179,15 @@ Added profile.yaml to .gitignore
   }
 
   private async handleGitignore(flag: boolean | undefined): Promise<void> {
+    const gitignorePath = resolve(process.cwd(), '.gitignore')
+    const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : null
+
+    // If profile.yaml is already in .gitignore, no action needed regardless of flag.
+    const alreadyIgnored = !ensureGitignoreEntry(existing, LOCAL_PROFILE_FILENAME).changed
+    if (alreadyIgnored) {
+      return
+    }
+
     let shouldAdd = flag
     if (shouldAdd === undefined) {
       const {add} = await inquirer.prompt([
@@ -164,14 +205,8 @@ Added profile.yaml to .gitignore
       return
     }
 
-    const gitignorePath = resolve(process.cwd(), '.gitignore')
-    const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : null
-    const {changed, content} = ensureGitignoreEntry(existing, LOCAL_PROFILE_FILENAME)
-    if (changed) {
-      fs.writeFileSync(gitignorePath, content, 'utf8')
-      this.log(`Added ${LOCAL_PROFILE_FILENAME} to .gitignore`)
-    } else {
-      this.log(`${LOCAL_PROFILE_FILENAME} is already in .gitignore`)
-    }
+    const {content} = ensureGitignoreEntry(existing, LOCAL_PROFILE_FILENAME)
+    fs.writeFileSync(gitignorePath, content, 'utf8')
+    this.log(`Added ${LOCAL_PROFILE_FILENAME} to .gitignore`)
   }
 }
