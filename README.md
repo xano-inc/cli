@@ -52,6 +52,11 @@ xano auth --insecure                         # Skip TLS verification (self-signe
 
 Profiles store your Xano credentials and default workspace settings.
 
+> **Juggling multiple workspaces?** Pin a project to a specific profile with a
+> project-local `profile.yaml` so commands can't accidentally target the wrong
+> workspace when you forget `-p`. See
+> [Project-local profile](#project-local-profile-profileyaml).
+
 ```bash
 # Create a profile interactively
 xano profile wizard
@@ -603,11 +608,31 @@ When a `profile.yaml` is in effect, every command prints the active target,
 e.g. `Using profile 'brice-dev' (workspace 110) · profile.yaml` (suppressed for
 `--output json`).
 
-Generate one with `xano profile use`:
+Generate one with `xano profile use`. It writes a self-documenting
+`profile.yaml` (every overridable field is included as a commented example, so
+you can edit it without consulting the docs) and offers to add it to
+`.gitignore` — skipping that prompt when it is already ignored:
 
 ```bash
 xano profile use brice-dev -w 110     # writes ./profile.yaml; prompts to .gitignore
 xano profile use brice-dev --no-gitignore
+```
+
+The generated file looks like:
+
+```yaml
+# Xano project-local profile — pins this project to a profile in ~/.xano/credentials.yaml.
+# No secrets here: the access token always comes from credentials.yaml.
+# Precedence: an explicit -p/--profile or XANO_PROFILE overrides this file entirely.
+
+# Profile to use (a profile name from ~/.xano/credentials.yaml):
+profile: brice-dev
+
+# Optional per-project overrides — uncomment and edit any you need:
+workspace: 110
+# instance_origin: https://your-instance.xano.io
+# account_origin: https://app.xano.com
+# branch: main
 ```
 
 **Profile selection precedence:**
