@@ -307,8 +307,16 @@ export default abstract class BaseCommand extends Command {
       localProfileName: this.localProfile?.config.profile,
     })
 
-    if (!credentials || !(profileName in credentials.profiles)) {
-      this.error(`Profile '${profileName}' not found.\n` + `Create a profile using 'xano profile create'`)
+    if (!credentials) {
+      this.error(
+        `Credentials file not found at ${this.getCredentialsPath()}.\n` +
+          `Create a profile using 'xano profile create'`,
+      )
+    }
+
+    if (!(profileName in credentials.profiles)) {
+      const available = Object.keys(credentials.profiles).join(', ') || '(none)'
+      this.error(`Profile '${profileName}' not found. Available profiles: ${available}`)
     }
 
     let profile = credentials.profiles[profileName]
