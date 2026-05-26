@@ -47,22 +47,7 @@ Result: PASS (0.25s)
   async run(): Promise<void> {
     const {args, flags} = await this.parse(TenantWorkflowTestRun)
 
-    const profileName = flags.profile || this.getDefaultProfile()
-    const credentials = this.loadCredentialsFile()
-
-    if (!credentials || !(profileName in credentials.profiles)) {
-      this.error(`Profile '${profileName}' not found.\nCreate a profile using 'xano profile create'`)
-    }
-
-    const profile = credentials.profiles[profileName]
-
-    if (!profile.instance_origin) {
-      this.error(`Profile '${profileName}' is missing instance_origin`)
-    }
-
-    if (!profile.access_token) {
-      this.error(`Profile '${profileName}' is missing access_token`)
-    }
+    const {profile} = this.resolveProfile(flags)
 
     const workspaceId = flags.workspace || profile.workspace
     if (!workspaceId) {
