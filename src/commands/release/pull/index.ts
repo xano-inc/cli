@@ -1,27 +1,11 @@
 import {Flags} from '@oclif/core'
-import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import snakeCase from 'lodash.snakecase'
 
-import BaseCommand from '../../../base-command.js'
+import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
 import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
-
-interface ProfileConfig {
-  access_token: string
-  account_origin?: string
-  branch?: string
-  instance_origin: string
-  workspace?: string
-}
-
-interface CredentialsFile {
-  default?: string
-  profiles: {
-    [key: string]: ProfileConfig
-  }
-}
 
 interface Release {
   id: number
@@ -77,30 +61,7 @@ Pulled 58 documents from release 'v1.0'
   async run(): Promise<void> {
     const {flags} = await this.parse(ReleasePull)
 
-    // Get profile name (default or from flag/env)
-    const profileName = flags.profile || this.getDefaultProfile()
-
-    // Load credentials
-    const credentials = this.loadCredentials()
-
-    // Get the profile configuration
-    if (!(profileName in credentials.profiles)) {
-      this.error(
-        `Profile '${profileName}' not found. Available profiles: ${Object.keys(credentials.profiles).join(', ')}\n` +
-          `Create a profile using 'xano profile:create'`,
-      )
-    }
-
-    const profile = credentials.profiles[profileName]
-
-    // Validate required fields
-    if (!profile.instance_origin) {
-      this.error(`Profile '${profileName}' is missing instance_origin`)
-    }
-
-    if (!profile.access_token) {
-      this.error(`Profile '${profileName}' is missing access_token`)
-    }
+    const {profile} = this.resolveProfile(flags)
 
     // Determine workspace_id from flag or profile
     let workspaceId: string
@@ -112,7 +73,7 @@ Pulled 58 documents from release 'v1.0'
       this.error(
         `Workspace ID is required. Either:\n` +
           `  1. Provide it as a flag: xano release pull -r <release_name> -w <workspace_id>\n` +
-          `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
+          `  2. Set it in your profile using: xano profile:edit --workspace <workspace_id>`,
       )
     }
 
@@ -293,29 +254,6 @@ Pulled 58 documents from release 'v1.0'
     }
 
     this.log(`Pulled ${writtenCount} documents from release '${releaseName}' to ${flags.directory}`)
-  }
-
-  private loadCredentials(): CredentialsFile {
-    const credentialsPath = this.getCredentialsPath()
-
-    // Check if credentials file exists
-    if (!fs.existsSync(credentialsPath)) {
-      this.error(`Credentials file not found at ${credentialsPath}\n` + `Create a profile using 'xano profile:create'`)
-    }
-
-    // Read credentials file
-    try {
-      const fileContent = fs.readFileSync(credentialsPath, 'utf8')
-      const parsed = yaml.load(fileContent) as CredentialsFile
-
-      if (!parsed || typeof parsed !== 'object' || !('profiles' in parsed)) {
-        this.error('Credentials file has invalid format.')
-      }
-
-      return parsed
-    } catch (error) {
-      this.error(`Failed to parse credentials file: ${error}`)
-    }
   }
 
   private async resolveReleaseName(
