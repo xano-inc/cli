@@ -172,6 +172,25 @@ export default class MyCommand extends BaseCommand {
 |-------|----------|---------|
 | `BaseCommand` | `src/base-command.ts` | All commands - provides `-p/--profile` flag, credential loading |
 
+### Credential & Profile Resolution
+
+**Commands MUST resolve the active profile via `this.resolveProfile(flags)`.** It is
+the single source of truth: it applies the full selection precedence (`-p/--profile`
+> `XANO_PROFILE` > project-local `profile.yaml` > credentials default), merges any
+`profile.yaml` field overrides, validates `instance_origin`/`access_token`, and
+returns `{profile, profileName}`.
+
+```typescript
+const {profile, profileName} = this.resolveProfile(flags)
+// profile.instance_origin, profile.access_token, flags.workspace || profile.workspace, ...
+```
+
+NEVER hand-roll resolution (`flags.profile || this.getDefaultProfile()` +
+`credentials.profiles[name]`) or define a private `loadCredentials()` in a command —
+that bypasses `profile.yaml` and silently targets the wrong workspace. The only
+exceptions are the `profile/*` credential-management commands, which operate on the
+credentials store directly and intentionally ignore the project-local pin.
+
 ### Argument Rules
 
 **Commands MUST have at most one positional argument.** Use flags for any additional named values.
