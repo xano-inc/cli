@@ -17,7 +17,7 @@ describe('local-config', () => {
   describe('parseLocalProfile', () => {
     it('parses a profile name and recognized override fields', () => {
       const raw = [
-        'profile: brice-dev',
+        'profile: staging',
         'workspace: 110',
         'instance_origin: https://x62j.dev.xano.io',
         'account_origin: https://app.dev.xano.com',
@@ -27,7 +27,7 @@ describe('local-config', () => {
         account_origin: 'https://app.dev.xano.com',
         branch: 'dev-feature',
         instance_origin: 'https://x62j.dev.xano.io',
-        profile: 'brice-dev',
+        profile: 'staging',
         workspace: '110',
       })
     })
@@ -100,7 +100,7 @@ describe('local-config', () => {
         defaultProfile: 'default',
         explicitProfile: 'heimstaden',
         hasLocal: true,
-        localProfileName: 'brice-dev',
+        localProfileName: 'staging',
       })
       expect(result).to.deep.equal({applyLocal: false, profileName: 'heimstaden'})
     })
@@ -109,9 +109,9 @@ describe('local-config', () => {
       const result = resolveProfileSelection({
         defaultProfile: 'default',
         hasLocal: true,
-        localProfileName: 'brice-dev',
+        localProfileName: 'staging',
       })
-      expect(result).to.deep.equal({applyLocal: true, profileName: 'brice-dev'})
+      expect(result).to.deep.equal({applyLocal: true, profileName: 'staging'})
     })
 
     it('falls back to the default profile but still applies overrides when local omits a name', () => {
@@ -133,14 +133,14 @@ describe('local-config', () => {
 
   describe('formatLocalProfileBanner', () => {
     it('includes the workspace when one is given', () => {
-      expect(formatLocalProfileBanner('brice-dev', '110', 'profile.yaml')).to.equal(
-        "Using profile 'brice-dev' (workspace 110) · profile.yaml",
+      expect(formatLocalProfileBanner('staging', '110', 'profile.yaml')).to.equal(
+        "Using profile 'staging' (workspace 110) · profile.yaml",
       )
     })
 
     it('omits the workspace clause when not given', () => {
-      expect(formatLocalProfileBanner('brice-dev', undefined, 'profile.yaml')).to.equal(
-        "Using profile 'brice-dev' · profile.yaml",
+      expect(formatLocalProfileBanner('staging', undefined, 'profile.yaml')).to.equal(
+        "Using profile 'staging' · profile.yaml",
       )
     })
   })
