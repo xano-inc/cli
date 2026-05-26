@@ -161,6 +161,13 @@ export default abstract class BaseCommand extends Command {
       return
     }
 
+    // Credential-management commands (the `profile` topic) operate on the
+    // credentials store directly and intentionally ignore the project-local
+    // pin, so the banner would be misleading for them.
+    if (this.id?.startsWith('profile')) {
+      return
+    }
+
     const {config, path: filePath} = this.localProfile
     const profileName = config.profile ?? this.getDefaultProfile()
     const relativePath = path.relative(process.cwd(), filePath) || path.basename(filePath)
