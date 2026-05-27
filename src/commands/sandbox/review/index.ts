@@ -107,6 +107,8 @@ Review session started!
       // fall through
     }
 
-    return instanceOrigin
+    // Strip any trailing slash so callers can safely append `/impersonate`
+    // without producing a double slash.
+    return instanceOrigin.replace(/\/+$/, '')
   }
 }
