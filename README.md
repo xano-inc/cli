@@ -505,6 +505,8 @@ xano sandbox push --review                               # Push and open sandbox
 
 # Review (open in browser)
 xano sandbox review
+xano sandbox review --url-only                           # Print the URL without opening the browser
+xano sandbox review --insecure                           # Skip TLS verification (self-signed certs)
 
 # Impersonate (open in browser)
 xano sandbox impersonate
