@@ -17,10 +17,17 @@ Review session started!
 `,
     `$ xano sandbox review -u`,
     `$ xano sandbox review -o json`,
+    `$ xano sandbox review --insecure`,
   ]
 
   static override flags = {
     ...BaseCommand.baseFlags,
+    insecure: Flags.boolean({
+      char: 'k',
+      default: false,
+      description: 'Skip TLS certificate verification (for self-signed certificates)',
+      required: false,
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -38,6 +45,12 @@ Review session started!
 
   async run(): Promise<void> {
     const {flags} = await this.parse(SandboxReview)
+
+    if (flags.insecure) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+      this.warn('TLS certificate verification is disabled (insecure mode)')
+    }
+
     const {profile} = this.resolveProfile(flags)
 
     const apiUrl = `${profile.instance_origin}/api:meta/sandbox/impersonate`
