@@ -14,10 +14,6 @@ interface Build {
 
 export default class StaticHostBuildGet extends BaseCommand {
   static args = {
-    build_id: Args.string({
-      description: 'Build ID',
-      required: true,
-    }),
     static_host: Args.string({
       description: 'Static Host name',
       required: true,
@@ -25,24 +21,24 @@ export default class StaticHostBuildGet extends BaseCommand {
   }
 static description = 'Get details of a specific build for a static host'
 static examples = [
-    `$ xano static_host:build:get default 52
+    `$ xano static_host:build:get default --build_id 52
 Build Details:
 ID: 52
 Name: v1.0.0
 Status: completed
 `,
-    `$ xano static_host:build:get default 52 -w 40
+    `$ xano static_host:build:get default --build_id 52 -w 40
 Build Details:
 ID: 52
 Name: v1.0.0
 Status: completed
 `,
-    `$ xano static_host:build:get myhost 123 --profile production
+    `$ xano static_host:build:get myhost --build_id 123 --profile production
 Build Details:
 ID: 123
 Name: production-build
 `,
-    `$ xano static_host:build:get default 52 -o json
+    `$ xano static_host:build:get default --build_id 52 -o json
 {
   "id": 52,
   "name": "v1.0.0",
@@ -52,6 +48,10 @@ Name: production-build
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
+    build_id: Flags.string({
+      description: 'Build ID',
+      required: true,
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -80,13 +80,13 @@ static override flags = {
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano static_host:build:get <static_host> <build_id> -w <workspace_id>\n` +
+        `  1. Provide it as a flag: xano static_host:build:get <static_host> --build_id <id> -w <workspace_id>\n` +
         `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${args.static_host}/build/${args.build_id}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${args.static_host}/build/${flags.build_id}`
 
     // Fetch build from the API
     try {
@@ -132,6 +132,14 @@ static override flags = {
 
         if (build.status) {
           this.log(`Status: ${build.status}`)
+        }
+
+        if (typeof build.file_count === 'number') {
+          this.log(`Files: ${build.file_count}`)
+        }
+
+        if (typeof build.file_bytes === 'number') {
+          this.log(`Size: ${build.file_bytes} bytes`)
         }
 
         if (build.created_at) {

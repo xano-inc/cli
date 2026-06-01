@@ -5,6 +5,8 @@ import BaseCommand from '../../../../base-command.js'
 interface Build {
   created_at?: number | string
   description?: string
+  file_bytes?: number
+  file_count?: number
   id: number
   name: string
   status?: string
