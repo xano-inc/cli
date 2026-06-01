@@ -527,11 +527,6 @@ xano static_host create marketing --description "Marketing site"
 xano static_host get marketing
 xano static_host edit marketing --name marketing-v2 --description "Updated"
 
-# Create a build (name optional — auto-generated from the timestamp if omitted).
-# For package.json builds, the CLI waits for the build to finish (--no-wait to skip).
-xano static_host build create default -f ./build.zip -n "v1.0.0"
-xano static_host build create default -f ./build.zip                 # name: 20260531-143022
-
 # List builds
 xano static_host build list default
 
@@ -546,10 +541,12 @@ xano static_host build pull default --latest         # Latest build
 xano static_host build pull default --env dev        # Build currently deployed to dev
 xano static_host build pull default --env prod -d ./prod-release
 
-# Push a directory as a new build (name optional — auto-generated if omitted).
+# Push a build (name optional — auto-generated from the timestamp if omitted).
+# Accepts a directory (-d) or a zip file (-f). Defaults to the current directory.
 # For package.json builds, the CLI waits for the build to finish (--no-wait to skip).
 xano static_host build push default -d ./dist -n "v1.0.0"
 xano static_host build push default                          # current dir, auto-name
+xano static_host build push default -f ./build.zip -n "v1.0.0"  # from zip file
 xano static_host build push default -n "release" --description "Production build"
 
 # Delete a build (prompts for confirmation; --force to skip)

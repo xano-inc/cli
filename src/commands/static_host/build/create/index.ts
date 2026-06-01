@@ -29,13 +29,14 @@ export function generateBuildName(date: Date = new Date()): string {
 }
 
 export default class StaticHostBuildCreate extends BaseCommand {
+  static hidden = true
   static args = {
     static_host: Args.string({
       description: 'Static Host name',
       required: true,
     }),
   }
-static description = 'Create a new build for a static host'
+static description = '[Deprecated: use "static_host build push -f <file>" instead] Create a new build from a zip file'
 static examples = [
     `$ xano static_host:build:create default -f ./build.zip -n "v1.0.0"
 Build created successfully!
@@ -100,6 +101,8 @@ static override flags = {
   }
 
   async run(): Promise<void> {
+    this.warn('`static_host build create` is deprecated. Use `static_host build push -f <file>` instead.')
+
     const {args, flags} = await this.parse(StaticHostBuildCreate)
 
     const {profile, profileName} = this.resolveProfile(flags)
@@ -220,6 +223,10 @@ static override flags = {
         if (finalStatus === 'error') {
           this.error(`Build ${result.id} failed (status: error). Check the build log with: xano static_host build get ${args.static_host} --build_id ${result.id}`)
         }
+      }
+
+      if (flags.output !== 'json') {
+        await this.logStaticHostUrls({profile, staticHost: args.static_host, verbose: flags.verbose, workspaceId})
       }
     } catch (error) {
       if (error instanceof Error) {

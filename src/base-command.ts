@@ -421,6 +421,38 @@ export default abstract class BaseCommand extends Command {
    *
    * Returns the final status. Resolves to the last-seen status on timeout.
    */
+  protected async logStaticHostUrls(opts: {
+    profile: ProfileConfig
+    staticHost: string
+    verbose: boolean
+    workspaceId: string
+  }): Promise<void> {
+    const {profile, staticHost, verbose, workspaceId} = opts
+    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${staticHost}`
+
+    try {
+      const response = await this.verboseFetch(
+        url,
+        {
+          headers: {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`},
+          method: 'GET',
+        },
+        verbose,
+        profile.access_token,
+      )
+
+      if (!response.ok) return
+
+      const host = (await response.json()) as {dev?: {custom_url?: string; default_url?: string}; prod?: {custom_url?: string; default_url?: string}}
+      if (host.dev?.default_url) this.log(`Dev URL: ${host.dev.default_url}`)
+      if (host.dev?.custom_url) this.log(`Dev Custom URL: ${host.dev.custom_url}`)
+      if (host.prod?.default_url) this.log(`Prod URL: ${host.prod.default_url}`)
+      if (host.prod?.custom_url) this.log(`Prod Custom URL: ${host.prod.custom_url}`)
+    } catch {
+      // Non-fatal — the build succeeded, we just can't show the URL.
+    }
+  }
+
   protected async waitForBuild(opts: {
     buildId: number | string
     intervalMs?: number

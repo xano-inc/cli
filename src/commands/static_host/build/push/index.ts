@@ -20,23 +20,23 @@ export default class StaticHostBuildPush extends BaseCommand {
       required: true,
     }),
   }
-  static description = 'Push a directory as a new static host build'
+  static description = 'Push a directory or zip file as a new static host build'
   static examples = [
-    `$ xano static_host build push default -n "v1.0.0" -d ./dist
+    `$ xano static_host build push default -d ./dist -n "v1.0.0"
 Pushed 15 files as build "v1.0.0"
 ID: 123
-`,
-    `$ xano static_host build push default -n "v1.0.0"
-Pushed 8 files as build "v1.0.0" (from current directory)
 `,
     `$ xano static_host build push default
 Pushed 8 files as build "20260531-143022"
 `,
-    `$ xano static_host build push myhost -n "production" --description "Production build" -w 40
-Pushed 22 files as build "production"
+    `$ xano static_host build push default -f ./build.zip -n "v1.0.0"
+Pushed build.zip as build "v1.0.0"
 ID: 124
 `,
-    `$ xano static_host build push default -n "release-1.2" -d ./build -o json`,
+    `$ xano static_host build push myhost -n "production" --description "Production build" -w 40
+Pushed 22 files as build "production"
+ID: 125
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -46,8 +46,14 @@ ID: 124
     }),
     directory: Flags.string({
       char: 'd',
-      default: '.',
       description: 'Directory to push (defaults to current directory)',
+      exclusive: ['file'],
+      required: false,
+    }),
+    file: Flags.string({
+      char: 'f',
+      description: 'Path to a zip file to upload (alternative to -d)',
+      exclusive: ['directory'],
       required: false,
     }),
     name: Flags.string({
@@ -92,40 +98,54 @@ ID: 124
       )
     }
 
-    const sourceDir = path.resolve(flags.directory)
-    if (!fs.existsSync(sourceDir)) {
-      this.error(`Directory not found: ${sourceDir}`)
-    }
-
-    const stats = fs.statSync(sourceDir)
-    if (!stats.isDirectory()) {
-      this.error(`Path is not a directory: ${sourceDir}`)
-    }
-
     const animate = Boolean(process.stdout.isTTY) && flags.output !== 'json' && !flags.verbose
-    const fileCount = this.countFiles(sourceDir)
+    const buildName = flags.name ?? generateBuildName()
 
-    if (animate) {
-      ux.action.start('Packaging', `${fileCount} files`)
+    let zipBuffer: Buffer
+    let fileCount = 0
+    let fileName: string | undefined
+
+    if (flags.file) {
+      const filePath = path.resolve(flags.file)
+      if (!fs.existsSync(filePath)) {
+        this.error(`File not found: ${filePath}`)
+      }
+
+      const fileStats = fs.statSync(filePath)
+      if (!fileStats.isFile()) {
+        this.error(`Path is not a file: ${filePath}`)
+      }
+
+      fileName = path.basename(filePath)
+      if (animate) ux.action.start('Uploading', fileName)
+      zipBuffer = fs.readFileSync(filePath) as unknown as Buffer
+    } else {
+      const sourceDir = path.resolve(flags.directory ?? '.')
+      if (!fs.existsSync(sourceDir)) {
+        this.error(`Directory not found: ${sourceDir}`)
+      }
+
+      const dirStats = fs.statSync(sourceDir)
+      if (!dirStats.isDirectory()) {
+        this.error(`Path is not a directory: ${sourceDir}`)
+      }
+
+      fileCount = this.countFiles(sourceDir)
+      if (animate) ux.action.start('Packaging', `${fileCount} files`)
+      zipBuffer = await this.createZipBuffer(sourceDir)
+      if (animate) {
+        ux.action.stop(`${fileCount} files (${(zipBuffer.length / (1024 * 1024)).toFixed(1)} MB)`)
+        ux.action.start('Uploading')
+      }
     }
 
-    const zipBuffer = await this.createZipBuffer(sourceDir)
     const sizeMB = (zipBuffer.length / (1024 * 1024)).toFixed(1)
-
-    if (animate) {
-      ux.action.stop(`${fileCount} files (${sizeMB} MB)`)
-      ux.action.start('Uploading')
-    }
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${args.static_host}/build`
 
-    // Name is optional — fall back to a timestamped name so builds can be
-    // pushed without thinking up a label each time.
-    const buildName = flags.name ?? generateBuildName()
-
     const formData = new (globalThis as any).FormData()
     const blob = new Blob([new Uint8Array(zipBuffer)], {type: 'application/zip'})
-    formData.append('file', blob, 'build.zip')
+    formData.append('file', blob, fileName ?? 'build.zip')
     formData.append('name', buildName)
 
     if (flags.description) {
@@ -165,7 +185,10 @@ ID: 124
       if (flags.output === 'json') {
         this.log(JSON.stringify(result, null, 2))
       } else {
-        this.log(`Pushed ${fileCount} files as build "${buildName}" (${sizeMB} MB)`)
+        this.log(fileName
+          ? `Pushed ${fileName} as build "${buildName}" (${sizeMB} MB)`
+          : `Pushed ${fileCount} files as build "${buildName}" (${sizeMB} MB)`,
+        )
         this.log(`ID: ${result.id}`)
 
         if (result.status) {
@@ -188,6 +211,10 @@ ID: 124
         if (finalStatus === 'error') {
           this.error(`Build ${result.id} failed (status: error). Check the build log with: xano static_host build get ${args.static_host} --build_id ${result.id}`)
         }
+      }
+
+      if (flags.output !== 'json') {
+        await this.logStaticHostUrls({profile, staticHost: args.static_host, verbose: flags.verbose, workspaceId})
       }
     } catch (error) {
       if (error instanceof Error) {
