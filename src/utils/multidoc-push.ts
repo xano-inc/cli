@@ -730,6 +730,7 @@ export async function executePush(
 
           // Warn when the sandbox currently holds a different workspace than the one being
           // pushed and the change set is large enough that stale state is a real risk.
+          let mismatchConfirmed = false
           if (target.warnOnWorkspaceMismatch && preview.workspace_name) {
             const localWorkspaceName = findLocalWorkspaceName(documentEntries)
             const totalChanges = countSummaryChanges(preview.summary, shouldDelete)
@@ -760,6 +761,8 @@ export async function executePush(
                   log('Push cancelled. Run `xano sandbox reset` then retry.')
                   return
                 }
+
+                mismatchConfirmed = true
               } else {
                 command.error(
                   'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first to start clean.',
@@ -768,26 +771,28 @@ export async function executePush(
             }
           }
 
-          // Confirm with user
-          const hasDestructive = preview.operations.some(
-            (op) =>
-              (shouldDelete && (op.action === 'delete' || op.action === 'cascade_delete')) ||
-              op.action === 'truncate' ||
-              op.action === 'drop_field' ||
-              op.action === 'alter_field',
-          )
-          const message = hasDestructive
-            ? 'Proceed with push? This includes DESTRUCTIVE operations listed above.'
-            : 'Proceed with push?'
+          // Confirm with user (skip if workspace mismatch prompt already obtained confirmation)
+          if (!mismatchConfirmed) {
+            const hasDestructive = preview.operations.some(
+              (op) =>
+                (shouldDelete && (op.action === 'delete' || op.action === 'cascade_delete')) ||
+                op.action === 'truncate' ||
+                op.action === 'drop_field' ||
+                op.action === 'alter_field',
+            )
+            const message = hasDestructive
+              ? 'Proceed with push? This includes DESTRUCTIVE operations listed above.'
+              : 'Proceed with push?'
 
-          if (process.stdin.isTTY) {
-            const confirmed = await confirm(message)
-            if (!confirmed) {
-              log('Push cancelled.')
-              return
+            if (process.stdin.isTTY) {
+              const confirmed = await confirm(message)
+              if (!confirmed) {
+                log('Push cancelled.')
+                return
+              }
+            } else {
+              command.error('Non-interactive environment detected. Use --force to skip confirmation.')
             }
-          } else {
-            command.error('Non-interactive environment detected. Use --force to skip confirmation.')
           }
         } else {
           // Server returned unexpected response
