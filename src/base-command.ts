@@ -1,4 +1,4 @@
-import {Command, Flags} from '@oclif/core'
+import {Command, Flags, ux} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -408,5 +408,129 @@ export default abstract class BaseCommand extends Command {
     }
 
     return response
+  }
+
+  /**
+   * Poll a static-host build until it reaches a terminal status (ok | error),
+   * showing a live, ticking spinner with the current stage and elapsed time —
+   * mirroring the UI's build progress for async (package.json) builds, which
+   * keep running after the upload returns.
+   *
+   * On a TTY it renders an animated spinner via ux.action; when quiet (JSON
+   * output) or non-interactive it falls back to plain one-line status updates.
+   *
+   * Returns the final status. Resolves to the last-seen status on timeout.
+   */
+  protected async waitForBuild(opts: {
+    buildId: number | string
+    intervalMs?: number
+    profile: ProfileConfig
+    quiet?: boolean
+    staticHost: string
+    timeoutMs?: number
+    verbose: boolean
+    workspaceId: string
+  }): Promise<string> {
+    const {buildId, profile, quiet, staticHost, verbose, workspaceId} = opts
+    const intervalMs = opts.intervalMs ?? 2000
+    const timeoutMs = opts.timeoutMs ?? 600_000 // 10 min
+    const terminal = new Set(['error', 'ok'])
+    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${staticHost}/build/${buildId}`
+
+    // Spinner only on an interactive TTY and when not emitting JSON. Verbose mode
+    // also disables it (the spinner would interleave with request/response logs).
+    const animate = Boolean(process.stdout.isTTY) && !quiet && !verbose
+    const start = Date.now()
+    const elapsed = (): number => Math.round((Date.now() - start) / 1000)
+    let stage = 'pending'
+    let ticker: NodeJS.Timeout | undefined
+
+    // Reflect the current stage: live spinner status on a TTY, else a plain line.
+    const render = (): void => {
+      if (animate) {
+        ux.action.status = `${stageLabel(stage)} (${elapsed()}s)`
+      } else if (!quiet && !terminal.has(stage)) {
+        this.log(`Build status: ${stage}`)
+      }
+    }
+
+    // Stop the spinner/ticker and emit a final line.
+    const conclude = (message: string): void => {
+      if (ticker) clearInterval(ticker)
+      if (animate) {
+        ux.action.stop(message)
+      } else if (!quiet) {
+        this.log(message)
+      }
+    }
+
+    if (animate) {
+      ux.action.start('Building', stageLabel(stage))
+      // Re-render every 120ms so the elapsed counter ticks even between polls.
+      ticker = setInterval(render, 120)
+    } else if (!quiet) {
+      this.log(`Build status: ${stage}`)
+    }
+
+    /* eslint-disable no-await-in-loop */
+    while (Date.now() - start < timeoutMs) {
+      const response = await this.verboseFetch(
+        url,
+        {
+          headers: {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`},
+          method: 'GET',
+        },
+        verbose,
+        profile.access_token,
+      )
+
+      if (response.ok) {
+        const build = (await response.json()) as {status?: string}
+        const status = build.status ?? 'pending'
+        if (status !== stage) {
+          stage = status
+          render()
+        }
+
+        if (terminal.has(status)) {
+          const took = `${elapsed()}s`
+          conclude(status === 'ok' ? `done in ${took}` : `failed after ${took}`)
+          return status
+        }
+      }
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, intervalMs)
+      })
+    }
+    /* eslint-enable no-await-in-loop */
+
+    conclude(`stopped waiting after ${Math.round(timeoutMs / 1000)}s (last status: ${stage || 'unknown'})`)
+    return stage
+  }
+}
+
+/** Human-friendly label for a build status stage. */
+function stageLabel(status: string): string {
+  switch (status) {
+    case 'building': {
+      return 'Installing & building (npm)'
+    }
+
+    case 'ok': {
+      return 'Finishing'
+    }
+
+    case 'pending': {
+      return 'Queued'
+    }
+
+    case 'publishing': {
+      return 'Publishing files'
+    }
+
+    default: {
+      return status
+    }
   }
 }

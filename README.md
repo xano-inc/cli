@@ -522,14 +522,49 @@ xano sandbox reset --force
 # List static hosts
 xano static_host list
 
-# Create a build
+# Create / get / edit a static host
+xano static_host create marketing --description "Marketing site"
+xano static_host get marketing
+xano static_host edit marketing --name marketing-v2 --description "Updated"
+
+# Create a build (name optional — auto-generated from the timestamp if omitted).
+# For package.json builds, the CLI waits for the build to finish (--no-wait to skip).
 xano static_host build create default -f ./build.zip -n "v1.0.0"
+xano static_host build create default -f ./build.zip                 # name: 20260531-143022
 
 # List builds
 xano static_host build list default
 
 # Get build details
-xano static_host build get default 52
+xano static_host build get default --build_id 52
+
+# Pull a build to disk. Defaults to the original uploaded source
+# (including package.json). Use --source built for the compiled/served output.
+xano static_host build pull default --build_id 52    # By build ID (original source)
+xano static_host build pull default --build_id 52 --source built   # Compiled output
+xano static_host build pull default --latest         # Latest build
+xano static_host build pull default --env dev        # Build currently deployed to dev
+xano static_host build pull default --env prod -d ./prod-release
+
+# Push a directory as a new build (name optional — auto-generated if omitted).
+# For package.json builds, the CLI waits for the build to finish (--no-wait to skip).
+xano static_host build push default -d ./dist -n "v1.0.0"
+xano static_host build push default                          # current dir, auto-name
+xano static_host build push default -n "release" --description "Production build"
+
+# Delete a build (prompts for confirmation; --force to skip)
+xano static_host build delete default --build_id 52
+xano static_host build delete default --build_id 52 --force
+
+# Deploy a build to an environment
+xano static_host deploy default --build_id 52 --env dev
+xano static_host deploy default --build_id 52 --env prod
+
+# Migrate a host to instance-managed (v2) hosting
+xano static_host migrate newsite                 # one host (both envs)
+xano static_host migrate newsite --env dev        # one env
+xano static_host migrate --all                    # every v1 host in the workspace
+xano static_host migrate --all --dry-run          # preview without changing anything
 ```
 
 ## Global Options

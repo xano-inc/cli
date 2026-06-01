@@ -235,8 +235,8 @@ export function checkTableIndexes(documents: Array<{content: string}>): BadIndex
 }
 
 function extractSchemaFields(content: string): Set<string> {
-  // id and created_at are auto-added during import
-  const fields = new Set<string>(['id', 'created_at'])
+  // id, created_at, and xdo are system fields not declared in the schema
+  const fields = new Set<string>(['id', 'created_at', 'xdo'])
 
   // Find the schema block by matching braces
   const schemaStart = content.match(/\bschema\s*\{/)

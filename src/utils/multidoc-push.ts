@@ -877,7 +877,7 @@ export async function executePush(
         }
       } catch {
         if (flags.verbose) {
-          log('Server response is not JSON; skipping GUID sync')
+          log(`Server response is not JSON; skipping GUID sync\n${responseText}`)
         }
       }
     }

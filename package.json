@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "1.0.2",
+  "version": "1.0.3-beta.3",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -11,6 +11,8 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
+    "@types/archiver": "^7.0.0",
+    "archiver": "^7.0.1",
     "inquirer": "^13.3.0",
     "js-yaml": "^4.1.0",
     "lodash.snakecase": "^4.1.1",

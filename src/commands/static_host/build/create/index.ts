@@ -11,6 +11,23 @@ interface BuildCreateResponse {
   status?: string
 }
 
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/**
+ * Generate a default build name from a compact timestamp: `YYYYMMDD-HHmmss`
+ * (e.g. `20260531-143022`). Sortable, distinct down to the second, and uses
+ * local time so it lines up with when the user ran the command.
+ */
+export function generateBuildName(date: Date = new Date()): string {
+  const y = date.getFullYear()
+  const mo = pad2(date.getMonth() + 1)
+  const d = pad2(date.getDate())
+  const h = pad2(date.getHours())
+  const mi = pad2(date.getMinutes())
+  const s = pad2(date.getSeconds())
+  return `${y}${mo}${d}-${h}${mi}${s}`
+}
+
 export default class StaticHostBuildCreate extends BaseCommand {
   static args = {
     static_host: Args.string({
@@ -24,6 +41,12 @@ static examples = [
 Build created successfully!
 ID: 123
 Name: v1.0.0
+Status: pending
+`,
+    `$ xano static_host:build:create default -f ./build.zip
+Build created successfully!
+ID: 123
+Name: 20260531-143022
 Status: pending
 `,
     `$ xano static_host:build:create default -w 40 -f ./dist.zip -n "production" -d "Production build"
@@ -54,8 +77,13 @@ static override flags = {
     }),
     name: Flags.string({
       char: 'n',
-      description: 'Build name',
-      required: true,
+      description: 'Build name (auto-generated from the current timestamp if omitted)',
+      required: false,
+    }),
+    'no-wait': Flags.boolean({
+      default: false,
+      description: 'Return immediately after upload instead of waiting for the build to finish',
+      required: false,
     }),
     output: Flags.string({
       char: 'o',
@@ -119,7 +147,11 @@ static override flags = {
     const fileBuffer = fs.readFileSync(filePath)
     const blob = new Blob([fileBuffer], {type: 'application/zip'})
     formData.append('file', blob, path.basename(filePath))
-    formData.append('name', flags.name)
+
+    // Name is optional — fall back to a timestamped name so builds can be
+    // created without thinking up a label each time.
+    const buildName = flags.name ?? generateBuildName()
+    formData.append('name', buildName)
 
     if (flags.description) {
       formData.append('description', flags.description)
@@ -170,6 +202,23 @@ static override flags = {
 
         if (flags.description) {
           this.log(`Description: ${flags.description}`)
+        }
+      }
+
+      // Async (package.json) builds keep running after upload. Unless --no-wait,
+      // poll until the build finishes so the CLI mirrors the UI's progress.
+      const inProgress = result.status !== undefined && !['error', 'ok'].includes(result.status)
+      if (inProgress && !flags['no-wait']) {
+        const finalStatus = await this.waitForBuild({
+          buildId: result.id,
+          profile,
+          quiet: flags.output === 'json',
+          staticHost: args.static_host,
+          verbose: flags.verbose,
+          workspaceId,
+        })
+        if (finalStatus === 'error') {
+          this.error(`Build ${result.id} failed (status: error). Check the build log with: xano static_host build get ${args.static_host} --build_id ${result.id}`)
         }
       }
     } catch (error) {
