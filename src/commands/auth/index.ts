@@ -68,8 +68,15 @@ Opening browser for Xano login at https://custom.xano.com...`,
 To authenticate, open the following URL in any browser:
   https://app.xano.com/login?dest=cli&display=code
 ? Paste the code shown in your browser: ****`,
+    `$ xano auth --no-browser --instance my-instance --workspace 5 --branch dev --profile staging
+(non-interactive: only the pasted code is prompted for)`,
   ]
   static override flags = {
+    branch: Flags.string({
+      char: 'b',
+      description: 'Pre-select a branch by label (skips the branch picker); pass "" to skip and use the live branch',
+      required: false,
+    }),
     config: Flags.string({
       char: 'c',
       description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
@@ -81,6 +88,11 @@ To authenticate, open the following URL in any browser:
       default: false,
       description: 'Skip TLS certificate verification (for self-signed certificates)',
     }),
+    instance: Flags.string({
+      char: 'i',
+      description: 'Pre-select an instance by name (skips the instance picker)',
+      required: false,
+    }),
     'no-browser': Flags.boolean({
       default: false,
       description:
@@ -90,6 +102,16 @@ To authenticate, open the following URL in any browser:
       char: 'o',
       default: 'https://app.xano.com',
       description: 'Xano account origin URL',
+    }),
+    profile: Flags.string({
+      char: 'p',
+      description: 'Profile name to save (skips the profile name prompt); pass "" to use the default name',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Pre-select a workspace by ID or name (skips the workspace picker); pass "" to skip workspace',
+      required: false,
     }),
   }
 
@@ -120,6 +142,10 @@ To authenticate, open the following URL in any browser:
       let instance: Instance
 
       if (isSelfHosted) {
+        if (flags.instance) {
+          this.warn('Ignoring --instance: the origin itself is the instance for self-hosted Xano.')
+        }
+
         instance = {
           display: flags.origin,
           id: 'self-hosted',
@@ -135,7 +161,7 @@ To authenticate, open the following URL in any browser:
           this.error('No instances found. Please check your account.')
         }
 
-        instance = await this.selectInstance(instances)
+        instance = await this.resolveInstance(instances, flags.instance)
       }
 
       // Step 4: Workspace selection
@@ -146,23 +172,27 @@ To authenticate, open the following URL in any browser:
       const workspaces = await this.fetchWorkspaces(token, instance.origin)
 
       if (workspaces.length > 0) {
-        workspace = await this.selectWorkspace(workspaces)
+        workspace = await this.resolveWorkspace(workspaces, flags.workspace)
 
         if (workspace) {
           // Step 5: Branch selection
           this.log('')
           this.log('Fetching available branches...')
           const branches = await this.fetchBranches(token, instance.origin, workspace.id)
-
-          if (branches.length > 1) {
-            branch = await this.selectBranch(branches)
-          }
+          branch = await this.resolveBranch(branches, flags.branch)
         }
+      } else if (flags.workspace) {
+        this.error(`Workspace '${flags.workspace}' not found: no workspaces are available on this instance.`)
+      }
+
+      if (flags.branch && !workspace) {
+        this.warn('Ignoring --branch: no workspace selected.')
       }
 
       // Step 6: Profile name
       this.log('')
-      const profileName = await this.promptProfileName()
+      // An empty --profile value means "use the default name" (same as accepting the prompt's default)
+      const profileName = flags.profile === undefined ? await this.promptProfileName() : flags.profile.trim() || 'default'
 
       // Step 7: Save profile
       await this.saveProfile(
@@ -338,6 +368,64 @@ To authenticate, open the following URL in any browser:
     ])
 
     return profileName.trim() || 'default'
+  }
+
+  private async resolveBranch(branches: Branch[], flagValue?: string): Promise<string | undefined> {
+    if (flagValue !== undefined) {
+      // An empty value means "skip and use live branch" (same as the picker's skip option)
+      if (flagValue.trim() === '') {
+        this.log('Using live branch')
+        return undefined
+      }
+
+      const match = branches.find((br) => br.label === flagValue || br.id === flagValue)
+      if (!match) {
+        this.error(`Branch '${flagValue}' not found. Available branches: ${branches.map((br) => br.label).join(', ')}`)
+      }
+
+      this.log(`Using branch: ${match.label}`)
+      return match.id
+    }
+
+    return branches.length > 1 ? this.selectBranch(branches) : undefined
+  }
+
+  private async resolveInstance(instances: Instance[], flagValue?: string): Promise<Instance> {
+    if (flagValue) {
+      const match = instances.find((inst) => inst.name === flagValue || inst.id === flagValue)
+      if (!match) {
+        this.error(
+          `Instance '${flagValue}' not found. Available instances: ${instances.map((inst) => inst.name).join(', ')}`,
+        )
+      }
+
+      this.log(`Using instance: ${match.name} (${match.display})`)
+      return match
+    }
+
+    return this.selectInstance(instances)
+  }
+
+  private async resolveWorkspace(workspaces: Workspace[], flagValue?: string): Promise<undefined | Workspace> {
+    if (flagValue !== undefined) {
+      // An empty value means "skip workspace" (same as the picker's skip option)
+      if (flagValue.trim() === '') {
+        this.log('Skipping workspace selection')
+        return undefined
+      }
+
+      const match = workspaces.find((ws) => String(ws.id) === flagValue || ws.name === flagValue)
+      if (!match) {
+        this.error(
+          `Workspace '${flagValue}' not found. Available workspaces: ${workspaces.map((ws) => `${ws.name} (${ws.id})`).join(', ')}`,
+        )
+      }
+
+      this.log(`Using workspace: ${match.name} (${match.id})`)
+      return match
+    }
+
+    return this.selectWorkspace(workspaces)
   }
 
   private async saveProfile(profile: ProfileConfig, configPath?: string): Promise<void> {
