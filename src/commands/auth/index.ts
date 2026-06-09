@@ -1,4 +1,3 @@
-import {ExitPromptError} from '@inquirer/core'
 import {Command, Flags} from '@oclif/core'
 import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
@@ -65,8 +64,21 @@ Authenticated as John Doe (john@example.com)
 Profile 'default' created successfully!`,
     `$ xano auth --origin https://custom.xano.com
 Opening browser for Xano login at https://custom.xano.com...`,
+    `$ xano auth --no-browser
+To authenticate, open the following URL in any browser:
+  https://app.xano.com/login?dest=cli&display=code
+? Paste the code shown in your browser: ****`,
+    `$ xano auth --no-browser --instance my-instance --workspace 5 --branch dev --profile staging
+(non-interactive: only the pasted code is prompted for)`,
+    `$ echo "$CODE" | xano auth --no-browser --instance my-instance --workspace 5 --branch dev --profile staging
+(fully scripted: the code is read from piped stdin, no prompt at all)`,
   ]
   static override flags = {
+    branch: Flags.string({
+      char: 'b',
+      description: 'Pre-select a branch by label (skips the branch picker); pass "" to skip and use the live branch',
+      required: false,
+    }),
     config: Flags.string({
       char: 'c',
       description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
@@ -78,10 +90,30 @@ Opening browser for Xano login at https://custom.xano.com...`,
       default: false,
       description: 'Skip TLS certificate verification (for self-signed certificates)',
     }),
+    instance: Flags.string({
+      char: 'i',
+      description: 'Pre-select an instance by name (skips the instance picker)',
+      required: false,
+    }),
+    'no-browser': Flags.boolean({
+      default: false,
+      description:
+        'Headless login: print a URL and paste back the code shown in the browser, instead of starting a local callback server (use on remote/SSH/Docker hosts where 127.0.0.1 is not reachable from the browser)',
+    }),
     origin: Flags.string({
       char: 'o',
       default: 'https://app.xano.com',
       description: 'Xano account origin URL',
+    }),
+    profile: Flags.string({
+      char: 'p',
+      description: 'Profile name to save (skips the profile name prompt); pass "" to use the default name',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Pre-select a workspace by ID or name (skips the workspace picker); pass "" to skip workspace',
+      required: false,
     }),
   }
 
@@ -96,7 +128,9 @@ Opening browser for Xano login at https://custom.xano.com...`,
     try {
       // Step 1: Get token via browser auth
       this.log('Starting authentication flow...')
-      const token = await this.startAuthServer(flags.origin)
+      const token = flags['no-browser']
+        ? await this.promptForToken(flags.origin)
+        : await this.startAuthServer(flags.origin)
       // Step 2: Validate token and get user info
       this.log('')
       this.log('Validating authentication...')
@@ -110,6 +144,10 @@ Opening browser for Xano login at https://custom.xano.com...`,
       let instance: Instance
 
       if (isSelfHosted) {
+        if (flags.instance) {
+          this.warn('Ignoring --instance: the origin itself is the instance for self-hosted Xano.')
+        }
+
         instance = {
           display: flags.origin,
           id: 'self-hosted',
@@ -125,7 +163,7 @@ Opening browser for Xano login at https://custom.xano.com...`,
           this.error('No instances found. Please check your account.')
         }
 
-        instance = await this.selectInstance(instances)
+        instance = await this.resolveInstance(instances, flags.instance)
       }
 
       // Step 4: Workspace selection
@@ -136,23 +174,27 @@ Opening browser for Xano login at https://custom.xano.com...`,
       const workspaces = await this.fetchWorkspaces(token, instance.origin)
 
       if (workspaces.length > 0) {
-        workspace = await this.selectWorkspace(workspaces)
+        workspace = await this.resolveWorkspace(workspaces, flags.workspace)
 
         if (workspace) {
           // Step 5: Branch selection
           this.log('')
           this.log('Fetching available branches...')
           const branches = await this.fetchBranches(token, instance.origin, workspace.id)
-
-          if (branches.length > 1) {
-            branch = await this.selectBranch(branches)
-          }
+          branch = await this.resolveBranch(branches, flags.branch)
         }
+      } else if (flags.workspace) {
+        this.error(`Workspace '${flags.workspace}' not found: no workspaces are available on this instance.`)
+      }
+
+      if (flags.branch && !workspace) {
+        this.warn('Ignoring --branch: no workspace selected.')
       }
 
       // Step 6: Profile name
       this.log('')
-      const profileName = await this.promptProfileName()
+      // An empty --profile value means "use the default name" (same as accepting the prompt's default)
+      const profileName = flags.profile === undefined ? await this.promptProfileName() : flags.profile.trim() || 'default'
 
       // Step 7: Save profile
       await this.saveProfile(
@@ -174,7 +216,10 @@ Opening browser for Xano login at https://custom.xano.com...`,
       // Ensure clean exit (the open() call can keep the event loop alive)
       process.exit(0)
     } catch (error) {
-      if (error instanceof ExitPromptError) {
+      // Ctrl+C at an inquirer prompt throws ExitPromptError. Match on the name
+      // rather than `instanceof`: inquirer bundles its own copy of
+      // @inquirer/core, so the thrown class won't match an imported one.
+      if ((error as Error)?.name === 'ExitPromptError') {
         this.log('Authentication cancelled.')
         return
       }
@@ -274,6 +319,53 @@ Opening browser for Xano login at https://custom.xano.com...`,
     }
   }
 
+  private async promptForToken(origin: string): Promise<string> {
+    // Headless flow: no local callback server. The login page, when opened
+    // without a `callback` param, renders the access token on screen for the
+    // user to copy. We point the browser there (best-effort) and prompt for
+    // the pasted code.
+    const authUrl = `${origin}/login?dest=cli&display=code`
+
+    this.log('To authenticate, open the following URL in any browser:')
+    this.log('')
+    this.log(`  ${authUrl}`)
+    this.log('')
+
+    // Piped (non-TTY) stdin: read the code directly instead of prompting, so
+    // scripts and agents can do `echo $CODE | xano auth --no-browser ...`.
+    // The masked inquirer prompt below requires an interactive terminal.
+    if (!process.stdin.isTTY) {
+      const piped = await this.readTokenFromStdin()
+      if (!piped) {
+        this.error(
+          'No code received on stdin. Pipe the code shown in the browser, e.g. `echo "$CODE" | xano auth --no-browser ...`',
+        )
+      }
+
+      this.log('Read code from stdin.')
+      return piped
+    }
+
+    try {
+      await open(authUrl)
+    } catch {
+      // Best-effort only; the URL is already printed above for manual use.
+    }
+
+    const {token} = await inquirer.prompt([
+      {
+        message: 'Paste the code shown in your browser',
+        name: 'token',
+        type: 'password',
+        validate(input: string) {
+          return input.trim() === '' ? 'A code is required' : true
+        },
+      },
+    ])
+
+    return (token as string).trim()
+  }
+
   private async promptProfileName(): Promise<string> {
     const {profileName} = await inquirer.prompt([
       {
@@ -293,6 +385,76 @@ Opening browser for Xano login at https://custom.xano.com...`,
     ])
 
     return profileName.trim() || 'default'
+  }
+
+  private readTokenFromStdin(): Promise<string> {
+    return new Promise((resolve) => {
+      let data = ''
+      process.stdin.setEncoding('utf8')
+      process.stdin.on('data', (chunk) => {
+        data += chunk
+      })
+      process.stdin.on('end', () => resolve(data.trim()))
+      process.stdin.on('error', () => resolve(data.trim()))
+    })
+  }
+
+  private async resolveBranch(branches: Branch[], flagValue?: string): Promise<string | undefined> {
+    if (flagValue !== undefined) {
+      // An empty value means "skip and use live branch" (same as the picker's skip option)
+      if (flagValue.trim() === '') {
+        this.log('Using live branch')
+        return undefined
+      }
+
+      const match = branches.find((br) => br.label === flagValue || br.id === flagValue)
+      if (!match) {
+        this.error(`Branch '${flagValue}' not found. Available branches: ${branches.map((br) => br.label).join(', ')}`)
+      }
+
+      this.log(`Using branch: ${match.label}`)
+      return match.id
+    }
+
+    return branches.length > 1 ? this.selectBranch(branches) : undefined
+  }
+
+  private async resolveInstance(instances: Instance[], flagValue?: string): Promise<Instance> {
+    if (flagValue) {
+      const match = instances.find((inst) => inst.name === flagValue || inst.id === flagValue)
+      if (!match) {
+        this.error(
+          `Instance '${flagValue}' not found. Available instances: ${instances.map((inst) => inst.name).join(', ')}`,
+        )
+      }
+
+      this.log(`Using instance: ${match.name} (${match.display})`)
+      return match
+    }
+
+    return this.selectInstance(instances)
+  }
+
+  private async resolveWorkspace(workspaces: Workspace[], flagValue?: string): Promise<undefined | Workspace> {
+    if (flagValue !== undefined) {
+      // An empty value means "skip workspace" (same as the picker's skip option)
+      if (flagValue.trim() === '') {
+        this.log('Skipping workspace selection')
+        return undefined
+      }
+
+      const match = workspaces.find((ws) => String(ws.id) === flagValue || ws.name === flagValue)
+      if (!match) {
+        this.error(
+          `Workspace '${flagValue}' not found. Available workspaces: ${workspaces.map((ws) => `${ws.name} (${ws.id})`).join(', ')}`,
+        )
+      }
+
+      this.log(`Using workspace: ${match.name} (${match.id})`)
+      return match
+    }
+
+    return this.selectWorkspace(workspaces)
   }
 
   private async saveProfile(profile: ProfileConfig, configPath?: string): Promise<void> {

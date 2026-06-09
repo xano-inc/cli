@@ -46,7 +46,41 @@ These warnings are layer 1 of broader push-safety work; ephemeral sandbox enviro
 xano auth
 xano auth --origin https://custom.xano.com
 xano auth --insecure                         # Skip TLS verification (self-signed certs)
+xano auth --no-browser                       # Headless login (no local callback server)
+
+# Pre-select instance/workspace/branch and profile name (skips the pickers)
+xano auth -i my-instance -w 5 -b dev -p staging
+xano auth --instance my-instance --workspace "My Workspace" --branch dev --profile staging
+
+# Pass "" to take a picker's default: skip workspace, use live branch, default profile name
+xano auth -i my-instance -w 5 -b "" -p ""
 ```
+
+The default flow starts a temporary callback server on `127.0.0.1` and waits
+for the browser to redirect back to it. On remote/SSH sessions, Docker
+containers, or locked-down networks where the browser can't reach the CLI's
+loopback address, use `--no-browser`: the CLI prints a login URL, you open it
+in any browser, and paste back the code it displays. No local server required.
+
+Each picker can be pre-answered with a flag: `-i/--instance` (instance name),
+`-w/--workspace` (workspace ID or name), `-b/--branch` (branch label), and
+`-p/--profile` (profile name to save). An empty value (`""`) takes the
+picker's default answer: `-w ""` skips workspace selection, `-b ""` skips and
+uses the live branch, and `-p ""` uses the default profile name. With all four
+set alongside `--no-browser`, the only input is pasting the code from the
+browser — useful for scripted or remote setups.
+
+When stdin is piped (not a TTY), `--no-browser` reads the code directly from
+stdin instead of prompting, so scripts and AI agents can complete the flow
+without an interactive terminal:
+
+```bash
+echo "$CODE" | xano auth --no-browser -i my-instance -w 5 -b dev -p staging
+```
+
+If you can't run `xano auth` at all, you can always create a profile manually
+with a Metadata API token from the Xano dashboard — see
+[Profiles](#profiles) below.
 
 ### Profiles
 
