@@ -68,6 +68,8 @@ Opening browser for Xano login at https://custom.xano.com...`,
 To authenticate, open the following URL in any browser:
   https://app.xano.com/login?dest=cli&display=code
 ? Paste the code shown in your browser: ****`,
+    `$ echo "$CODE" | xano auth --no-browser
+(the code is read from piped stdin, no prompt at all)`,
   ]
   static override flags = {
     config: Flags.string({
@@ -299,6 +301,21 @@ To authenticate, open the following URL in any browser:
     this.log(`  ${authUrl}`)
     this.log('')
 
+    // Piped (non-TTY) stdin: read the code directly instead of prompting, so
+    // scripts and agents can do `echo $CODE | xano auth --no-browser ...`.
+    // The masked inquirer prompt below requires an interactive terminal.
+    if (!process.stdin.isTTY) {
+      const piped = await this.readTokenFromStdin()
+      if (!piped) {
+        this.error(
+          'No code received on stdin. Pipe the code shown in the browser, e.g. `echo "$CODE" | xano auth --no-browser ...`',
+        )
+      }
+
+      this.log('Read code from stdin.')
+      return piped
+    }
+
     try {
       await open(authUrl)
     } catch {
@@ -338,6 +355,18 @@ To authenticate, open the following URL in any browser:
     ])
 
     return profileName.trim() || 'default'
+  }
+
+  private readTokenFromStdin(): Promise<string> {
+    return new Promise((resolve) => {
+      let data = ''
+      process.stdin.setEncoding('utf8')
+      process.stdin.on('data', (chunk) => {
+        data += chunk
+      })
+      process.stdin.on('end', () => resolve(data.trim()))
+      process.stdin.on('error', () => resolve(data.trim()))
+    })
   }
 
   private async saveProfile(profile: ProfileConfig, configPath?: string): Promise<void> {
