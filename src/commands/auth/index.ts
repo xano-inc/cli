@@ -1,4 +1,3 @@
-import {ExitPromptError} from '@inquirer/core'
 import {Command, Flags} from '@oclif/core'
 import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
@@ -185,7 +184,10 @@ To authenticate, open the following URL in any browser:
       // Ensure clean exit (the open() call can keep the event loop alive)
       process.exit(0)
     } catch (error) {
-      if (error instanceof ExitPromptError) {
+      // Ctrl+C at an inquirer prompt throws ExitPromptError. Match on the name
+      // rather than `instanceof`: inquirer bundles its own copy of
+      // @inquirer/core, so the thrown class won't match an imported one.
+      if ((error as Error)?.name === 'ExitPromptError') {
         this.log('Authentication cancelled.')
         return
       }
