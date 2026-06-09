@@ -70,6 +70,8 @@ To authenticate, open the following URL in any browser:
 ? Paste the code shown in your browser: ****`,
     `$ xano auth --no-browser --instance my-instance --workspace 5 --branch dev --profile staging
 (non-interactive: only the pasted code is prompted for)`,
+    `$ echo "$CODE" | xano auth --no-browser --instance my-instance --workspace 5 --branch dev --profile staging
+(fully scripted: the code is read from piped stdin, no prompt at all)`,
   ]
   static override flags = {
     branch: Flags.string({
@@ -329,6 +331,21 @@ To authenticate, open the following URL in any browser:
     this.log(`  ${authUrl}`)
     this.log('')
 
+    // Piped (non-TTY) stdin: read the code directly instead of prompting, so
+    // scripts and agents can do `echo $CODE | xano auth --no-browser ...`.
+    // The masked inquirer prompt below requires an interactive terminal.
+    if (!process.stdin.isTTY) {
+      const piped = await this.readTokenFromStdin()
+      if (!piped) {
+        this.error(
+          'No code received on stdin. Pipe the code shown in the browser, e.g. `echo "$CODE" | xano auth --no-browser ...`',
+        )
+      }
+
+      this.log('Read code from stdin.')
+      return piped
+    }
+
     try {
       await open(authUrl)
     } catch {
@@ -368,6 +385,18 @@ To authenticate, open the following URL in any browser:
     ])
 
     return profileName.trim() || 'default'
+  }
+
+  private readTokenFromStdin(): Promise<string> {
+    return new Promise((resolve) => {
+      let data = ''
+      process.stdin.setEncoding('utf8')
+      process.stdin.on('data', (chunk) => {
+        data += chunk
+      })
+      process.stdin.on('end', () => resolve(data.trim()))
+      process.stdin.on('error', () => resolve(data.trim()))
+    })
   }
 
   private async resolveBranch(branches: Branch[], flagValue?: string): Promise<string | undefined> {

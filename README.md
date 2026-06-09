@@ -70,6 +70,14 @@ uses the live branch, and `-p ""` uses the default profile name. With all four
 set alongside `--no-browser`, the only input is pasting the code from the
 browser — useful for scripted or remote setups.
 
+When stdin is piped (not a TTY), `--no-browser` reads the code directly from
+stdin instead of prompting, so scripts and AI agents can complete the flow
+without an interactive terminal:
+
+```bash
+echo "$CODE" | xano auth --no-browser -i my-instance -w 5 -b dev -p staging
+```
+
 If you can't run `xano auth` at all, you can always create a profile manually
 with a Metadata API token from the Xano dashboard — see
 [Profiles](#profiles) below.
