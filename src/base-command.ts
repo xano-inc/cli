@@ -3,6 +3,7 @@ import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import {Agent, type Dispatcher} from 'undici'
 
 import {checkForUpdate} from './update-check.js'
 import {
@@ -32,6 +33,42 @@ export interface CredentialsFile {
 
 export function buildUserAgent(version: string): string {
   return `xano-cli/${version} (${process.platform}; ${process.arch}) node/${process.version}`
+}
+
+/**
+ * Default per-request timeout for Metadata API calls, in milliseconds (15 min).
+ *
+ * Node's built-in fetch (undici) defaults to a 300s `headersTimeout` and throws
+ * UND_ERR_HEADERS_TIMEOUT when a slow endpoint (e.g. a large multidoc push) takes
+ * longer than that to produce response headers — even when the server, ingress
+ * (3600s), and load balancer would happily wait. We replace that hidden 300s
+ * ceiling with a single, generous bound applied to every request. Override with
+ * the XANO_CLI_REQUEST_TIMEOUT_MS env var; set it to 0 to disable the timeout.
+ */
+const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 60 * 1000
+
+function resolveRequestTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.XANO_CLI_REQUEST_TIMEOUT_MS
+  if (raw === undefined || raw === '') return DEFAULT_REQUEST_TIMEOUT_MS
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_REQUEST_TIMEOUT_MS
+  return parsed
+}
+
+/**
+ * Lazily-built undici dispatcher whose header/body inactivity timeouts match our
+ * request timeout, so undici's internal 300s default never fires first. Built
+ * once and reused across requests. `timeout === 0` means "no bound".
+ */
+let sharedDispatcher: Dispatcher | undefined
+function getRequestDispatcher(timeoutMs: number): Dispatcher | undefined {
+  if (timeoutMs === 0) {
+    sharedDispatcher ??= new Agent({bodyTimeout: 0, headersTimeout: 0})
+    return sharedDispatcher
+  }
+
+  sharedDispatcher ??= new Agent({bodyTimeout: timeoutMs, headersTimeout: timeoutMs})
+  return sharedDispatcher
 }
 
 export interface SandboxTenant {
@@ -378,7 +415,16 @@ export default abstract class BaseCommand extends Command {
       'User-Agent': buildUserAgent(this.config.version),
       ...(options.headers as Record<string, string>),
     }
-    const fetchOptions = {...options, headers}
+    const timeoutMs = resolveRequestTimeoutMs()
+    const fetchOptions: RequestInit & {dispatcher?: Dispatcher} = {
+      ...options,
+      // undici dispatcher: lifts the hidden 300s headers/body timeout to our bound
+      dispatcher: getRequestDispatcher(timeoutMs),
+      headers,
+      // belt-and-suspenders hard ceiling that also covers DNS/connect stalls;
+      // surfaces as a clean AbortError (see describeNetworkError). 0 = no bound.
+      ...(timeoutMs > 0 && !options.signal ? {signal: AbortSignal.timeout(timeoutMs)} : {}),
+    }
     const contentType = headers['Content-Type'] || 'application/json'
 
     if (verbose) {

@@ -1,7 +1,7 @@
 {
   "name": "@xano/cli",
   "description": "CLI for Xano's Metadata API",
-  "version": "1.0.3-beta.9",
+  "version": "1.0.4-beta.1",
   "author": "Sean Montgomery",
   "bin": {
     "xano": "./bin/run.js"
@@ -17,7 +17,8 @@
     "js-yaml": "^4.1.0",
     "lodash.snakecase": "^4.1.1",
     "minimatch": "^10.2.4",
-    "open": "^11.0.0"
+    "open": "^11.0.0",
+    "undici": "^6.26.0"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
