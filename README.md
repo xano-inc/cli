@@ -46,7 +46,18 @@ These warnings are layer 1 of broader push-safety work; ephemeral sandbox enviro
 xano auth
 xano auth --origin https://custom.xano.com
 xano auth --insecure                         # Skip TLS verification (self-signed certs)
+xano auth --no-browser                       # Headless login (no local callback server)
 ```
+
+The default flow starts a temporary callback server on `127.0.0.1` and waits
+for the browser to redirect back to it. On remote/SSH sessions, Docker
+containers, or locked-down networks where the browser can't reach the CLI's
+loopback address, use `--no-browser`: the CLI prints a login URL, you open it
+in any browser, and paste back the code it displays. No local server required.
+
+If you can't run `xano auth` at all, you can always create a profile manually
+with a Metadata API token from the Xano dashboard — see
+[Profiles](#profiles) below.
 
 ### Profiles
 
