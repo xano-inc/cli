@@ -62,7 +62,7 @@ containers, or locked-down networks where the browser can't reach the CLI's
 loopback address, use `--no-browser`: the CLI prints a login URL, you open it
 in any browser, and paste back the code it displays. No local server required.
 
-Each picker can be pre-answered with a flag: `-i/--instance` (instance name),
+Each picker can be pre-answered with a flag: `-i/--instance` (instance name, or numeric instance ID),
 `-w/--workspace` (workspace ID or name), `-b/--branch` (branch label), and
 `-p/--profile` (profile name to save). An empty value (`""`) takes the
 picker's default answer: `-w ""` skips workspace selection, `-b ""` skips and

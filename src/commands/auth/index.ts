@@ -92,7 +92,7 @@ To authenticate, open the following URL in any browser:
     }),
     instance: Flags.string({
       char: 'i',
-      description: 'Pre-select an instance by name (skips the instance picker)',
+      description: 'Pre-select an instance by name or numeric ID (skips the instance picker)',
       required: false,
     }),
     'no-browser': Flags.boolean({
@@ -282,9 +282,9 @@ To authenticate, open the following URL in any browser:
     const data = (await response.json()) as unknown
 
     if (Array.isArray(data)) {
-      return data.map((inst: {display: string; id?: string; meta_api: string; name: string}) => ({
+      return data.map((inst: {display: string; id?: number | string; meta_api: string; name: string}) => ({
         display: inst.display,
-        id: inst.id || inst.name,
+        id: String(inst.id ?? inst.name),
         name: inst.name,
         origin: new URL(inst.meta_api).origin,
       }))
@@ -421,10 +421,13 @@ To authenticate, open the following URL in any browser:
 
   private async resolveInstance(instances: Instance[], flagValue?: string): Promise<Instance> {
     if (flagValue) {
-      const match = instances.find((inst) => inst.name === flagValue || inst.id === flagValue)
+      // Numeric values match by instance ID, anything else matches by name
+      const match = /^\d+$/.test(flagValue)
+        ? instances.find((inst) => inst.id === flagValue)
+        : instances.find((inst) => inst.name === flagValue)
       if (!match) {
         this.error(
-          `Instance '${flagValue}' not found. Available instances: ${instances.map((inst) => inst.name).join(', ')}`,
+          `Instance '${flagValue}' not found. Available instances: ${instances.map((inst) => `${inst.name} (${inst.id})`).join(', ')}`,
         )
       }
 
