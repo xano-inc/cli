@@ -1,4 +1,3 @@
-import {ExitPromptError} from '@inquirer/core'
 import {Command, Flags} from '@oclif/core'
 import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
@@ -65,6 +64,12 @@ Authenticated as John Doe (john@example.com)
 Profile 'default' created successfully!`,
     `$ xano auth --origin https://custom.xano.com
 Opening browser for Xano login at https://custom.xano.com...`,
+    `$ xano auth --no-browser
+To authenticate, open the following URL in any browser:
+  https://app.xano.com/login?dest=cli&display=code
+? Paste the code shown in your browser: ****`,
+    `$ echo "$CODE" | xano auth --no-browser
+(the code is read from piped stdin, no prompt at all)`,
   ]
   static override flags = {
     config: Flags.string({
@@ -77,6 +82,11 @@ Opening browser for Xano login at https://custom.xano.com...`,
       char: 'k',
       default: false,
       description: 'Skip TLS certificate verification (for self-signed certificates)',
+    }),
+    'no-browser': Flags.boolean({
+      default: false,
+      description:
+        'Headless login: print a URL and paste back the code shown in the browser, instead of starting a local callback server (use on remote/SSH/Docker hosts where 127.0.0.1 is not reachable from the browser)',
     }),
     origin: Flags.string({
       char: 'o',
@@ -96,7 +106,9 @@ Opening browser for Xano login at https://custom.xano.com...`,
     try {
       // Step 1: Get token via browser auth
       this.log('Starting authentication flow...')
-      const token = await this.startAuthServer(flags.origin)
+      const token = flags['no-browser']
+        ? await this.promptForToken(flags.origin)
+        : await this.startAuthServer(flags.origin)
       // Step 2: Validate token and get user info
       this.log('')
       this.log('Validating authentication...')
@@ -174,7 +186,10 @@ Opening browser for Xano login at https://custom.xano.com...`,
       // Ensure clean exit (the open() call can keep the event loop alive)
       process.exit(0)
     } catch (error) {
-      if (error instanceof ExitPromptError) {
+      // Ctrl+C at an inquirer prompt throws ExitPromptError. Match on the name
+      // rather than `instanceof`: inquirer bundles its own copy of
+      // @inquirer/core, so the thrown class won't match an imported one.
+      if ((error as Error)?.name === 'ExitPromptError') {
         this.log('Authentication cancelled.')
         return
       }
@@ -274,6 +289,53 @@ Opening browser for Xano login at https://custom.xano.com...`,
     }
   }
 
+  private async promptForToken(origin: string): Promise<string> {
+    // Headless flow: no local callback server. The login page, when opened
+    // without a `callback` param, renders the access token on screen for the
+    // user to copy. We point the browser there (best-effort) and prompt for
+    // the pasted code.
+    const authUrl = `${origin}/login?dest=cli&display=code`
+
+    this.log('To authenticate, open the following URL in any browser:')
+    this.log('')
+    this.log(`  ${authUrl}`)
+    this.log('')
+
+    // Piped (non-TTY) stdin: read the code directly instead of prompting, so
+    // scripts and agents can do `echo $CODE | xano auth --no-browser ...`.
+    // The masked inquirer prompt below requires an interactive terminal.
+    if (!process.stdin.isTTY) {
+      const piped = await this.readTokenFromStdin()
+      if (!piped) {
+        this.error(
+          'No code received on stdin. Pipe the code shown in the browser, e.g. `echo "$CODE" | xano auth --no-browser ...`',
+        )
+      }
+
+      this.log('Read code from stdin.')
+      return piped
+    }
+
+    try {
+      await open(authUrl)
+    } catch {
+      // Best-effort only; the URL is already printed above for manual use.
+    }
+
+    const {token} = await inquirer.prompt([
+      {
+        message: 'Paste the code shown in your browser',
+        name: 'token',
+        type: 'password',
+        validate(input: string) {
+          return input.trim() === '' ? 'A code is required' : true
+        },
+      },
+    ])
+
+    return (token as string).trim()
+  }
+
   private async promptProfileName(): Promise<string> {
     const {profileName} = await inquirer.prompt([
       {
@@ -293,6 +355,18 @@ Opening browser for Xano login at https://custom.xano.com...`,
     ])
 
     return profileName.trim() || 'default'
+  }
+
+  private readTokenFromStdin(): Promise<string> {
+    return new Promise((resolve) => {
+      let data = ''
+      process.stdin.setEncoding('utf8')
+      process.stdin.on('data', (chunk) => {
+        data += chunk
+      })
+      process.stdin.on('end', () => resolve(data.trim()))
+      process.stdin.on('error', () => resolve(data.trim()))
+    })
   }
 
   private async saveProfile(profile: ProfileConfig, configPath?: string): Promise<void> {
