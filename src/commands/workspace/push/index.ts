@@ -57,6 +57,12 @@ Push all files except tables
     `$ xano workspace push -i "function/*" -e "**/test*"
 Push functions but exclude test files
 `,
+    `$ xano workspace push -i "knowledge/**"
+Push only knowledge files (agents.md / skills / docs)
+`,
+    `$ xano workspace push --sync --delete
+Full sync including knowledge files; removes server objects not present locally
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -205,6 +211,10 @@ Push functions but exclude test files
         branch,
         command: this,
         inputDir,
+        knowledge: {
+          listUrl: () => `${baseUrl}/knowledge/sync`,
+          rootDir: inputDir,
+        },
         verboseFetch: this.verboseFetch.bind(this),
       },
       target,

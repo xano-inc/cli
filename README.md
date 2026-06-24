@@ -162,6 +162,7 @@ xano workspace delete -w <workspace_id>
 xano workspace delete -w <workspace_id> --force
 
 # Pull workspace to local files (defaults to current directory)
+# Also pulls knowledge/ folder (agents.md, skills/, docs/) when available
 xano workspace pull
 xano workspace pull -d ./my-workspace                    # Specify output directory
 xano workspace pull -b dev                               # Specific branch
@@ -169,21 +170,23 @@ xano workspace pull --env --records                      # Include env vars and 
 xano workspace pull --draft                              # Include draft changes
 
 # Push local files to workspace (defaults to current directory, only changed files)
+# Also pushes knowledge/ folder contents when present (agents.md / skills / docs)
 xano workspace push
 xano workspace push -d ./my-workspace                    # Push from a specific directory
 xano workspace push -b dev
 xano workspace push --sync                               # Full push — send all files, not just changed ones
-xano workspace push --sync --delete                      # Full push + delete remote objects not included
-xano workspace push --dry-run                            # Preview changes without pushing
+xano workspace push --sync --delete                      # Full push + delete remote objects not included (incl. knowledge)
+xano workspace push --dry-run                            # Preview changes without pushing (shows knowledge changes too)
 xano workspace push --records                            # Include table records
 xano workspace push --env                                # Include environment variables
 xano workspace push --truncate                           # Truncate tables before import
 xano workspace push --no-transaction                     # Disable database transaction wrapping
 xano workspace push --no-guids                           # Skip writing GUIDs back to local files
 xano workspace push --force                              # Skip preview and confirmation (for CI/CD)
-xano workspace push -i "function/*"                      # Push only matching files
+xano workspace push -i "function/*"                      # Push only matching files (knowledge excluded unless pattern matches)
 xano workspace push -e "table/*"                         # Push all files except tables
 xano workspace push -i "function/*" -e "**/test*"        # Include functions, exclude tests
+xano workspace push -i "knowledge/**"                    # Push only knowledge files (agents.md / skills / docs)
 
 # Pull from a git repository to local files (defaults to current directory)
 xano workspace git pull -r https://github.com/owner/repo
