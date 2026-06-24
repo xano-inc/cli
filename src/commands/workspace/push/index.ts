@@ -71,16 +71,16 @@ Full sync including knowledge files; removes server objects not present locally
       description: 'Branch name (optional if set in profile, defaults to live)',
       required: false,
     }),
-    directory: Flags.string({
-      char: 'd',
-      default: '.',
-      description: 'Directory containing documents to push (defaults to current directory)',
-      required: false,
-    }),
     delete: Flags.boolean({
       default: false,
       description:
         '[CRITICAL] STOP and confirm with the user before running. Delete workspace objects not included in the push (requires --sync).',
+      required: false,
+    }),
+    directory: Flags.string({
+      char: 'd',
+      default: '.',
+      description: 'Directory containing documents to push (defaults to current directory)',
       required: false,
     }),
     'dry-run': Flags.boolean({

@@ -76,6 +76,7 @@ export interface KnowledgeDryRunResult {
   summary: Record<string, KnowledgeDryRunSummary>
 }
 
+// eslint-disable-next-line n/no-unsupported-features/node-builtins, no-undef
 type VerboseFetch = (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
 
 // ── Frontmatter ──────────────────────────────────────────────────────────────

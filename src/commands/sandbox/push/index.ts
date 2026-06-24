@@ -36,15 +36,15 @@ Push and open sandbox review in the browser
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    delete: Flags.boolean({
+      default: false,
+      description: 'Delete sandbox objects not included in the push (requires --sync)',
+      required: false,
+    }),
     directory: Flags.string({
       char: 'd',
       default: '.',
       description: 'Directory containing documents to push (defaults to current directory)',
-      required: false,
-    }),
-    delete: Flags.boolean({
-      default: false,
-      description: 'Delete sandbox objects not included in the push (requires --sync)',
       required: false,
     }),
     'dry-run': Flags.boolean({
@@ -158,6 +158,20 @@ Push and open sandbox review in the browser
     }
   }
 
+  private getFrontendUrl(instanceOrigin: string): string {
+    try {
+      const url = new URL(instanceOrigin)
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        url.port = '4200'
+        return url.origin
+      }
+    } catch {
+      // fall through
+    }
+
+    return instanceOrigin
+  }
+
   private async openReview(instanceOrigin: string, accessToken: string, verbose: boolean): Promise<void> {
     const response = await this.verboseFetch(
       `${instanceOrigin}/api:meta/sandbox/impersonate`,
@@ -191,17 +205,4 @@ Push and open sandbox review in the browser
     await open(reviewUrl)
   }
 
-  private getFrontendUrl(instanceOrigin: string): string {
-    try {
-      const url = new URL(instanceOrigin)
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-        url.port = '4200'
-        return url.origin
-      }
-    } catch {
-      // fall through
-    }
-
-    return instanceOrigin
-  }
 }
