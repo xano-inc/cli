@@ -626,7 +626,7 @@ export async function executePush(
   const allFiles = collectFiles(inputDir)
   const files = applyFilters(allFiles, inputDir, flags.include, flags.exclude, log)
 
-  const knowledgeOnly = files.length === 0 && knowledgeObjects.length > 0
+  const knowledgeOnly = files.length === 0 && (knowledgeObjects.length > 0 || ctx.knowledge !== undefined)
 
   if (files.length === 0 && !knowledgeOnly) {
     command.error(
@@ -730,7 +730,7 @@ export async function executePush(
         if (preview && preview.summary) {
           // ── Merge knowledge preview into the combined DryRunResult ──────
 
-          if (ctx.knowledge && knowledgeObjects.length > 0) {
+          if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
             const knowledgeDryRun = await computeKnowledgePreview(
               ctx.knowledge.listUrl(),
               knowledgeObjects,
@@ -1105,7 +1105,7 @@ export async function executePush(
   let knowledgeImported = 0
   let knowledgeDeleted = 0
 
-  if (ctx.knowledge && knowledgeObjects.length > 0) {
+  if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const listUrl = ctx.knowledge.listUrl()
     try {
       const result = await pushKnowledge(listUrl, accessToken, verboseFetch, flags.verbose, {
@@ -1146,7 +1146,7 @@ export async function executePush(
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   const parts: string[] = []
   if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
-  if (knowledgeObjects.length > 0) {
+  if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const kParts = [`${knowledgeImported} knowledge file${knowledgeImported === 1 ? '' : 's'}`]
     if (shouldDelete && knowledgeDeleted > 0) kParts.push(`${knowledgeDeleted} deleted`)
     parts.push(kParts.join(', '))
