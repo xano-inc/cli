@@ -524,11 +524,13 @@ xano sandbox get
 xano sandbox get -o json
 
 # Pull sandbox to local files (defaults to current directory)
+# Also pulls knowledge/ folder (agents.md, skills/, docs/) when available
 xano sandbox pull
 xano sandbox pull -d ./my-sandbox
 xano sandbox pull --env --records
 
 # Push local files to sandbox (defaults to current directory, only changed files)
+# Also pushes knowledge/ folder contents when present (agents.md / skills / docs)
 xano sandbox push
 xano sandbox push -d ./my-workspace                      # Push from a specific directory
 xano sandbox push --sync                                 # Full push — send all files

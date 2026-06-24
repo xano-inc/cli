@@ -143,6 +143,10 @@ Push and open sandbox review in the browser
         branch: '',
         command: this,
         inputDir,
+        knowledge: {
+          listUrl: () => `${baseUrl}/knowledge/sync`,
+          rootDir: inputDir,
+        },
         verboseFetch: this.verboseFetch.bind(this),
       },
       target,
