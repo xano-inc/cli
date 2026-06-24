@@ -1000,6 +1000,8 @@ export async function executePush(
 
     if (filteredEntries.length > 0) {
       multidoc = filteredEntries.map((d) => d.content).join('\n---\n')
+    } else {
+      multidoc = ''
     }
   }
 
@@ -1008,7 +1010,7 @@ export async function executePush(
   const startTime = Date.now()
   let pushedDocCount = 0
 
-  if (!knowledgeOnly) {
+  if (!knowledgeOnly && multidoc) {
     const apiUrl = target.buildPushUrl(queryParams)
 
     try {

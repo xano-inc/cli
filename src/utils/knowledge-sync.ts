@@ -430,6 +430,7 @@ function canonical(obj: KnowledgeObject): string {
     enabled: obj.enabled ?? null,
     files,
     mode: obj.mode ?? '',
+    scope: obj.scope ?? '',
   })
 }
 
