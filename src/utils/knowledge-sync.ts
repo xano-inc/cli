@@ -291,16 +291,18 @@ export function collectKnowledgeObjects(
         ? (meta.knowledge_type as KnowledgeType)
         : inferType(posixPath)
 
+    // The API requires description/scope/mode/enabled on every item, so default
+    // them when a hand-authored file omits them (pulled files always carry them).
     const obj: LocalKnowledgeObject = {
       content: body,
+      description: typeof meta.description === 'string' ? meta.description : '',
+      enabled: typeof meta.enabled === 'boolean' ? meta.enabled : true,
       filePath: absPath,
       knowledge_type: knowledgeType,
+      mode: typeof meta.mode === 'string' ? meta.mode : 'auto',
       name: typeof meta.name === 'string' ? meta.name : deriveName(posixPath),
+      scope: typeof meta.scope === 'string' ? meta.scope : 'workspace',
     }
-    if (typeof meta.description === 'string') obj.description = meta.description
-    if (typeof meta.scope === 'string') obj.scope = meta.scope
-    if (typeof meta.mode === 'string') obj.mode = meta.mode
-    if (typeof meta.enabled === 'boolean') obj.enabled = meta.enabled
     if (typeof meta.guid === 'string') obj.guid = meta.guid
 
     if (knowledgeType === 'skill') {

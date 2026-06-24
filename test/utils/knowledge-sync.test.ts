@@ -198,6 +198,13 @@ describe('knowledge-sync', () => {
       expect(noDocs).to.deep.equal(['A', 'Foo'])
     })
 
+    it('defaults required fields (description/scope/mode/enabled) when frontmatter omits them', () => {
+      const tmp = mkTmp()
+      writeFile(tmp, 'knowledge/docs/minimal.md', '---\nname: minimal\nknowledge_type: doc\n---\nbody')
+      const [obj] = collectKnowledgeObjects(tmp)
+      expect(obj).to.include({description: '', enabled: true, mode: 'auto', scope: 'workspace'})
+    })
+
     it('records the source filePath but strips it from push items', () => {
       const tmp = mkTmp()
       writeFile(tmp, 'knowledge/docs/x.md', '---\nname: X\n---\nbody')
