@@ -143,6 +143,10 @@ Push and open sandbox review in the browser
         branch: '',
         command: this,
         inputDir,
+        knowledge: {
+          listUrl: () => `${baseUrl}/knowledge/sync`,
+          rootDir: inputDir,
+        },
         verboseFetch: this.verboseFetch.bind(this),
       },
       target,
@@ -152,6 +156,20 @@ Push and open sandbox review in the browser
     if (flags.review) {
       await this.openReview(profile.instance_origin, profile.access_token, flags.verbose)
     }
+  }
+
+  private getFrontendUrl(instanceOrigin: string): string {
+    try {
+      const url = new URL(instanceOrigin)
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        url.port = '4200'
+        return url.origin
+      }
+    } catch {
+      // fall through
+    }
+
+    return instanceOrigin
   }
 
   private async openReview(instanceOrigin: string, accessToken: string, verbose: boolean): Promise<void> {
@@ -187,17 +205,4 @@ Push and open sandbox review in the browser
     await open(reviewUrl)
   }
 
-  private getFrontendUrl(instanceOrigin: string): string {
-    try {
-      const url = new URL(instanceOrigin)
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-        url.port = '4200'
-        return url.origin
-      }
-    } catch {
-      // fall through
-    }
-
-    return instanceOrigin
-  }
 }
