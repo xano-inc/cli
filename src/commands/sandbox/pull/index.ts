@@ -103,6 +103,10 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       }
     }
 
+    if (documents.length === 0) {
+      this.log('No documents found in response')
+    }
+
     const outputDir = path.resolve(flags.directory)
     fs.mkdirSync(outputDir, {recursive: true})
 

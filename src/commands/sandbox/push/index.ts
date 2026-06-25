@@ -36,15 +36,15 @@ Push and open sandbox review in the browser
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    delete: Flags.boolean({
-      default: false,
-      description: 'Delete sandbox objects not included in the push (requires --sync)',
-      required: false,
-    }),
     directory: Flags.string({
       char: 'd',
       default: '.',
       description: 'Directory containing documents to push (defaults to current directory)',
+      required: false,
+    }),
+    delete: Flags.boolean({
+      default: false,
+      description: 'Delete sandbox objects not included in the push (requires --sync)',
       required: false,
     }),
     'dry-run': Flags.boolean({
