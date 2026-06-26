@@ -4,6 +4,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import BaseCommand from '../../../../base-command.js'
+import {collectStaticHostFiles} from '../../../../utils/static-host-files.js'
 import {generateBuildName} from '../create/index.js'
 
 interface BuildCreateResponse {
@@ -37,6 +38,9 @@ ID: 124
 Pushed 22 files as build "production"
 ID: 125
 `,
+    `$ xano static_host build push default -d ./static --no-gitignore
+Pushed 30 files as build "20260531-143022"
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -59,6 +63,11 @@ ID: 125
     name: Flags.string({
       char: 'n',
       description: 'Build name (auto-generated from the current timestamp if omitted)',
+      required: false,
+    }),
+    'no-gitignore': Flags.boolean({
+      default: false,
+      description: 'Push every file in the directory, including those matched by .gitignore (the .git/ folder is always excluded)',
       required: false,
     }),
     'no-wait': Flags.boolean({
@@ -130,9 +139,17 @@ ID: 125
         this.error(`Path is not a directory: ${sourceDir}`)
       }
 
-      fileCount = this.countFiles(sourceDir)
+      const files = collectStaticHostFiles(sourceDir, {respectGitignore: !flags['no-gitignore']})
+      if (files.length === 0) {
+        this.error(
+          `No files to push from ${sourceDir} — everything is excluded by .gitignore. ` +
+          `Use --no-gitignore to push the entire directory.`,
+        )
+      }
+
+      fileCount = files.length
       if (animate) ux.action.start('Packaging', `${fileCount} files`)
-      zipBuffer = await this.createZipBuffer(sourceDir)
+      zipBuffer = await this.createZipBuffer(sourceDir, files)
       if (animate) {
         ux.action.stop(`${fileCount} files (${(zipBuffer.length / (1024 * 1024)).toFixed(1)} MB)`)
         ux.action.start('Uploading')
@@ -225,21 +242,7 @@ ID: 125
     }
   }
 
-  private countFiles(dir: string): number {
-    let count = 0
-    const entries = fs.readdirSync(dir, {withFileTypes: true})
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        count += this.countFiles(path.join(dir, entry.name))
-      } else if (entry.isFile()) {
-        count++
-      }
-    }
-
-    return count
-  }
-
-  private async createZipBuffer(sourceDir: string): Promise<Buffer> {
+  private async createZipBuffer(sourceDir: string, files: string[]): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
       const archive = archiver('zip', {zlib: {level: 9}})
@@ -256,7 +259,10 @@ ID: 125
         reject(err)
       })
 
-      archive.directory(sourceDir, false)
+      for (const rel of files) {
+        archive.file(path.join(sourceDir, rel), {name: rel})
+      }
+
       archive.finalize()
     })
   }

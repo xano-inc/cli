@@ -577,11 +577,14 @@ xano static_host build pull default --env prod -d ./prod-release
 
 # Push a build (name optional — auto-generated from the timestamp if omitted).
 # Accepts a directory (-d) or a zip file (-f). Defaults to the current directory.
+# When pushing a directory, files matched by its .gitignore are skipped by default
+# (the .git/ folder is always excluded); use --no-gitignore to push everything.
 # For package.json builds, the CLI waits for the build to finish (--no-wait to skip).
 xano static_host build push default -d ./dist -n "v1.0.0"
 xano static_host build push default                          # current dir, auto-name
 xano static_host build push default -f ./build.zip -n "v1.0.0"  # from zip file
 xano static_host build push default -n "release" --description "Production build"
+xano static_host build push default -d ./static --no-gitignore  # push gitignored files too
 
 # Delete a build (prompts for confirmation; --force to skip)
 xano static_host build delete default --build_id 52

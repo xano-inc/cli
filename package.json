@@ -13,6 +13,7 @@
     "@oclif/plugin-plugins": "^5",
     "@types/archiver": "^7.0.0",
     "archiver": "^7.0.1",
+    "ignore": "^7.0.5",
     "inquirer": "^13.3.0",
     "js-yaml": "^4.1.0",
     "lodash.snakecase": "^4.1.1",
