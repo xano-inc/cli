@@ -25,6 +25,11 @@ Result: PASS
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    branch: Flags.string({
+      char: 'b',
+      description: 'Branch the unit test belongs to (uses profile branch if not provided, then the live branch)',
+      required: false,
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -55,6 +60,7 @@ Result: PASS
     }
 
     const tenantName = encodeURIComponent(flags.tenant)
+    const branch = flags.branch ?? profile.branch
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/unit_test/${encodeURIComponent(args.unit_test_id)}/run`
 
@@ -66,6 +72,7 @@ Result: PASS
       const response = await this.verboseFetch(
         apiUrl,
         {
+          body: JSON.stringify(branch ? {branch} : {}),
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,

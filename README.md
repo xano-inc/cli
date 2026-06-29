@@ -311,6 +311,7 @@ xano unit_test list --branch dev --obj-type function
 
 # Run a single unit test
 xano unit_test run <unit_test_id>
+xano unit_test run <unit_test_id> --branch dev   # run the test from a specific branch
 
 # Run all unit tests
 xano unit_test run_all

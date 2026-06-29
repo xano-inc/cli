@@ -22,9 +22,15 @@ Running unit test abc-123...
 Result: PASS
 `,
     `$ xano unit-test run abc-123 -o json`,
+    `$ xano unit-test run abc-123 --branch dev`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    branch: Flags.string({
+      char: 'b',
+      description: 'Branch the unit test belongs to (uses profile branch if not provided, then the live branch)',
+      required: false,
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -51,6 +57,7 @@ Result: PASS
       )
     }
 
+    const branch = flags.branch ?? profile.branch
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/unit_test/${args.unit_test_id}/run`
 
     try {
@@ -61,6 +68,7 @@ Result: PASS
       const response = await this.verboseFetch(
         apiUrl,
         {
+          body: JSON.stringify(branch ? {branch} : {}),
           headers: {
             'accept': 'application/json',
             'Authorization': `Bearer ${profile.access_token}`,

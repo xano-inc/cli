@@ -41,7 +41,7 @@ Results: 4 passed, 1 failed
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
-      description: 'Filter by branch name',
+      description: 'Branch to run tests from (uses profile branch if not provided, then the live branch)',
       required: false,
     }),
     'obj-type': Flags.string({
@@ -82,10 +82,14 @@ Results: 4 passed, 1 failed
 
     const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/unit_test`
 
+    // Resolve the branch once so the listed tests and the tests we run come
+    // from the same branch.
+    const branch = flags.branch ?? profile.branch
+
     try {
       const listParams = new URLSearchParams()
       listParams.set('per_page', '10000')
-      if (flags.branch) listParams.set('branch', flags.branch)
+      if (branch) listParams.set('branch', branch)
       if (flags['obj-type']) listParams.set('obj_type', flags['obj-type'])
 
       const listResponse = await this.verboseFetch(
@@ -135,6 +139,7 @@ Results: 4 passed, 1 failed
           const runResponse = await this.verboseFetch(
             runUrl,
             {
+              body: JSON.stringify(branch ? {branch} : {}),
               headers: {
                 accept: 'application/json',
                 Authorization: `Bearer ${profile.access_token}`,
