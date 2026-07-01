@@ -33,7 +33,8 @@ export default class FunctionRun extends BaseCommand {
       required: false,
     }),
   }
-static description = 'Run (execute) a named function in a workspace and print its result'
+static description =
+    '[IMPORTANT] ALWAYS confirm with the user before running a function; it executes against the live workspace/branch and may mutate data or call external services. Run (execute) a named function in a workspace and print its result.'
 static examples = [
     `$ xano function:run calcScore -w 40
 # Prompts for any declared inputs, then runs the function`,

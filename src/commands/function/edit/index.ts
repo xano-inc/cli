@@ -35,7 +35,8 @@ export default class FunctionEdit extends BaseCommand {
       required: false,
     }),
   }
-  static description = 'Edit a function in a workspace'
+  static description =
+    '[IMPORTANT] ALWAYS confirm with the user before editing a function; this overwrites and publishes the function on the workspace. Edit a function in a workspace.'
   static examples = [
     `$ xano function:edit 163
 # Fetches the function code and opens it in $EDITOR for editing
