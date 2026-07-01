@@ -284,6 +284,31 @@ when the function returns an error status.
 > denied with an access error — grant run/debug to the role (or use a token whose role has
 > it). `function list`/`get`/`create`/`edit` only need the Function permission.
 
+### Knowledge
+
+```bash
+# List all enabled knowledge as markdown (always-on items show full content, on-demand show name + description)
+xano knowledge list -w 40
+
+# List as JSON
+xano knowledge list -w 40 --output json
+
+# Filter by knowledge type (skill, doc, agents.md)
+xano knowledge list -w 40 --type skill
+
+# Include disabled items
+xano knowledge list --no-enabled-only
+
+# Get a specific knowledge item's content by name
+xano knowledge get "deploy-runbook" -w 40
+
+# Get as JSON (includes all metadata)
+xano knowledge get "deploy-runbook" -w 40 --output json
+
+# Get a reference file attached to a knowledge item
+xano knowledge get "deploy-runbook" -w 40 --file checklist.md
+```
+
 ### Releases
 
 All release commands use **release names** (e.g., `v1.0`), not IDs.

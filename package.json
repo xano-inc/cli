@@ -83,6 +83,9 @@
       "function": {
         "description": "Manage reusable functions in a workspace"
       },
+      "knowledge": {
+        "description": "Manage workspace knowledge and skills"
+      },
       "profile": {
         "description": "Manage CLI profiles and authentication"
       },
