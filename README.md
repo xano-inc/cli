@@ -255,7 +255,34 @@ xano function edit <function_id> -f new.xs              # Update from file
 xano function edit <function_id> -f new.xs --edit       # Open in $EDITOR before updating
 cat function.xs | xano function edit <function_id> --stdin  # Update from stdin
 xano function edit <function_id> --no-publish           # Edit without publishing
+
+# Run (execute) a function by name
+xano function run <name>                                # Prompts for declared inputs (on a TTY)
+xano function run <name> --data email=jo@x.com --data age:=30 --data active:=true
+xano function run <name> --json @payload.json --data env=staging   # base payload + override
+echo '{"email":"jo@x.com"}' | xano function run <name> --stdin -o json | jq .result
+xano function run <name> --branch dev --logs            # run on a branch, show execution logs
 ```
+
+Input flexibility for `function run` (assembled into one JSON `input` object):
+
+| Form | Meaning |
+| --- | --- |
+| `--data key=value` | string field |
+| `--data key:=<json>` | raw JSON field (`age:=30`, `active:=true`, `tags:='["a","b"]'`) |
+| `--data key@file` | field value read from a file |
+| `--json '<inline>'` / `--json @file.json` / `--json -` | a base JSON object (stdin with `-`) |
+| `--stdin` | read the JSON object from stdin (same as `--json -`) |
+
+Merge order is JSON base first, then `--data` overrides. Missing required inputs are
+prompted for on an interactive terminal; in a non-TTY (CI) context the command fails
+listing them. Output defaults to the raw `result` (`-o json`); the exit code is non-zero
+when the function returns an error status.
+
+> **Permissions:** running a function requires **Function** (read) plus the **run/debug**
+> action on your workspace role. If your access token's role lacks run/debug, the call is
+> denied with an access error — grant run/debug to the role (or use a token whose role has
+> it). `function list`/`get`/`create`/`edit` only need the Function permission.
 
 ### Releases
 
