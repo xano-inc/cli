@@ -205,6 +205,17 @@ describe('knowledge-sync', () => {
       expect(obj).to.include({description: '', enabled: true, mode: 'auto', scope: 'workspace'})
     })
 
+    it('normalizes frontend display labels for mode to the backend enum', () => {
+      const tmp = mkTmp()
+      writeFile(tmp, 'knowledge/docs/a.md', '---\nname: a\nmode: on demand\n---\n')
+      writeFile(tmp, 'knowledge/docs/b.md', '---\nname: b\nmode: Manual\n---\n')
+      writeFile(tmp, 'knowledge/docs/c.md', '---\nname: c\nmode: Always Included\n---\n')
+      writeFile(tmp, 'knowledge/docs/d.md', '---\nname: d\nmode: auto\n---\n')
+
+      const byName = Object.fromEntries(collectKnowledgeObjects(tmp).map((o) => [o.name, o.mode]))
+      expect(byName).to.deep.equal({a: 'auto', b: 'referenced', c: 'always', d: 'auto'})
+    })
+
     it('records the source filePath but strips it from push items', () => {
       const tmp = mkTmp()
       writeFile(tmp, 'knowledge/docs/x.md', '---\nname: X\n---\nbody')

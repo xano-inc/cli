@@ -147,6 +147,26 @@ export function parseFrontmatter(content: string): {guid?: string; name?: string
   return result
 }
 
+// ── Mode normalization ───────────────────────────────────────────────────────
+
+/**
+ * The API only accepts the backend `mode` enum (`auto` | `referenced` | `always`),
+ * but the Xano UI displays these as "On Demand" / "Manual" / "Always Included".
+ * Hand-authored frontmatter (or content copied from the UI) commonly uses the
+ * display label instead, which the API rejects with e.g. `Input "on demand" is
+ * not one of the allowable values.` (DEV-7380/DEV-7382). Normalize known aliases
+ * before every push so the backend enum value is always what's sent.
+ */
+const MODE_ALIASES: Record<string, string> = {
+  'always included': 'always',
+  'manual': 'referenced',
+  'on demand': 'auto',
+}
+
+function normalizeMode(mode: string): string {
+  return MODE_ALIASES[mode.trim().toLowerCase()] ?? mode
+}
+
 // ── Path mapping (CLI-owned layout) ────────────────────────────────────────────
 
 /**
@@ -300,7 +320,7 @@ export function collectKnowledgeObjects(
       enabled: typeof meta.enabled === 'boolean' ? meta.enabled : true,
       filePath: absPath,
       knowledge_type: knowledgeType,
-      mode: typeof meta.mode === 'string' ? meta.mode : 'auto',
+      mode: typeof meta.mode === 'string' ? normalizeMode(meta.mode) : 'auto',
       name: typeof meta.name === 'string' ? meta.name : deriveName(posixPath),
       scope: typeof meta.scope === 'string' ? meta.scope : 'workspace',
     }
