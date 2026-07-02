@@ -11,7 +11,7 @@ interface KnowledgeItem {
   knowledge_type: string
   locked: boolean
   mode: string
-  name: string
+  name: null | string
   references?: string[]
   scope?: string
 }
@@ -111,10 +111,10 @@ export default class KnowledgeGet extends BaseCommand {
       const items: KnowledgeItem[] = Array.isArray(data) ? data : (data.items ?? [])
 
       const targetName = args.name.toLowerCase()
-      const item = items.find((i) => i.name.toLowerCase() === targetName)
+      const item = items.find((i) => i.name?.toLowerCase() === targetName)
 
       if (!item) {
-        const available = items.map((i) => i.name).join(', ')
+        const available = items.map((i) => i.name).filter(Boolean).join(', ')
         this.error(
           `Knowledge item not found: "${args.name}"\n` +
           (available ? `Available items: ${available}` : 'No knowledge items exist in this workspace.'),
@@ -145,12 +145,13 @@ export default class KnowledgeGet extends BaseCommand {
           )
         }
 
-        const fileData = await fileResponse.text()
+        const fileJson = await fileResponse.json() as {file?: {content?: string}}
+        const fileContent = fileJson.file?.content ?? ''
 
         if (flags.output === 'json') {
-          this.log(JSON.stringify({content: fileData, name: item.name, path: flags.file}, null, 2))
+          this.log(JSON.stringify({content: fileContent, name: item.name, path: flags.file}, null, 2))
         } else {
-          this.log(fileData)
+          this.log(fileContent)
         }
 
         return

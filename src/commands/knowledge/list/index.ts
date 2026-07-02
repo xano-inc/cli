@@ -11,7 +11,7 @@ interface KnowledgeItem {
   knowledge_type: string
   locked: boolean
   mode: string
-  name: string
+  name: null | string
   scope?: string
 }
 
@@ -47,6 +47,7 @@ export default class KnowledgeList extends BaseCommand {
       required: false,
     }),
     'enabled-only': Flags.boolean({
+      allowNo: true,
       default: true,
       description: 'Only show enabled knowledge (use --no-enabled-only to include disabled)',
       required: false,
@@ -154,7 +155,7 @@ export default class KnowledgeList extends BaseCommand {
     if (alwaysOn.length > 0) {
       lines.push('# Always-on Knowledge')
       for (const item of alwaysOn) {
-        lines.push('', `## ${item.name}`, '', item.content ?? '', '', '---')
+        lines.push('', `## ${item.name ?? '(unnamed)'}`, '', item.content ?? '', '', '---')
       }
     }
 
@@ -163,7 +164,7 @@ export default class KnowledgeList extends BaseCommand {
       lines.push('# On-demand Knowledge', '')
       for (const item of onDemand) {
         const desc = item.description || '(no description)'
-        lines.push(`- **${item.name}**: ${desc}`)
+        lines.push(`- **${item.name ?? '(unnamed)'}**: ${desc}`)
       }
     }
 
