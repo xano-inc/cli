@@ -3,7 +3,7 @@ import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import {Agent, type Dispatcher} from 'undici'
+import {Agent, fetch as undiciFetch, type Dispatcher} from 'undici'
 
 import {checkForUpdate} from './update-check.js'
 import {
@@ -444,7 +444,11 @@ export default abstract class BaseCommand extends Command {
     }
 
     const startTime = Date.now()
-    const response = await fetch(url, fetchOptions)
+    // Use undici.fetch, not global fetch: the dispatcher is an npm undici@6 Agent while
+    // global fetch uses Node's bundled undici. When those versions diverge, mixing them
+    // is unsupported (handler API mismatch → UND_ERR_INVALID_ARG). Upstream guidance:
+    // pass fetch and dispatcher from the same undici install.
+    const response = await undiciFetch(url, fetchOptions as Parameters<typeof undiciFetch>[1])
     const elapsed = Date.now() - startTime
 
     if (verbose) {
@@ -453,6 +457,6 @@ export default abstract class BaseCommand extends Command {
       this.log('')
     }
 
-    return response
+    return response as unknown as Response
   }
 }
