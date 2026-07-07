@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {pushKnowledge} from '../../../utils/knowledge-sync.js'
 
 export default class SandboxReset extends BaseCommand {
   static description =
@@ -56,6 +57,21 @@ Sandbox environment has been reset.
       if (!response.ok) {
         const message = await this.parseApiError(response, 'API request failed')
         this.error(message)
+      }
+
+      try {
+        const knowledgeUrl = `${profile.instance_origin}/api:meta/sandbox/knowledge/sync`
+        await pushKnowledge(knowledgeUrl, profile.access_token, this.verboseFetch.bind(this), flags.verbose, {
+          delete: true,
+          force: true,
+          items: [],
+        })
+      } catch (error) {
+        this.warn(
+          `Sandbox environment was reset, but clearing knowledge files failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
       }
 
       this.log('Sandbox environment has been reset.')
