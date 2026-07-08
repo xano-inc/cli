@@ -105,11 +105,21 @@ export default class DebugGet extends BaseCommand {
       this.error(`Server returned a non-JSON debug payload (${rawText.length} bytes)`, {exit: 2})
     }
 
+    // `JSON.parse('null')` succeeds — reject empty/non-object payloads so the
+    // summary renderers never dereference null (which would be an uncaught
+    // TypeError → exit 1, colliding with the documented exception exit code).
+    if (!payload || typeof payload !== 'object') {
+      this.error('Server returned an empty or invalid debug payload', {exit: 2})
+    }
+
     if (flags.out) {
       const outPath = resolve(flags.out)
       try {
         // 0600: the payload can contain sensitive resolved values from the run.
+        // writeFileSync only applies `mode` when creating the file, so chmod
+        // afterwards to enforce the claimed permission when overwriting too.
         fs.writeFileSync(outPath, rawText, {encoding: 'utf8', mode: 0o600})
+        fs.chmodSync(outPath, 0o600)
       } catch (error) {
         this.error(
           `Failed to write ${outPath}: ${error instanceof Error ? error.message : String(error)}`,

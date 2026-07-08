@@ -199,7 +199,13 @@ export function formatTiming(timing: unknown): string {
 
 /** One-line headline for an exception value (object with message, or anything). */
 export function exceptionHeadline(exception: unknown): string {
-  if (exception && typeof exception === 'object' && 'message' in exception) {
+  // A status:exception envelope may arrive without a populated exception field;
+  // fall back to a sensible label rather than "undefined"/"null".
+  if (exception === null || exception === undefined) {
+    return '(no exception details provided)'
+  }
+
+  if (typeof exception === 'object' && 'message' in exception) {
     return String((exception as {message: unknown}).message)
   }
 

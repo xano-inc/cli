@@ -287,8 +287,12 @@ export default class DebugRun extends BaseCommand {
     if (response.status === 409) {
       // A caller-supplied debug id already has a stored result; the run was
       // rejected before executing anything — fetch the existing result instead.
+      // Only point at the get command when we actually have an id to fetch.
       const message = await this.parseApiError(response, 'Debug run rejected')
-      this.error(`${message}\nFetch the stored result with: xano debug get ${debugId}`, {exit: 2})
+      this.error(
+        debugId ? `${message}\nFetch the stored result with: xano debug get ${debugId}` : message,
+        {exit: 2},
+      )
     }
 
     if (!response.ok) {
@@ -296,7 +300,22 @@ export default class DebugRun extends BaseCommand {
       this.error(message, {exit: 2})
     }
 
-    return (await response.json()) as DebugRunEnvelope
+    // Read as text then parse so a non-JSON 200 body is a clean exit 2 rather
+    // than an uncaught response.json() reject (which oclif surfaces as exit 1,
+    // colliding with the documented exception exit code).
+    const rawText = await response.text()
+    let envelope: DebugRunEnvelope
+    try {
+      envelope = JSON.parse(rawText) as DebugRunEnvelope
+    } catch {
+      this.error(`Server returned a non-JSON debug response (${rawText.length} bytes)`, {exit: 2})
+    }
+
+    if (!envelope || typeof envelope !== 'object') {
+      this.error('Server returned an empty or invalid debug response', {exit: 2})
+    }
+
+    return envelope
   }
 
   /** Warn (never block) when the requested entry isn't in the collected docs. */

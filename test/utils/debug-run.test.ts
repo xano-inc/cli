@@ -170,6 +170,16 @@ describe('debug-run helpers', () => {
       expect(lines.join('\n')).to.not.contain('Result:')
     })
 
+    it('renders a status:exception envelope missing the exception field without printing "undefined"', () => {
+      const lines = renderDebugRunSummary({
+        debug_id: '018f3a6e-1111-4222-8333-444455556666',
+        status: 'exception',
+        timing: 0.1,
+      })
+      expect(lines).to.include('Exception: (no exception details provided)')
+      expect(lines.join('\n')).to.not.contain('undefined')
+    })
+
     it('explains a null debug_id and includes the warning', () => {
       const lines = renderDebugRunSummary({
         debug_id: null,
