@@ -34,6 +34,7 @@ export interface KnowledgeObject {
   mode?: string
   name: string
   scope?: string
+  tag?: string[]
 }
 
 /** A locally-collected object that also remembers its primary file on disk (for GUID writeback). */
@@ -81,7 +82,16 @@ type VerboseFetch = (url: string, options: RequestInit, verbose: boolean, authTo
 
 // ── Frontmatter ──────────────────────────────────────────────────────────────
 
-const FRONTMATTER_ORDER = ['name', 'description', 'knowledge_type', 'scope', 'inclusion', 'enabled', 'guid'] as const
+const FRONTMATTER_ORDER = [
+  'name',
+  'description',
+  'knowledge_type',
+  'scope',
+  'inclusion',
+  'tags',
+  'enabled',
+  'guid',
+] as const
 
 /**
  * Build a primary `.md` file body: YAML frontmatter (built from the object's
@@ -94,6 +104,7 @@ export function buildPrimaryContent(obj: KnowledgeObject): string {
   meta.knowledge_type = obj.knowledge_type
   if (obj.scope !== undefined) meta.scope = obj.scope
   if (obj.mode !== undefined) meta.inclusion = modeToInclusion(obj.mode)
+  if (obj.tag !== undefined && obj.tag.length > 0) meta.tags = obj.tag
   if (obj.enabled !== undefined) meta.enabled = obj.enabled
   if (obj.guid !== undefined) meta.guid = obj.guid
 
@@ -178,6 +189,11 @@ const MODE_TO_INCLUSION: Record<string, string> = {
 
 function modeToInclusion(mode: string): string {
   return MODE_TO_INCLUSION[mode] ?? mode
+}
+
+/** Parse the on-disk `tags:` frontmatter value into a string array, or `undefined` if absent/malformed. */
+function parseTags(tags: unknown): string[] | undefined {
+  return Array.isArray(tags) && tags.every((t) => typeof t === 'string') ? tags : undefined
 }
 
 // ── Path mapping (CLI-owned layout) ────────────────────────────────────────────
@@ -339,6 +355,8 @@ export function collectKnowledgeObjects(
       scope: typeof meta.scope === 'string' ? meta.scope : 'workspace',
     }
     if (typeof meta.guid === 'string') obj.guid = meta.guid
+    const tags = parseTags(meta.tags)
+    if (tags) obj.tag = tags
 
     if (knowledgeType === 'skill') {
       const skillFolder = posixPath.slice('skills/'.length, posixPath.indexOf('/SKILL.md'))
@@ -465,6 +483,7 @@ function canonical(obj: KnowledgeObject): string {
     files,
     mode: obj.mode ?? '',
     scope: obj.scope ?? '',
+    tag: [...(obj.tag ?? [])].sort(),
   })
 }
 

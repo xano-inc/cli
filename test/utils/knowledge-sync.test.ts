@@ -51,6 +51,7 @@ describe('knowledge-sync', () => {
         mode: 'auto',
         name: 'My Skill',
         scope: 'workspace',
+        tag: ['a', 'b'],
       }
       const out = buildPrimaryContent(obj)
       expect(out.startsWith('---\n')).to.be.true
@@ -58,7 +59,16 @@ describe('knowledge-sync', () => {
       expect(out).to.include('knowledge_type: skill')
       expect(out).to.include('inclusion: on demand')
       expect(out).to.include('guid: g-1')
+      expect(out).to.match(/tags:\n\s+- a\n\s+- b/)
       expect(out.endsWith('# Body\ntext')).to.be.true
+    })
+
+    it('omits tags from frontmatter when absent or empty', () => {
+      const withoutTag = buildPrimaryContent({content: 'x', knowledge_type: 'doc', name: 'No Tags'})
+      expect(withoutTag).to.not.match(/^tags:/m)
+
+      const withEmptyTag = buildPrimaryContent({content: 'x', knowledge_type: 'doc', name: 'Empty Tags', tag: []})
+      expect(withEmptyTag).to.not.match(/^tags:/m)
     })
 
     it('parsePrimaryContent recovers meta and body', () => {
@@ -240,6 +250,24 @@ describe('knowledge-sync', () => {
         const obj = collected.find((o) => o.name === `Doc ${i}`)!
         expect(obj.mode).to.equal(mode)
       }
+    })
+
+    it('round-trips tags through writeKnowledge and collectKnowledgeObjects', () => {
+      const tmp = mkTmp()
+      writeKnowledge([{content: '# body', knowledge_type: 'doc', name: 'Tagged', tag: ['deploy', 'runbook']}], tmp)
+
+      const raw = read(tmp, 'knowledge', 'docs', 'tagged.md')
+      expect(raw).to.include('tags:')
+
+      const [obj] = collectKnowledgeObjects(tmp)
+      expect(obj.tag).to.deep.equal(['deploy', 'runbook'])
+    })
+
+    it('leaves tag undefined when frontmatter omits tags', () => {
+      const tmp = mkTmp()
+      writeFile(tmp, 'knowledge/docs/untagged.md', '---\nname: Untagged\n---\nbody')
+      const [obj] = collectKnowledgeObjects(tmp)
+      expect(obj.tag).to.be.undefined
     })
 
     it('records the source filePath but strips it from push items', () => {
