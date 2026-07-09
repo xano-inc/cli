@@ -8,7 +8,7 @@ import {executePush, type PushFlags, type PushTarget} from '../../../utils/multi
 
 export default class SandboxPush extends BaseCommand {
   static override description =
-    '[IMPORTANT] ALWAYS run --dry-run first and show the user the output before pushing. Push local documents to your sandbox environment via multidoc import. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only. Include/exclude glob filters are intentionally not supported on sandbox push — partial pushes can hide deletions during review and lead to data loss when promoted to the workspace. Large pushes against a sandbox loaded with a different workspace will prompt for confirmation; run `xano sandbox reset` first to start clean.'
+    '[IMPORTANT] ALWAYS run --dry-run first and show the user the output before pushing. Push local documents to your sandbox environment via multidoc import. By default, only changed files are pushed (partial mode). Use --sync to push all files. Shows a preview of changes before pushing unless --force is specified. Use --dry-run to preview only. Include/exclude glob filters are intentionally not supported on sandbox push — partial pushes can hide deletions during review and lead to data loss when promoted to the workspace. Pushing into a sandbox that currently holds a different workspace will prompt for confirmation; run `xano sandbox reset` first to start clean.'
   static override examples = [
     `$ xano sandbox push
 Push from current directory (default partial mode)
@@ -119,6 +119,7 @@ Push and open sandbox review in the browser
       cliVersion: this.config.version,
       instanceOrigin: profile.instance_origin,
       label: 'sandbox environment',
+      sourceWorkspaceId: profile.workspace,
       supportsBranches: false,
       supportsPartial: true,
       warnOnWorkspaceMismatch: true,
@@ -143,6 +144,10 @@ Push and open sandbox review in the browser
         branch: '',
         command: this,
         inputDir,
+        knowledge: {
+          listUrl: () => `${baseUrl}/knowledge/sync`,
+          rootDir: inputDir,
+        },
         verboseFetch: this.verboseFetch.bind(this),
       },
       target,
@@ -152,6 +157,20 @@ Push and open sandbox review in the browser
     if (flags.review) {
       await this.openReview(profile.instance_origin, profile.access_token, flags.verbose)
     }
+  }
+
+  private getFrontendUrl(instanceOrigin: string): string {
+    try {
+      const url = new URL(instanceOrigin)
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        url.port = '4200'
+        return url.origin
+      }
+    } catch {
+      // fall through
+    }
+
+    return instanceOrigin
   }
 
   private async openReview(instanceOrigin: string, accessToken: string, verbose: boolean): Promise<void> {
@@ -187,17 +206,4 @@ Push and open sandbox review in the browser
     await open(reviewUrl)
   }
 
-  private getFrontendUrl(instanceOrigin: string): string {
-    try {
-      const url = new URL(instanceOrigin)
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-        url.port = '4200'
-        return url.origin
-      }
-    } catch {
-      // fall through
-    }
-
-    return instanceOrigin
-  }
 }

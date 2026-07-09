@@ -47,6 +47,13 @@ xano auth
 xano auth --origin https://custom.xano.com
 xano auth --insecure                         # Skip TLS verification (self-signed certs)
 xano auth --no-browser                       # Headless login (no local callback server)
+
+# Pre-select instance/workspace/branch and profile name (skips the pickers)
+xano auth -i my-instance -w 5 -b dev -p staging
+xano auth --instance my-instance --workspace "My Workspace" --branch dev --profile staging
+
+# Pass "" to take a picker's default: skip workspace, use live branch, default profile name
+xano auth -i my-instance -w 5 -b "" -p ""
 ```
 
 The default flow starts a temporary callback server on `127.0.0.1` and waits
@@ -55,12 +62,20 @@ containers, or locked-down networks where the browser can't reach the CLI's
 loopback address, use `--no-browser`: the CLI prints a login URL, you open it
 in any browser, and paste back the code it displays. No local server required.
 
+Each picker can be pre-answered with a flag: `-i/--instance` (instance name, or numeric instance ID),
+`-w/--workspace` (workspace ID or name), `-b/--branch` (branch label), and
+`-p/--profile` (profile name to save). An empty value (`""`) takes the
+picker's default answer: `-w ""` skips workspace selection, `-b ""` skips and
+uses the live branch, and `-p ""` uses the default profile name. With all four
+set alongside `--no-browser`, the only input is pasting the code from the
+browser — useful for scripted or remote setups.
+
 When stdin is piped (not a TTY), `--no-browser` reads the code directly from
 stdin instead of prompting, so scripts and AI agents can complete the flow
 without an interactive terminal:
 
 ```bash
-echo "$CODE" | xano auth --no-browser
+echo "$CODE" | xano auth --no-browser -i my-instance -w 5 -b dev -p staging
 ```
 
 If you can't run `xano auth` at all, you can always create a profile manually
@@ -240,6 +255,58 @@ xano function edit <function_id> -f new.xs              # Update from file
 xano function edit <function_id> -f new.xs --edit       # Open in $EDITOR before updating
 cat function.xs | xano function edit <function_id> --stdin  # Update from stdin
 xano function edit <function_id> --no-publish           # Edit without publishing
+
+# Run (execute) a function by name
+xano function run <name>                                # Prompts for declared inputs (on a TTY)
+xano function run <name> --data email=jo@x.com --data age:=30 --data active:=true
+xano function run <name> --json @payload.json --data env=staging   # base payload + override
+echo '{"email":"jo@x.com"}' | xano function run <name> --stdin -o json | jq .result
+xano function run <name> --branch dev --logs            # run on a branch, show execution logs
+```
+
+Input flexibility for `function run` (assembled into one JSON `input` object):
+
+| Form | Meaning |
+| --- | --- |
+| `--data key=value` | string field |
+| `--data key:=<json>` | raw JSON field (`age:=30`, `active:=true`, `tags:='["a","b"]'`) |
+| `--data key@file` | field value read from a file |
+| `--json '<inline>'` / `--json @file.json` / `--json -` | a base JSON object (stdin with `-`) |
+| `--stdin` | read the JSON object from stdin (same as `--json -`) |
+
+Merge order is JSON base first, then `--data` overrides. Missing required inputs are
+prompted for on an interactive terminal; in a non-TTY (CI) context the command fails
+listing them. Output defaults to the raw `result` (`-o json`); the exit code is non-zero
+when the function returns an error status.
+
+> **Permissions:** running a function requires **Function** (read) plus the **run/debug**
+> action on your workspace role. If your access token's role lacks run/debug, the call is
+> denied with an access error — grant run/debug to the role (or use a token whose role has
+> it). `function list`/`get`/`create`/`edit` only need the Function permission.
+
+### Knowledge
+
+```bash
+# List all enabled knowledge as markdown (always-on items show full content, on-demand show name + description)
+xano knowledge list -w 40
+
+# List as JSON
+xano knowledge list -w 40 --output json
+
+# Filter by knowledge type (skill, doc, agents.md)
+xano knowledge list -w 40 --type skill
+
+# Include disabled items
+xano knowledge list --no-enabled-only
+
+# Get a specific knowledge item's content by name
+xano knowledge get "deploy-runbook" -w 40
+
+# Get as JSON (includes all metadata)
+xano knowledge get "deploy-runbook" -w 40 --output json
+
+# Get a reference file attached to a knowledge item
+xano knowledge get "deploy-runbook" -w 40 --file checklist.md
 ```
 
 ### Releases
@@ -311,6 +378,7 @@ xano unit_test list --branch dev --obj-type function
 
 # Run a single unit test
 xano unit_test run <unit_test_id>
+xano unit_test run <unit_test_id> --branch dev   # run the test from a specific branch
 
 # Run all unit tests
 xano unit_test run_all
@@ -541,14 +609,49 @@ xano sandbox reset --force
 # List static hosts
 xano static_host list
 
-# Create a build
-xano static_host build create default -f ./build.zip -n "v1.0.0"
+# Create / get / edit a static host
+xano static_host create marketing --description "Marketing site"
+xano static_host get marketing
+xano static_host edit marketing --name marketing-v2 --description "Updated"
 
 # List builds
 xano static_host build list default
 
 # Get build details
-xano static_host build get default 52
+xano static_host build get default --build_id 52
+
+# Pull a build to disk. Defaults to the original uploaded source
+# (including package.json). Use --source built for the compiled/served output.
+xano static_host build pull default --build_id 52    # By build ID (original source)
+xano static_host build pull default --build_id 52 --source built   # Compiled output
+xano static_host build pull default --latest         # Latest build
+xano static_host build pull default --env dev        # Build currently deployed to dev
+xano static_host build pull default --env prod -d ./prod-release
+
+# Push a build (name optional — auto-generated from the timestamp if omitted).
+# Accepts a directory (-d) or a zip file (-f). Defaults to the current directory.
+# When pushing a directory, files matched by its .gitignore are skipped by default
+# (the .git/ folder is always excluded); use --no-gitignore to push everything.
+# For package.json builds, the CLI waits for the build to finish (--no-wait to skip).
+xano static_host build push default -d ./dist -n "v1.0.0"
+xano static_host build push default                          # current dir, auto-name
+xano static_host build push default -f ./build.zip -n "v1.0.0"  # from zip file
+xano static_host build push default -n "release" --description "Production build"
+xano static_host build push default -d ./static --no-gitignore  # push gitignored files too
+
+# Delete a build (prompts for confirmation; --force to skip)
+xano static_host build delete default --build_id 52
+xano static_host build delete default --build_id 52 --force
+
+# Deploy a build to an environment
+xano static_host deploy default --build_id 52 --env dev
+xano static_host deploy default --build_id 52 --env prod
+
+# Migrate a host to instance-managed (v2) hosting
+xano static_host migrate newsite                 # one host (both envs)
+xano static_host migrate newsite --env dev        # one env
+xano static_host migrate --all                    # every v1 host in the workspace
+xano static_host migrate --all --dry-run          # preview without changing anything
 ```
 
 ## Global Options

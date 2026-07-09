@@ -6,12 +6,13 @@ import snakeCase from 'lodash.snakecase'
 
 import BaseCommand from '../../../base-command.js'
 import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
 
 export default class Pull extends BaseCommand {
   static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
   static examples = [
     `$ xano workspace pull
-Pulled 42 documents to current directory
+Pulled 42 documents + 5 knowledge files to current directory
 `,
     `$ xano workspace pull -d ./my-workspace
 Pulled 42 documents to ./my-workspace
@@ -258,7 +259,25 @@ Pulled 58 documents
       writtenCount++
     }
 
-    this.log(`Pulled ${writtenCount} documents to ${flags.directory}`)
+    // ── Pull knowledge ────────────────────────────────────────────────────
+
+    const knowledgeUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/knowledge/sync`
+    const knowledgeObjects = await fetchKnowledge(
+      knowledgeUrl,
+      branch,
+      profile.access_token,
+      this.verboseFetch.bind(this),
+      flags.verbose,
+    )
+
+    let knowledgeCount = 0
+    if (knowledgeObjects.length > 0) {
+      knowledgeCount = writeKnowledge(knowledgeObjects, outputDir)
+    }
+
+    const parts: string[] = [`${writtenCount} documents`]
+    if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
+    this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
   }
 
   /**
