@@ -81,7 +81,7 @@ type VerboseFetch = (url: string, options: RequestInit, verbose: boolean, authTo
 
 // ── Frontmatter ──────────────────────────────────────────────────────────────
 
-const FRONTMATTER_ORDER = ['name', 'description', 'knowledge_type', 'scope', 'mode', 'enabled', 'guid'] as const
+const FRONTMATTER_ORDER = ['name', 'description', 'knowledge_type', 'scope', 'inclusion', 'enabled', 'guid'] as const
 
 /**
  * Build a primary `.md` file body: YAML frontmatter (built from the object's
@@ -93,7 +93,7 @@ export function buildPrimaryContent(obj: KnowledgeObject): string {
   if (obj.description !== undefined) meta.description = obj.description
   meta.knowledge_type = obj.knowledge_type
   if (obj.scope !== undefined) meta.scope = obj.scope
-  if (obj.mode !== undefined) meta.mode = obj.mode
+  if (obj.mode !== undefined) meta.inclusion = modeToInclusion(obj.mode)
   if (obj.enabled !== undefined) meta.enabled = obj.enabled
   if (obj.guid !== undefined) meta.guid = obj.guid
 
@@ -151,11 +151,13 @@ export function parseFrontmatter(content: string): {guid?: string; name?: string
 
 /**
  * The API only accepts the backend `mode` enum (`auto` | `referenced` | `always`),
- * but the Xano UI displays these as "On Demand" / "Manual" / "Always Included".
- * Hand-authored frontmatter (or content copied from the UI) commonly uses the
- * display label instead, which the API rejects with e.g. `Input "on demand" is
- * not one of the allowable values.` (DEV-7380/DEV-7382). Normalize known aliases
- * before every push so the backend enum value is always what's sent.
+ * but on disk (and in the Xano UI) this is the `inclusion` field with values
+ * "on demand" / "manual" / "always" — see `modeToInclusion` for the pull-side
+ * mapping. Hand-authored frontmatter (or content copied from the UI) commonly
+ * uses the display label instead, which the API rejects with e.g. `Input
+ * "on demand" is not one of the allowable values.` (DEV-7380/DEV-7382).
+ * Normalize known aliases before every push so the backend enum value is
+ * always what's sent.
  */
 const MODE_ALIASES: Record<string, string> = {
   'always included': 'always',
@@ -165,6 +167,17 @@ const MODE_ALIASES: Record<string, string> = {
 
 function normalizeMode(mode: string): string {
   return MODE_ALIASES[mode.trim().toLowerCase()] ?? mode
+}
+
+/** Map the backend `mode` enum to the `inclusion:` frontmatter value shown in the Xano UI. */
+const MODE_TO_INCLUSION: Record<string, string> = {
+  always: 'always',
+  auto: 'on demand',
+  referenced: 'manual',
+}
+
+function modeToInclusion(mode: string): string {
+  return MODE_TO_INCLUSION[mode] ?? mode
 }
 
 // ── Path mapping (CLI-owned layout) ────────────────────────────────────────────
@@ -314,13 +327,14 @@ export function collectKnowledgeObjects(
 
     // The API requires description/scope/mode/enabled on every item, so default
     // them when a hand-authored file omits them (pulled files always carry them).
+    // `mode` is read from the on-disk `inclusion:` field (see modeToInclusion).
     const obj: LocalKnowledgeObject = {
       content: body,
       description: typeof meta.description === 'string' ? meta.description : '',
       enabled: typeof meta.enabled === 'boolean' ? meta.enabled : true,
       filePath: absPath,
       knowledge_type: knowledgeType,
-      mode: typeof meta.mode === 'string' ? normalizeMode(meta.mode) : 'auto',
+      mode: typeof meta.inclusion === 'string' ? normalizeMode(meta.inclusion) : 'auto',
       name: typeof meta.name === 'string' ? meta.name : deriveName(posixPath),
       scope: typeof meta.scope === 'string' ? meta.scope : 'workspace',
     }

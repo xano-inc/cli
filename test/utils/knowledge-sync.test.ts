@@ -56,6 +56,7 @@ describe('knowledge-sync', () => {
       expect(out.startsWith('---\n')).to.be.true
       expect(out).to.include('name: My Skill')
       expect(out).to.include('knowledge_type: skill')
+      expect(out).to.include('inclusion: on demand')
       expect(out).to.include('guid: g-1')
       expect(out.endsWith('# Body\ntext')).to.be.true
     })
@@ -205,15 +206,40 @@ describe('knowledge-sync', () => {
       expect(obj).to.include({description: '', enabled: true, mode: 'auto', scope: 'workspace'})
     })
 
-    it('normalizes frontend display labels for mode to the backend enum', () => {
+    it('normalizes frontend display labels for inclusion to the backend enum', () => {
       const tmp = mkTmp()
-      writeFile(tmp, 'knowledge/docs/a.md', '---\nname: a\nmode: on demand\n---\n')
-      writeFile(tmp, 'knowledge/docs/b.md', '---\nname: b\nmode: Manual\n---\n')
-      writeFile(tmp, 'knowledge/docs/c.md', '---\nname: c\nmode: Always Included\n---\n')
-      writeFile(tmp, 'knowledge/docs/d.md', '---\nname: d\nmode: auto\n---\n')
+      writeFile(tmp, 'knowledge/docs/a.md', '---\nname: a\ninclusion: on demand\n---\n')
+      writeFile(tmp, 'knowledge/docs/b.md', '---\nname: b\ninclusion: Manual\n---\n')
+      writeFile(tmp, 'knowledge/docs/c.md', '---\nname: c\ninclusion: always\n---\n')
+      writeFile(tmp, 'knowledge/docs/d.md', '---\nname: d\ninclusion: auto\n---\n')
 
       const byName = Object.fromEntries(collectKnowledgeObjects(tmp).map((o) => [o.name, o.mode]))
       expect(byName).to.deep.equal({a: 'auto', b: 'referenced', c: 'always', d: 'auto'})
+    })
+
+    it('round-trips inclusion through writeKnowledge and collectKnowledgeObjects for each mode', () => {
+      const tmp = mkTmp()
+      const modes: Array<{inclusion: string; mode: string}> = [
+        {inclusion: 'on demand', mode: 'auto'},
+        {inclusion: 'always', mode: 'always'},
+        {inclusion: 'manual', mode: 'referenced'},
+      ]
+      const objects: KnowledgeObject[] = modes.map(({mode}, i) => ({
+        content: `# ${i}`,
+        knowledge_type: 'doc',
+        mode,
+        name: `Doc ${i}`,
+      }))
+      writeKnowledge(objects, tmp)
+
+      const collected = collectKnowledgeObjects(tmp)
+      for (const [i, {inclusion, mode}] of modes.entries()) {
+        const raw = read(tmp, 'knowledge', 'docs', `doc_${i}.md`)
+        expect(raw).to.include(`inclusion: ${inclusion}`)
+        expect(raw).to.not.match(/^mode:/m)
+        const obj = collected.find((o) => o.name === `Doc ${i}`)!
+        expect(obj.mode).to.equal(mode)
+      }
     })
 
     it('records the source filePath but strips it from push items', () => {
