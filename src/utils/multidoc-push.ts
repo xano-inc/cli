@@ -4,6 +4,16 @@ import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
 import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
+import {
+  collectKnowledgeObjects,
+  fetchKnowledge,
+  type KnowledgeDryRunResult,
+  knowledgePreview,
+  type LocalKnowledgeObject,
+  pushKnowledge,
+  syncGuidToFrontmatter,
+  toPushItems,
+} from './knowledge-sync.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
@@ -34,16 +44,28 @@ export interface PushTarget {
   instanceOrigin: string
   /** Human-readable label for log messages (e.g., "sandbox environment", "workspace 40") */
   label: string
+  /**
+   * The id of the source workspace being pushed (from the active profile). Sent to the sandbox
+   * so the backend can flag a mismatch when it differs from the workspace the sandbox last held.
+   */
+  sourceWorkspaceId?: string
   /** Does this target support branches? */
   supportsBranches: boolean
   /** Does this target support the partial query param? */
   supportsPartial: boolean
   /**
-   * Warn when the workspace embedded in the local push differs from the workspace currently
-   * loaded on the target (per dry-run). Used by sandbox push because the sandbox is shared
-   * across workspaces and pushing onto a different workspace can leave stale state behind.
+   * Warn when the sandbox currently holds a different source workspace than the one being pushed
+   * (per the dry-run's `source_workspace_mismatch` flag). Used by sandbox push because the sandbox
+   * is shared across workspaces and pushing onto a different one can leave stale state behind.
    */
   warnOnWorkspaceMismatch?: boolean
+}
+
+export interface KnowledgeConfig {
+  /** Build the knowledge list URL (no query params). */
+  listUrl: () => string
+  /** Root directory containing the `knowledge/` folder. */
+  rootDir: string
 }
 
 export interface PushContext {
@@ -51,6 +73,8 @@ export interface PushContext {
   branch: string
   command: Command
   inputDir: string
+  /** Optional knowledge sync config. Only workspace push sets this. */
+  knowledge?: KnowledgeConfig
   verboseFetch: (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
 }
 
@@ -80,26 +104,10 @@ interface DryRunOperation {
 
 interface DryRunResult {
   operations: DryRunOperation[]
+  /** True when the sandbox currently holds a different source workspace than the one being pushed. */
+  source_workspace_mismatch?: boolean
   summary: Record<string, DryRunSummary>
   workspace_name?: string
-}
-
-// Minimum total operations before a workspace mismatch is treated as worth interrupting for.
-// Small change sets (e.g., editing a single function) aren't worth a reset prompt.
-export const WORKSPACE_MISMATCH_THRESHOLD = 10
-
-/**
- * Sum all impactful operations in a dry-run summary. `deleted` is only counted when the
- * caller actually intends to apply deletions (sync mode), matching what the user will see.
- */
-export function countSummaryChanges(
-  summary: Record<string, {created: number; deleted: number; truncated: number; updated: number}>,
-  shouldDelete: boolean,
-): number {
-  return Object.values(summary).reduce(
-    (sum, c) => sum + c.created + c.updated + (shouldDelete ? c.deleted : 0) + c.truncated,
-    0,
-  )
 }
 
 /**
@@ -269,12 +277,15 @@ export function renderBadIndexes(badIndexes: BadIndex[], log: (msg: string) => v
 const TYPE_LABELS: Record<string, string> = {
   addon: 'Addons',
   agent: 'Agents',
+  'agents.md': 'Knowledge: agents.md',
   api_group: 'API Groups',
+  doc: 'Knowledge: Docs',
   function: 'Functions',
   mcp_server: 'MCP Servers',
   middleware: 'Middleware',
   query: 'API Endpoints',
   realtime_channel: 'Realtime Channels',
+  skill: 'Knowledge: Skills',
   table: 'Tables',
   task: 'Tasks',
   tool: 'Tools',
@@ -440,15 +451,6 @@ function renderPreview(
   log('')
 }
 
-export function findLocalWorkspaceName(entries: Array<{content: string; filePath: string}>): null | string {
-  for (const entry of entries) {
-    const parsed = parseDocument(entry.content)
-    if (parsed?.type === 'workspace') return parsed.name
-  }
-
-  return null
-}
-
 // ── Confirmation ────────────────────────────────────────────────────────────
 
 export async function confirm(message: string): Promise<boolean> {
@@ -524,6 +526,60 @@ function syncGuidToFile(filePath: string, guid: string): boolean {
   return true
 }
 
+// ── Knowledge Preview Helpers ─────────────────────────────────────────────────
+
+/**
+ * Compute a knowledge change preview: prefer the server's `dry_run` response,
+ * and fall back to a client-side diff (fetch current objects → compare) when the
+ * server doesn't support it — mirroring how multidoc tolerates a missing dry-run.
+ */
+async function computeKnowledgePreview(
+  listUrl: string,
+  objects: LocalKnowledgeObject[],
+  branch: string,
+  shouldDelete: boolean,
+  accessToken: string,
+  verboseFetch: PushContext['verboseFetch'],
+  verbose: boolean,
+): Promise<KnowledgeDryRunResult> {
+  const items = toPushItems(objects)
+
+  try {
+    const serverResult = await pushKnowledge(listUrl, accessToken, verboseFetch, verbose, {
+      branch,
+      delete: shouldDelete,
+      // eslint-disable-next-line camelcase -- external Metadata API field name
+      dry_run: true,
+      items,
+    })
+    if (serverResult.operations && serverResult.summary) {
+      return {operations: serverResult.operations, summary: serverResult.summary}
+    }
+  } catch {
+    // Server doesn't support dry_run yet; fall through to local diff.
+  }
+
+  const serverObjects = await fetchKnowledge(listUrl, branch, accessToken, verboseFetch, verbose)
+  return knowledgePreview(items, serverObjects, shouldDelete)
+}
+
+/** Fold a knowledge preview's summary + operations into the multidoc DryRunResult. */
+function mergeKnowledgePreview(preview: DryRunResult, knowledge: KnowledgeDryRunResult): void {
+  for (const [type, counts] of Object.entries(knowledge.summary)) {
+    preview.summary[type] = {
+      created: counts.created,
+      deleted: counts.deleted,
+      truncated: 0,
+      unchanged: counts.unchanged,
+      updated: counts.updated,
+    }
+  }
+
+  for (const op of knowledge.operations) {
+    preview.operations.push({action: op.action, details: '', name: op.name, type: op.type})
+  }
+}
+
 // ── Main Push Logic ─────────────────────────────────────────────────────────
 
 /**
@@ -538,12 +594,21 @@ export async function executePush(
   const {accessToken, command, inputDir, verboseFetch} = ctx
   const log = command.log.bind(command)
 
-  // ── Collect and filter files ──────────────────────────────────────────
+  // ── Collect knowledge entries (before file check so knowledge-only push works) ─
+
+  let knowledgeObjects: LocalKnowledgeObject[] = []
+  if (ctx.knowledge) {
+    knowledgeObjects = collectKnowledgeObjects(ctx.knowledge.rootDir, flags.include, flags.exclude)
+  }
+
+  // ── Collect and filter .xs files ──────────────────────────────────────
 
   const allFiles = collectFiles(inputDir)
   const files = applyFilters(allFiles, inputDir, flags.include, flags.exclude, log)
 
-  if (files.length === 0) {
+  const knowledgeOnly = files.length === 0 && (knowledgeObjects.length > 0 || ctx.knowledge !== undefined)
+
+  if (files.length === 0 && !knowledgeOnly) {
     command.error(
       flags.include || flags.exclude
         ? `No .xs files remain after ${[flags.include ? `include ${flags.include.join(', ')}` : '', flags.exclude ? `exclude ${flags.exclude.join(', ')}` : ''].filter(Boolean).join(' and ')} in ${inputDir}`
@@ -553,22 +618,27 @@ export async function executePush(
 
   // ── Read documents ────────────────────────────────────────────────────
 
-  const documentEntries = readDocuments(files)
-
-  if (documentEntries.length === 0) {
-    command.error(`All .xs files in ${inputDir} are empty`)
-  }
-
-  let multidoc = documentEntries.map((d) => d.content).join('\n---\n')
-
-  // ── Build document key → file path map (for GUID writeback) ───────────
-
+  let documentEntries: Array<{content: string; filePath: string}> = []
+  let multidoc = ''
   const documentFileMap = new Map<string, string>()
-  for (const entry of documentEntries) {
-    const parsed = parseDocument(entry.content)
-    if (parsed) {
-      const key = buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup)
-      documentFileMap.set(key, entry.filePath)
+
+  if (!knowledgeOnly) {
+    documentEntries = readDocuments(files)
+
+    if (documentEntries.length === 0) {
+      command.error(`All .xs files in ${inputDir} are empty`)
+    }
+
+    multidoc = documentEntries.map((d) => d.content).join('\n---\n')
+
+    // ── Build document key → file path map (for GUID writeback) ─────────
+
+    for (const entry of documentEntries) {
+      const parsed = parseDocument(entry.content)
+      if (parsed) {
+        const key = buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup)
+        documentFileMap.set(key, entry.filePath)
+      }
     }
   }
 
@@ -600,6 +670,10 @@ export async function executePush(
     queryParams.set('partial', isPartial.toString())
   }
 
+  if (target.sourceWorkspaceId) {
+    queryParams.set('source_workspace_id', target.sourceWorkspaceId)
+  }
+
   // ── Request headers ───────────────────────────────────────────────────
 
   const requestHeaders = {
@@ -611,7 +685,7 @@ export async function executePush(
   // ── Dry-run / Preview ─────────────────────────────────────────────────
 
   let dryRunPreview: DryRunResult | null = null
-  const dryRunUrl = target.buildDryRunUrl(queryParams)
+  const dryRunUrl = knowledgeOnly ? null : target.buildDryRunUrl(queryParams)
 
   if (dryRunUrl && (flags['dry-run'] || !flags.force)) {
     const dryRunParams = new URLSearchParams(queryParams)
@@ -632,15 +706,27 @@ export async function executePush(
         accessToken,
       )
 
-      if (!dryRunResponse.ok) {
-        await handleDryRunError(dryRunResponse, command, flags, target)
-        // If we get here, the user confirmed to proceed without preview
-      } else {
+      if (dryRunResponse.ok) {
         const dryRunText = await dryRunResponse.text()
         const preview = JSON.parse(dryRunText) as DryRunResult
         dryRunPreview = preview
 
         if (preview && preview.summary) {
+          // ── Merge knowledge preview into the combined DryRunResult ──────
+
+          if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
+            const knowledgeDryRun = await computeKnowledgePreview(
+              ctx.knowledge.listUrl(),
+              knowledgeObjects,
+              ctx.branch,
+              shouldDelete,
+              accessToken,
+              verboseFetch,
+              flags.verbose,
+            )
+            mergeKnowledgePreview(preview, knowledgeDryRun)
+          }
+
           renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log)
 
           // Check for bad cross-references using dry-run operations to avoid false positives
@@ -687,7 +773,7 @@ export async function executePush(
             log(ux.colorize('yellow', 'Proceeding anyway due to --force flag.'))
           }
 
-          // Check for actual changes
+          // Check for actual changes (multidoc + knowledge combined)
           const hasChanges = Object.values(preview.summary).some(
             (c) => c.created > 0 || c.updated > 0 || (shouldDelete && c.deleted > 0) || c.truncated > 0,
           )
@@ -728,66 +814,65 @@ export async function executePush(
             return
           }
 
-          // Warn when the sandbox currently holds a different workspace than the one being
-          // pushed and the change set is large enough that stale state is a real risk.
-          if (target.warnOnWorkspaceMismatch && preview.workspace_name) {
-            const localWorkspaceName = findLocalWorkspaceName(documentEntries)
-            const totalChanges = countSummaryChanges(preview.summary, shouldDelete)
-            if (
-              localWorkspaceName &&
-              localWorkspaceName !== preview.workspace_name &&
-              totalChanges >= WORKSPACE_MISMATCH_THRESHOLD
-            ) {
-              log('')
-              log(ux.colorize('yellow', ux.colorize('bold', '=== Workspace Mismatch ===')))
-              log('')
-              log(
-                ux.colorize(
-                  'yellow',
-                  `Sandbox currently holds workspace "${preview.workspace_name}", but you're pushing "${localWorkspaceName}" with ${totalChanges} changes.`,
-                ),
-              )
-              log(
-                ux.colorize(
-                  'yellow',
-                  'Pushing on top of a different workspace can leave stale data behind. Run `xano sandbox reset` first to start clean.',
-                ),
-              )
-              log('')
-              if (process.stdin.isTTY) {
-                const proceed = await confirm('Continue with push anyway?')
-                if (!proceed) {
-                  log('Push cancelled. Run `xano sandbox reset` then retry.')
-                  return
-                }
-              } else {
-                command.error(
-                  'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first to start clean.',
-                )
+          // Warn when the sandbox currently holds a different source workspace than the one being
+          // pushed. The backend compares the source workspace id we sent against the id stored on
+          // the sandbox from its last push, so this is reliable regardless of whether the push
+          // includes a workspace-settings document (unlike the old name comparison).
+          let mismatchConfirmed = false
+          if (target.warnOnWorkspaceMismatch && preview.source_workspace_mismatch) {
+            log('')
+            log(ux.colorize('yellow', ux.colorize('bold', '=== Workspace Mismatch ===')))
+            log('')
+            log(
+              ux.colorize(
+                'yellow',
+                "This sandbox currently holds a different workspace than the one you're pushing.",
+              ),
+            )
+            log(
+              ux.colorize(
+                'yellow',
+                'Pushing on top of it can leave stale data behind. Run `xano sandbox reset` first to start clean.',
+              ),
+            )
+            log('')
+            if (process.stdin.isTTY) {
+              const proceed = await confirm('Continue with push anyway?')
+              if (!proceed) {
+                log('Push cancelled. Run `xano sandbox reset` then retry.')
+                return
               }
+
+              mismatchConfirmed = true
+            } else {
+              command.error(
+                'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first to start clean.',
+              )
             }
           }
 
-          // Confirm with user
-          const hasDestructive = preview.operations.some(
-            (op) =>
-              (shouldDelete && (op.action === 'delete' || op.action === 'cascade_delete')) ||
-              op.action === 'truncate' ||
-              op.action === 'drop_field' ||
-              op.action === 'alter_field',
-          )
-          const message = hasDestructive
-            ? 'Proceed with push? This includes DESTRUCTIVE operations listed above.'
-            : 'Proceed with push?'
+          // Confirm with user (skip if workspace mismatch prompt already obtained confirmation)
+          if (!mismatchConfirmed) {
+            const hasDestructive = preview.operations.some(
+              (op) =>
+                (shouldDelete && (op.action === 'delete' || op.action === 'cascade_delete')) ||
+                op.action === 'truncate' ||
+                op.action === 'drop_field' ||
+                op.action === 'alter_field',
+            )
+            const message = hasDestructive
+              ? 'Proceed with push? This includes DESTRUCTIVE operations listed above.'
+              : 'Proceed with push?'
 
-          if (process.stdin.isTTY) {
-            const confirmed = await confirm(message)
-            if (!confirmed) {
-              log('Push cancelled.')
-              return
+            if (process.stdin.isTTY) {
+              const confirmed = await confirm(message)
+              if (!confirmed) {
+                log('Push cancelled.')
+                return
+              }
+            } else {
+              command.error('Non-interactive environment detected. Use --force to skip confirmation.')
             }
-          } else {
-            command.error('Non-interactive environment detected. Use --force to skip confirmation.')
           }
         } else {
           // Server returned unexpected response
@@ -796,6 +881,9 @@ export async function executePush(
           log('')
           await confirmOrAbort(command, log)
         }
+      } else {
+        await handleDryRunError(dryRunResponse, command, flags, target)
+        // If we get here, the user confirmed to proceed without preview
       }
     } catch (error) {
       // Ctrl+C or SIGINT
@@ -819,11 +907,58 @@ export async function executePush(
       log('')
       await confirmOrAbort(command, log)
     }
+  } else if (knowledgeOnly && (flags['dry-run'] || !flags.force)) {
+    // ── Knowledge-only dry-run / preview ──────────────────────────────────
+    const kPreview = await computeKnowledgePreview(
+      ctx.knowledge!.listUrl(),
+      knowledgeObjects,
+      ctx.branch,
+      shouldDelete,
+      accessToken,
+      verboseFetch,
+      flags.verbose,
+    )
+
+    const syntheticResult: DryRunResult = {
+      operations: kPreview.operations.map((op) => ({action: op.action, details: '', name: op.name, type: op.type})),
+      summary: Object.fromEntries(
+        Object.entries(kPreview.summary).map(([type, counts]) => [
+          type,
+          {created: counts.created, deleted: counts.deleted, truncated: 0, unchanged: counts.unchanged, updated: counts.updated},
+        ]),
+      ),
+    }
+
+    renderPreview(syntheticResult, shouldDelete, target, flags.verbose, true, log)
+
+    const hasChanges = Object.values(syntheticResult.summary).some(
+      (c) => c.created > 0 || c.updated > 0 || (shouldDelete && c.deleted > 0),
+    )
+
+    if (!hasChanges) {
+      log('')
+      log('No changes to push.')
+      return
+    }
+
+    if (flags['dry-run']) {
+      return
+    }
+
+    if (process.stdin.isTTY) {
+      const confirmed = await confirm('Proceed with push?')
+      if (!confirmed) {
+        log('Push cancelled.')
+        return
+      }
+    } else {
+      command.error('Non-interactive environment detected. Use --force to skip confirmation.')
+    }
   }
 
   // ── Show bad references in force mode (preview mode shows them inline) ─
 
-  if (flags.force) {
+  if (flags.force && !knowledgeOnly) {
     const badRefs = checkReferences(documentEntries)
     if (badRefs.length > 0) {
       log('')
@@ -833,111 +968,171 @@ export async function executePush(
 
   // ── Partial push: filter to changed documents only ────────────────────
 
-  if (isPartial && dryRunPreview) {
+  if (!knowledgeOnly && isPartial && dryRunPreview) {
     const filteredEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
 
-    if (filteredEntries.length === 0) {
+    if (filteredEntries.length === 0 && knowledgeObjects.length === 0) {
       log('No changes to push.')
       return
     }
 
-    multidoc = filteredEntries.map((d) => d.content).join('\n---\n')
+    if (filteredEntries.length > 0) {
+      multidoc = filteredEntries.map((d) => d.content).join('\n---\n')
+    } else {
+      multidoc = ''
+    }
   }
 
   // ── Execute the actual push ───────────────────────────────────────────
 
-  const apiUrl = target.buildPushUrl(queryParams)
   const startTime = Date.now()
+  let pushedDocCount = 0
 
-  try {
-    const response = await verboseFetch(
-      apiUrl,
-      {
-        body: multidoc,
-        headers: requestHeaders,
-        method: 'POST',
-      },
-      flags.verbose,
-      accessToken,
-    )
+  if (!knowledgeOnly && multidoc) {
+    const apiUrl = target.buildPushUrl(queryParams)
 
-    if (!response.ok) {
-      handlePushError(response, await response.text(), documentEntries, inputDir, command)
-    }
+    try {
+      const response = await verboseFetch(
+        apiUrl,
+        {
+          body: multidoc,
+          headers: requestHeaders,
+          method: 'POST',
+        },
+        flags.verbose,
+        accessToken,
+      )
 
-    // Parse response for GUID map
-    const responseText = await response.text()
-    let guidMap: GuidMapEntry[] = []
-
-    if (responseText && responseText !== 'null') {
-      try {
-        const responseJson = JSON.parse(responseText)
-        if (responseJson?.guid_map && Array.isArray(responseJson.guid_map)) {
-          guidMap = responseJson.guid_map
-        }
-      } catch {
-        if (flags.verbose) {
-          log('Server response is not JSON; skipping GUID sync')
-        }
-      }
-    }
-
-    // Write GUIDs back to local files
-    if (flags.guids && guidMap.length > 0) {
-      const baseKeyMap = new Map<string, string>()
-      for (const [key, fp] of documentFileMap) {
-        const baseKey = key.split(':').slice(0, 2).join(':')
-        if (baseKeyMap.has(baseKey)) {
-          baseKeyMap.set(baseKey, '') // Mark as ambiguous
-        } else {
-          baseKeyMap.set(baseKey, fp)
-        }
+      if (!response.ok) {
+        handlePushError(response, await response.text(), documentEntries, inputDir, command)
       }
 
-      let updatedCount = 0
-      for (const entry of guidMap) {
-        if (!entry.guid) continue
+      // Parse response for GUID map
+      const responseText = await response.text()
+      let guidMap: GuidMapEntry[] = []
 
-        const key = buildDocumentKey(entry.type, entry.name, entry.verb, entry.api_group)
-        let filePath = documentFileMap.get(key)
-
-        if (!filePath) {
-          const baseKey = `${entry.type}:${entry.name}`
-          const basePath = baseKeyMap.get(baseKey)
-          if (basePath) {
-            filePath = basePath
-          }
-        }
-
-        if (!filePath) {
-          if (flags.verbose) {
-            log(`  No local file found for ${entry.type} "${entry.name}", skipping GUID sync`)
-          }
-
-          continue
-        }
-
+      if (responseText && responseText !== 'null') {
         try {
-          const updated = syncGuidToFile(filePath, entry.guid)
-          if (updated) updatedCount++
-        } catch (error) {
-          command.warn(`Failed to sync GUID to ${filePath}: ${(error as Error).message}`)
+          const responseJson = JSON.parse(responseText)
+          if (responseJson?.guid_map && Array.isArray(responseJson.guid_map)) {
+            guidMap = responseJson.guid_map
+          }
+        } catch {
+          if (flags.verbose) {
+            log('Server response is not JSON; skipping GUID sync')
+          }
         }
       }
 
-      if (updatedCount > 0) {
-        log(`Synced ${updatedCount} GUIDs to local files`)
+      // Write GUIDs back to local files
+      if (flags.guids && guidMap.length > 0) {
+        const baseKeyMap = new Map<string, string>()
+        for (const [key, fp] of documentFileMap) {
+          const baseKey = key.split(':').slice(0, 2).join(':')
+          if (baseKeyMap.has(baseKey)) {
+            baseKeyMap.set(baseKey, '') // Mark as ambiguous
+          } else {
+            baseKeyMap.set(baseKey, fp)
+          }
+        }
+
+        let updatedCount = 0
+        for (const entry of guidMap) {
+          if (!entry.guid) continue
+
+          const key = buildDocumentKey(entry.type, entry.name, entry.verb, entry.api_group)
+          let filePath = documentFileMap.get(key)
+
+          if (!filePath) {
+            const baseKey = `${entry.type}:${entry.name}`
+            const basePath = baseKeyMap.get(baseKey)
+            if (basePath) {
+              filePath = basePath
+            }
+          }
+
+          if (!filePath) {
+            if (flags.verbose) {
+              log(`  No local file found for ${entry.type} "${entry.name}", skipping GUID sync`)
+            }
+
+            continue
+          }
+
+          try {
+            const updated = syncGuidToFile(filePath, entry.guid)
+            if (updated) updatedCount++
+          } catch (error) {
+            command.warn(`Failed to sync GUID to ${filePath}: ${(error as Error).message}`)
+          }
+        }
+
+        if (updatedCount > 0) {
+          log(`Synced ${updatedCount} GUIDs to local files`)
+        }
       }
+
+      pushedDocCount = multidoc.split('\n---\n').length
+    } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
+      const elapsedMs = Date.now() - startTime
+      command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`)
     }
-  } catch (error) {
-    if (error instanceof Error && 'oclif' in error) throw error
-    const elapsedMs = Date.now() - startTime
-    command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`)
+  }
+
+  // ── Push knowledge ────────────────────────────────────────────────────
+
+  let knowledgeImported = 0
+  let knowledgeDeleted = 0
+
+  if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
+    const listUrl = ctx.knowledge.listUrl()
+    try {
+      const result = await pushKnowledge(listUrl, accessToken, verboseFetch, flags.verbose, {
+        branch: ctx.branch,
+        delete: shouldDelete,
+        force: false,
+        items: toPushItems(knowledgeObjects),
+      })
+      knowledgeImported = result.imported ?? 0
+      knowledgeDeleted = result.deleted ?? 0
+
+      // Write GUIDs back into local frontmatter, matching server entries by name.
+      if (flags.guids && result.guid_map && result.guid_map.length > 0) {
+        const fileByName = new Map(knowledgeObjects.map((o) => [o.name, o.filePath]))
+        let kGuidCount = 0
+        for (const entry of result.guid_map) {
+          const filePath = entry.guid && entry.name ? fileByName.get(entry.name) : undefined
+          if (!filePath) continue
+          try {
+            const updated = syncGuidToFrontmatter(filePath, entry.guid)
+            if (updated) kGuidCount++
+          } catch (error) {
+            command.warn(`Failed to sync knowledge GUID to ${filePath}: ${(error as Error).message}`)
+          }
+        }
+
+        if (kGuidCount > 0) {
+          log(`Synced ${kGuidCount} knowledge GUIDs to local files`)
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
+      const elapsedMs = Date.now() - startTime
+      command.error(`Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`)
+    }
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-  const pushedCount = multidoc.split('\n---\n').length
-  log(`Pushed ${pushedCount} documents to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
+  const parts: string[] = []
+  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
+  if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
+    const kParts = [`${knowledgeImported} knowledge file${knowledgeImported === 1 ? '' : 's'}`]
+    if (shouldDelete && knowledgeDeleted > 0) kParts.push(`${knowledgeDeleted} deleted`)
+    parts.push(kParts.join(', '))
+  }
+
+  log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────
@@ -955,7 +1150,7 @@ export async function executePush(
  * failing — a failure landing near a round boundary (e.g. ~300s) is a strong
  * signal of a server-side or proxy timeout rather than a local network blip.
  */
-function describeNetworkError(error: unknown, url: string, elapsedMs?: number): string {
+export function describeNetworkError(error: unknown, url: string, elapsedMs?: number): string {
   if (!(error instanceof Error)) return String(error)
 
   let host = url

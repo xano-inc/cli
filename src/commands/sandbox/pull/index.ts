@@ -4,6 +4,7 @@ import snakeCase from 'lodash.snakecase'
 
 import BaseCommand from '../../../base-command.js'
 import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -104,7 +105,6 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
 
     if (documents.length === 0) {
       this.log('No documents found in response')
-      return
     }
 
     const outputDir = path.resolve(flags.directory)
@@ -197,7 +197,25 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       writtenCount++
     }
 
-    this.log(`Pulled ${writtenCount} documents from sandbox environment to ${flags.directory}`)
+    // ── Pull knowledge ────────────────────────────────────────────────────
+
+    const knowledgeUrl = `${profile.instance_origin}/api:meta/sandbox/knowledge/sync`
+    const knowledgeObjects = await fetchKnowledge(
+      knowledgeUrl,
+      '',
+      profile.access_token,
+      this.verboseFetch.bind(this),
+      flags.verbose,
+    )
+
+    let knowledgeCount = 0
+    if (knowledgeObjects.length > 0) {
+      knowledgeCount = writeKnowledge(knowledgeObjects, outputDir)
+    }
+
+    const parts: string[] = [`${writtenCount} documents`]
+    if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
+    this.log(`Pulled ${parts.join(' + ')} from sandbox environment to ${flags.directory}`)
   }
 
   private sanitizeFilename(name: string): string {

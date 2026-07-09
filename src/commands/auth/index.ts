@@ -26,11 +26,51 @@ interface CredentialsFile {
   }
 }
 
-interface Instance {
+export interface Instance {
   display: string
   id: string
   name: string
   origin: string
+}
+
+export interface AuthResult {
+  branch: null | string
+  credentialsPath: string
+  instance: {id: string; name: string; origin: string}
+  profile: string
+  user: {email: string; id: string; name: string}
+  workspace: null | {id: string; name: string}
+}
+
+function originHostname(value: string): string | undefined {
+  try {
+    return new URL(value.includes('://') ? value : `https://${value}`).hostname.toLowerCase()
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Match a user-supplied --instance value against the instance list:
+ * numeric values match by ID, URL/hostname values match by the instance
+ * origin's hostname, anything else matches by name. Exported for tests.
+ */
+export function matchInstance(instances: Instance[], query: string): Instance | undefined {
+  const q = query.trim()
+
+  if (/^\d+$/.test(q)) {
+    return instances.find((inst) => inst.id === q)
+  }
+
+  if (q.includes('://') || q.includes('.')) {
+    const queryHost = originHostname(q)
+    const match = queryHost ? instances.find((inst) => originHostname(inst.origin) === queryHost) : undefined
+    if (match) {
+      return match
+    }
+  }
+
+  return instances.find((inst) => inst.name === q)
 }
 
 interface Workspace {
@@ -54,6 +94,7 @@ const AUTH_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 export default class Auth extends Command {
   static override description = 'Authenticate with Xano via browser login'
+  static override enableJsonFlag = true
   static override examples = [
     `$ xano auth
 Opening browser for Xano login...
@@ -68,10 +109,25 @@ Opening browser for Xano login at https://custom.xano.com...`,
 To authenticate, open the following URL in any browser:
   https://app.xano.com/login?dest=cli&display=code
 ? Paste the code shown in your browser: ****`,
-    `$ echo "$CODE" | xano auth --no-browser
-(the code is read from piped stdin, no prompt at all)`,
+    `$ xano auth --code "$CODE" --instance https://my-instance.xano.io --workspace 5
+(fully non-interactive: no browser, no prompts; missing --branch/--profile fall back to defaults)`,
+    `$ echo "$CODE" | xano auth --no-browser --instance my-instance --workspace 5 --branch dev --profile staging
+(fully scripted: the code is read from piped stdin, no prompt at all)`,
+    `$ xano auth --code "$CODE" --instance 42 --workspace 5 --json
+(machine-readable: prints the created profile as JSON)`,
   ]
   static override flags = {
+    branch: Flags.string({
+      char: 'b',
+      description: 'Pre-select a branch by label (skips the branch picker); pass "" to skip and use the live branch',
+      required: false,
+    }),
+    code: Flags.string({
+      description:
+        'Login code copied from the browser (implies --no-browser and runs fully non-interactively). Get the code at <origin>/login?dest=cli&display=code',
+      env: 'XANO_AUTH_CODE',
+      required: false,
+    }),
     config: Flags.string({
       char: 'c',
       description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
@@ -83,6 +139,12 @@ To authenticate, open the following URL in any browser:
       default: false,
       description: 'Skip TLS certificate verification (for self-signed certificates)',
     }),
+    instance: Flags.string({
+      char: 'i',
+      description:
+        'Pre-select an instance by name, numeric ID, or instance URL/hostname (skips the instance picker)',
+      required: false,
+    }),
     'no-browser': Flags.boolean({
       default: false,
       description:
@@ -93,9 +155,19 @@ To authenticate, open the following URL in any browser:
       default: 'https://app.xano.com',
       description: 'Xano account origin URL',
     }),
+    profile: Flags.string({
+      char: 'p',
+      description: 'Profile name to save (skips the profile name prompt); pass "" to use the default name',
+      required: false,
+    }),
+    workspace: Flags.string({
+      char: 'w',
+      description: 'Pre-select a workspace by ID or name (skips the workspace picker); pass "" to skip workspace',
+      required: false,
+    }),
   }
 
-  async run(): Promise<void> {
+  async run(): Promise<AuthResult> {
     const {flags} = await this.parse(Auth)
 
     if (flags.insecure) {
@@ -103,12 +175,16 @@ To authenticate, open the following URL in any browser:
       this.warn('TLS certificate verification is disabled (insecure mode)')
     }
 
+    // A supplied code (flag or env), piped stdin, or --json output means no
+    // prompt can ever open: every unanswered picker falls back to its default.
+    const nonInteractive =
+      flags.code !== undefined || (flags['no-browser'] && !process.stdin.isTTY) || this.jsonEnabled()
+
     try {
-      // Step 1: Get token via browser auth
+      // Step 1: Get token via supplied code or browser auth
       this.log('Starting authentication flow...')
-      const token = flags['no-browser']
-        ? await this.promptForToken(flags.origin)
-        : await this.startAuthServer(flags.origin)
+      const token = await this.acquireToken(flags.code, flags['no-browser'], flags.origin)
+
       // Step 2: Validate token and get user info
       this.log('')
       this.log('Validating authentication...')
@@ -122,6 +198,10 @@ To authenticate, open the following URL in any browser:
       let instance: Instance
 
       if (isSelfHosted) {
+        if (flags.instance) {
+          this.warn('Ignoring --instance: the origin itself is the instance for self-hosted Xano.')
+        }
+
         instance = {
           display: flags.origin,
           id: 'self-hosted',
@@ -137,37 +217,18 @@ To authenticate, open the following URL in any browser:
           this.error('No instances found. Please check your account.')
         }
 
-        instance = await this.selectInstance(instances)
+        instance = await this.resolveInstance(instances, flags.instance, nonInteractive)
       }
 
-      // Step 4: Workspace selection
-      let workspace: undefined | Workspace
-      let branch: string | undefined
-      this.log('')
-      this.log('Fetching available workspaces...')
-      const workspaces = await this.fetchWorkspaces(token, instance.origin)
-
-      if (workspaces.length > 0) {
-        workspace = await this.selectWorkspace(workspaces)
-
-        if (workspace) {
-          // Step 5: Branch selection
-          this.log('')
-          this.log('Fetching available branches...')
-          const branches = await this.fetchBranches(token, instance.origin, workspace.id)
-
-          if (branches.length > 1) {
-            branch = await this.selectBranch(branches)
-          }
-        }
-      }
+      // Steps 4 + 5: Workspace and branch selection
+      const {branch, workspace} = await this.resolveWorkspaceAndBranch(token, instance.origin, flags, nonInteractive)
 
       // Step 6: Profile name
       this.log('')
-      const profileName = await this.promptProfileName()
+      const profileName = await this.resolveProfileName(flags.profile, nonInteractive)
 
       // Step 7: Save profile
-      await this.saveProfile(
+      const credentialsPath = await this.saveProfile(
         {
           access_token: token,
           account_origin: flags.origin,
@@ -183,6 +244,19 @@ To authenticate, open the following URL in any browser:
       this.log('')
       this.log(`Profile '${profileName}' created successfully!`)
 
+      const result: AuthResult = {
+        branch: branch ?? null,
+        credentialsPath,
+        instance: {id: instance.id, name: instance.name, origin: instance.origin},
+        profile: profileName,
+        user: {email: user.email, id: user.id, name: user.name},
+        workspace: workspace ? {id: workspace.id, name: workspace.name} : null,
+      }
+
+      if (this.jsonEnabled()) {
+        this.logJson(result)
+      }
+
       // Ensure clean exit (the open() call can keep the event loop alive)
       process.exit(0)
     } catch (error) {
@@ -191,11 +265,39 @@ To authenticate, open the following URL in any browser:
       // @inquirer/core, so the thrown class won't match an imported one.
       if ((error as Error)?.name === 'ExitPromptError') {
         this.log('Authentication cancelled.')
-        return
+        this.exit(0)
       }
 
       throw error
     }
+  }
+
+  // oclif's default toErrorJson serializes Error objects to {} (message is a
+  // non-enumerable property), leaving --json consumers with no error detail.
+  protected override toErrorJson(err: unknown): unknown {
+    const error = err as {code?: string; message?: string; suggestions?: string[]}
+    return {
+      error: {
+        ...(error.code ? {code: error.code} : {}),
+        message: error.message ?? String(err),
+        ...(error.suggestions?.length ? {suggestions: error.suggestions} : {}),
+      },
+    }
+  }
+
+  private async acquireToken(code: string | undefined, noBrowser: boolean, origin: string): Promise<string> {
+    if (code !== undefined) {
+      const token = code.trim()
+      if (token === '') {
+        this.error(
+          `No code provided. Copy it from ${origin}/login?dest=cli&display=code and pass it via --code or XANO_AUTH_CODE.`,
+        )
+      }
+
+      return token
+    }
+
+    return noBrowser ? this.promptForToken(origin) : this.startAuthServer(origin)
   }
 
   private getHeaders(accessToken?: string): Record<string, string> {
@@ -252,9 +354,9 @@ To authenticate, open the following URL in any browser:
     const data = (await response.json()) as unknown
 
     if (Array.isArray(data)) {
-      return data.map((inst: {display: string; id?: string; meta_api: string; name: string}) => ({
+      return data.map((inst: {display: string; id?: number | string; meta_api: string; name: string}) => ({
         display: inst.display,
-        id: inst.id || inst.name,
+        id: String(inst.id ?? inst.name),
         name: inst.name,
         origin: new URL(inst.meta_api).origin,
       }))
@@ -369,7 +471,128 @@ To authenticate, open the following URL in any browser:
     })
   }
 
-  private async saveProfile(profile: ProfileConfig, configPath?: string): Promise<void> {
+  private async resolveBranch(branches: Branch[], flagValue: string | undefined, nonInteractive: boolean): Promise<string | undefined> {
+    if (flagValue !== undefined) {
+      // An empty value means "skip and use live branch" (same as the picker's skip option)
+      if (flagValue.trim() === '') {
+        this.log('Using live branch')
+        return undefined
+      }
+
+      const match = branches.find((br) => br.label === flagValue || br.id === flagValue)
+      if (!match) {
+        this.error(`Branch '${flagValue}' not found. Available branches: ${branches.map((br) => br.label).join(', ')}`)
+      }
+
+      this.log(`Using branch: ${match.label}`)
+      return match.id
+    }
+
+    if (nonInteractive) {
+      this.log('Using live branch (non-interactive; pass --branch to select one)')
+      return undefined
+    }
+
+    return branches.length > 1 ? this.selectBranch(branches) : undefined
+  }
+
+  private async resolveInstance(instances: Instance[], flagValue: string | undefined, nonInteractive: boolean): Promise<Instance> {
+    if (flagValue) {
+      const match = matchInstance(instances, flagValue)
+      if (!match) {
+        this.error(
+          `Instance '${flagValue}' not found (match by name, numeric ID, or instance URL). Available instances: ${instances.map((inst) => `${inst.name} (${inst.id})`).join(', ')}`,
+        )
+      }
+
+      this.log(`Using instance: ${match.name} (${match.display})`)
+      return match
+    }
+
+    if (nonInteractive) {
+      if (instances.length === 1) {
+        this.log(`Using instance: ${instances[0].name} (${instances[0].display})`)
+        return instances[0]
+      }
+
+      this.error(
+        `Multiple instances available; pass --instance to select one. Available instances: ${instances.map((inst) => `${inst.name} (${inst.id})`).join(', ')}`,
+      )
+    }
+
+    return this.selectInstance(instances)
+  }
+
+  private async resolveProfileName(flagValue: string | undefined, nonInteractive: boolean): Promise<string> {
+    // An empty --profile value means "use the default name" (same as accepting the prompt's default);
+    // non-interactive runs with no --profile fall back to the default name too.
+    if (flagValue !== undefined) {
+      return flagValue.trim() || 'default'
+    }
+
+    return nonInteractive ? 'default' : this.promptProfileName()
+  }
+
+  private async resolveWorkspace(workspaces: Workspace[], flagValue: string | undefined, nonInteractive: boolean): Promise<undefined | Workspace> {
+    if (flagValue !== undefined) {
+      // An empty value means "skip workspace" (same as the picker's skip option)
+      if (flagValue.trim() === '') {
+        this.log('Skipping workspace selection')
+        return undefined
+      }
+
+      const match = workspaces.find((ws) => String(ws.id) === flagValue || ws.name === flagValue)
+      if (!match) {
+        this.error(
+          `Workspace '${flagValue}' not found. Available workspaces: ${workspaces.map((ws) => `${ws.name} (${ws.id})`).join(', ')}`,
+        )
+      }
+
+      this.log(`Using workspace: ${match.name} (${match.id})`)
+      return match
+    }
+
+    if (nonInteractive) {
+      this.log('Skipping workspace selection (non-interactive; pass --workspace to select one)')
+      return undefined
+    }
+
+    return this.selectWorkspace(workspaces)
+  }
+
+  private async resolveWorkspaceAndBranch(
+    token: string,
+    instanceOrigin: string,
+    flags: {branch?: string; workspace?: string},
+    nonInteractive: boolean,
+  ): Promise<{branch: string | undefined; workspace: undefined | Workspace}> {
+    let workspace: undefined | Workspace
+    let branch: string | undefined
+    this.log('')
+    this.log('Fetching available workspaces...')
+    const workspaces = await this.fetchWorkspaces(token, instanceOrigin)
+
+    if (workspaces.length > 0) {
+      workspace = await this.resolveWorkspace(workspaces, flags.workspace, nonInteractive)
+
+      if (workspace) {
+        this.log('')
+        this.log('Fetching available branches...')
+        const branches = await this.fetchBranches(token, instanceOrigin, workspace.id)
+        branch = await this.resolveBranch(branches, flags.branch, nonInteractive)
+      }
+    } else if (flags.workspace) {
+      this.error(`Workspace '${flags.workspace}' not found: no workspaces are available on this instance.`)
+    }
+
+    if (flags.branch && !workspace) {
+      this.warn('Ignoring --branch: no workspace selected.')
+    }
+
+    return {branch, workspace}
+  }
+
+  private async saveProfile(profile: ProfileConfig, configPath?: string): Promise<string> {
     const credentialsPath = resolveCredentialsPath(configPath)
     const credDir = dirname(credentialsPath)
 
@@ -415,6 +638,8 @@ To authenticate, open the following URL in any browser:
     })
 
     fs.writeFileSync(credentialsPath, yamlContent, 'utf8')
+
+    return credentialsPath
   }
 
   private async selectBranch(branches: Branch[]): Promise<string | undefined> {
