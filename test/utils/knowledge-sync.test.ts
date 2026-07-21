@@ -60,6 +60,8 @@ describe('knowledge-sync', () => {
       expect(out).to.include('inclusion: on demand')
       expect(out).to.include('guid: g-1')
       expect(out).to.match(/tags:\n\s+- a\n\s+- b/)
+      expect(out).to.not.match(/^scope:/m)
+      expect(out).to.not.match(/^enabled:/m)
       expect(out.endsWith('# Body\ntext')).to.be.true
     })
 

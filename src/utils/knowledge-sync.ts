@@ -82,16 +82,7 @@ type VerboseFetch = (url: string, options: RequestInit, verbose: boolean, authTo
 
 // ── Frontmatter ──────────────────────────────────────────────────────────────
 
-const FRONTMATTER_ORDER = [
-  'name',
-  'description',
-  'knowledge_type',
-  'scope',
-  'inclusion',
-  'tags',
-  'enabled',
-  'guid',
-] as const
+const FRONTMATTER_ORDER = ['name', 'description', 'knowledge_type', 'inclusion', 'tags', 'guid'] as const
 
 /**
  * Build a primary `.md` file body: YAML frontmatter (built from the object's
@@ -102,10 +93,8 @@ export function buildPrimaryContent(obj: KnowledgeObject): string {
   meta.name = obj.name
   if (obj.description !== undefined) meta.description = obj.description
   meta.knowledge_type = obj.knowledge_type
-  if (obj.scope !== undefined) meta.scope = obj.scope
   if (obj.mode !== undefined) meta.inclusion = modeToInclusion(obj.mode)
   if (obj.tag !== undefined && obj.tag.length > 0) meta.tags = obj.tag
-  if (obj.enabled !== undefined) meta.enabled = obj.enabled
   if (obj.guid !== undefined) meta.guid = obj.guid
 
   // Emit keys in a stable, human-friendly order.
