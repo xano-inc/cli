@@ -101,6 +101,12 @@
       "ephemeral": {
         "description": "Manage ephemeral tenants in a workspace"
       },
+      "ephemeral:static_host": {
+        "description": "Manage static hosting for an ephemeral tenant"
+      },
+      "ephemeral:static_host:build": {
+        "description": "Manage static host builds for an ephemeral tenant"
+      },
       "tenant": {
         "description": "Manage tenants in a workspace"
       },

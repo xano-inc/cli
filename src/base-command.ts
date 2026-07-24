@@ -470,11 +470,15 @@ export default abstract class BaseCommand extends Command {
   protected async logStaticHostUrls(opts: {
     profile: ProfileConfig
     staticHost: string
+    tenantName?: string
     verbose: boolean
     workspaceId: string
   }): Promise<void> {
-    const {profile, staticHost, verbose, workspaceId} = opts
-    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${staticHost}`
+    const {profile, staticHost, tenantName, verbose, workspaceId} = opts
+    // When a tenant is scoped, target the tenant's static hosting; otherwise the
+    // workspace-level static host (default, unchanged behavior).
+    const scope = tenantName ? `/tenant/${tenantName}` : ''
+    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}${scope}/static_host/${staticHost}`
 
     try {
       const response = await this.verboseFetch(
@@ -505,15 +509,19 @@ export default abstract class BaseCommand extends Command {
     profile: ProfileConfig
     quiet?: boolean
     staticHost: string
+    tenantName?: string
     timeoutMs?: number
     verbose: boolean
     workspaceId: string
   }): Promise<string> {
-    const {buildId, profile, quiet, staticHost, verbose, workspaceId} = opts
+    const {buildId, profile, quiet, staticHost, tenantName, verbose, workspaceId} = opts
     const intervalMs = opts.intervalMs ?? 2000
     const timeoutMs = opts.timeoutMs ?? 600_000 // 10 min
     const terminal = new Set(['error', 'ok'])
-    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${staticHost}/build/${buildId}`
+    // When a tenant is scoped, target the tenant's static hosting; otherwise the
+    // workspace-level static host (default, unchanged behavior).
+    const scope = tenantName ? `/tenant/${tenantName}` : ''
+    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}${scope}/static_host/${staticHost}/build/${buildId}`
 
     // Spinner only on an interactive TTY and when not emitting JSON. Verbose mode
     // also disables it (the spinner would interleave with request/response logs).
