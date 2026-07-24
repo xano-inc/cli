@@ -596,6 +596,31 @@ xano ephemeral impersonate <tenant_name>
 xano ephemeral impersonate <tenant_name> --url-only
 ```
 
+#### Static hosting for an ephemeral tenant
+
+An ephemeral tenant can host static sites, scoped to that tenant. These commands mirror
+`xano static_host *` but take the tenant name as the first argument (the tenant's static
+hosting is isolated inside the tenant's own database).
+
+```bash
+# List / create / inspect a tenant's static hosts
+xano ephemeral static_host list <tenant_name>
+xano ephemeral static_host create <tenant_name> marketing --description "Marketing site"
+xano ephemeral static_host get <tenant_name> marketing
+xano ephemeral static_host edit <tenant_name> marketing --description "Updated"
+
+# Builds: push a directory, list, inspect, deploy to an env, pull, delete
+xano ephemeral static_host build push <tenant_name> default -f ./site
+xano ephemeral static_host build list <tenant_name> default
+xano ephemeral static_host build get <tenant_name> default --build_id 52
+xano ephemeral static_host deploy <tenant_name> default --build_id 52 --env prod
+xano ephemeral static_host build pull <tenant_name> default --latest
+xano ephemeral static_host build delete <tenant_name> default --build_id 52
+```
+
+> Static hosting is currently available for **local** tenants. Remote (tier2/tier3)
+> tenants are not yet supported and will return an error.
+
 ### Sandbox
 
 Manage your sandbox tenant. Each user has a single sandbox tenant that is auto-provisioned on first use.
