@@ -14,25 +14,21 @@ export default class EphemeralStaticHostDeploy extends BaseCommand {
       description: 'Ephemeral tenant name',
       required: true,
     }),
-    static_host: Args.string({
-      description: 'Static Host name',
-      required: true,
-    }),
   }
   static description = 'Deploy a static host build to an environment for an ephemeral tenant'
   static examples = [
-    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 default --build_id 52 --env dev
+    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 --static-host default --build_id 52 --env dev
 Deployed build 52 to dev
 URL: https://x1234-abcd.static.xano.io
 `,
-    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 default --build_id 52 --env prod
+    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 -H default --build_id 52 --env prod
 Deployed build 52 to prod
 URL: https://x1234-abcd.static.xano.io
 `,
-    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 myhost --build_id 123 --env dev -w 40
+    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 -H myhost --build_id 123 --env dev -w 40
 Deployed build 123 to dev
 `,
-    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 default --build_id 52 --env prod -o json`,
+    `$ xano ephemeral static_host deploy e4f2-9ab1-xyz1 -H default --build_id 52 --env prod -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -52,6 +48,11 @@ Deployed build 123 to dev
       options: ['summary', 'json'],
       required: false,
     }),
+    'static-host': Flags.string({
+      char: 'H',
+      description: 'Static host name',
+      required: true,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -65,6 +66,7 @@ Deployed build 123 to dev
     const {profile, profileName} = this.resolveProfile(flags)
 
     const tenantName = args.tenant_name
+    const staticHost = flags['static-host']
 
     let workspaceId: string
     if (flags.workspace) {
@@ -74,12 +76,12 @@ Deployed build 123 to dev
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano ephemeral static_host deploy <tenant_name> <static_host> --build_id <id> --env <env> -w <workspace_id>\n` +
+        `  1. Provide it as a flag: xano ephemeral static_host deploy <tenant_name> --static-host <static_host> --build_id <id> --env <env> -w <workspace_id>\n` +
         `  2. Set it in your profile using: xano profile edit ${profileName} -w <workspace_id>`,
       )
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${args.static_host}/build/${flags.build_id}/env`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${staticHost}/build/${flags.build_id}/env`
 
     try {
       const response = await this.verboseFetch(

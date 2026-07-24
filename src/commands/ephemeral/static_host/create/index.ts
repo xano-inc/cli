@@ -15,26 +15,27 @@ export default class EphemeralStaticHostCreate extends BaseCommand {
       description: 'Ephemeral tenant name',
       required: true,
     }),
-    name: Args.string({
-      description: 'Name for the new static host',
-      required: true,
-    }),
   }
   static description = 'Create a new static host for an ephemeral tenant'
   static examples = [
-    `$ xano ephemeral static_host create e4f2-9ab1-xyz1 marketing
+    `$ xano ephemeral static_host create e4f2-9ab1-xyz1 --name marketing
 Created static host 'marketing' (ID: 7)
 `,
-    `$ xano ephemeral static_host create e4f2-9ab1-xyz1 marketing --description "Marketing site" -w 40
+    `$ xano ephemeral static_host create e4f2-9ab1-xyz1 -n marketing --description "Marketing site" -w 40
 Created static host 'marketing' (ID: 7)
 `,
-    `$ xano ephemeral static_host create e4f2-9ab1-xyz1 marketing -o json`,
+    `$ xano ephemeral static_host create e4f2-9ab1-xyz1 -n marketing -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
     description: Flags.string({
       description: 'Description for the static host',
       required: false,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'Name for the new static host',
+      required: true,
     }),
     output: Flags.string({
       char: 'o',
@@ -65,7 +66,7 @@ Created static host 'marketing' (ID: 7)
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano ephemeral static_host create <tenant_name> <name> -w <workspace_id>\n` +
+          `  1. Provide it as a flag: xano ephemeral static_host create <tenant_name> --name <name> -w <workspace_id>\n` +
           `  2. Set it in your profile using: xano profile edit ${profileName} -w <workspace_id>`,
       )
     }
@@ -76,7 +77,7 @@ Created static host 'marketing' (ID: 7)
       const response = await this.verboseFetch(
         apiUrl,
         {
-          body: JSON.stringify({description: flags.description ?? '', name: args.name}),
+          body: JSON.stringify({description: flags.description ?? '', name: flags.name}),
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
@@ -89,7 +90,7 @@ Created static host 'marketing' (ID: 7)
       )
 
       if (!response.ok) {
-        const message = await this.parseApiError(response, `Failed to create static host '${args.name}'`)
+        const message = await this.parseApiError(response, `Failed to create static host '${flags.name}'`)
         this.error(message)
       }
 

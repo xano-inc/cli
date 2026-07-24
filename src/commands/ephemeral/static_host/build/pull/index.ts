@@ -63,32 +63,28 @@ export default class EphemeralStaticHostBuildPull extends BaseCommand {
       description: 'Ephemeral tenant name',
       required: true,
     }),
-    static_host: Args.string({
-      description: 'Static Host name',
-      required: true,
-    }),
   }
   static description = 'Pull a static host build for an ephemeral tenant to disk. Defaults to the original uploaded source (including package.json); use --source built for the compiled/served output.'
   static examples = [
-    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 default --build_id 52
+    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 --static-host default --build_id 52
 Pulled 15 files to current directory
 `,
-    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 default --build_id 52 -d ./output
+    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 -H default --build_id 52 -d ./output
 Pulled 15 files to ./output
 `,
-    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 myhost --build_id 123 -w 40
+    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 -H myhost --build_id 123 -w 40
 Pulled 8 files to current directory
 `,
-    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 default --latest
+    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 -H default --latest
 Pulled 22 files to current directory
 `,
-    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 default --env dev
+    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 -H default --env dev
 Pulled 18 files to current directory
 `,
-    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 default --env prod -d ./prod-release
+    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 -H default --env prod -d ./prod-release
 Pulled 18 files to ./prod-release
 `,
-    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 default --build_id 52 --source built
+    `$ xano ephemeral static_host build pull e4f2-9ab1-xyz1 -H default --build_id 52 --source built
 Pulled the compiled/served output instead of the original source
 `,
   ]
@@ -123,6 +119,11 @@ Pulled the compiled/served output instead of the original source
       options: ['original', 'built'],
       required: false,
     }),
+    'static-host': Flags.string({
+      char: 'H',
+      description: 'Static host name',
+      required: true,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -140,6 +141,7 @@ Pulled the compiled/served output instead of the original source
     const {profile, profileName} = this.resolveProfile(flags)
 
     const tenantName = args.tenant_name
+    const staticHost = flags['static-host']
 
     let workspaceId: string
     if (flags.workspace) {
@@ -149,7 +151,7 @@ Pulled the compiled/served output instead of the original source
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano ephemeral static_host build pull <tenant_name> <static_host> --build_id <id> -w <workspace_id>\n` +
+        `  1. Provide it as a flag: xano ephemeral static_host build pull <tenant_name> --static-host <static_host> --build_id <id> -w <workspace_id>\n` +
         `  2. Set it in your profile using: xano profile edit ${profileName} -w <workspace_id>`,
       )
     }
@@ -161,19 +163,19 @@ Pulled the compiled/served output instead of the original source
       buildId = await this.resolveEnvBuild({
         env: flags.env,
         profile,
-        staticHost: args.static_host,
+        staticHost,
         tenantName,
         verbose: flags.verbose,
         workspaceId,
       })
     } else {
-      buildId = await this.resolveLatestBuild(profile, workspaceId, tenantName, args.static_host, flags.verbose)
+      buildId = await this.resolveLatestBuild(profile, workspaceId, tenantName, staticHost, flags.verbose)
     }
 
     // Default is "original" (the uploaded source); only append the param when
     // pulling the built output, so default requests stay clean.
     const query = flags.source === 'built' ? '?source=built' : ''
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${args.static_host}/build/${buildId}/multidoc${query}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${staticHost}/build/${buildId}/multidoc${query}`
 
     let responseText: string
     try {

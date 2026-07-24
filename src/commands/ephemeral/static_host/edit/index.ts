@@ -24,20 +24,16 @@ export default class EphemeralStaticHostEdit extends BaseCommand {
       description: 'Ephemeral tenant name',
       required: true,
     }),
-    static_host: Args.string({
-      description: 'Static Host name to edit',
-      required: true,
-    }),
   }
   static description = 'Update a static host\'s name, description, or git configuration for an ephemeral tenant'
   static examples = [
-    `$ xano ephemeral static_host edit e4f2-9ab1-xyz1 newsite --description "Marketing site"
+    `$ xano ephemeral static_host edit e4f2-9ab1-xyz1 --static-host newsite --description "Marketing site"
 Updated static host 'newsite'
 `,
-    `$ xano ephemeral static_host edit e4f2-9ab1-xyz1 newsite --name newsite-v2
+    `$ xano ephemeral static_host edit e4f2-9ab1-xyz1 -H newsite --name newsite-v2
 Updated static host 'newsite' (renamed to 'newsite-v2')
 `,
-    `$ xano ephemeral static_host edit e4f2-9ab1-xyz1 newsite --git-repo git@github.com:me/site.git --git-private-key-file ./deploy_key
+    `$ xano ephemeral static_host edit e4f2-9ab1-xyz1 -H newsite --git-repo git@github.com:me/site.git --git-private-key-file ./deploy_key
 Updated static host 'newsite'
 `,
   ]
@@ -70,6 +66,11 @@ Updated static host 'newsite'
       options: ['summary', 'json'],
       required: false,
     }),
+    'static-host': Flags.string({
+      char: 'H',
+      description: 'Static host name to edit',
+      required: true,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -88,6 +89,7 @@ Updated static host 'newsite'
     const {profile, profileName} = this.resolveProfile(flags)
 
     const tenantName = args.tenant_name
+    const staticHost = flags['static-host']
 
     let workspaceId: string
     if (flags.workspace) {
@@ -97,14 +99,14 @@ Updated static host 'newsite'
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano ephemeral static_host edit <tenant_name> <static_host> --name <name> -w <workspace_id>\n` +
+          `  1. Provide it as a flag: xano ephemeral static_host edit <tenant_name> --static-host <static_host> --name <name> -w <workspace_id>\n` +
           `  2. Set it in your profile using: xano profile edit ${profileName} -w <workspace_id>`,
       )
     }
 
     // The edit endpoint requires `name`, and merges git as a whole object —
     // so fetch the current record first and only override the fields the user set.
-    const current = await this.fetchHost(profile, workspaceId, tenantName, args.static_host, flags.verbose)
+    const current = await this.fetchHost(profile, workspaceId, tenantName, staticHost, flags.verbose)
 
     const git: StaticHostGit = {...current.git}
     if (flags['git-repo'] !== undefined) git.repo = flags['git-repo']
@@ -128,7 +130,7 @@ Updated static host 'newsite'
       name: flags.name ?? current.name,
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${args.static_host}/edit`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${staticHost}/edit`
 
     try {
       const response = await this.verboseFetch(
@@ -147,7 +149,7 @@ Updated static host 'newsite'
       )
 
       if (!response.ok) {
-        const message = await this.parseApiError(response, `Failed to update static host '${args.static_host}'`)
+        const message = await this.parseApiError(response, `Failed to update static host '${staticHost}'`)
         this.error(message)
       }
 
@@ -156,8 +158,8 @@ Updated static host 'newsite'
       if (flags.output === 'json') {
         this.log(JSON.stringify(updated, null, 2))
       } else {
-        const renamed = flags.name && flags.name !== args.static_host ? ` (renamed to '${flags.name}')` : ''
-        this.log(`Updated static host '${args.static_host}'${renamed}`)
+        const renamed = flags.name && flags.name !== staticHost ? ` (renamed to '${flags.name}')` : ''
+        this.log(`Updated static host '${staticHost}'${renamed}`)
       }
     } catch (error) {
       if (error instanceof Error) {

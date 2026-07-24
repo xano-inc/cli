@@ -26,19 +26,15 @@ export default class EphemeralStaticHostGet extends BaseCommand {
       description: 'Ephemeral tenant name',
       required: true,
     }),
-    static_host: Args.string({
-      description: 'Static Host name',
-      required: true,
-    }),
   }
   static description = 'Get a single static host\'s details (name, git config, dev/prod environments) for an ephemeral tenant'
   static examples = [
-    `$ xano ephemeral static_host get e4f2-9ab1-xyz1 newsite
+    `$ xano ephemeral static_host get e4f2-9ab1-xyz1 --static-host newsite
 Static Host: newsite
 ID: 5
 Dev: https://newsite-dev-....dev.xano.io (v2)
 `,
-    `$ xano ephemeral static_host get e4f2-9ab1-xyz1 newsite -w 40 -o json`,
+    `$ xano ephemeral static_host get e4f2-9ab1-xyz1 -H newsite -w 40 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -48,6 +44,11 @@ Dev: https://newsite-dev-....dev.xano.io (v2)
       description: 'Output format',
       options: ['summary', 'json'],
       required: false,
+    }),
+    'static-host': Flags.string({
+      char: 'H',
+      description: 'Static host name',
+      required: true,
     }),
     workspace: Flags.string({
       char: 'w',
@@ -71,12 +72,13 @@ Dev: https://newsite-dev-....dev.xano.io (v2)
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano ephemeral static_host get <tenant_name> <static_host> -w <workspace_id>\n` +
+          `  1. Provide it as a flag: xano ephemeral static_host get <tenant_name> --static-host <static_host> -w <workspace_id>\n` +
           `  2. Set it in your profile using: xano profile edit ${profileName} -w <workspace_id>`,
       )
     }
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${args.static_host}`
+    const staticHost = flags['static-host']
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${staticHost}`
 
     try {
       const response = await this.verboseFetch(
@@ -93,7 +95,7 @@ Dev: https://newsite-dev-....dev.xano.io (v2)
       )
 
       if (!response.ok) {
-        const message = await this.parseApiError(response, `Failed to get static host '${args.static_host}'`)
+        const message = await this.parseApiError(response, `Failed to get static host '${staticHost}'`)
         this.error(message)
       }
 

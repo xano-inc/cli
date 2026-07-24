@@ -1,4 +1,4 @@
-import {Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
@@ -8,21 +8,27 @@ import BaseCommand from '../../../base-command.js'
 import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
 
 export default class EphemeralPull extends BaseCommand {
+  static override args = {
+    tenant_name: Args.string({
+      description: 'Ephemeral tenant name to pull from',
+      required: true,
+    }),
+  }
   static override description = 'Pull an ephemeral tenant multidoc from the Xano Metadata API and split into individual files'
   static override examples = [
-    `$ xano ephemeral pull -t e4f2-9ab1-xyz1
+    `$ xano ephemeral pull e4f2-9ab1-xyz1
 Pulled 42 documents from tenant e4f2-9ab1-xyz1 to current directory
 `,
-    `$ xano ephemeral pull -d ./my-tenant -t e4f2-9ab1-xyz1
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 -d ./my-tenant
 Pulled 42 documents from tenant e4f2-9ab1-xyz1 to ./my-tenant
 `,
-    `$ xano ephemeral pull -d ./output -t e4f2-9ab1-xyz1 -w 40
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 -d ./output -w 40
 Pulled 15 documents from tenant e4f2-9ab1-xyz1 to ./output
 `,
-    `$ xano ephemeral pull -t e4f2-9ab1-xyz1 --profile production --env --records
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 --profile production --env --records
 Pulled 58 documents from tenant e4f2-9ab1-xyz1
 `,
-    `$ xano ephemeral pull -t e4f2-9ab1-xyz1 --draft`,
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 --draft`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -47,11 +53,6 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
       description: 'Include records',
       required: false,
     }),
-    tenant: Flags.string({
-      char: 't',
-      description: 'Ephemeral tenant name to pull from',
-      required: true,
-    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -60,7 +61,7 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
   }
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(EphemeralPull)
+    const {args, flags} = await this.parse(EphemeralPull)
 
     const {profileName, profile} = this.resolveProfile(flags)
 
@@ -73,12 +74,12 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano ephemeral pull -t <tenant_name> -w <workspace_id>\n` +
+          `  1. Provide it as a flag: xano ephemeral pull <tenant_name> -w <workspace_id>\n` +
           `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
-    const tenantName = flags.tenant
+    const tenantName = args.tenant_name
 
     // Build query parameters
     const queryParams = new URLSearchParams({
