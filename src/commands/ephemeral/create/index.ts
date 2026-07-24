@@ -4,7 +4,7 @@ import BaseCommand from '../../../base-command.js'
 
 interface Tenant {
   display?: string
-  ephemeral_expires_at?: number
+  ephemeral_expires_at?: number | string
   id: number
   name: string
   state?: string
@@ -17,8 +17,7 @@ export default class EphemeralCreate extends BaseCommand {
       required: true,
     }),
   }
-  static description =
-    'Creates a new ephemeral (short-lived) tenant in a workspace. Ephemeral tenants are always tier1 and auto-expire; they require a workspace.'
+  static description = 'Create a new ephemeral (short-lived, auto-expiring) tenant in a workspace'
   static examples = [
     `$ xano ephemeral create "PR preview"
 Created ephemeral tenant: PR preview (e4f2-9ab1-...) - ID: 42
@@ -108,7 +107,11 @@ Created ephemeral tenant: PR preview (e4f2-9ab1-...) - ID: 42
         }
 
         if (tenant.ephemeral_expires_at) {
-          this.log(`  Expires: ${new Date(tenant.ephemeral_expires_at * 1000).toISOString()}`)
+          // The API serializes the timestamp field as a date string
+          // ("2026-07-24 19:49:15+0000"); tolerate a raw unix-epoch number too.
+          const raw = tenant.ephemeral_expires_at
+          const expiresMs = typeof raw === 'number' ? raw * 1000 : Date.parse(String(raw).replace(' ', 'T'))
+          this.log(`  Expires: ${Number.isNaN(expiresMs) ? String(raw) : new Date(expiresMs).toISOString()}`)
         }
       }
     } catch (error) {
