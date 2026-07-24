@@ -18,31 +18,27 @@ export default class EphemeralStaticHostBuildGet extends BaseCommand {
       description: 'Ephemeral tenant name',
       required: true,
     }),
-    static_host: Args.string({
-      description: 'Static Host name',
-      required: true,
-    }),
   }
 static description = 'Get details of a specific build for a static host of an ephemeral tenant'
 static examples = [
-    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 default --build_id 52
+    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 --static-host default --build_id 52
 Build Details:
 ID: 52
 Name: v1.0.0
 Status: completed
 `,
-    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 default --build_id 52 -w 40
+    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 -H default --build_id 52 -w 40
 Build Details:
 ID: 52
 Name: v1.0.0
 Status: completed
 `,
-    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 myhost --build_id 123 --profile production
+    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 -H myhost --build_id 123 --profile production
 Build Details:
 ID: 123
 Name: production-build
 `,
-    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 default --build_id 52 -o json
+    `$ xano ephemeral static_host build get e4f2-9ab1-xyz1 -H default --build_id 52 -o json
 {
   "id": 52,
   "name": "v1.0.0",
@@ -63,6 +59,11 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
+    'static-host': Flags.string({
+      char: 'H',
+      description: 'Static host name',
+      required: true,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -76,6 +77,7 @@ static override flags = {
     const {profile, profileName} = this.resolveProfile(flags)
 
     const tenantName = args.tenant_name
+    const staticHost = flags['static-host']
 
     // Determine workspace_id from flag or profile
     let workspaceId: string
@@ -86,13 +88,13 @@ static override flags = {
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano ephemeral static_host build get <tenant_name> <static_host> --build_id <id> -w <workspace_id>\n` +
+        `  1. Provide it as a flag: xano ephemeral static_host build get <tenant_name> --static-host <static_host> --build_id <id> -w <workspace_id>\n` +
         `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${args.static_host}/build/${flags.build_id}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${staticHost}/build/${flags.build_id}`
 
     // Fetch build from the API
     try {

@@ -36,29 +36,25 @@ export default class EphemeralStaticHostBuildPush extends BaseCommand {
       description: 'Ephemeral tenant name',
       required: true,
     }),
-    static_host: Args.string({
-      description: 'Static Host name',
-      required: true,
-    }),
   }
   static description = 'Push a directory or zip file as a new static host build for an ephemeral tenant'
   static examples = [
-    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 default -d ./dist -n "v1.0.0"
+    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 --static-host default -d ./dist -n "v1.0.0"
 Pushed 15 files as build "v1.0.0"
 ID: 123
 `,
-    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 default
+    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 -H default
 Pushed 8 files as build "20260531-143022"
 `,
-    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 default -f ./build.zip -n "v1.0.0"
+    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 -H default -f ./build.zip -n "v1.0.0"
 Pushed build.zip as build "v1.0.0"
 ID: 124
 `,
-    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 myhost -n "production" --description "Production build" -w 40
+    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 -H myhost -n "production" --description "Production build" -w 40
 Pushed 22 files as build "production"
 ID: 125
 `,
-    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 default -d ./static --no-gitignore
+    `$ xano ephemeral static_host build push e4f2-9ab1-xyz1 -H default -d ./static --no-gitignore
 Pushed 30 files as build "20260531-143022"
 `,
   ]
@@ -102,6 +98,11 @@ Pushed 30 files as build "20260531-143022"
       options: ['summary', 'json'],
       required: false,
     }),
+    'static-host': Flags.string({
+      char: 'H',
+      description: 'Static host name',
+      required: true,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -115,6 +116,7 @@ Pushed 30 files as build "20260531-143022"
     const {profile, profileName} = this.resolveProfile(flags)
 
     const tenantName = args.tenant_name
+    const staticHost = flags['static-host']
 
     let workspaceId: string
     if (flags.workspace) {
@@ -124,7 +126,7 @@ Pushed 30 files as build "20260531-143022"
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-        `  1. Provide it as a flag: xano ephemeral static_host build push <tenant_name> <static_host> -n <name> -w <workspace_id>\n` +
+        `  1. Provide it as a flag: xano ephemeral static_host build push <tenant_name> --static-host <static_host> -n <name> -w <workspace_id>\n` +
         `  2. Set it in your profile using: xano profile edit ${profileName} -w <workspace_id>`,
       )
     }
@@ -180,7 +182,7 @@ Pushed 30 files as build "20260531-143022"
 
     const sizeMB = (zipBuffer.length / (1024 * 1024)).toFixed(1)
 
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${args.static_host}/build`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/static_host/${staticHost}/build`
 
     const formData = new (globalThis as any).FormData()
     const blob = new Blob([new Uint8Array(zipBuffer)], {type: 'application/zip'})
@@ -243,18 +245,18 @@ Pushed 30 files as build "20260531-143022"
           buildId: result.id,
           profile,
           quiet: flags.output === 'json',
-          staticHost: args.static_host,
+          staticHost,
           tenantName,
           verbose: flags.verbose,
           workspaceId,
         })
         if (finalStatus === 'error') {
-          this.error(`Build ${result.id} failed (status: error). Check the build log with: xano ephemeral static_host build get ${tenantName} ${args.static_host} --build_id ${result.id}`)
+          this.error(`Build ${result.id} failed (status: error). Check the build log with: xano ephemeral static_host build get ${tenantName} --static-host ${staticHost} --build_id ${result.id}`)
         }
       }
 
       if (flags.output !== 'json') {
-        await this.logStaticHostUrls({profile, staticHost: args.static_host, tenantName, verbose: flags.verbose, workspaceId})
+        await this.logStaticHostUrls({profile, staticHost, tenantName, verbose: flags.verbose, workspaceId})
       }
     } catch (error) {
       if (error instanceof Error) {
