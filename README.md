@@ -564,6 +564,63 @@ xano tenant cluster license set <cluster_id>
 xano tenant cluster license set <cluster_id> --file ./kubeconfig.yaml
 ```
 
+### Ephemeral Tenants
+
+Manage ephemeral tenants — short-lived, auto-expiring tenants scoped to a workspace (default TTL 1h, max 72h). Unlike a sandbox, an ephemeral tenant requires a workspace.
+
+```bash
+# List ephemeral tenants in the current workspace
+xano ephemeral list
+xano ephemeral list -w 5
+
+# List ephemeral tenants across every workspace you can access
+xano ephemeral list --global
+
+# Create an ephemeral tenant (workspace required)
+xano ephemeral create "PR preview"
+xano ephemeral create "Demo" --expires-hours 24 -w 5
+xano ephemeral create "Load test" -d "48h soak" --expires-hours 48
+
+# Get / edit / delete
+xano ephemeral get <tenant_name>
+xano ephemeral edit <tenant_name> --display "New Name" -d "New description"
+xano ephemeral delete <tenant_name> --force
+
+# Pull to / push from local files (multidoc)
+xano ephemeral pull -t <tenant_name> -d ./my-ephemeral
+xano ephemeral push -t <tenant_name> -d ./my-ephemeral --dry-run   # preview first
+xano ephemeral push -t <tenant_name> -d ./my-ephemeral
+
+# Open in the browser (or print the URL)
+xano ephemeral impersonate <tenant_name>
+xano ephemeral impersonate <tenant_name> --url-only
+```
+
+#### Static hosting for an ephemeral tenant
+
+An ephemeral tenant can host static sites, scoped to that tenant. These commands mirror
+`xano static_host *` but take the tenant name as the first argument (the tenant's static
+hosting is isolated inside the tenant's own database).
+
+```bash
+# List / create / inspect a tenant's static hosts
+xano ephemeral static_host list <tenant_name>
+xano ephemeral static_host create <tenant_name> marketing --description "Marketing site"
+xano ephemeral static_host get <tenant_name> marketing
+xano ephemeral static_host edit <tenant_name> marketing --description "Updated"
+
+# Builds: push a directory, list, inspect, deploy to an env, pull, delete
+xano ephemeral static_host build push <tenant_name> default -f ./site
+xano ephemeral static_host build list <tenant_name> default
+xano ephemeral static_host build get <tenant_name> default --build_id 52
+xano ephemeral static_host deploy <tenant_name> default --build_id 52 --env prod
+xano ephemeral static_host build pull <tenant_name> default --latest
+xano ephemeral static_host build delete <tenant_name> default --build_id 52
+```
+
+> Static hosting is currently available for **local** tenants. Remote (tier2/tier3)
+> tenants are not yet supported and will return an error.
+
 ### Sandbox
 
 Manage your sandbox tenant. Each user has a single sandbox tenant that is auto-provisioned on first use.

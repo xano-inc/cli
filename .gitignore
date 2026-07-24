@@ -13,3 +13,5 @@ secret/
 yarn.lock
 pnpm-lock.yaml
 
+
+.worktrees/
