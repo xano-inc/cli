@@ -98,6 +98,9 @@
       "release": {
         "description": "Manage releases in a workspace"
       },
+      "ephemeral": {
+        "description": "Manage ephemeral tenants in a workspace"
+      },
       "tenant": {
         "description": "Manage tenants in a workspace"
       },
