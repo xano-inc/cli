@@ -5,7 +5,12 @@ import * as path from 'node:path'
 import snakeCase from 'lodash.snakecase'
 
 import BaseCommand from '../../../base-command.js'
-import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {
+  buildApiGroupFolderResolver,
+  channelPathSegments,
+  type ParsedDocument,
+  parseDocument,
+} from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
 
 export default class Pull extends BaseCommand {
@@ -209,6 +214,24 @@ Pulled 58 documents
       } else if (doc.type === 'realtime_trigger') {
         // realtime_trigger → realtime/trigger/{name}.xs
         typeDir = path.join(outputDir, 'realtime', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'channel') {
+        // Realtime v2. The channel owns a directory mirroring its path and its
+        // messages live inside it, so ownership is visible in the tree.
+        //   channel "rooms/{room_id}" → channel/rooms/[room_id]/_channel.xs
+        //
+        // The document uses a FIXED "_channel.xs" leaf: naming it after the
+        // last segment yields "[room_id].xs", which names the parameter rather
+        // than the channel. A fixed leaf also sorts first, making "the channel
+        // vs its messages" obvious.
+        typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
+        baseName = '_channel'
+      } else if (doc.type === 'message' && doc.channel) {
+        // Realtime v2 message → channel/{channel_path}/{message_name}.xs
+        // Nesting matters beyond tidiness: message names are unique only WITHIN
+        // a channel, so a flat message/ directory would collide when two
+        // channels both define e.g. "say".
+        typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
         baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'api_group') {
         // api_group "test" → api/{resolved_folder}/{name}.xs

@@ -1,6 +1,8 @@
 export interface ParsedDocument {
   apiGroup?: string
   canonical?: string
+  /** Owning channel path for realtime v2 `message` documents. */
+  channel?: string
   content: string
   guid?: string
   name: string
@@ -63,6 +65,15 @@ export function parseDocument(content: string): null | ParsedDocument {
     apiGroup = apiGroupMatch[1]
   }
 
+  // Extract channel if present (e.g., channel = "rooms/{room_id}").
+  // Realtime v2 messages reference their owning channel by PATH, which is what
+  // nests them under it on disk.
+  let channel: string | undefined
+  const channelMatch = content.match(/^\s*channel\s*=\s*"([^"]*)"/m)
+  if (channelMatch) {
+    channel = channelMatch[1]
+  }
+
   // Extract canonical if present (e.g., canonical = "abc123")
   let canonical: string | undefined
   const canonicalMatch = content.match(/canonical\s*=\s*"([^"]*)"/)
@@ -77,7 +88,37 @@ export function parseDocument(content: string): null | ParsedDocument {
     guid = guidMatch[1]
   }
 
-  return {apiGroup, canonical, content, guid, name, type, verb}
+  return {apiGroup, canonical, channel, content, guid, name, type, verb}
+}
+
+/**
+ * Map a realtime v2 channel path onto directory segments.
+ *
+ * A channel name IS a path template — "rooms/{room_id}" — so the directory tree
+ * mirrors it rather than flattening it. That is the whole reason messages nest
+ * under channels: the tree should show the structure, and
+ * "channel/rooms/[room_id]/post.xs" says immediately that `post` lives on a
+ * parameterized rooms channel.
+ *
+ *   "rooms"                    -> ["rooms"]
+ *   "rooms/{room_id}"          -> ["rooms", "[room_id]"]
+ *   "org/{org_id}/room/{id}"   -> ["org", "[org_id]", "room", "[id]"]
+ *
+ * Braces become brackets because "{" and "}" are awkward in shells, while "["
+ * and "]" are legal on every filesystem. They are still glob character classes,
+ * so scripting against a checkout needs the path quoted.
+ *
+ * Escaping the braces rather than dropping them is what keeps a parameterized
+ * channel distinct from a literal one: without it, "rooms/{room_id}" and a
+ * literal channel named "rooms/room_id" collide on the same directory.
+ *
+ * Mirrors Vfs::channelSegment() on the server.
+ */
+export function channelPathSegments(name: string, snakeCaseFn: (s: string) => string): string[] {
+  // A parameter keeps the author's name verbatim so it matches the `input`
+  // block; only the delimiters are swapped.
+  const isParam = /^\{.*\}$/
+  return name.split('/').map((segment) => (isParam.test(segment) ? `[${segment.slice(1, -1)}]` : snakeCaseFn(segment)))
 }
 
 /**

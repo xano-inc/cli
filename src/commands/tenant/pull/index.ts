@@ -5,7 +5,12 @@ import * as path from 'node:path'
 import snakeCase from 'lodash.snakecase'
 
 import BaseCommand from '../../../base-command.js'
-import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {
+  buildApiGroupFolderResolver,
+  channelPathSegments,
+  type ParsedDocument,
+  parseDocument,
+} from '../../../utils/document-parser.js'
 
 export default class Pull extends BaseCommand {
   static override description = 'Pull a tenant multidoc from the Xano Metadata API and split into individual files'
@@ -204,6 +209,15 @@ Pulled 58 documents from tenant my-tenant
       } else if (doc.type === 'realtime_trigger') {
         // realtime_trigger → realtime/trigger/{name}.xs
         typeDir = path.join(outputDir, 'realtime', 'trigger')
+        baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'channel') {
+        // Realtime v2 — see workspace/pull for the full rationale.
+        // channel "rooms/{room_id}" → channel/rooms/[room_id]/_channel.xs
+        typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
+        baseName = '_channel'
+      } else if (doc.type === 'message' && doc.channel) {
+        // Realtime v2 message → channel/{channel_path}/{message_name}.xs
+        typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
         baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'api_group') {
         // api_group "test" → api/{resolved_folder}/{name}.xs

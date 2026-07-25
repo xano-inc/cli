@@ -7,7 +7,12 @@ import * as path from 'node:path'
 import snakeCase from 'lodash.snakecase'
 
 import BaseCommand, {buildUserAgent} from '../../../../base-command.js'
-import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../../utils/document-parser.js'
+import {
+  buildApiGroupFolderResolver,
+  channelPathSegments,
+  type ParsedDocument,
+  parseDocument,
+} from '../../../../utils/document-parser.js'
 
 interface RepoInfo {
   host: 'github' | 'gitlab' | 'other'
@@ -440,6 +445,13 @@ export default class GitPull extends BaseCommand {
       baseName = this.sanitizeFilename(doc.name)
     } else if (doc.type === 'realtime_trigger') {
       typeDir = path.join(outputDir, 'realtime', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    } else if (doc.type === 'channel') {
+      // Realtime v2 — see workspace/pull for the full rationale.
+      typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
+      baseName = '_channel'
+    } else if (doc.type === 'message' && doc.channel) {
+      typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
       baseName = this.sanitizeFilename(doc.name)
     } else if (doc.type === 'api_group') {
       const groupFolder = getApiGroupFolder(doc.name)
