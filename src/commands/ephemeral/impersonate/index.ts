@@ -23,10 +23,17 @@ Opening browser...
 Impersonation successful!
 `,
     `$ xano ephemeral impersonate e4f2-9ab1-xyz1 -o json`,
+    `$ xano ephemeral impersonate e4f2-9ab1-xyz1 --guest --url-only`,
   ]
 
   static override flags = {
     ...BaseCommand.baseFlags,
+    guest: Flags.boolean({
+      char: 'g',
+      default: false,
+      description: 'Mint a read-only guest session (browse only; no schema/data/config changes)',
+      required: false,
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -60,7 +67,7 @@ Impersonation successful!
     const tenantName = args.tenant_name
 
     try {
-      const response = await this.getImpersonateResponse(profile, workspaceId, tenantName)
+      const response = await this.getImpersonateResponse(profile, workspaceId, tenantName, flags.guest)
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(response, null, 2))
@@ -94,8 +101,10 @@ Impersonation successful!
     profile: ProfileConfig,
     workspaceId: string,
     tenantName: string,
+    guest = false,
   ): Promise<ImpersonateResponse> {
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${encodeURIComponent(tenantName)}/impersonate`
+    const query = guest ? '?guest_read_only=true' : ''
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${encodeURIComponent(tenantName)}/impersonate${query}`
 
     const {verbose} = await this.parse(EphemeralImpersonate).then((r) => r.flags)
 
