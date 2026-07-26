@@ -594,6 +594,7 @@ xano ephemeral push <tenant_name> -d ./my-ephemeral
 # Open in the browser (or print the URL)
 xano ephemeral impersonate <tenant_name>
 xano ephemeral impersonate <tenant_name> --url-only
+xano ephemeral impersonate <tenant_name> --guest       # read-only session (browse only)
 ```
 
 #### Static hosting for an ephemeral tenant
