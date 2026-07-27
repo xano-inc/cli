@@ -6,6 +6,8 @@ export interface ParsedDocument {
   content: string
   guid?: string
   name: string
+  /** Owning realtime_server name for realtime v2 `channel` documents. */
+  server?: string
   type: string
   verb?: string
 }
@@ -74,6 +76,16 @@ export function parseDocument(content: string): null | ParsedDocument {
     channel = channelMatch[1]
   }
 
+  // Extract server if present (e.g., server = "chat").
+  // Realtime v2 channels reference their owning realtime_server by NAME, which
+  // is what nests them under it on disk (mirrors how a message names its
+  // channel via `channel = "..."`).
+  let server: string | undefined
+  const serverMatch = content.match(/^\s*server\s*=\s*"([^"]*)"/m)
+  if (serverMatch) {
+    server = serverMatch[1]
+  }
+
   // Extract canonical if present (e.g., canonical = "abc123")
   let canonical: string | undefined
   const canonicalMatch = content.match(/canonical\s*=\s*"([^"]*)"/)
@@ -88,7 +100,7 @@ export function parseDocument(content: string): null | ParsedDocument {
     guid = guidMatch[1]
   }
 
-  return {apiGroup, canonical, channel, content, guid, name, type, verb}
+  return {apiGroup, canonical, channel, content, guid, name, server, type, verb}
 }
 
 /**
@@ -119,6 +131,32 @@ export function channelPathSegments(name: string, snakeCaseFn: (s: string) => st
   // block; only the delimiters are swapped.
   const isParam = /^\{.*\}$/
   return name.split('/').map((segment) => (isParam.test(segment) ? `[${segment.slice(1, -1)}]` : snakeCaseFn(segment)))
+}
+
+/**
+ * Build a map of realtime v2 channel path -> owning realtime_server name.
+ *
+ * This is the cross-document lookup the on-disk nesting needs: a `message`
+ * document names only its channel (`channel = "..."`), while a `channel`
+ * document names its server (`server = "..."`). To place a message under
+ * `realtime/server/<server>/channel/<path>/...` we must resolve the message's
+ * channel to that channel's server — which only the channel document carries.
+ *
+ * Because every pull path parses the WHOLE multidoc into memory before writing,
+ * we can build this map from the `channel` docs in the same batch (a two-pass
+ * resolve), keyed by the channel's own name (its path). A channel with no
+ * `server` (e.g. the reserved `_connection` channel, or a pre-server export)
+ * simply isn't in the map, and callers fall back accordingly.
+ */
+export function buildChannelServerResolver(documents: ParsedDocument[]): (channelName: string) => string | undefined {
+  const channelToServer = new Map<string, string>()
+  for (const doc of documents) {
+    if (doc.type === 'channel' && doc.server) {
+      channelToServer.set(doc.name, doc.server)
+    }
+  }
+
+  return (channelName: string): string | undefined => channelToServer.get(channelName)
 }
 
 /**

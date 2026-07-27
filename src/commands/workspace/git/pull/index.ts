@@ -9,6 +9,7 @@ import snakeCase from 'lodash.snakecase'
 import BaseCommand, {buildUserAgent} from '../../../../base-command.js'
 import {
   buildApiGroupFolderResolver,
+  buildChannelServerResolver,
   channelPathSegments,
   type ParsedDocument,
   parseDocument,
@@ -130,11 +131,14 @@ export default class GitPull extends BaseCommand {
       fs.mkdirSync(outputDir, {recursive: true})
 
       const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
+      // Resolve a realtime v2 channel path -> owning realtime_server name, so
+      // messages can nest under their channel's server (see resolver docs).
+      const getChannelServer = buildChannelServerResolver(documents)
       const filenameCounters: Map<string, Map<string, number>> = new Map()
       let writtenCount = 0
 
       for (const doc of documents) {
-        const {baseName, typeDir} = this.resolveOutputPath(outputDir, doc, getApiGroupFolder)
+        const {baseName, typeDir} = this.resolveOutputPath(outputDir, doc, getApiGroupFolder, getChannelServer)
 
         fs.mkdirSync(typeDir, {recursive: true})
 
@@ -408,6 +412,7 @@ export default class GitPull extends BaseCommand {
     outputDir: string,
     doc: ParsedDocument,
     getApiGroupFolder: (name: string) => string,
+    getChannelServer: (channelName: string) => string | undefined,
   ): {baseName: string; typeDir: string} {
     let typeDir: string
     let baseName: string
@@ -446,12 +451,41 @@ export default class GitPull extends BaseCommand {
     } else if (doc.type === 'realtime_trigger') {
       typeDir = path.join(outputDir, 'realtime', 'trigger')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'channel') {
+    } else if (doc.type === 'realtime_server') {
       // Realtime v2 — see workspace/pull for the full rationale.
-      typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
+      // realtime_server "chat" → realtime/server/chat/_server.xs
+      typeDir = path.join(outputDir, 'realtime', 'server', this.sanitizeFilename(doc.name))
+      baseName = '_server'
+    } else if (doc.type === 'channel') {
+      // Realtime v2 — see workspace/pull for the full rationale. Nests under its
+      // owning realtime_server (from `server = "..."`); falls back to the flat
+      // channel/ layout when no server resolves.
+      typeDir = doc.server
+        ? path.join(
+            outputDir,
+            'realtime',
+            'server',
+            this.sanitizeFilename(doc.server),
+            'channel',
+            ...channelPathSegments(doc.name, snakeCase),
+          )
+        : path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
       baseName = '_channel'
     } else if (doc.type === 'message' && doc.channel) {
-      typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
+      // Realtime v2 message — see workspace/pull for the full rationale. The
+      // message names only its channel; the server is resolved via the same
+      // multidoc (two-pass). Falls back to the flat channel/ layout.
+      const messageServer = getChannelServer(doc.channel)
+      typeDir = messageServer
+        ? path.join(
+            outputDir,
+            'realtime',
+            'server',
+            this.sanitizeFilename(messageServer),
+            'channel',
+            ...channelPathSegments(doc.channel, snakeCase),
+          )
+        : path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
       baseName = this.sanitizeFilename(doc.name)
     } else if (doc.type === 'api_group') {
       const groupFolder = getApiGroupFolder(doc.name)
