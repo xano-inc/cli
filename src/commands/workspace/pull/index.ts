@@ -222,46 +222,51 @@ Pulled 58 documents
         baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'realtime_server') {
         // Realtime v2. The realtime_server is the top-level container that owns
-        // channels (which own messages). Like a channel's own document, it uses
-        // a FIXED "_server.xs" leaf inside its own name directory so the server
-        // vs its channels is obvious in the tree.
-        //   realtime_server "chat" → realtime/server/chat/_server.xs
+        // channels (which own messages). Its own document is named after itself
+        // inside its name directory, mirroring api_group (api/<group>/<group>.xs)
+        // — the server name is a simple segment, so no fixed leaf is needed.
+        //   realtime_server "chat" → realtime/server/chat/chat.xs
         typeDir = path.join(outputDir, 'realtime', 'server', this.sanitizeFilename(doc.name))
-        baseName = '_server'
+        baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'channel') {
-        // Realtime v2. The channel owns a directory mirroring its path and its
-        // messages live inside it, so ownership is visible in the tree. It nests
-        // under its owning realtime_server (from `server = "..."`):
+        // Realtime v2. The channel owns a directory named after itself (the full
+        // channel name, snake_cased into a single flat segment — like every other
+        // object), and its messages live in a message/ subfolder inside it. It
+        // nests under its owning realtime_server (from `server = "..."`):
         //   channel "rooms/{room_id}" (server "chat")
-        //     → realtime/server/chat/channel/rooms/[room_id]/_channel.xs
+        //     → realtime/server/chat/channel/rooms_room_id/rooms_room_id.xs
         //
-        // The document uses a FIXED "_channel.xs" leaf: naming it after the
-        // last segment yields "[room_id].xs", which names the parameter rather
-        // than the channel. A fixed leaf also sorts first, making "the channel
-        // vs its messages" obvious. A channel with no resolvable server (e.g. a
-        // pre-server export) falls back to the flat channel/ layout.
-        typeDir = doc.server
-          ? path.join(
-              outputDir,
-              'realtime',
-              'server',
-              this.sanitizeFilename(doc.server),
-              'channel',
-              ...channelPathSegments(doc.name, snakeCase),
-            )
-          : path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
-        baseName = '_channel'
+        // The channel name is snake_cased as a whole (rooms/{room_id} →
+        // rooms_room_id), so there is no path nesting and no bracket escaping —
+        // the on-disk name is a display form; the .xs content keeps the real
+        // name. A channel with no resolvable server (e.g. a pre-server export)
+        // falls back to the legacy flat channel/<path>/_channel.xs layout.
+        if (doc.server) {
+          typeDir = path.join(
+            outputDir,
+            'realtime',
+            'server',
+            this.sanitizeFilename(doc.server),
+            'channel',
+            snakeCase(doc.name),
+          )
+          baseName = snakeCase(doc.name)
+        } else {
+          typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
+          baseName = '_channel'
+        }
       } else if (doc.type === 'message' && doc.channel) {
-        // Realtime v2 message → nests under its channel, under that channel's
-        // server. The message names only its channel; the server is resolved by
-        // looking that channel up in the same multidoc (two-pass resolve).
+        // Realtime v2 message → nests in a message/ subfolder under its channel,
+        // under that channel's server. The message names only its channel; the
+        // server is resolved by looking that channel up in the same multidoc
+        // (two-pass resolve).
         //   message "post" on channel "rooms/{room_id}" (server "chat")
-        //     → realtime/server/chat/channel/rooms/[room_id]/post.xs
+        //     → realtime/server/chat/channel/rooms_room_id/message/post.xs
         //
         // Nesting matters beyond tidiness: message names are unique only WITHIN
         // a channel, so a flat message/ directory would collide when two
         // channels both define e.g. "say". A channel whose server can't be
-        // resolved falls back to the flat channel/ layout.
+        // resolved falls back to the legacy flat channel/ layout.
         const messageServer = getChannelServer(doc.channel)
         typeDir = messageServer
           ? path.join(
@@ -270,7 +275,8 @@ Pulled 58 documents
               'server',
               this.sanitizeFilename(messageServer),
               'channel',
-              ...channelPathSegments(doc.channel, snakeCase),
+              snakeCase(doc.channel),
+              'message',
             )
           : path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
         baseName = this.sanitizeFilename(doc.name)
