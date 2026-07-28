@@ -76,12 +76,14 @@ export function parseDocument(content: string): null | ParsedDocument {
     channel = channelMatch[1]
   }
 
-  // Extract server if present (e.g., server = "chat").
-  // Realtime v2 channels reference their owning realtime_server by NAME, which
-  // is what nests them under it on disk (mirrors how a message names its
-  // channel via `channel = "..."`).
+  // Extract realtime_server if present (e.g., realtime_server = "chat").
+  // Realtime v2 channels/messages reference their owning realtime_server by NAME
+  // via a top-level `realtime_server = "..."`, which is what nests them under it
+  // on disk (mirrors how a message names its channel via `channel = "..."`).
+  // The keyword is `realtime_server` (renamed from a bare `server` to match the
+  // api_group/mcp_server convention — reference the container by its full type).
   let server: string | undefined
-  const serverMatch = content.match(/^\s*server\s*=\s*"([^"]*)"/m)
+  const serverMatch = content.match(/^\s*realtime_server\s*=\s*"([^"]*)"/m)
   if (serverMatch) {
     server = serverMatch[1]
   }
@@ -137,16 +139,18 @@ export function channelPathSegments(name: string, snakeCaseFn: (s: string) => st
  * Build a map of realtime v2 channel path -> owning realtime_server name.
  *
  * This is the cross-document lookup the on-disk nesting needs: a `message`
- * document names only its channel (`channel = "..."`), while a `channel`
- * document names its server (`server = "..."`). To place a message under
- * `realtime/server/<server>/channel/<path>/...` we must resolve the message's
- * channel to that channel's server — which only the channel document carries.
+ * document names its channel (`channel = "..."`), while a `channel` document
+ * names its server (`realtime_server = "..."`). To place a message under
+ * `realtime/server/<server>/channel/<path>/...` we resolve the message's channel
+ * to that channel's server — which the channel document carries. (Messages now
+ * also carry `realtime_server` directly, but resolving via the channel keeps a
+ * single source of truth for the channel→server mapping.)
  *
  * Because every pull path parses the WHOLE multidoc into memory before writing,
  * we can build this map from the `channel` docs in the same batch (a two-pass
  * resolve), keyed by the channel's own name (its path). A channel with no
- * `server` (e.g. the reserved `_connection` channel, or a pre-server export)
- * simply isn't in the map, and callers fall back accordingly.
+ * `realtime_server` (e.g. a pre-server export) simply isn't in the map, and
+ * callers fall back accordingly.
  */
 export function buildChannelServerResolver(documents: ParsedDocument[]): (channelName: string) => string | undefined {
   const channelToServer = new Map<string, string>()

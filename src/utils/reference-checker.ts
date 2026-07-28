@@ -67,12 +67,12 @@ const REFERENCE_PATTERNS: ReferencePattern[] = [
   // Schema foreign key references: table = "name" inside field definitions
   {keyword: 'table (FK)', regex: /\btable\s*=\s*"([^"]*)"/gm, targetType: 'table'},
   // Realtime v2: a channel references its owning realtime_server by name via a
-  // top-level `server = "..."`. Scoped to channel documents so it does not
-  // false-match an unrelated `server` field on another object type (e.g. a
-  // microservice's registry_auth.server).
+  // top-level `realtime_server = "..."` (renamed from a bare `server` to match
+  // the api_group/mcp_server convention). The full keyword is unambiguous, so no
+  // false-match against another object type's `server` field.
   {
-    keyword: 'channel (server)',
-    regex: /^\s*server\s*=\s*"([^"]*)"/gm,
+    keyword: 'channel (realtime_server)',
+    regex: /^\s*realtime_server\s*=\s*"([^"]*)"/gm,
     sourceType: 'channel',
     targetType: 'realtime_server',
   },
