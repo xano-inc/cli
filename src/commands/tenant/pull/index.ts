@@ -7,6 +7,7 @@ import snakeCase from 'lodash.snakecase'
 import BaseCommand from '../../../base-command.js'
 import {
   buildApiGroupFolderResolver,
+  buildChannelServerResolver,
   channelPathSegments,
   type ParsedDocument,
   parseDocument,
@@ -158,6 +159,10 @@ Pulled 58 documents from tenant my-tenant
     // Resolve api_group names to unique folder names, disambiguating collisions
     const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
 
+    // Resolve a realtime v2 channel path -> owning realtime_server name, so
+    // messages can nest under their channel's server (see resolver docs).
+    const getChannelServer = buildChannelServerResolver(documents)
+
     // Track filenames per type to handle duplicates
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
@@ -210,14 +215,63 @@ Pulled 58 documents from tenant my-tenant
         // realtime_trigger → realtime/trigger/{name}.xs
         typeDir = path.join(outputDir, 'realtime', 'trigger')
         baseName = this.sanitizeFilename(doc.name)
+      } else if (doc.type === 'realtime_server') {
+        // Realtime v2 — see workspace/pull for the full rationale. Its own
+        // document is named after itself, mirroring api_group.
+        // realtime_server "chat" → realtime/server/chat/chat.xs
+        typeDir = path.join(outputDir, 'realtime', 'server', this.sanitizeFilename(doc.name))
+        baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'channel') {
-        // Realtime v2 — see workspace/pull for the full rationale.
-        // channel "rooms/{room_id}" → channel/rooms/[room_id]/_channel.xs
-        typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
-        baseName = '_channel'
+        // Realtime v2. The channel owns a directory named after itself (the full
+        // channel name, snake_cased into a single flat segment — like every other
+        // object), and its messages live in a message/ subfolder inside it. It
+        // nests under its owning realtime_server (from `server = "..."`):
+        //   channel "rooms/{room_id}" (server "chat")
+        //     → realtime/server/chat/channel/rooms_room_id/rooms_room_id.xs
+        //
+        // The channel name is snake_cased as a whole (rooms/{room_id} →
+        // rooms_room_id), so there is no path nesting and no bracket escaping —
+        // the on-disk name is a display form; the .xs content keeps the real
+        // name. A channel with no resolvable server (e.g. a pre-server export)
+        // falls back to the legacy flat channel/<path>/_channel.xs layout.
+        if (doc.server) {
+          typeDir = path.join(
+            outputDir,
+            'realtime',
+            'server',
+            this.sanitizeFilename(doc.server),
+            'channel',
+            snakeCase(doc.name),
+          )
+          baseName = snakeCase(doc.name)
+        } else {
+          typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
+          baseName = '_channel'
+        }
       } else if (doc.type === 'message' && doc.channel) {
-        // Realtime v2 message → channel/{channel_path}/{message_name}.xs
-        typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
+        // Realtime v2 message → nests in a message/ subfolder under its channel,
+        // under that channel's server. The message names only its channel; the
+        // server is resolved by looking that channel up in the same multidoc
+        // (two-pass resolve).
+        //   message "post" on channel "rooms/{room_id}" (server "chat")
+        //     → realtime/server/chat/channel/rooms_room_id/message/post.xs
+        //
+        // Nesting matters beyond tidiness: message names are unique only WITHIN
+        // a channel, so a flat message/ directory would collide when two
+        // channels both define e.g. "say". A channel whose server can't be
+        // resolved falls back to the legacy flat channel/ layout.
+        const messageServer = getChannelServer(doc.channel)
+        typeDir = messageServer
+          ? path.join(
+              outputDir,
+              'realtime',
+              'server',
+              this.sanitizeFilename(messageServer),
+              'channel',
+              snakeCase(doc.channel),
+              'message',
+            )
+          : path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
         baseName = this.sanitizeFilename(doc.name)
       } else if (doc.type === 'api_group') {
         // api_group "test" → api/{resolved_folder}/{name}.xs
