@@ -5,7 +5,13 @@ import * as path from 'node:path'
 import snakeCase from 'lodash.snakecase'
 
 import BaseCommand from '../../../base-command.js'
-import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {
+  buildApiGroupFolderResolver,
+  buildChannelServerResolver,
+  type ParsedDocument,
+  parseDocument,
+  resolveDocumentPath,
+} from '../../../utils/document-parser.js'
 
 export default class EphemeralPull extends BaseCommand {
   static override args = {
@@ -154,85 +160,21 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
     // Resolve api_group names to unique folder names, disambiguating collisions
     const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
 
+    // Resolve a realtime v2 channel path -> owning realtime_server name, so
+    // messages can nest under their channel's server (see resolver docs).
+    const getChannelServer = buildChannelServerResolver(documents)
+
     // Track filenames per type to handle duplicates
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
     let writtenCount = 0
     for (const doc of documents) {
-      let typeDir: string
-      let baseName: string
-
-      if (doc.type === 'workspace') {
-        // workspace → workspace/{name}.xs
-        typeDir = path.join(outputDir, 'workspace')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'workspace_trigger') {
-        // workspace_trigger → workspace/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'error_trigger') {
-        // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent') {
-        // agent → ai/agent/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'agent')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server') {
-        // mcp_server → ai/mcp_server/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'mcp_server')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'tool') {
-        // tool → ai/tool/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'tool')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent_trigger') {
-        // agent_trigger → ai/agent/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server_trigger') {
-        // mcp_server_trigger → ai/mcp_server/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'table_trigger') {
-        // table_trigger → table/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'table', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_channel') {
-        // realtime_channel → realtime/channel/{name}.xs
-        typeDir = path.join(outputDir, 'realtime', 'channel')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_trigger') {
-        // realtime_trigger → realtime/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'realtime', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'api_group') {
-        // api_group "test" → api/{resolved_folder}/{name}.xs
-        const groupFolder = getApiGroupFolder(doc.name)
-        typeDir = path.join(outputDir, 'api', groupFolder)
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'query' && doc.apiGroup) {
-        // query in group "test" → api/{resolved_folder}/{query_name}.xs
-        const groupFolder = getApiGroupFolder(doc.apiGroup)
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, 'api', groupFolder, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      } else {
-        // Default: split folder path from name
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, doc.type, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      }
+      const {baseName, typeDir} = resolveDocumentPath(doc, outputDir, {
+        getApiGroupFolder,
+        getChannelServer,
+        join: path.join,
+        snakeCase,
+      })
 
       fs.mkdirSync(typeDir, {recursive: true})
 
@@ -258,12 +200,4 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
     this.log(`Pulled ${writtenCount} documents from tenant ${tenantName} to ${flags.directory}`)
   }
 
-  /**
-   * Sanitize a document name for use as a filename.
-   * Strips quotes, replaces spaces with underscores, and removes
-   * characters that are unsafe in filenames.
-   */
-  private sanitizeFilename(name: string): string {
-    return snakeCase(name.replaceAll('"', ''))
-  }
 }

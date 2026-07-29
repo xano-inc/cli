@@ -8,9 +8,9 @@ import BaseCommand from '../../../base-command.js'
 import {
   buildApiGroupFolderResolver,
   buildChannelServerResolver,
-  channelPathSegments,
   type ParsedDocument,
   parseDocument,
+  resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
 
@@ -173,140 +173,12 @@ Pulled 58 documents
 
     let writtenCount = 0
     for (const doc of documents) {
-      let typeDir: string
-      let baseName: string
-
-      if (doc.type === 'workspace') {
-        // workspace → workspace/{name}.xs
-        typeDir = path.join(outputDir, 'workspace')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'workspace_trigger') {
-        // workspace_trigger → workspace/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'error_trigger') {
-        // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent') {
-        // agent → ai/agent/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'agent')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server') {
-        // mcp_server → ai/mcp_server/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'mcp_server')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'tool') {
-        // tool → ai/tool/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'tool')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent_trigger') {
-        // agent_trigger → ai/agent/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server_trigger') {
-        // mcp_server_trigger → ai/mcp_server/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'table_trigger') {
-        // table_trigger → table/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'table', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_channel') {
-        // realtime_channel → realtime/channel/{name}.xs
-        typeDir = path.join(outputDir, 'realtime', 'channel')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_trigger') {
-        // realtime_trigger → realtime/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'realtime', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_server') {
-        // Realtime v2. The realtime_server is the top-level container that owns
-        // channels (which own messages). Its own document is named after itself
-        // inside its name directory, mirroring api_group (api/<group>/<group>.xs)
-        // — the server name is a simple segment, so no fixed leaf is needed.
-        //   realtime_server "chat" → realtime/server/chat/chat.xs
-        typeDir = path.join(outputDir, 'realtime', 'server', this.sanitizeFilename(doc.name))
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'channel') {
-        // Realtime v2. The channel owns a directory named after itself (the full
-        // channel name, snake_cased into a single flat segment — like every other
-        // object), and its messages live in a message/ subfolder inside it. It
-        // nests under its owning realtime_server (from `server = "..."`):
-        //   channel "rooms/{room_id}" (server "chat")
-        //     → realtime/server/chat/channel/rooms_room_id/rooms_room_id.xs
-        //
-        // The channel name is snake_cased as a whole (rooms/{room_id} →
-        // rooms_room_id), so there is no path nesting and no bracket escaping —
-        // the on-disk name is a display form; the .xs content keeps the real
-        // name. A channel with no resolvable server (e.g. a pre-server export)
-        // falls back to the legacy flat channel/<path>/_channel.xs layout.
-        if (doc.server) {
-          typeDir = path.join(
-            outputDir,
-            'realtime',
-            'server',
-            this.sanitizeFilename(doc.server),
-            'channel',
-            snakeCase(doc.name),
-          )
-          baseName = snakeCase(doc.name)
-        } else {
-          typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
-          baseName = '_channel'
-        }
-      } else if (doc.type === 'message' && doc.channel) {
-        // Realtime v2 message → nests in a message/ subfolder under its channel,
-        // under that channel's server. The message names only its channel; the
-        // server is resolved by looking that channel up in the same multidoc
-        // (two-pass resolve).
-        //   message "post" on channel "rooms/{room_id}" (server "chat")
-        //     → realtime/server/chat/channel/rooms_room_id/message/post.xs
-        //
-        // Nesting matters beyond tidiness: message names are unique only WITHIN
-        // a channel, so a flat message/ directory would collide when two
-        // channels both define e.g. "say". A channel whose server can't be
-        // resolved falls back to the legacy flat channel/ layout.
-        const messageServer = getChannelServer(doc.channel)
-        typeDir = messageServer
-          ? path.join(
-              outputDir,
-              'realtime',
-              'server',
-              this.sanitizeFilename(messageServer),
-              'channel',
-              snakeCase(doc.channel),
-              'message',
-            )
-          : path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'api_group') {
-        // api_group "test" → api/{resolved_folder}/{name}.xs
-        const groupFolder = getApiGroupFolder(doc.name)
-        typeDir = path.join(outputDir, 'api', groupFolder)
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'query' && doc.apiGroup) {
-        // query in group "test" → api/{resolved_folder}/{query_name}.xs
-        const groupFolder = getApiGroupFolder(doc.apiGroup)
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, 'api', groupFolder, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      } else {
-        // Default: split folder path from name
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, doc.type, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      }
+      const {baseName, typeDir} = resolveDocumentPath(doc, outputDir, {
+        getApiGroupFolder,
+        getChannelServer,
+        join: path.join,
+        snakeCase,
+      })
 
       fs.mkdirSync(typeDir, {recursive: true})
 
@@ -348,14 +220,5 @@ Pulled 58 documents
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
-  }
-
-  /**
-   * Sanitize a document name for use as a filename.
-   * Strips quotes, replaces spaces with underscores, and removes
-   * characters that are unsafe in filenames.
-   */
-  private sanitizeFilename(name: string): string {
-    return snakeCase(name.replaceAll('"', ''))
   }
 }
