@@ -41,14 +41,6 @@ export interface NormalizedList<T> {
 }
 
 export interface PagingFlagOptions {
-  /**
-   * Default for the per_page flag. Defaults to 50.
-   *
-   * Several test-list commands historically pinned per_page to 10000 to fetch
-   * everything in one call. Those commands pass that value here so exposing the
-   * flag does not silently start truncating results that used to come back whole.
-   */
-  defaultPerPage?: number
   /** Page size the endpoint hardcodes server-side; surfaced in the page flag description. */
   fixedPerPage?: number
   /** Maximum per_page the endpoint accepts; surfaced in the per_page flag description. */
@@ -100,7 +92,7 @@ export function pagingFlags(tier: PagingTier, options: PagingFlagOptions = {}): 
   return {
     page: makePageFlag('Page number for pagination'),
     per_page: makePerPageFlag(
-      options.defaultPerPage ?? 50,
+      50,
       options.maxPerPage
         ? `Number of results per page (max ${options.maxPerPage})`
         : 'Number of results per page',

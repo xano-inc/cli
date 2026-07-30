@@ -44,8 +44,7 @@ Unit tests in workspace 5:
       options: ['summary', 'json'],
       required: false,
     }),
-    // Defaults to 10000 to preserve the previous fetch-everything behavior.
-    ...pagingFlags('envelope', {defaultPerPage: 10_000, maxPerPage: 10_000}),
+    ...pagingFlags('envelope', {maxPerPage: 10_000}),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (uses profile workspace if not provided)',

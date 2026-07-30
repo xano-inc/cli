@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {createOrderedEmitter, mapWithConcurrency} from '../../../../utils/concurrency.js'
 
 interface WorkflowTest {
   id: number
@@ -39,6 +40,12 @@ Results: 2 passed, 1 failed
     branch: Flags.string({
       char: 'b',
       description: 'Filter by branch name',
+      required: false,
+    }),
+    concurrency: Flags.integer({
+      default: 1,
+      description:
+        'Run this many tests in parallel. Tests share the workspace database, so raise this only when your tests do not depend on shared state.',
       required: false,
     }),
     output: Flags.string({
@@ -119,74 +126,99 @@ Results: 2 passed, 1 failed
 
       const results: TestResult[] = []
 
-      for (const test of tests) {
-        const runUrl = `${baseUrl}/${test.id}/run`
+      const runOne = async (test: (typeof tests)[number]): Promise<{lines: string[]; results: TestResult[]}> => {
+        // Shadowed accumulators: the body below is the original sequential
+        // logic, but it records output instead of printing it so a concurrent
+        // run can still emit in input order.
+        const results: TestResult[] = []
+        const lines: string[] = []
+        const log = (message: string): void => {
+          lines.push(message)
+        }
 
-        try {
-          const runResponse = await this.verboseFetch(
-            runUrl,
-            {
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${profile.access_token}`,
-                'Content-Type': 'application/json',
+          const runUrl = `${baseUrl}/${test.id}/run`
+
+          try {
+            const runResponse = await this.verboseFetch(
+              runUrl,
+              {
+                headers: {
+                  accept: 'application/json',
+                  Authorization: `Bearer ${profile.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                method: 'POST',
               },
-              method: 'POST',
-            },
-            flags.verbose,
-            profile.access_token,
-          )
+              flags.verbose,
+              profile.access_token,
+            )
 
-          if (!runResponse.ok) {
-            const errorText = await runResponse.text()
+            if (!runResponse.ok) {
+              const errorText = await runResponse.text()
+              results.push({
+                message: `API error ${runResponse.status}: ${errorText}`,
+                name: test.name,
+                status: 'fail',
+              })
+
+              if (flags.output === 'summary') {
+                log(`FAIL  ${test.name}`)
+                log(`      Error: API error ${runResponse.status}`)
+              }
+
+              return {lines, results}
+            }
+
+            const runResult = (await runResponse.json()) as RunResult
+            const passed = runResult.status === 'ok'
             results.push({
-              message: `API error ${runResponse.status}: ${errorText}`,
+              message: runResult.message,
+              name: test.name,
+              status: passed ? 'pass' : 'fail',
+              timing: runResult.timing,
+            })
+
+            if (flags.output === 'summary') {
+              const timing = runResult.timing ? ` (${runResult.timing}s)` : ''
+              if (passed) {
+                log(`PASS  ${test.name}${timing}`)
+              } else {
+                log(`FAIL  ${test.name}${timing}`)
+                if (runResult.message) {
+                  log(`      Error: ${runResult.message}`)
+                }
+              }
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            results.push({
+              message,
               name: test.name,
               status: 'fail',
             })
 
             if (flags.output === 'summary') {
-              this.log(`FAIL  ${test.name}`)
-              this.log(`      Error: API error ${runResponse.status}`)
-            }
-
-            continue
-          }
-
-          const runResult = (await runResponse.json()) as RunResult
-          const passed = runResult.status === 'ok'
-          results.push({
-            message: runResult.message,
-            name: test.name,
-            status: passed ? 'pass' : 'fail',
-            timing: runResult.timing,
-          })
-
-          if (flags.output === 'summary') {
-            const timing = runResult.timing ? ` (${runResult.timing}s)` : ''
-            if (passed) {
-              this.log(`PASS  ${test.name}${timing}`)
-            } else {
-              this.log(`FAIL  ${test.name}${timing}`)
-              if (runResult.message) {
-                this.log(`      Error: ${runResult.message}`)
-              }
+              log(`FAIL  ${test.name}`)
+              log(`      Error: ${message}`)
             }
           }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          results.push({
-            message,
-            name: test.name,
-            status: 'fail',
-          })
-
-          if (flags.output === 'summary') {
-            this.log(`FAIL  ${test.name}`)
-            this.log(`      Error: ${message}`)
-          }
-        }
+      
+        return {lines, results}
       }
+
+      // Print in input order as each test settles, so concurrent output stays
+      // diffable against a sequential run.
+      const emitter = createOrderedEmitter<{lines: string[]; results: TestResult[]}>((settled) => {
+        for (const line of settled.lines) this.log(line)
+      })
+
+      const perTest = await mapWithConcurrency(tests, flags.concurrency, async (test, index) => {
+        const settled = await runOne(test)
+        emitter.settle(index, settled)
+        return settled
+      })
+
+      results.push(...perTest.flatMap((r) => r.results))
 
       const passed = results.filter((r) => r.status === 'pass').length
       const failed = results.filter((r) => r.status === 'fail').length

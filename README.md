@@ -54,7 +54,7 @@ The Metadata API pages unevenly, so `list` commands differ in what they expose. 
 Notes:
 
 - **`--per_page` is only offered where the endpoint accepts it.** Static-host endpoints hardcode 100 items per page server-side, so those commands take `--page` alone. `xano static_host list --per_page 10` previously parsed but did nothing; it is now rejected rather than silently ignored.
-- **The test-list commands default `--per_page` to 10000**, matching the value they previously requested internally, so they keep returning everything unless you narrow them.
+- **All paged commands default `--per_page` to 50.** The test-list commands previously requested 10000 internally so nothing was ever cut off; now that the footer and the JSON envelope both report position, a page that stops at 50 is visible rather than silent. Raise it (up to 10000) when you want everything in one call.
 - **The last group has no CLI paging.** Those endpoints page server-side but return a plain array with no page or total metadata, so the CLI cannot tell you where you are. Rather than show a page number with no context — or infer "more available" from a full page, which is wrong exactly when the result count is a multiple of the page size — these commands are left as-is. **They return at most 25–50 items** (50 for tenants and ephemerals, 25 for releases, platforms, and tenant backups). If you have more than that, query the Metadata API directly until those endpoints return paging metadata.
 - **`--output json` returns an envelope, not a bare array.** Every list command emits `{count, items, ...}`, with `page`, `per_page`, `next_page`, `prev_page`, and `total` included only when the endpoint actually reports them. This is a **breaking change** for scripts that parsed the previous bare array — read `.items` instead.
 
@@ -467,6 +467,10 @@ xano workflow_test run <workflow_test_id>
 xano workflow_test run_all
 xano workflow_test run_all --branch dev
 
+# Run tests in parallel (default is 1 — sequential)
+xano unit_test run_all --concurrency 4
+xano workflow_test run_all --concurrency 4
+
 # Sandbox and tenant variants take the same paging flags
 xano sandbox unit_test list --page 2 --per_page 25
 xano sandbox workflow_test list --page 2 --per_page 25
@@ -476,6 +480,19 @@ xano tenant workflow_test list my-tenant --page 2 --per_page 25
 # Delete a workflow test
 xano workflow_test delete <workflow_test_id>
 ```
+
+#### Running tests in parallel
+
+Every `run_all` command takes `--concurrency` (default `1`):
+
+```bash
+xano unit_test run_all --concurrency 4
+xano tenant unit_test run_all my-tenant --concurrency 8
+```
+
+Output stays in test order regardless of concurrency, so a parallel run is still diffable against a sequential one, and the JSON `results` array keeps a stable order.
+
+**The default is 1 on purpose.** These tests execute against a shared workspace database, so tests that touch the same tables or records can interfere with each other when run at the same time — producing failures that look like flakiness rather than a real regression. Raise `--concurrency` once you know your tests are independent.
 
 ### Tenants
 

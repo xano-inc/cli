@@ -36,12 +36,7 @@ Workflow tests in workspace 5:
       options: ['summary', 'json'],
       required: false,
     }),
-    // NOTE: unlike its sandbox/tenant siblings, this command previously sent no
-    // per_page at all and took the server default of 50 — so it was silently
-    // truncating. Defaulting to 10000 matches the siblings and stops the
-    // truncation, but it IS a behavior change: zero-flag callers now receive up
-    // to 200x more rows. Pass --per_page to narrow.
-    ...pagingFlags('envelope', {defaultPerPage: 10_000, maxPerPage: 10_000}),
+    ...pagingFlags('envelope', {maxPerPage: 10_000}),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (uses profile workspace if not provided)',

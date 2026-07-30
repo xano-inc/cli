@@ -52,7 +52,7 @@ describe('list command paging surface', () => {
       })
     }
 
-    const fetchEverything: Array<[string, {flags: Record<string, unknown>}]> = [
+    const testListCommands: Array<[string, {flags: Record<string, unknown>}]> = [
       ['unit_test list', UnitTestList],
       ['workflow_test list', WorkflowTestList],
       ['sandbox unit_test list', SandboxUnitTestList],
@@ -61,23 +61,18 @@ describe('list command paging surface', () => {
       ['tenant workflow_test list', TenantWorkflowTestList],
     ]
 
-    for (const [name, cmd] of fetchEverything) {
-      it(`${name} keeps the fetch-everything per_page default`, () => {
-        // These commands previously requested per_page=10000 internally.
-        // Dropping to the utility default of 50 would silently truncate results
-        // that used to come back whole.
-        //
-        // workspace-level workflow_test list is the exception in origin: it
-        // previously sent no per_page and took the server default of 50, so
-        // 10000 is a deliberate behavior change that stops it truncating.
+    for (const [name, cmd] of testListCommands) {
+      it(`${name} defaults per_page to 50`, () => {
+        // These commands used to request per_page=10000 internally so nothing
+        // was ever cut off. Now that the footer and the JSON envelope both
+        // report position, a page that stops at 50 is visible rather than
+        // silent, so the ordinary default applies.
         const perPage = cmd.flags.per_page as {default?: number}
-        expect(perPage.default).to.equal(10_000)
+        expect(perPage.default).to.equal(50)
       })
     }
 
-    it('function list keeps its own documented default of 50', () => {
-      // Unlike the test-list commands, function list already exposed --per_page
-      // with a default of 50, so that default is an existing user contract.
+    it('function list keeps its long-standing default of 50', () => {
       const perPage = FunctionList.flags.per_page as {default?: number}
       expect(perPage.default).to.equal(50)
     })

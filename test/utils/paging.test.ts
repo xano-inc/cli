@@ -22,15 +22,6 @@ describe('paging', () => {
       expect(flags.per_page.default).to.equal(50)
     })
 
-    it('honors an overridden per_page default', () => {
-      // Test-list commands pin this to 10000 to preserve fetch-everything behavior.
-      const flags = pagingFlags('envelope', {defaultPerPage: 10_000}) as Record<
-        string,
-        {default?: number}
-      >
-      expect(flags.per_page.default).to.equal(10_000)
-    })
-
     it('returns only page for the page-only-envelope tier', () => {
       const flags = pagingFlags('page-only-envelope')
       expect(Object.keys(flags)).to.deep.equal(['page'])

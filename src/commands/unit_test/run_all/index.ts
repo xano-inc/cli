@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {createOrderedEmitter, mapWithConcurrency} from '../../../utils/concurrency.js'
 
 interface UnitTest {
   id: string
@@ -43,6 +44,12 @@ Results: 2 passed, 1 failed
     branch: Flags.string({
       char: 'b',
       description: 'Branch to run tests from (uses profile branch if not provided, then the live branch)',
+      required: false,
+    }),
+    concurrency: Flags.integer({
+      default: 1,
+      description:
+        'Run this many tests in parallel. Tests share the workspace database, so raise this only when your tests do not depend on shared state.',
       required: false,
     }),
     'obj-type': Flags.string({
@@ -133,91 +140,116 @@ Results: 2 passed, 1 failed
       // Step 2: Run each test
       const results: TestResult[] = []
 
-      for (const test of tests) {
-        const runUrl = `${baseUrl}/${test.id}/run`
+      const runOne = async (test: (typeof tests)[number]): Promise<{lines: string[]; results: TestResult[]}> => {
+        // Shadowed accumulators: the body below is the original sequential
+        // logic, but it records output instead of printing it so a concurrent
+        // run can still emit in input order.
+        const results: TestResult[] = []
+        const lines: string[] = []
+        const log = (message: string): void => {
+          lines.push(message)
+        }
 
-        try {
-          const runResponse = await this.verboseFetch(
-            runUrl,
-            {
-              body: JSON.stringify(branch ? {branch} : {}),
-              headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${profile.access_token}`,
-                'Content-Type': 'application/json',
+          const runUrl = `${baseUrl}/${test.id}/run`
+
+          try {
+            const runResponse = await this.verboseFetch(
+              runUrl,
+              {
+                body: JSON.stringify(branch ? {branch} : {}),
+                headers: {
+                  accept: 'application/json',
+                  Authorization: `Bearer ${profile.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                method: 'POST',
               },
-              method: 'POST',
-            },
-            flags.verbose,
-            profile.access_token,
-          )
+              flags.verbose,
+              profile.access_token,
+            )
 
-          if (!runResponse.ok) {
-            const errorText = await runResponse.text()
+            if (!runResponse.ok) {
+              const errorText = await runResponse.text()
+              const result: TestResult = {
+                message: `API error ${runResponse.status}: ${errorText}`,
+                name: test.name,
+                obj_name: test.obj_name,
+                obj_type: test.obj_type,
+                status: 'fail',
+              }
+              results.push(result)
+
+              if (flags.output === 'summary') {
+                log(`FAIL  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
+                log(`      Error: API error ${runResponse.status}`)
+              }
+
+              return {lines, results}
+            }
+
+            const runResult = (await runResponse.json()) as RunResult
+            const passed = runResult.status === 'ok'
+            const failedExpects = runResult.results?.filter((r) => r.status === 'fail') ?? []
             const result: TestResult = {
-              message: `API error ${runResponse.status}: ${errorText}`,
+              message: failedExpects[0]?.message,
               name: test.name,
               obj_name: test.obj_name,
               obj_type: test.obj_type,
-              status: 'fail',
+              status: passed ? 'pass' : 'fail',
             }
             results.push(result)
 
             if (flags.output === 'summary') {
-              this.log(`FAIL  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
-              this.log(`      Error: API error ${runResponse.status}`)
-            }
-
-            continue
-          }
-
-          const runResult = (await runResponse.json()) as RunResult
-          const passed = runResult.status === 'ok'
-          const failedExpects = runResult.results?.filter((r) => r.status === 'fail') ?? []
-          const result: TestResult = {
-            message: failedExpects[0]?.message,
-            name: test.name,
-            obj_name: test.obj_name,
-            obj_type: test.obj_type,
-            status: passed ? 'pass' : 'fail',
-          }
-          results.push(result)
-
-          if (flags.output === 'summary') {
-            if (passed) {
-              this.log(`PASS  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
-            } else {
-              this.log(`FAIL  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
-              for (const expect of failedExpects) {
-                if (expect.message) {
-                  this.log(`      Error: ${expect.message}`)
+              if (passed) {
+                log(`PASS  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
+              } else {
+                log(`FAIL  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
+                for (const expect of failedExpects) {
+                  if (expect.message) {
+                    log(`      Error: ${expect.message}`)
+                  }
                 }
               }
             }
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          results.push({
-            message,
-            name: test.name,
-            obj_name: test.obj_name,
-            obj_type: test.obj_type,
-            status: 'fail',
-          })
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            results.push({
+              message,
+              name: test.name,
+              obj_name: test.obj_name,
+              obj_type: test.obj_type,
+              status: 'fail',
+            })
 
-          if (flags.output === 'summary') {
-            this.log(`FAIL  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
-            this.log(`      Error: ${message}`)
+            if (flags.output === 'summary') {
+              log(`FAIL  ${test.name} [${test.obj_type}: ${test.obj_name}]`)
+              log(`      Error: ${message}`)
+            }
           }
-        }
+      
+        return {lines, results}
       }
+
+      // Print in input order as each test settles, so concurrent output stays
+      // diffable against a sequential run.
+      const emitter = createOrderedEmitter<{lines: string[]; results: TestResult[]}>((settled) => {
+        for (const line of settled.lines) this.log(line)
+      })
+
+      const perTest = await mapWithConcurrency(tests, flags.concurrency, async (test, index) => {
+        const settled = await runOne(test)
+        emitter.settle(index, settled)
+        return settled
+      })
+
+      results.push(...perTest.flatMap((r) => r.results))
 
       // Step 3: Summary
       const passed = results.filter((r) => r.status === 'pass').length
       const failed = results.filter((r) => r.status === 'fail').length
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify({passed, failed, results}, null, 2))
+        this.log(JSON.stringify({failed, passed, results}, null, 2))
       } else {
         this.log(`\nResults: ${passed} passed, ${failed} failed`)
       }
