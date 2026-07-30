@@ -208,32 +208,36 @@ export async function collectAllPages<T>(
 }
 
 export interface PagingJson<T> {
-  count: number
+  curPage?: number
   items: T[]
-  next_page?: number
-  page?: number
-  per_page?: number
-  prev_page?: number
-  total?: number
+  itemsTotal?: number
+  nextPage?: number
+  perPage?: number
+  prevPage?: number
 }
 
 /**
  * Build the `--output json` payload for a list command.
  *
- * Emits only fields the response actually proves, mirroring the footer's
- * honesty rule: `total` appears only when the server sent `itemsTotal`,
- * `next_page` only when the server computed it. `count` is always the number of
- * items in this payload and is the one figure that is unconditionally true.
+ * Field names mirror the Metadata API envelope exactly — `curPage`, `nextPage`,
+ * `prevPage`, `itemsTotal`, `items` — so a script can move between the CLI and
+ * the raw API without a translation layer. `perPage` is the one field the CLI
+ * injects: the API never echoes it back, and it is otherwise invisible when the
+ * user leaves the flag at its default.
  *
- * Without this, a script driving `--output json` sees a bare array and its only
- * available stop condition is `length < per_page` — precisely the page-fullness
- * inference this module refuses to make in the footer.
+ * Emits only fields the response actually proves, mirroring the footer's
+ * honesty rule: `itemsTotal` appears only when the server sent it, `nextPage`
+ * only when the server computed it.
+ *
+ * Without this envelope, a script driving `--output json` sees a bare array and
+ * its only available stop condition is `length < perPage` — precisely the
+ * page-fullness inference this module refuses to make in the footer.
  */
 export function buildPagingJson<T>(
   list: NormalizedList<T>,
   options: {page?: number; perPage?: number; tier: PagingTier},
 ): PagingJson<T> {
-  const payload: PagingJson<T> = {count: list.items.length, items: list.items}
+  const payload: PagingJson<T> = {items: list.items}
 
   if (options.tier === 'none') {
     return payload
@@ -250,12 +254,12 @@ export function buildPagingJson<T>(
     return payload
   }
 
-  const page = list.curPage ?? options.page
-  if (page !== undefined) payload.page = page
-  if (options.tier === 'envelope' && options.perPage !== undefined) payload.per_page = options.perPage
-  if (list.nextPage !== undefined) payload.next_page = list.nextPage
-  if (list.prevPage !== undefined) payload.prev_page = list.prevPage
-  if (list.itemsTotal !== undefined) payload.total = list.itemsTotal
+  const curPage = list.curPage ?? options.page
+  if (curPage !== undefined) payload.curPage = curPage
+  if (options.tier === 'envelope' && options.perPage !== undefined) payload.perPage = options.perPage
+  if (list.nextPage !== undefined) payload.nextPage = list.nextPage
+  if (list.prevPage !== undefined) payload.prevPage = list.prevPage
+  if (list.itemsTotal !== undefined) payload.itemsTotal = list.itemsTotal
 
   return payload
 }
