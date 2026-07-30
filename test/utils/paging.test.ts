@@ -326,33 +326,35 @@ describe('paging', () => {
   })
 
   describe('buildPagingJson', () => {
-    it('always reports count and items', () => {
+    it('always carries items', () => {
       const payload = buildPagingJson({items: [{id: 1}, {id: 2}]}, {tier: 'none'})
-      expect(payload.count).to.equal(2)
       expect(payload.items).to.deep.equal([{id: 1}, {id: 2}])
     })
 
     it('omits paging fields entirely for the none tier', () => {
       const payload = buildPagingJson({curPage: 1, items: [{id: 1}]}, {tier: 'none'})
-      expect(payload).to.not.have.property('page')
-      expect(payload).to.not.have.property('total')
-      expect(payload).to.not.have.property('next_page')
+      expect(payload).to.not.have.property('curPage')
+      expect(payload).to.not.have.property('itemsTotal')
+      expect(payload).to.not.have.property('nextPage')
     })
 
-    it('surfaces the server-computed next page for the envelope tier', () => {
+    it('mirrors the API envelope field names, injecting only perPage', () => {
       const payload = buildPagingJson(
         {curPage: 2, items: [{id: 1}], nextPage: 3, prevPage: 1},
         {perPage: 50, tier: 'envelope'},
       )
-      expect(payload.page).to.equal(2)
-      expect(payload.next_page).to.equal(3)
-      expect(payload.prev_page).to.equal(1)
-      expect(payload.per_page).to.equal(50)
+      expect(payload.curPage).to.equal(2)
+      expect(payload.nextPage).to.equal(3)
+      expect(payload.prevPage).to.equal(1)
+      expect(payload.perPage).to.equal(50)
+      // No snake_case aliases and no CLI-invented count: the payload is the
+      // API's own shape plus perPage.
+      expect(Object.keys(payload).sort()).to.deep.equal(['curPage', 'items', 'nextPage', 'perPage', 'prevPage'])
     })
 
-    it('omits next_page on the last page rather than emitting null', () => {
+    it('omits nextPage on the last page rather than emitting null', () => {
       const payload = buildPagingJson({curPage: 4, items: [{id: 1}]}, {tier: 'envelope'})
-      expect(payload).to.not.have.property('next_page')
+      expect(payload).to.not.have.property('nextPage')
     })
 
     it('surfaces the true total for the page-only-envelope tier', () => {
@@ -360,21 +362,21 @@ describe('paging', () => {
         {curPage: 2, items: [{id: 1}], itemsTotal: 340},
         {tier: 'page-only-envelope'},
       )
-      expect(payload.total).to.equal(340)
+      expect(payload.itemsTotal).to.equal(340)
     })
 
-    it('omits per_page for the page-only-envelope tier, which the API fixes server-side', () => {
+    it('omits perPage for the page-only-envelope tier, which the API fixes server-side', () => {
       const payload = buildPagingJson(
         {curPage: 2, items: [{id: 1}], itemsTotal: 340},
         {perPage: 50, tier: 'page-only-envelope'},
       )
-      expect(payload).to.not.have.property('per_page')
+      expect(payload).to.not.have.property('perPage')
     })
 
     it('asserts no position when a paged response carried no metadata', () => {
       const payload = buildPagingJson({items: [{id: 1}]}, {page: 7, tier: 'envelope'})
-      expect(payload).to.not.have.property('page')
-      expect(payload.count).to.equal(1)
+      expect(payload).to.not.have.property('curPage')
+      expect(payload.items).to.have.length(1)
     })
 
     it('gives a script a real stop condition instead of page-fullness inference', () => {
@@ -383,8 +385,8 @@ describe('paging', () => {
         {curPage: 1, items: Array.from({length: 50}, () => ({}))},
         {perPage: 50, tier: 'envelope'},
       )
-      expect(payload).to.not.have.property('next_page')
-      expect(payload.count).to.equal(50)
+      expect(payload).to.not.have.property('nextPage')
+      expect(payload.items).to.have.length(50)
     })
   })
 })

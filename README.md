@@ -56,20 +56,20 @@ Notes:
 - **`--per_page` is only offered where the endpoint accepts it.** Static-host endpoints hardcode 100 items per page server-side, so those commands take `--page` alone. `xano static_host list --per_page 10` previously parsed but did nothing; it is now rejected rather than silently ignored.
 - **All paged commands default `--per_page` to 50.** The test-list commands previously requested 10000 internally so nothing was ever cut off; now that the footer and the JSON envelope both report position, a page that stops at 50 is visible rather than silent. Raise it (up to 10000) when you want everything in one call.
 - **The last group has no CLI paging.** Those endpoints page server-side but return a plain array with no page or total metadata, so the CLI cannot tell you where you are. Rather than show a page number with no context — or infer "more available" from a full page, which is wrong exactly when the result count is a multiple of the page size — these commands are left as-is. **They return at most 25–50 items** (50 for tenants and ephemerals, 25 for releases, platforms, and tenant backups). If you have more than that, query the Metadata API directly until those endpoints return paging metadata.
-- **`--output json` returns an envelope, not a bare array.** Every list command emits `{count, items, ...}`, with `page`, `per_page`, `next_page`, `prev_page`, and `total` included only when the endpoint actually reports them. This is a **breaking change** for scripts that parsed the previous bare array — read `.items` instead.
+- **`--output json` returns an envelope, not a bare array.** Every list command emits `{items, ...}` using the Metadata API's own field names — `curPage`, `nextPage`, `prevPage`, `itemsTotal` — each included only when the endpoint actually reports it. `perPage` is the one field the CLI adds, since the API never echoes it back and it is otherwise invisible at its default. This is a **breaking change** for scripts that parsed the previous bare array — read `.items` instead.
 
   ```jsonc
   // xano function list -o json
   {
-    "count": 50,
-    "page": 2,
-    "per_page": 50,
-    "next_page": 3,     // absent on the last page — never inferred
+    "curPage": 2,
+    "perPage": 50,      // injected by the CLI; everything else mirrors the API
+    "nextPage": 3,      // absent on the last page — never inferred
+    "prevPage": 1,
     "items": [ /* ... */ ]
   }
   ```
 
-  The point of the envelope is that a script gets the same honest stop condition a human gets from the footer. Without it the only signal available is `items.length < per_page`, which is wrong exactly when the result count is a multiple of the page size. Absence of `next_page` means the server said there is no next page; it is never omitted as a guess.
+  The point of the envelope is that a script gets the same honest stop condition a human gets from the footer, in the same shape the raw Metadata API returns. Without it the only signal available is `items.length < perPage`, which is wrong exactly when the result count is a multiple of the page size. Absence of `nextPage` means the server said there is no next page; it is never omitted as a guess.
 
 ### Authentication
 
