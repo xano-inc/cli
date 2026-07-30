@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson} from '../../../utils/paging.js'
 
 interface Release {
   branch?: string
@@ -81,9 +82,8 @@ Releases in workspace 5:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(releases, null, 2))
-      } else {
-        if (releases.length === 0) {
+        this.log(JSON.stringify(buildPagingJson({items: releases}, {tier: 'none'}), null, 2))
+      } else if (releases.length === 0) {
           this.log('No releases found')
         } else {
           this.log(`Releases in workspace ${workspaceId}:`)
@@ -96,7 +96,6 @@ Releases in workspace 5:
             this.log(`  - ${release.name} (ID: ${release.id})${branch}${hotfix}${createdAt}`)
           }
         }
-      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list releases: ${error.message}`)

@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson, buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
 
 interface StaticHost {
   created_at?: number | string
@@ -10,12 +11,6 @@ interface StaticHost {
   name: string
   updated_at?: number | string
   // Add other static host properties as needed
-}
-
-interface StaticHostListResponse {
-  items?: StaticHost[]
-  static_hosts?: StaticHost[]
-  // Handle both array and object responses
 }
 
 export default class StaticHostList extends BaseCommand {
@@ -33,13 +28,17 @@ Available static hosts:
   - another-host (ID: 2)
 `,
     `$ xano static_host:list -w 40 --output json
-[
-  {
-    "id": 1,
-    "name": "my-static-host",
-    "domain": "example.com"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "total": 3,
+  "items": [
+    {
+      "id": 1,
+      "name": "my-static-host"
+    }
+  ]
+}
 `,
     `$ xano static_host:list -p staging -o json --page 2
 [
@@ -59,16 +58,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    page: Flags.integer({
-      default: 1,
-      description: 'Page number for pagination',
-      required: false,
-    }),
-    per_page: Flags.integer({
-      default: 50,
-      description: 'Number of results per page',
-      required: false,
-    }),
+    ...pagingFlags('page-only-envelope', {fixedPerPage: 100}),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -96,14 +86,7 @@ static override flags = {
     }
 
     // Build query parameters
-    const queryParams = new URLSearchParams({
-      page: flags.page.toString(),
-    })
-
-    // Only add per_page if it's not the default value
-    if (flags.per_page !== 50) {
-      queryParams.append('per_page', flags.per_page.toString())
-    }
+    const queryParams = new URLSearchParams(buildPagingParams(flags, 'page-only-envelope'))
 
     // Construct the API URL
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host?${queryParams.toString()}`
@@ -130,24 +113,12 @@ static override flags = {
         )
       }
 
-      const data = await response.json() as StaticHost[] | StaticHostListResponse
-
-      // Handle different response formats
-      let staticHosts: StaticHost[]
-
-      if (Array.isArray(data)) {
-        staticHosts = data
-      } else if (data && typeof data === 'object' && 'static_hosts' in data && Array.isArray(data.static_hosts)) {
-        staticHosts = data.static_hosts
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        staticHosts = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<StaticHost>(await response.json(), ['static_hosts'])
+      const staticHosts = list.items
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(staticHosts, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, tier: 'page-only-envelope'}), null, 2))
       } else {
         // summary format
         if (staticHosts.length === 0) {
@@ -163,6 +134,9 @@ static override flags = {
             }
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'static host', page: flags.page, tier: 'page-only-envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {

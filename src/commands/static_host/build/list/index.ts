@@ -1,6 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {buildPagingJson, buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../utils/paging.js'
 
 interface Build {
   created_at?: number | string
@@ -12,12 +13,6 @@ interface Build {
   status?: string
   updated_at?: number | string
   // Add other build properties as needed
-}
-
-interface BuildListResponse {
-  builds?: Build[]
-  items?: Build[]
-  // Handle both array and object responses
 }
 
 export default class StaticHostBuildList extends BaseCommand {
@@ -40,13 +35,16 @@ Available builds:
   - staging (ID: 2) - Status: completed
 `,
     `$ xano static_host:build:list default -w 40 --output json
-[
-  {
-    "id": 1,
-    "name": "v1.0.0",
-    "status": "completed"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "total": 12,
+  "items": [
+    {
+      "id": 52
+    }
+  ]
+}
 `,
     `$ xano static_host:build:list default -p staging -o json --page 2
 [
@@ -66,16 +64,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    page: Flags.integer({
-      default: 1,
-      description: 'Page number for pagination',
-      required: false,
-    }),
-    per_page: Flags.integer({
-      default: 50,
-      description: 'Number of results per page',
-      required: false,
-    }),
+    ...pagingFlags('page-only-envelope', {fixedPerPage: 100}),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -103,14 +92,7 @@ static override flags = {
     }
 
     // Build query parameters
-    const queryParams = new URLSearchParams({
-      page: flags.page.toString(),
-    })
-
-    // Only add per_page if it's not the default value
-    if (flags.per_page !== 50) {
-      queryParams.append('per_page', flags.per_page.toString())
-    }
+    const queryParams = new URLSearchParams(buildPagingParams(flags, 'page-only-envelope'))
 
     // Construct the API URL
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${args.static_host}/build?${queryParams.toString()}`
@@ -137,24 +119,12 @@ static override flags = {
         )
       }
 
-      const data = await response.json() as Build[] | BuildListResponse
-
-      // Handle different response formats
-      let builds: Build[]
-
-      if (Array.isArray(data)) {
-        builds = data
-      } else if (data && typeof data === 'object' && 'builds' in data && Array.isArray(data.builds)) {
-        builds = data.builds
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        builds = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<Build>(await response.json(), ['builds'])
+      const builds = list.items
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(builds, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, tier: 'page-only-envelope'}), null, 2))
       } else {
         // summary format
         if (builds.length === 0) {
@@ -170,6 +140,9 @@ static override flags = {
             }
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'build', page: flags.page, tier: 'page-only-envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {
