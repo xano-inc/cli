@@ -56,7 +56,20 @@ Notes:
 - **`--per_page` is only offered where the endpoint accepts it.** Static-host endpoints hardcode 100 items per page server-side, so those commands take `--page` alone. `xano static_host list --per_page 10` previously parsed but did nothing; it is now rejected rather than silently ignored.
 - **The test-list commands default `--per_page` to 10000**, matching the value they previously requested internally, so they keep returning everything unless you narrow them.
 - **The last group has no CLI paging.** Those endpoints page server-side but return a plain array with no page or total metadata, so the CLI cannot tell you where you are. Rather than show a page number with no context — or infer "more available" from a full page, which is wrong exactly when the result count is a multiple of the page size — these commands are left as-is. **They return at most 25–50 items** (50 for tenants and ephemerals, 25 for releases, platforms, and tenant backups). If you have more than that, query the Metadata API directly until those endpoints return paging metadata.
-- `--output json` always prints a bare array with no footer, so existing scripts are unaffected.
+- **`--output json` returns an envelope, not a bare array.** Every list command emits `{count, items, ...}`, with `page`, `per_page`, `next_page`, `prev_page`, and `total` included only when the endpoint actually reports them. This is a **breaking change** for scripts that parsed the previous bare array — read `.items` instead.
+
+  ```jsonc
+  // xano function list -o json
+  {
+    "count": 50,
+    "page": 2,
+    "per_page": 50,
+    "next_page": 3,     // absent on the last page — never inferred
+    "items": [ /* ... */ ]
+  }
+  ```
+
+  The point of the envelope is that a script gets the same honest stop condition a human gets from the footer. Without it the only signal available is `items.length < per_page`, which is wrong exactly when the result count is a multiple of the page size. Absence of `next_page` means the server said there is no next page; it is never omitted as a guess.
 
 ### Authentication
 
@@ -453,6 +466,12 @@ xano workflow_test run <workflow_test_id>
 # Run all workflow tests
 xano workflow_test run_all
 xano workflow_test run_all --branch dev
+
+# Sandbox and tenant variants take the same paging flags
+xano sandbox unit_test list --page 2 --per_page 25
+xano sandbox workflow_test list --page 2 --per_page 25
+xano tenant unit_test list my-tenant --page 2 --per_page 25
+xano tenant workflow_test list my-tenant --page 2 --per_page 25
 
 # Delete a workflow test
 xano workflow_test delete <workflow_test_id>

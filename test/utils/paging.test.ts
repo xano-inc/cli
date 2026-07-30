@@ -2,6 +2,7 @@
 import {expect} from 'chai'
 
 import {
+  buildPagingJson,
   buildPagingParams,
   formatPagingFooter,
   normalizeListResponse,
@@ -197,12 +198,15 @@ describe('paging', () => {
       expect(footer).to.not.contain('undefined')
     })
 
-    it('falls back to the requested page when the response omits curPage', () => {
+    it('falls back to the requested page only when other metadata confirms paging', () => {
+      // itemsTotal proves the endpoint honored paging, so the requested page is
+      // a safe stand-in for an absent curPage.
       const footer = formatPagingFooter(
-        {items: Array.from({length: 5}, () => ({}))},
-        {...noun, page: 3, tier: 'envelope'},
+        {items: Array.from({length: 5}, () => ({})), itemsTotal: 40},
+        {noun: 'static host', page: 3, tier: 'page-only-envelope'},
       )
       expect(footer).to.contain('Page 3')
+      expect(footer).to.contain('40 total')
     })
 
     it('reports a plain pluralized count for the none tier', () => {
@@ -234,6 +238,95 @@ describe('paging', () => {
     it('returns null for an empty result set', () => {
       expect(formatPagingFooter({items: []}, {...noun, tier: 'envelope'})).to.equal(null)
       expect(formatPagingFooter({items: []}, {...noun, tier: 'none'})).to.equal(null)
+    })
+
+    it('falls back to a bare count when a paged response carried no metadata', () => {
+      // The endpoint may have ignored `page` entirely; printing the requested
+      // page would state the user's wish as a server fact.
+      const footer = formatPagingFooter(
+        {items: Array.from({length: 12}, () => ({}))},
+        {...noun, page: 7, tier: 'envelope'},
+      )
+      expect(footer).to.equal('12 functions')
+      expect(footer).to.not.contain('Page 7')
+    })
+
+    it('reports an empty page past the end when the true total is known', () => {
+      // Distinguishes "you paged past the end" from "this workspace is empty".
+      const footer = formatPagingFooter(
+        {curPage: 99, items: [], itemsTotal: 340},
+        {noun: 'static host', tier: 'page-only-envelope'},
+      )
+      expect(footer).to.equal('Page 99 · 0 shown · 340 total')
+    })
+
+    it('still returns null for an empty page when no total is known', () => {
+      expect(
+        formatPagingFooter({curPage: 99, items: []}, {noun: 'static host', tier: 'page-only-envelope'}),
+      ).to.equal(null)
+    })
+  })
+
+  describe('buildPagingJson', () => {
+    it('always reports count and items', () => {
+      const payload = buildPagingJson({items: [{id: 1}, {id: 2}]}, {tier: 'none'})
+      expect(payload.count).to.equal(2)
+      expect(payload.items).to.deep.equal([{id: 1}, {id: 2}])
+    })
+
+    it('omits paging fields entirely for the none tier', () => {
+      const payload = buildPagingJson({curPage: 1, items: [{id: 1}]}, {tier: 'none'})
+      expect(payload).to.not.have.property('page')
+      expect(payload).to.not.have.property('total')
+      expect(payload).to.not.have.property('next_page')
+    })
+
+    it('surfaces the server-computed next page for the envelope tier', () => {
+      const payload = buildPagingJson(
+        {curPage: 2, items: [{id: 1}], nextPage: 3, prevPage: 1},
+        {perPage: 50, tier: 'envelope'},
+      )
+      expect(payload.page).to.equal(2)
+      expect(payload.next_page).to.equal(3)
+      expect(payload.prev_page).to.equal(1)
+      expect(payload.per_page).to.equal(50)
+    })
+
+    it('omits next_page on the last page rather than emitting null', () => {
+      const payload = buildPagingJson({curPage: 4, items: [{id: 1}]}, {tier: 'envelope'})
+      expect(payload).to.not.have.property('next_page')
+    })
+
+    it('surfaces the true total for the page-only-envelope tier', () => {
+      const payload = buildPagingJson(
+        {curPage: 2, items: [{id: 1}], itemsTotal: 340},
+        {tier: 'page-only-envelope'},
+      )
+      expect(payload.total).to.equal(340)
+    })
+
+    it('omits per_page for the page-only-envelope tier, which the API fixes server-side', () => {
+      const payload = buildPagingJson(
+        {curPage: 2, items: [{id: 1}], itemsTotal: 340},
+        {perPage: 50, tier: 'page-only-envelope'},
+      )
+      expect(payload).to.not.have.property('per_page')
+    })
+
+    it('asserts no position when a paged response carried no metadata', () => {
+      const payload = buildPagingJson({items: [{id: 1}]}, {page: 7, tier: 'envelope'})
+      expect(payload).to.not.have.property('page')
+      expect(payload.count).to.equal(1)
+    })
+
+    it('gives a script a real stop condition instead of page-fullness inference', () => {
+      // 50 of 50 returned but the server says there is no next page.
+      const payload = buildPagingJson(
+        {curPage: 1, items: Array.from({length: 50}, () => ({}))},
+        {perPage: 50, tier: 'envelope'},
+      )
+      expect(payload).to.not.have.property('next_page')
+      expect(payload.count).to.equal(50)
     })
   })
 })

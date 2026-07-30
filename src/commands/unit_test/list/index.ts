@@ -1,7 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
-import {buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
+import {buildPagingJson, buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
 
 interface UnitTest {
   description?: string
@@ -101,7 +101,7 @@ Unit tests in workspace 5:
       const tests = list.items
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(tests, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, perPage: flags.per_page, tier: 'envelope'}), null, 2))
       } else {
         if (tests.length === 0) {
           this.log('No unit tests found')

@@ -1,7 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
-import {formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
+import {buildPagingJson, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
 
 interface Function {
   created_at?: number
@@ -29,20 +29,30 @@ Available functions:
   - another-function (ID: 2)
 `,
     `$ xano function:list -w 40 --output json
-[
-  {
-    "id": 1,
-    "name": "function-1"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "per_page": 50,
+  "next_page": 2,
+  "items": [
+    {
+      "id": 1,
+      "name": "function-1"
+    }
+  ]
+}
 `,
     `$ xano function:list -p staging -o json --include_draft
-[
-  {
-    "id": 1,
-    "name": "function-1"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "items": [
+    {
+      "id": 1,
+      "name": "function-1"
+    }
+  ]
+}
 `,
   ]
 static override flags = {
@@ -142,7 +152,7 @@ static override flags = {
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(functions, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, perPage: flags.per_page, tier: 'envelope'}), null, 2))
       } else {
         // summary format
         if (functions.length === 0) {

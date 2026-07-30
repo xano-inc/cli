@@ -1,7 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
-import {formatPagingFooter} from '../../../../utils/paging.js'
+import {buildPagingJson, formatPagingFooter} from '../../../../utils/paging.js'
 
 interface Snapshot {
   created?: string
@@ -89,7 +89,7 @@ Snapshots for tenant t1234-abcd-xyz1:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(snapshots, null, 2))
+        this.log(JSON.stringify(buildPagingJson({items: snapshots}, {tier: 'none'}), null, 2))
       } else if (snapshots.length === 0) {
         this.log(`No snapshots found for tenant ${tenantName}`)
       } else {

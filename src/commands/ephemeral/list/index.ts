@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson} from '../../../utils/paging.js'
 
 interface Tenant {
   display?: string
@@ -104,7 +105,7 @@ Ephemeral tenants (all workspaces):
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(tenants, null, 2))
+        this.log(JSON.stringify(buildPagingJson({items: tenants}, {tier: 'none'}), null, 2))
       } else if (tenants.length === 0) {
         this.log('No ephemeral tenants found')
       } else {

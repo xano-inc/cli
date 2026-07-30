@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {buildPagingJson} from '../../../../utils/paging.js'
 
 interface TenantCluster {
   created_at?: string
@@ -72,7 +73,7 @@ Tenant clusters:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(clusters, null, 2))
+        this.log(JSON.stringify(buildPagingJson({items: clusters}, {tier: 'none'}), null, 2))
       } else {
         if (clusters.length === 0) {
           this.log('No tenant clusters found')

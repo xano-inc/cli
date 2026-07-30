@@ -1,6 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {buildPagingJson} from '../../../../utils/paging.js'
 
 interface Backup {
   _release?: {name?: string}
@@ -96,7 +97,7 @@ Backups for tenant t1234-abcd-xyz1:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(backups, null, 2))
+        this.log(JSON.stringify(buildPagingJson({items: backups}, {tier: 'none'}), null, 2))
       } else {
         if (backups.length === 0) {
           this.log(`No backups found for tenant ${tenantName}`)

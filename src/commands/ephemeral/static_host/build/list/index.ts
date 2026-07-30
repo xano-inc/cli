@@ -1,7 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../../base-command.js'
-import {buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../../utils/paging.js'
+import {buildPagingJson, buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../../utils/paging.js'
 
 interface Build {
   created_at?: number | string
@@ -35,13 +35,16 @@ Available builds:
   - staging (ID: 2) - Status: completed
 `,
     `$ xano ephemeral static_host build list e4f2-9ab1-xyz1 -H default -w 40 --output json
-[
-  {
-    "id": 1,
-    "name": "v1.0.0",
-    "status": "completed"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "total": 12,
+  "items": [
+    {
+      "id": 52
+    }
+  ]
+}
 `,
     `$ xano ephemeral static_host build list e4f2-9ab1-xyz1 -H default -p staging -o json --page 2
 [
@@ -129,7 +132,7 @@ static override flags = {
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(builds, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, tier: 'page-only-envelope'}), null, 2))
       } else {
         // summary format
         if (builds.length === 0) {

@@ -1,7 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
-import {formatPagingFooter, normalizeListResponse} from '../../../utils/paging.js'
+import {buildPagingJson, formatPagingFooter, normalizeListResponse} from '../../../utils/paging.js'
 
 interface Workspace {
   created_at?: string
@@ -101,7 +101,7 @@ Available workspaces:
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(workspaces, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {tier: 'none'}), null, 2))
       } else {
         // summary format
         if (workspaces.length === 0) {

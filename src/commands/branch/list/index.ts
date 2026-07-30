@@ -1,7 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
-import {formatPagingFooter} from '../../../utils/paging.js'
+import {buildPagingJson, formatPagingFooter} from '../../../utils/paging.js'
 
 export interface Branch {
   backup: boolean
@@ -110,7 +110,7 @@ Available branches:
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(branches, null, 2))
+        this.log(JSON.stringify(buildPagingJson({items: branches}, {tier: 'none'}), null, 2))
       } else {
         // summary format
         if (branches.length === 0) {

@@ -181,6 +181,59 @@ export function normalizeListResponse<T>(data: unknown, resourceKeys: string[] =
   throw new Error(`Unexpected API response format. Expected ${accepted.join(', ')}.`)
 }
 
+export interface PagingJson<T> {
+  count: number
+  items: T[]
+  next_page?: number
+  page?: number
+  per_page?: number
+  prev_page?: number
+  total?: number
+}
+
+/**
+ * Build the `--output json` payload for a list command.
+ *
+ * Emits only fields the response actually proves, mirroring the footer's
+ * honesty rule: `total` appears only when the server sent `itemsTotal`,
+ * `next_page` only when the server computed it. `count` is always the number of
+ * items in this payload and is the one figure that is unconditionally true.
+ *
+ * Without this, a script driving `--output json` sees a bare array and its only
+ * available stop condition is `length < per_page` — precisely the page-fullness
+ * inference this module refuses to make in the footer.
+ */
+export function buildPagingJson<T>(
+  list: NormalizedList<T>,
+  options: {page?: number; perPage?: number; tier: PagingTier},
+): PagingJson<T> {
+  const payload: PagingJson<T> = {count: list.items.length, items: list.items}
+
+  if (options.tier === 'none') {
+    return payload
+  }
+
+  const hasPositionEvidence =
+    list.curPage !== undefined ||
+    list.nextPage !== undefined ||
+    list.prevPage !== undefined ||
+    list.itemsTotal !== undefined
+
+  // Same rule as the footer: with no metadata we cannot assert a position.
+  if (!hasPositionEvidence) {
+    return payload
+  }
+
+  const page = list.curPage ?? options.page
+  if (page !== undefined) payload.page = page
+  if (options.tier === 'envelope' && options.perPage !== undefined) payload.per_page = options.perPage
+  if (list.nextPage !== undefined) payload.next_page = list.nextPage
+  if (list.prevPage !== undefined) payload.prev_page = list.prevPage
+  if (list.itemsTotal !== undefined) payload.total = list.itemsTotal
+
+  return payload
+}
+
 export interface PagingFooterOptions {
   /** Singular noun for the listed resource, used by the `none` tier. */
   noun: string
@@ -209,13 +262,28 @@ export function formatPagingFooter<T>(
   options: PagingFooterOptions,
 ): null | string {
   const count = list.items.length
-  if (count === 0) {
-    return null
+  const plural = options.nounPlural ?? `${options.noun}s`
+  const countPhrase = `${count} ${count === 1 ? options.noun : plural}`
+
+  // A paged tier whose response carried no metadata at all tells us nothing
+  // about position — the endpoint may have ignored `page` entirely. Reporting
+  // the requested page here would state the user's wish as a server fact, so
+  // fall back to the bare count.
+  const hasPositionEvidence =
+    list.curPage !== undefined ||
+    list.nextPage !== undefined ||
+    list.prevPage !== undefined ||
+    list.itemsTotal !== undefined
+
+  if (options.tier === 'none' || !hasPositionEvidence) {
+    return count === 0 ? null : countPhrase
   }
 
-  if (options.tier === 'none') {
-    const plural = options.nounPlural ?? `${options.noun}s`
-    return `${count} ${count === 1 ? options.noun : plural}`
+  // An empty page past the end is worth reporting when we know the true total —
+  // otherwise `--page 99` on a populated workspace is indistinguishable from an
+  // empty one.
+  if (count === 0 && list.itemsTotal === undefined) {
+    return null
   }
 
   const page = list.curPage ?? options.page ?? 1

@@ -2,12 +2,25 @@
 import {expect} from 'chai'
 
 import BranchList from '../../src/commands/branch/list/index.js'
+import EphemeralList from '../../src/commands/ephemeral/list/index.js'
+import EphemeralStaticHostBuildList from '../../src/commands/ephemeral/static_host/build/list/index.js'
 import EphemeralStaticHostList from '../../src/commands/ephemeral/static_host/list/index.js'
 import FunctionList from '../../src/commands/function/list/index.js'
+import KnowledgeList from '../../src/commands/knowledge/list/index.js'
+import PlatformList from '../../src/commands/platform/list/index.js'
 import ReleaseList from '../../src/commands/release/list/index.js'
+import SandboxEnvList from '../../src/commands/sandbox/env/list/index.js'
+import SandboxUnitTestList from '../../src/commands/sandbox/unit_test/list/index.js'
+import SandboxWorkflowTestList from '../../src/commands/sandbox/workflow_test/list/index.js'
 import StaticHostBuildList from '../../src/commands/static_host/build/list/index.js'
 import StaticHostList from '../../src/commands/static_host/list/index.js'
+import TenantBackupList from '../../src/commands/tenant/backup/list/index.js'
+import TenantClusterList from '../../src/commands/tenant/cluster/list/index.js'
+import TenantEnvList from '../../src/commands/tenant/env/list/index.js'
 import TenantList from '../../src/commands/tenant/list/index.js'
+import TenantSnapshotList from '../../src/commands/tenant/snapshot/list/index.js'
+import TenantUnitTestList from '../../src/commands/tenant/unit_test/list/index.js'
+import TenantWorkflowTestList from '../../src/commands/tenant/workflow_test/list/index.js'
 import UnitTestList from '../../src/commands/unit_test/list/index.js'
 import WorkflowTestList from '../../src/commands/workflow_test/list/index.js'
 import WorkspaceList from '../../src/commands/workspace/list/index.js'
@@ -23,23 +36,50 @@ const flagsOf = (cmd: {flags: Record<string, unknown>}): string[] => Object.keys
 
 describe('list command paging surface', () => {
   describe('envelope tier — endpoint returns curPage/nextPage', () => {
-    it('function list exposes both page and per_page', () => {
-      expect(flagsOf(FunctionList)).to.include.members(['page', 'per_page'])
-    })
+    const envelopeCommands: Array<[string, {flags: Record<string, unknown>}]> = [
+      ['function list', FunctionList],
+      ['unit_test list', UnitTestList],
+      ['workflow_test list', WorkflowTestList],
+      ['sandbox unit_test list', SandboxUnitTestList],
+      ['sandbox workflow_test list', SandboxWorkflowTestList],
+      ['tenant unit_test list', TenantUnitTestList],
+      ['tenant workflow_test list', TenantWorkflowTestList],
+    ]
 
-    it('unit_test list exposes both page and per_page', () => {
-      expect(flagsOf(UnitTestList)).to.include.members(['page', 'per_page'])
-    })
+    for (const [name, cmd] of envelopeCommands) {
+      it(`${name} exposes both page and per_page`, () => {
+        expect(flagsOf(cmd)).to.include.members(['page', 'per_page'])
+      })
+    }
 
-    it('workflow_test list exposes both page and per_page', () => {
-      expect(flagsOf(WorkflowTestList)).to.include.members(['page', 'per_page'])
-    })
+    const fetchEverything: Array<[string, {flags: Record<string, unknown>}]> = [
+      ['unit_test list', UnitTestList],
+      ['workflow_test list', WorkflowTestList],
+      ['sandbox unit_test list', SandboxUnitTestList],
+      ['sandbox workflow_test list', SandboxWorkflowTestList],
+      ['tenant unit_test list', TenantUnitTestList],
+      ['tenant workflow_test list', TenantWorkflowTestList],
+    ]
 
-    it('preserves the fetch-everything per_page default on unit_test list', () => {
-      // Previously hardcoded to 10000. Dropping to the utility default of 50
-      // would silently truncate results that used to come back whole.
-      const perPage = UnitTestList.flags.per_page as {default?: number}
-      expect(perPage.default).to.equal(10_000)
+    for (const [name, cmd] of fetchEverything) {
+      it(`${name} keeps the fetch-everything per_page default`, () => {
+        // These commands previously requested per_page=10000 internally.
+        // Dropping to the utility default of 50 would silently truncate results
+        // that used to come back whole.
+        //
+        // workspace-level workflow_test list is the exception in origin: it
+        // previously sent no per_page and took the server default of 50, so
+        // 10000 is a deliberate behavior change that stops it truncating.
+        const perPage = cmd.flags.per_page as {default?: number}
+        expect(perPage.default).to.equal(10_000)
+      })
+    }
+
+    it('function list keeps its own documented default of 50', () => {
+      // Unlike the test-list commands, function list already exposed --per_page
+      // with a default of 50, so that default is an existing user contract.
+      const perPage = FunctionList.flags.per_page as {default?: number}
+      expect(perPage.default).to.equal(50)
     })
   })
 
@@ -57,6 +97,11 @@ describe('list command paging surface', () => {
       expect(flagsOf(EphemeralStaticHostList)).to.not.include('per_page')
     })
 
+    it('ephemeral static_host build list exposes page but not per_page', () => {
+      expect(flagsOf(EphemeralStaticHostBuildList)).to.include('page')
+      expect(flagsOf(EphemeralStaticHostBuildList)).to.not.include('per_page')
+    })
+
     it('documents the server-fixed page size on the page flag', () => {
       const page = StaticHostList.flags.page as {description?: string}
       expect(page.description).to.contain('100')
@@ -68,26 +113,44 @@ describe('list command paging surface', () => {
     // CLI cannot describe position. Offering flags would mean inferring
     // has-more from page fullness, which is a guaranteed false positive when the
     // result set is an exact multiple of the page size.
-    it('tenant list exposes no paging flags', () => {
-      expect(flagsOf(TenantList)).to.not.include('page')
-      expect(flagsOf(TenantList)).to.not.include('per_page')
-    })
+    const bareArray: Array<[string, {flags: Record<string, unknown>}]> = [
+      ['tenant list', TenantList],
+      ['release list', ReleaseList],
+      ['platform list', PlatformList],
+      ['tenant cluster list', TenantClusterList],
+      ['ephemeral list', EphemeralList],
+    ]
 
-    it('release list exposes no paging flags', () => {
-      expect(flagsOf(ReleaseList)).to.not.include('page')
-      expect(flagsOf(ReleaseList)).to.not.include('per_page')
+    for (const [name, cmd] of bareArray) {
+      it(`${name} exposes no paging flags`, () => {
+        expect(flagsOf(cmd)).to.not.include('page')
+        expect(flagsOf(cmd)).to.not.include('per_page')
+      })
+    }
+
+    it('tenant backup list keeps its pre-existing --page but gains no per_page', () => {
+      // This command already shipped --page before the paging work; it is left
+      // exactly as-is rather than being promoted to a paging tier.
+      expect(flagsOf(TenantBackupList)).to.include('page')
+      expect(flagsOf(TenantBackupList)).to.not.include('per_page')
     })
   })
 
   describe('none tier — endpoint has no paging at all', () => {
-    it('branch list exposes no paging flags', () => {
-      expect(flagsOf(BranchList)).to.not.include('page')
-      expect(flagsOf(BranchList)).to.not.include('per_page')
-    })
+    const unpaged: Array<[string, {flags: Record<string, unknown>}]> = [
+      ['branch list', BranchList],
+      ['workspace list', WorkspaceList],
+      ['knowledge list', KnowledgeList],
+      ['tenant snapshot list', TenantSnapshotList],
+      ['sandbox env list', SandboxEnvList],
+      ['tenant env list', TenantEnvList],
+    ]
 
-    it('workspace list exposes no paging flags', () => {
-      expect(flagsOf(WorkspaceList)).to.not.include('page')
-      expect(flagsOf(WorkspaceList)).to.not.include('per_page')
-    })
+    for (const [name, cmd] of unpaged) {
+      it(`${name} exposes no paging flags`, () => {
+        expect(flagsOf(cmd)).to.not.include('page')
+        expect(flagsOf(cmd)).to.not.include('per_page')
+      })
+    }
   })
 })

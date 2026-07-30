@@ -1,7 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
-import {buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../utils/paging.js'
+import {buildPagingJson, buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../utils/paging.js'
 
 interface StaticHost {
   created_at?: number | string
@@ -33,13 +33,17 @@ Available static hosts:
   - another-host (ID: 2)
 `,
     `$ xano ephemeral static_host list e4f2-9ab1-xyz1 -w 40 --output json
-[
-  {
-    "id": 1,
-    "name": "my-static-host",
-    "domain": "example.com"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "total": 3,
+  "items": [
+    {
+      "id": 1,
+      "name": "my-static-host"
+    }
+  ]
+}
 `,
     `$ xano ephemeral static_host list e4f2-9ab1-xyz1 -p staging -o json --page 2
 [
@@ -121,7 +125,7 @@ static override flags = {
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(staticHosts, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, tier: 'page-only-envelope'}), null, 2))
       } else {
         // summary format
         if (staticHosts.length === 0) {

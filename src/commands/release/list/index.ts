@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson} from '../../../utils/paging.js'
 
 interface Release {
   branch?: string
@@ -81,7 +82,7 @@ Releases in workspace 5:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(releases, null, 2))
+        this.log(JSON.stringify(buildPagingJson({items: releases}, {tier: 'none'}), null, 2))
       } else {
         if (releases.length === 0) {
           this.log('No releases found')
