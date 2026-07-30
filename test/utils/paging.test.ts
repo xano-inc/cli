@@ -4,6 +4,7 @@ import {expect} from 'chai'
 import {
   buildPagingJson,
   buildPagingParams,
+  collectAllPages,
   formatPagingFooter,
   normalizeListResponse,
   pagingFlags,
@@ -255,6 +256,72 @@ describe('paging', () => {
       expect(
         formatPagingFooter({curPage: 99, items: []}, {noun: 'static host', tier: 'page-only-envelope'}),
       ).to.equal(null)
+    })
+  })
+
+  describe('collectAllPages', () => {
+    it('walks until the server reports no next page', async () => {
+      const pages: Record<number, {items: number[]; nextPage?: number}> = {
+        1: {items: [1, 2], nextPage: 2},
+        2: {items: [3, 4], nextPage: 3},
+        3: {items: [5]},
+      }
+      const seen: number[] = []
+      const items = await collectAllPages<number>(async (page) => {
+        seen.push(page)
+        return pages[page]
+      })
+      expect(items).to.deep.equal([1, 2, 3, 4, 5])
+      expect(seen).to.deep.equal([1, 2, 3])
+    })
+
+    it('never uses page fullness as the stop condition', async () => {
+      // A full page with no nextPage means the server said this is the end.
+      // Continuing would fetch an empty page the user never needed.
+      let calls = 0
+      const items = await collectAllPages<number>(async () => {
+        calls++
+        return {items: Array.from({length: 100}, (_, i) => i)}
+      })
+      expect(calls).to.equal(1)
+      expect(items).to.have.lengthOf(100)
+    })
+
+    it('stops on an empty page when the endpoint omits nextPage', async () => {
+      let calls = 0
+      const items = await collectAllPages<number>(async (page) => {
+        calls++
+        return page === 1 ? {items: [1], nextPage: 2} : {items: []}
+      })
+      expect(calls).to.equal(2)
+      expect(items).to.deep.equal([1])
+    })
+
+    it('stops at maxPages and reports truncation rather than looping forever', async () => {
+      // An endpoint that always claims a next page must not hang the CLI.
+      let truncatedAt = -1
+      const items = await collectAllPages<number>(async (page) => ({items: [page], nextPage: page + 1}), {
+        maxPages: 3,
+        onTruncate(collected) {
+          truncatedAt = collected
+        },
+      })
+      expect(items).to.deep.equal([1, 2, 3])
+      expect(truncatedAt).to.equal(3)
+    })
+
+    it('does not report truncation on a normal walk', async () => {
+      let truncated = false
+      await collectAllPages<number>(async () => ({items: [1]}), {
+        onTruncate() {
+          truncated = true
+        },
+      })
+      expect(truncated).to.equal(false)
+    })
+
+    it('returns an empty array when the first page is empty', async () => {
+      expect(await collectAllPages<number>(async () => ({items: []}))).to.deep.equal([])
     })
   })
 

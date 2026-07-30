@@ -173,6 +173,41 @@ export function normalizeListResponse<T>(data: unknown, resourceKeys: string[] =
   throw new Error(`Unexpected API response format. Expected ${accepted.join(', ')}.`)
 }
 
+/** Page size used when the CLI pages an endpoint on the user's behalf. */
+export const INTERNAL_PAGE_SIZE = 100
+
+/**
+ * Walk an envelope-tier endpoint page by page and collect every item.
+ *
+ * Termination is the server's own `nextPage`, never "the page came back full" —
+ * the same rule the footer follows. An empty page also stops the walk, which
+ * covers an endpoint that omits `nextPage` entirely rather than looping forever.
+ *
+ * `maxPages` is a runaway backstop, not a limit users are expected to hit; when
+ * it trips, `onTruncate` fires so the caller can say so out loud instead of
+ * silently processing a subset.
+ */
+export async function collectAllPages<T>(
+  fetchPage: (page: number) => Promise<NormalizedList<T>>,
+  options: {maxPages?: number; onTruncate?: (collected: number) => void} = {},
+): Promise<T[]> {
+  const maxPages = options.maxPages ?? 100
+  const items: T[] = []
+
+  for (let page = 1; page <= maxPages; page++) {
+    // eslint-disable-next-line no-await-in-loop
+    const list = await fetchPage(page)
+    items.push(...list.items)
+
+    if (list.items.length === 0 || list.nextPage === undefined) {
+      return items
+    }
+  }
+
+  options.onTruncate?.(items.length)
+  return items
+}
+
 export interface PagingJson<T> {
   count: number
   items: T[]

@@ -2,6 +2,7 @@ import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
 import {createOrderedEmitter, mapWithConcurrency} from '../../../../utils/concurrency.js'
+import {collectAllPages, INTERNAL_PAGE_SIZE, normalizeListResponse} from '../../../../utils/paging.js'
 
 interface UnitTest {
   id: string
@@ -94,39 +95,47 @@ Results: 4 passed, 1 failed
     const branch = flags.branch ?? profile.branch
 
     try {
-      const listParams = new URLSearchParams()
-      listParams.set('per_page', '10000')
-      if (branch) listParams.set('branch', branch)
-      if (flags['obj-type']) listParams.set('obj_type', flags['obj-type'])
+      // Page the list rather than asking for everything at once: 100 per
+      // request is plenty for typical suites and does not make the instance
+      // build one enormous response. Termination is the server's own nextPage,
+      // never "the page came back full".
+      const branchValue = branch
+      const tests = await collectAllPages<UnitTest>(
+        async (page) => {
+          const listParams = new URLSearchParams()
+          listParams.set('page', String(page))
+          listParams.set('per_page', String(INTERNAL_PAGE_SIZE))
+        if (branchValue) listParams.set('branch', branchValue)
+        if (flags['obj-type']) listParams.set('obj_type', flags['obj-type'])
 
-      const listResponse = await this.verboseFetch(
-        `${baseUrl}?${listParams}`,
-        {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${profile.access_token}`,
-          },
-          method: 'GET',
+          const listResponse = await this.verboseFetch(
+            `${baseUrl}?${listParams}`,
+            {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${profile.access_token}`,
+              },
+              method: 'GET',
+            },
+            flags.verbose,
+            profile.access_token,
+          )
+
+          if (!listResponse.ok) {
+            const errorText = await listResponse.text()
+            this.error(
+              `Failed to list unit tests: ${listResponse.status}: ${listResponse.statusText}\n${errorText}`,
+            )
+          }
+
+          return normalizeListResponse<UnitTest>(await listResponse.json())
         },
-        flags.verbose,
-        profile.access_token,
+        {
+          onTruncate: (collected) => {
+            this.warn(`Stopped after ${collected} unit tests — the list did not terminate. Some tests may not have run.`)
+          },
+        },
       )
-
-      if (!listResponse.ok) {
-        const errorText = await listResponse.text()
-        this.error(`Failed to list unit tests: ${listResponse.status}: ${listResponse.statusText}\n${errorText}`)
-      }
-
-      const data = (await listResponse.json()) as UnitTest[] | {items?: UnitTest[]}
-
-      let tests: UnitTest[]
-      if (Array.isArray(data)) {
-        tests = data
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        tests = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
 
       if (tests.length === 0) {
         this.log('No unit tests found')

@@ -492,6 +492,8 @@ xano tenant unit_test run_all my-tenant --concurrency 8
 
 Output stays in test order regardless of concurrency, so a parallel run is still diffable against a sequential one, and the JSON `results` array keeps a stable order.
 
+`run_all` discovers the test list by paging at 100 per request rather than asking for the whole suite in one response, and stops when the API reports no next page.
+
 **The default is 1 on purpose.** These tests execute against a shared workspace database, so tests that touch the same tables or records can interfere with each other when run at the same time — producing failures that look like flakiness rather than a real regression. Raise `--concurrency` once you know your tests are independent.
 
 ### Tenants
