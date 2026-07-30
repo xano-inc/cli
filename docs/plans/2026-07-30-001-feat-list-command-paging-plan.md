@@ -1,7 +1,7 @@
 ---
 title: "feat: Uniform --page/--per_page paging across list commands"
 type: feat
-status: active
+status: completed
 date: 2026-07-30
 depth: standard
 ---
