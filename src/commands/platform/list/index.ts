@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson} from '../../../utils/paging.js'
 
 interface Platform {
   created_at?: number | string
@@ -70,9 +71,8 @@ Platforms:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(platforms, null, 2))
-      } else {
-        if (platforms.length === 0) {
+        this.log(JSON.stringify(buildPagingJson({items: platforms}, {tier: 'none'}), null, 2))
+      } else if (platforms.length === 0) {
           this.log('No platforms found')
         } else {
           this.log('Platforms:')
@@ -85,7 +85,6 @@ Platforms:
             this.log(`  ${label}${helmTag}${created}`)
           }
         }
-      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list platforms: ${error.message}`)
