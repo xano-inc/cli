@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {formatPagingFooter} from '../../../../utils/paging.js'
 
 export default class SandboxEnvList extends BaseCommand {
   static description = 'List environment variable keys for a sandbox environment'
@@ -62,6 +63,9 @@ Environment variables for sandbox environment:
             this.log(`  - ${envVar.name}`)
           }
         }
+
+        const footer = formatPagingFooter({items: envVars}, {noun: 'environment variable', tier: 'none'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error

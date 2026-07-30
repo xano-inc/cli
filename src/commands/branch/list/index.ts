@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {formatPagingFooter} from '../../../utils/paging.js'
 
 export interface Branch {
   backup: boolean
@@ -122,6 +123,12 @@ Available branches:
             this.log(`  - ${branch.label}${liveIndicator}${backupIndicator}`)
           }
         }
+
+        const footer = formatPagingFooter(
+          {items: branches},
+          {noun: 'branch', nounPlural: 'branches', tier: 'none'},
+        )
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {

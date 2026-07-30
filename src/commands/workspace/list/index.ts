@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {formatPagingFooter} from '../../../utils/paging.js'
 
 interface Workspace {
   created_at?: string
@@ -131,6 +132,9 @@ Available workspaces:
             }
           }
         }
+
+        const footer = formatPagingFooter({items: workspaces}, {noun: 'workspace', tier: 'none'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {
