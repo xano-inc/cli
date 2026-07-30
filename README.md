@@ -39,6 +39,38 @@ Destructive commands include imperative safety prefixes in their help text and f
 
 These warnings are layer 1 of broader push-safety work; ephemeral sandbox environments and push preview remain the structural safeguards.
 
+### Paging on list commands
+
+The Metadata API pages unevenly, so `list` commands differ in what they expose. Every command reports only what its endpoint actually returns — the CLI never guesses whether more results exist.
+
+| Commands | Flags | Footer |
+|---|---|---|
+| `function list`, `unit_test list`, `workflow_test list` (plus `sandbox` / `tenant` variants) | `--page`, `--per_page` | `Page 2 · 50 shown · next: --page 3` |
+| `static_host list`, `static_host build list` (plus `ephemeral` variants) | `--page` only | `Page 2 · 100 shown · 340 total` |
+| `branch list`, `workspace list`, `tenant snapshot list`, `sandbox env list`, `tenant env list` | none | `12 branches` |
+| `tenant list`, `release list`, `platform list`, `tenant cluster list`, `ephemeral list` | none | none |
+| `tenant backup list` | `--page` only (pre-existing) | none |
+
+Notes:
+
+- **`--per_page` is only offered where the endpoint accepts it.** Static-host endpoints hardcode 100 items per page server-side, so those commands take `--page` alone. `xano static_host list --per_page 10` previously parsed but did nothing; it is now rejected rather than silently ignored.
+- **All paged commands default `--per_page` to 50.** The test-list commands previously requested 10000 internally so nothing was ever cut off; now that the footer and the JSON envelope both report position, a page that stops at 50 is visible rather than silent. Raise it (up to 10000) when you want everything in one call.
+- **The last group has no CLI paging.** Those endpoints page server-side but return a plain array with no page or total metadata, so the CLI cannot tell you where you are. Rather than show a page number with no context — or infer "more available" from a full page, which is wrong exactly when the result count is a multiple of the page size — these commands are left as-is. **They return at most 25–50 items** (50 for tenants and ephemerals, 25 for releases, platforms, and tenant backups). If you have more than that, query the Metadata API directly until those endpoints return paging metadata.
+- **`--output json` returns an envelope, not a bare array.** Every list command emits `{count, items, ...}`, with `page`, `per_page`, `next_page`, `prev_page`, and `total` included only when the endpoint actually reports them. This is a **breaking change** for scripts that parsed the previous bare array — read `.items` instead.
+
+  ```jsonc
+  // xano function list -o json
+  {
+    "count": 50,
+    "page": 2,
+    "per_page": 50,
+    "next_page": 3,     // absent on the last page — never inferred
+    "items": [ /* ... */ ]
+  }
+  ```
+
+  The point of the envelope is that a script gets the same honest stop condition a human gets from the footer. Without it the only signal available is `items.length < per_page`, which is wrong exactly when the result count is a multiple of the page size. Absence of `next_page` means the server said there is no next page; it is never omitted as a guess.
+
 ### Authentication
 
 ```bash
@@ -195,6 +227,35 @@ xano workspace git pull -r git@github.com:owner/repo.git
 xano workspace git pull -r https://gitlab.com/owner/repo/-/tree/master/path
 xano workspace git pull -r https://github.com/owner/private-repo -t ghp_xxx
 xano workspace git pull -r https://github.com/owner/repo --path subdir
+```
+
+### Knowledge
+
+Knowledge items are user-authored docs and skills (e.g. `CLAUDE.md`, `AGENTS.md`, runbooks)
+attached to a workspace. Each knowledge item's **name is a path** (e.g. `some/thing/CLAUDE.md`):
+`pull` writes its content to that path under the output directory, and `push` turns each local
+file into a knowledge item named by its relative path.
+
+Push matches local files to remote items by name. Existing items are updated (content only —
+description, mode, tags, and other metadata are preserved); new files are created. The
+knowledge type for new items is inferred from the filename: `AGENTS.md` → `agents.md`,
+`SKILL.md` → `skill`, everything else → `doc`. Hidden files (dotfiles) and `node_modules`
+are skipped.
+
+```bash
+# Pull knowledge files to local paths (defaults to current directory)
+xano knowledge pull
+xano knowledge pull -d ./knowledge                       # Specify output directory
+xano knowledge pull -b dev                               # Specific branch
+
+# Push local files as knowledge (defaults to current directory, only changed files)
+xano knowledge push
+xano knowledge push -d ./knowledge                       # Push from a specific directory
+xano knowledge push --dry-run                            # Preview changes without pushing
+xano knowledge push --sync --delete                      # Full push + delete remote knowledge not included
+xano knowledge push --force                              # Skip preview and confirmation (for CI/CD)
+xano knowledge push -i "guides/*"                        # Push only matching files
+xano knowledge push -e "**/README.md"                    # Push all files except READMEs
 ```
 
 ### Branches
@@ -372,9 +433,10 @@ xano platform get <platform_id>
 #### Unit Tests
 
 ```bash
-# List unit tests
+# List unit tests (returns all tests by default; --per_page narrows the page)
 xano unit_test list
 xano unit_test list --branch dev --obj-type function
+xano unit_test list --page 2 --per_page 25
 
 # Run a single unit test
 xano unit_test run <unit_test_id>
@@ -388,9 +450,10 @@ xano unit_test run_all --branch dev --obj-type function
 #### Workflow Tests
 
 ```bash
-# List workflow tests
+# List workflow tests (returns all tests by default; --per_page narrows the page)
 xano workflow_test list
 xano workflow_test list --branch dev
+xano workflow_test list --page 2 --per_page 25
 
 # Get workflow test details
 xano workflow_test get <workflow_test_id>
@@ -404,9 +467,34 @@ xano workflow_test run <workflow_test_id>
 xano workflow_test run_all
 xano workflow_test run_all --branch dev
 
+# Run tests in parallel (default is 1 — sequential)
+xano unit_test run_all --concurrency 4
+xano workflow_test run_all --concurrency 4
+
+# Sandbox and tenant variants take the same paging flags
+xano sandbox unit_test list --page 2 --per_page 25
+xano sandbox workflow_test list --page 2 --per_page 25
+xano tenant unit_test list my-tenant --page 2 --per_page 25
+xano tenant workflow_test list my-tenant --page 2 --per_page 25
+
 # Delete a workflow test
 xano workflow_test delete <workflow_test_id>
 ```
+
+#### Running tests in parallel
+
+Every `run_all` command takes `--concurrency` (default `1`):
+
+```bash
+xano unit_test run_all --concurrency 4
+xano tenant unit_test run_all my-tenant --concurrency 8
+```
+
+Output stays in test order regardless of concurrency, so a parallel run is still diffable against a sequential one, and the JSON `results` array keeps a stable order.
+
+`run_all` discovers the test list by paging at 100 per request rather than asking for the whole suite in one response, and stops when the API reports no next page.
+
+**The default is 1 on purpose.** These tests execute against a shared workspace database, so tests that touch the same tables or records can interfere with each other when run at the same time — producing failures that look like flakiness rather than a real regression. Raise `--concurrency` once you know your tests are independent.
 
 ### Tenants
 
@@ -664,16 +752,19 @@ xano sandbox reset --force
 ### Static Hosts
 
 ```bash
-# List static hosts
+# List static hosts. Page size is fixed at 100 by the API, so there is no
+# --per_page flag; the footer reports the true total.
 xano static_host list
+xano static_host list --page 2
 
 # Create / get / edit a static host
 xano static_host create marketing --description "Marketing site"
 xano static_host get marketing
 xano static_host edit marketing --name marketing-v2 --description "Updated"
 
-# List builds
+# List builds (--page only; page size is fixed at 100 by the API)
 xano static_host build list default
+xano static_host build list default --page 2
 
 # Get build details
 xano static_host build get default --build_id 52
