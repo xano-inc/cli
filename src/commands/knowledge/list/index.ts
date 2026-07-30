@@ -129,7 +129,7 @@ export default class KnowledgeList extends BaseCommand {
       const items: KnowledgeItem[] = Array.isArray(data) ? data : (data.items ?? [])
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(buildPagingJson({items: items}, {tier: 'none'}), null, 2))
+        this.log(JSON.stringify(buildPagingJson({items}, {tier: 'none'}), null, 2))
         return
       }
 

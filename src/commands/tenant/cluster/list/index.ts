@@ -74,8 +74,7 @@ Tenant clusters:
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(buildPagingJson({items: clusters}, {tier: 'none'}), null, 2))
-      } else {
-        if (clusters.length === 0) {
+      } else if (clusters.length === 0) {
           this.log('No tenant clusters found')
         } else {
           this.log('Tenant clusters:')
@@ -84,7 +83,6 @@ Tenant clusters:
             this.log(`  - ${cluster.name}${type} [ID: ${cluster.id}]`)
           }
         }
-      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list tenant clusters: ${error.message}`)
