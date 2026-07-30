@@ -13,12 +13,6 @@ interface Function {
   // Add other function properties as needed
 }
 
-interface FunctionListResponse {
-  functions?: Function[]
-  items?: Function[]
-  // Handle both array and object responses
-}
-
 export default class FunctionList extends BaseCommand {
   static args = {}
 static description = 'List all functions in a workspace from the Xano Metadata API'

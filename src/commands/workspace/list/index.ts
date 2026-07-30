@@ -1,18 +1,13 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
-import {formatPagingFooter} from '../../../utils/paging.js'
+import {formatPagingFooter, normalizeListResponse} from '../../../utils/paging.js'
 
 interface Workspace {
   created_at?: string
   id: number
   name: string
   // Add other workspace properties as needed
-}
-
-interface WorkspaceListResponse {
-  workspaces?: Workspace[]
-  // Handle both array and object responses
 }
 
 export default class WorkspaceList extends BaseCommand {
@@ -97,18 +92,8 @@ Available workspaces:
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const data = (await response.json()) as Workspace[] | WorkspaceListResponse
-
-      // Handle different response formats
-      let workspaces: Workspace[]
-
-      if (Array.isArray(data)) {
-        workspaces = data
-      } else if (data && typeof data === 'object' && 'workspaces' in data && Array.isArray(data.workspaces)) {
-        workspaces = data.workspaces
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<Workspace>(await response.json(), ['workspaces'])
+      const workspaces = list.items
 
       if (flags.latest) {
         workspaces.sort((a, b) => b.id - a.id)

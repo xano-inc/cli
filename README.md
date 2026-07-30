@@ -48,7 +48,8 @@ The Metadata API pages unevenly, so `list` commands differ in what they expose. 
 | `function list`, `unit_test list`, `workflow_test list` (plus `sandbox` / `tenant` variants) | `--page`, `--per_page` | `Page 2 · 50 shown · next: --page 3` |
 | `static_host list`, `static_host build list` (plus `ephemeral` variants) | `--page` only | `Page 2 · 100 shown · 340 total` |
 | `branch list`, `workspace list`, `tenant snapshot list`, `sandbox env list`, `tenant env list` | none | `12 branches` |
-| `tenant list`, `release list`, `platform list`, `tenant cluster list`, `ephemeral list`, `tenant backup list` | none | none |
+| `tenant list`, `release list`, `platform list`, `tenant cluster list`, `ephemeral list` | none | none |
+| `tenant backup list` | `--page` only (pre-existing) | none |
 
 Notes:
 
@@ -213,6 +214,35 @@ xano workspace git pull -r git@github.com:owner/repo.git
 xano workspace git pull -r https://gitlab.com/owner/repo/-/tree/master/path
 xano workspace git pull -r https://github.com/owner/private-repo -t ghp_xxx
 xano workspace git pull -r https://github.com/owner/repo --path subdir
+```
+
+### Knowledge
+
+Knowledge items are user-authored docs and skills (e.g. `CLAUDE.md`, `AGENTS.md`, runbooks)
+attached to a workspace. Each knowledge item's **name is a path** (e.g. `some/thing/CLAUDE.md`):
+`pull` writes its content to that path under the output directory, and `push` turns each local
+file into a knowledge item named by its relative path.
+
+Push matches local files to remote items by name. Existing items are updated (content only —
+description, mode, tags, and other metadata are preserved); new files are created. The
+knowledge type for new items is inferred from the filename: `AGENTS.md` → `agents.md`,
+`SKILL.md` → `skill`, everything else → `doc`. Hidden files (dotfiles) and `node_modules`
+are skipped.
+
+```bash
+# Pull knowledge files to local paths (defaults to current directory)
+xano knowledge pull
+xano knowledge pull -d ./knowledge                       # Specify output directory
+xano knowledge pull -b dev                               # Specific branch
+
+# Push local files as knowledge (defaults to current directory, only changed files)
+xano knowledge push
+xano knowledge push -d ./knowledge                       # Push from a specific directory
+xano knowledge push --dry-run                            # Preview changes without pushing
+xano knowledge push --sync --delete                      # Full push + delete remote knowledge not included
+xano knowledge push --force                              # Skip preview and confirmation (for CI/CD)
+xano knowledge push -i "guides/*"                        # Push only matching files
+xano knowledge push -e "**/README.md"                    # Push all files except READMEs
 ```
 
 ### Branches
