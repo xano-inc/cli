@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
 
 interface Function {
   created_at?: number
@@ -75,16 +76,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    page: Flags.integer({
-      default: 1,
-      description: 'Page number for pagination',
-      required: false,
-    }),
-    per_page: Flags.integer({
-      default: 50,
-      description: 'Number of results per page',
-      required: false,
-    }),
+    ...pagingFlags('envelope', {maxPerPage: 10_000}),
     sort: Flags.string({
       default: 'created_at',
       description: 'Sort field',
@@ -151,20 +143,8 @@ static override flags = {
         )
       }
 
-      const data = await response.json() as Function[] | FunctionListResponse
-
-      // Handle different response formats
-      let functions: Function[]
-
-      if (Array.isArray(data)) {
-        functions = data
-      } else if (data && typeof data === 'object' && 'functions' in data && Array.isArray(data.functions)) {
-        functions = data.functions
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        functions = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<Function>(await response.json(), ['functions'])
+      const functions = list.items
 
       // Output results
       if (flags.output === 'json') {
@@ -183,6 +163,9 @@ static override flags = {
             }
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'function', page: flags.page, tier: 'envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {

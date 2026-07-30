@@ -41,19 +41,46 @@ export interface NormalizedList<T> {
 }
 
 export interface PagingFlagOptions {
+  /**
+   * Default for the per_page flag. Defaults to 50.
+   *
+   * Several test-list commands historically pinned per_page to 10000 to fetch
+   * everything in one call. Those commands pass that value here so exposing the
+   * flag does not silently start truncating results that used to come back whole.
+   */
+  defaultPerPage?: number
   /** Page size the endpoint hardcodes server-side; surfaced in the page flag description. */
   fixedPerPage?: number
   /** Maximum per_page the endpoint accepts; surfaced in the per_page flag description. */
   maxPerPage?: number
 }
 
+function makePageFlag(description: string) {
+  return Flags.integer({default: 1, description, required: false})
+}
+
+function makePerPageFlag(defaultValue: number, description: string) {
+  return Flags.integer({default: defaultValue, description, required: false})
+}
+
+type PageFlag = ReturnType<typeof makePageFlag>
+type PerPageFlag = ReturnType<typeof makePerPageFlag>
+
 /**
  * Build the oclif flag definitions appropriate to an endpoint's paging tier.
  * Spread the result into a command's `static flags`.
  *
  * A flag the server ignores is worse than no flag, so `per_page` is only
- * produced for tiers whose endpoint actually accepts it.
+ * produced for tiers whose endpoint actually accepts it. The overloads keep
+ * oclif's flag-type inference intact so `flags.page` stays typed at call sites.
  */
+export function pagingFlags(
+  tier: 'envelope',
+  options?: PagingFlagOptions,
+): {page: PageFlag; per_page: PerPageFlag}
+export function pagingFlags(tier: 'page-only-envelope', options?: PagingFlagOptions): {page: PageFlag}
+export function pagingFlags(tier: 'none', options?: PagingFlagOptions): Record<string, never>
+export function pagingFlags(tier: PagingTier, options?: PagingFlagOptions): Record<string, unknown>
 export function pagingFlags(tier: PagingTier, options: PagingFlagOptions = {}): Record<string, unknown> {
   if (tier === 'none') {
     return {}
@@ -62,29 +89,22 @@ export function pagingFlags(tier: PagingTier, options: PagingFlagOptions = {}): 
   if (tier === 'page-only-envelope') {
     const fixed = options.fixedPerPage
     return {
-      page: Flags.integer({
-        default: 1,
-        description: fixed
+      page: makePageFlag(
+        fixed
           ? `Page number for pagination (page size is fixed at ${fixed} by the API)`
           : 'Page number for pagination',
-        required: false,
-      }),
+      ),
     }
   }
 
   return {
-    page: Flags.integer({
-      default: 1,
-      description: 'Page number for pagination',
-      required: false,
-    }),
-    per_page: Flags.integer({
-      default: 50,
-      description: options.maxPerPage
+    page: makePageFlag('Page number for pagination'),
+    per_page: makePerPageFlag(
+      options.defaultPerPage ?? 50,
+      options.maxPerPage
         ? `Number of results per page (max ${options.maxPerPage})`
         : 'Number of results per page',
-      required: false,
-    }),
+    ),
   }
 }
 
@@ -92,19 +112,23 @@ export function pagingFlags(tier: PagingTier, options: PagingFlagOptions = {}): 
  * Translate parsed paging flags into query-string entries, emitting only the
  * params the endpoint actually declares.
  */
-export function buildPagingParams(flags: PagingFlagValues, tier: PagingTier): Array<[string, string]> {
+export function buildPagingParams(
+  flags: PagingFlagValues | Record<string, unknown>,
+  tier: PagingTier,
+): Array<[string, string]> {
   if (tier === 'none') {
     return []
   }
 
+  const {page, per_page: perPage} = flags as PagingFlagValues
   const params: Array<[string, string]> = []
 
-  if (flags.page !== undefined) {
-    params.push(['page', String(flags.page)])
+  if (page !== undefined) {
+    params.push(['page', String(page)])
   }
 
-  if (tier === 'envelope' && flags.per_page !== undefined) {
-    params.push(['per_page', String(flags.per_page)])
+  if (tier === 'envelope' && perPage !== undefined) {
+    params.push(['per_page', String(perPage)])
   }
 
   return params

@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../utils/paging.js'
 
 interface UnitTest {
   description?: string
@@ -41,14 +42,15 @@ Unit tests:
       options: ['summary', 'json'],
       required: false,
     }),
+    // Defaults to 10000 to preserve the previous fetch-everything behavior.
+    ...pagingFlags('envelope', {defaultPerPage: 10_000, maxPerPage: 10_000}),
   }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(SandboxUnitTestList)
     const {profile} = this.resolveProfile(flags)
 
-    const params = new URLSearchParams()
-    params.set('per_page', '10000')
+    const params = new URLSearchParams(buildPagingParams(flags, 'envelope'))
     if (flags.branch) params.set('branch', flags.branch)
     if (flags['obj-type']) params.set('obj_type', flags['obj-type'])
 
@@ -73,16 +75,8 @@ Unit tests:
         this.error(message)
       }
 
-      const data = (await response.json()) as UnitTest[] | {items?: UnitTest[]}
-
-      let tests: UnitTest[]
-      if (Array.isArray(data)) {
-        tests = data
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        tests = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<UnitTest>(await response.json())
+      const tests = list.items
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(tests, null, 2))
@@ -95,6 +89,9 @@ Unit tests:
             this.log(`  - ${test.name} (ID: ${test.id}) [${test.obj_type}: ${test.obj_name}]`)
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'unit test', page: flags.page, tier: 'envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error

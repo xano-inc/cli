@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../utils/paging.js'
 
 interface WorkflowTest {
   description?: string
@@ -31,6 +32,8 @@ Workflow tests for tenant my-tenant:
       options: ['summary', 'json'],
       required: false,
     }),
+    // Defaults to 10000 to preserve the previous fetch-everything behavior.
+    ...pagingFlags('envelope', {defaultPerPage: 10_000, maxPerPage: 10_000}),
     tenant: Flags.string({
       char: 't',
       description: 'Tenant name',
@@ -55,8 +58,7 @@ Workflow tests for tenant my-tenant:
 
     const tenantName = encodeURIComponent(flags.tenant)
 
-    const params = new URLSearchParams()
-    params.set('per_page', '10000')
+    const params = new URLSearchParams(buildPagingParams(flags, 'envelope'))
     if (flags.branch) params.set('branch', flags.branch)
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/workflow_test?${params}`
@@ -80,16 +82,8 @@ Workflow tests for tenant my-tenant:
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const data = (await response.json()) as WorkflowTest[] | {items?: WorkflowTest[]}
-
-      let tests: WorkflowTest[]
-      if (Array.isArray(data)) {
-        tests = data
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        tests = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<WorkflowTest>(await response.json())
+      const tests = list.items
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(tests, null, 2))
@@ -102,6 +96,9 @@ Workflow tests for tenant my-tenant:
             this.log(`  - ${test.name} (ID: ${test.id})`)
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'workflow test', page: flags.page, tier: 'envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {
