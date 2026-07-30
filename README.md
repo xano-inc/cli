@@ -39,6 +39,24 @@ Destructive commands include imperative safety prefixes in their help text and f
 
 These warnings are layer 1 of broader push-safety work; ephemeral sandbox environments and push preview remain the structural safeguards.
 
+### Paging on list commands
+
+The Metadata API pages unevenly, so `list` commands differ in what they expose. Every command reports only what its endpoint actually returns — the CLI never guesses whether more results exist.
+
+| Commands | Flags | Footer |
+|---|---|---|
+| `function list`, `unit_test list`, `workflow_test list` (plus `sandbox` / `tenant` variants) | `--page`, `--per_page` | `Page 2 · 50 shown · next: --page 3` |
+| `static_host list`, `static_host build list` (plus `ephemeral` variants) | `--page` only | `Page 2 · 100 shown · 340 total` |
+| `branch list`, `workspace list`, `tenant snapshot list`, `sandbox env list`, `tenant env list` | none | `12 branches` |
+| `tenant list`, `release list`, `platform list`, `tenant cluster list`, `ephemeral list`, `tenant backup list` | none | none |
+
+Notes:
+
+- **`--per_page` is only offered where the endpoint accepts it.** Static-host endpoints hardcode 100 items per page server-side, so those commands take `--page` alone. `xano static_host list --per_page 10` previously parsed but did nothing; it is now rejected rather than silently ignored.
+- **The test-list commands default `--per_page` to 10000**, matching the value they previously requested internally, so they keep returning everything unless you narrow them.
+- **The last group has no CLI paging.** Those endpoints page server-side but return a plain array with no page or total metadata, so the CLI cannot tell you where you are. Rather than show a page number with no context — or infer "more available" from a full page, which is wrong exactly when the result count is a multiple of the page size — these commands are left as-is. **They return at most 25–50 items** (50 for tenants and ephemerals, 25 for releases, platforms, and tenant backups). If you have more than that, query the Metadata API directly until those endpoints return paging metadata.
+- `--output json` always prints a bare array with no footer, so existing scripts are unaffected.
+
 ### Authentication
 
 ```bash
@@ -372,9 +390,10 @@ xano platform get <platform_id>
 #### Unit Tests
 
 ```bash
-# List unit tests
+# List unit tests (returns all tests by default; --per_page narrows the page)
 xano unit_test list
 xano unit_test list --branch dev --obj-type function
+xano unit_test list --page 2 --per_page 25
 
 # Run a single unit test
 xano unit_test run <unit_test_id>
@@ -388,9 +407,10 @@ xano unit_test run_all --branch dev --obj-type function
 #### Workflow Tests
 
 ```bash
-# List workflow tests
+# List workflow tests (returns all tests by default; --per_page narrows the page)
 xano workflow_test list
 xano workflow_test list --branch dev
+xano workflow_test list --page 2 --per_page 25
 
 # Get workflow test details
 xano workflow_test get <workflow_test_id>
@@ -664,16 +684,19 @@ xano sandbox reset --force
 ### Static Hosts
 
 ```bash
-# List static hosts
+# List static hosts. Page size is fixed at 100 by the API, so there is no
+# --per_page flag; the footer reports the true total.
 xano static_host list
+xano static_host list --page 2
 
 # Create / get / edit a static host
 xano static_host create marketing --description "Marketing site"
 xano static_host get marketing
 xano static_host edit marketing --name marketing-v2 --description "Updated"
 
-# List builds
+# List builds (--page only; page size is fixed at 100 by the API)
 xano static_host build list default
+xano static_host build list default --page 2
 
 # Get build details
 xano static_host build get default --build_id 52
