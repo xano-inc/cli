@@ -71,55 +71,6 @@ Notes:
 
   The point of the envelope is that a script gets the same honest stop condition a human gets from the footer, in the same shape the raw Metadata API returns. Without it the only signal available is `items.length < perPage`, which is wrong exactly when the result count is a multiple of the page size. Absence of `nextPage` means the server said there is no next page; it is never omitted as a guess.
 
-### Hatch
-
-Describe what you want and Hatch builds and deploys it — backend and frontend.
-The same pipeline the website runs, driven from the terminal.
-
-```bash
-xano hatch "a landing page for a bakery, with an order form"
-```
-
-```
-Your idea is being created, follow along for more details:
-  https://hatch.mesh0.ai/s/K7QM2XPA9RTV
-
-⠹ Backend — writing the order table
-  ✓ Understood the brief
-  ✓ Provisioned a backend
-
-Your project is complete, you can view it at:
-  https://bakery-a91f.xano.io
-```
-
-**No profile required.** Unlike every other command here, `xano hatch` needs no
-credentials and no `xano auth` — it works on a fresh install. The backend it
-builds lands in a Hatch-managed ephemeral tenant, not your workspace.
-
-**The build outlives your terminal.** It runs on Hatch's servers, so Ctrl-C
-does not stop it. The follow-along link keeps working, and so does reopening it
-later.
-
-```bash
-# Print the link and exit without waiting — for scripts, or a connection you
-# do not want to hold open for the length of a build.
-xano hatch "a recipe box with tagging" --no-wait
-
-# One JSON object on stdout; the follow-along link goes to stderr, so this
-# stays pipeable even if the run is interrupted.
-xano hatch "a link shortener" -o json | jq -r .siteUrl
-
-# Show the build log as it arrives (disables the spinner).
-xano hatch "an event RSVP page" --verbose
-
-# Point at a different Hatch deployment.
-xano hatch "a portfolio site" --api http://localhost:8080
-XANO_HATCH_URL=http://localhost:8080 xano hatch "a portfolio site"
-```
-
-Exit code is 0 when the site deploys, non-zero when the build fails, expires,
-or is turned away because the agent pool is full.
-
 ### Authentication
 
 ```bash
