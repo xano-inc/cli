@@ -1,9 +1,8 @@
 import {Args, Command, Flags, ux} from '@oclif/core'
-import snakeCase from 'lodash.snakecase'
 import * as fs from 'node:fs'
-import {basename, dirname, join, relative, resolve} from 'node:path'
+import {join, relative, resolve} from 'node:path'
 
-import {placeDocuments, splitMultidoc} from '../../utils/document-parser.js'
+import {flattenBundleFile} from '../../utils/flatten.js'
 
 /**
  * Split a multi-document `.xs` bundle into the standard one-document-per-file
@@ -117,74 +116,40 @@ Flatten every multi-doc .xs under a directory, keeping the originals`,
 
   /** Flatten a single bundle file. Returns the number of documents written. */
   private flattenOne(bundleFile: string, flags: {['dry-run']: boolean; force: boolean; ['keep-source']: boolean; output?: string}): number {
-    const content = fs.readFileSync(bundleFile, 'utf8').trim()
-    const documents = splitMultidoc(content)
+    const rel = relative(process.cwd(), bundleFile) || bundleFile
 
-    if (documents.length === 0) {
-      this.warn(`No parseable documents in ${relative(process.cwd(), bundleFile) || bundleFile}; skipping.`)
-      return 0
-    }
+    let result
+    try {
+      // Buffer the plan so we can print a header before it only when there's work.
+      const planLines: string[] = []
+      result = flattenBundleFile(bundleFile, {
+        dryRun: flags['dry-run'],
+        force: flags.force,
+        keepSource: flags['keep-source'],
+        log: (msg) => planLines.push(msg),
+        outputDir: flags.output,
+      })
 
-    if (documents.length === 1) {
-      this.warn(
-        `${relative(process.cwd(), bundleFile) || bundleFile} holds a single document; nothing to split. Skipping.`,
-      )
-      return 0
-    }
-
-    const outputDir = flags.output ? resolve(flags.output) : dirname(bundleFile)
-
-    // Pure placement: resolve every document to its root-relative path first, so
-    // we can detect collisions and report the plan before touching disk.
-    const placed = placeDocuments(documents, {
-      join,
-      relative,
-      snakeCase,
-    })
-
-    this.log('')
-    this.log(ux.colorize('bold', `${relative(process.cwd(), bundleFile) || bundleFile} → ${documents.length} documents`))
-
-    // Pre-check destination collisions (unless --force / --dry-run).
-    if (!flags['dry-run'] && !flags.force) {
-      const clashes = placed
-        .map((p) => join(outputDir, p.relPath))
-        .filter((abs) => fs.existsSync(abs) && resolve(abs) !== resolve(bundleFile))
-      if (clashes.length > 0) {
-        this.error(
-          `Destination file(s) already exist (use --force to overwrite):\n` +
-            clashes.map((c) => `    ${relative(process.cwd(), c) || c}`).join('\n'),
-        )
-      }
-    }
-
-    let written = 0
-    for (const p of placed) {
-      const abs = join(outputDir, p.relPath)
-      const rel = relative(process.cwd(), abs) || p.relPath
-      this.log(`  ${ux.colorize('green', 'WRITE'.padEnd(6))} ${rel}`)
-      if (!flags['dry-run']) {
-        fs.mkdirSync(dirname(abs), {recursive: true})
-        fs.writeFileSync(abs, p.content.endsWith('\n') ? p.content : `${p.content}\n`, 'utf8')
+      if (result.skipped === 'empty') {
+        this.warn(`No parseable documents in ${rel}; skipping.`)
+        return 0
       }
 
-      written++
-    }
-
-    // Remove the original bundle unless asked to keep it (never in dry-run).
-    if (!flags['dry-run'] && !flags['keep-source']) {
-      // Guard: don't delete the source if a written file landed on the same path.
-      const wroteOverSource = placed.some(
-        (p) => resolve(join(outputDir, p.relPath)) === resolve(bundleFile),
-      )
-      if (wroteOverSource) {
-        this.log(ux.colorize('dim', `  (source ${basename(bundleFile)} was overwritten by a split document; not deleting)`))
-      } else {
-        fs.rmSync(bundleFile)
-        this.log(ux.colorize('dim', `  removed ${relative(process.cwd(), bundleFile) || bundleFile}`))
+      if (result.skipped === 'single') {
+        this.warn(`${rel} holds a single document; nothing to split. Skipping.`)
+        return 0
       }
+
+      this.log('')
+      this.log(ux.colorize('bold', `${rel} → ${result.written.length} documents`))
+      for (const l of planLines) {
+        // Colorize the WRITE marker; dim the incidental notes.
+        this.log(l.startsWith('  WRITE') ? l.replace('WRITE', ux.colorize('green', 'WRITE')) : ux.colorize('dim', l))
+      }
+    } catch (error) {
+      this.error((error as Error).message)
     }
 
-    return written
+    return result.written.length
   }
 }

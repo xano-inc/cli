@@ -4,6 +4,7 @@ import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
 import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
+import {flattenBundleFile} from './flatten.js'
 import {
   collectKnowledgeObjects,
   fetchKnowledge,
@@ -659,25 +660,78 @@ export async function executePush(
       command.error(`All .xs files in ${inputDir} are empty`)
     }
 
-    // ── Refuse multi-document files ───────────────────────────────────────
+    // ── Handle multi-document files ───────────────────────────────────────
     // The push pipeline assumes one document per file: the partial-diff filter
     // and GUID-writeback both parse only the first document in a file, so a
     // bundle like a single hand-authored multidoc.xs silently pushes nothing
     // (partial) or clobbers a single guid line across every document (full).
-    // Refuse it up front and point at `xano flatten`, which splits it into the
-    // per-document layout `pull` produces.
+    // Rather than fail, offer to flatten each bundle in place into the
+    // per-document layout `pull` produces, then re-read and continue the push.
     const multiDocFiles = findMultiDocEntries(documentEntries)
     if (multiDocFiles.length > 0) {
       const list = multiDocFiles
         .map((f) => `    ${relative(inputDir, f.filePath) || f.filePath} (${f.count} documents)`)
         .join('\n')
-      command.error(
-        `Multi-document .xs file(s) are not supported for push:\n${list}\n\n` +
-          `Each .xs file must contain a single document — the push pipeline (partial diff,\n` +
-          `GUID writeback) operates per file. Split them into the standard layout with:\n\n` +
-          `    xano flatten ${relative(process.cwd(), multiDocFiles[0].filePath) || multiDocFiles[0].filePath}\n\n` +
-          `then push the resulting directory.`,
+
+      log('')
+      log(ux.colorize('yellow', ux.colorize('bold', '=== Multi-document file(s) detected ===')))
+      log('')
+      log(ux.colorize('yellow', 'These .xs files hold more than one document:'))
+      log(list)
+      log('')
+      log(
+        ux.colorize(
+          'dim',
+          'Push needs one document per file (partial diff + GUID writeback operate per file),\n' +
+            'so a multi-doc bundle silently pushes nothing or corrupts GUIDs. I can split each\n' +
+            'into the standard per-document layout (the same tree `pull` produces) and continue.',
+        ),
       )
+      log('')
+
+      // Flattening DELETES the source bundle, so never do it unattended without an
+      // explicit opt-in. --force means "just do it"; an interactive TTY gets a
+      // prompt; a bare non-interactive run refuses (rather than silently rewriting
+      // and deleting the user's files in CI).
+      if (flags.force) {
+        log(ux.colorize('dim', 'Flattening (--force)…'))
+      } else if (process.stdin.isTTY) {
+        const doFlatten = await confirm('Flatten these file(s) in place and continue the push?')
+        if (!doFlatten) {
+          log('Push cancelled. Run `xano flatten <file>` yourself, or re-run to be prompted again.')
+          return
+        }
+      } else {
+        command.error(
+          'Multi-document .xs file(s) cannot be pushed. Run `xano flatten <file>` to split them ' +
+            'into the standard per-document layout first, or re-run with --force to flatten automatically.',
+        )
+      }
+
+      for (const offender of multiDocFiles) {
+        try {
+          const result = flattenBundleFile(offender.filePath, {log: (m) => flags.verbose && log(ux.colorize('dim', m))})
+          log(
+            ux.colorize(
+              'dim',
+              `  flattened ${relative(inputDir, offender.filePath) || offender.filePath} → ${result.written.length} files`,
+            ),
+          )
+        } catch (error) {
+          command.error(`Failed to flatten ${offender.filePath}: ${(error as Error).message}`)
+        }
+      }
+
+      log('')
+
+      // Re-collect and re-read: the bundle files are gone, replaced by the split
+      // per-document tree, so the rest of the push sees a clean one-doc-per-file set.
+      const refreshed = readDocuments(applyFilters(collectFiles(inputDir), inputDir, flags.include, flags.exclude, () => {}))
+      documentEntries = refreshed
+
+      if (documentEntries.length === 0) {
+        command.error('After flattening, no .xs documents remain to push.')
+      }
     }
 
     multidoc = documentEntries.map((d) => d.content).join('\n---\n')
