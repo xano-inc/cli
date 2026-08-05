@@ -7,7 +7,9 @@ import {
   channelPathSegments,
   type ParsedDocument,
   parseDocument,
+  placeDocuments,
   resolveDocumentPath,
+  splitMultidoc,
 } from '../../src/utils/document-parser.js'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -157,4 +159,64 @@ describe('document-parser', () => {
     })
   })
 
+  describe('splitMultidoc', () => {
+    it('splits a `---`-joined bundle into parsed documents', () => {
+      const blob = [
+        'workspace w {\n}',
+        'table documents {\n}',
+        '// a comment header\nquery extract verb=POST {\n  api_group = "pdf"\n}',
+      ].join('\n---\n')
+      const docs = splitMultidoc(blob)
+      expect(docs.map((d) => d.type)).to.deep.equal(['workspace', 'table', 'query'])
+      expect(docs[2].verb).to.equal('POST')
+      expect(docs[2].apiGroup).to.equal('pdf')
+    })
+
+    it('skips empty fragments and unparseable ones', () => {
+      const blob = 'table a {\n}\n---\n\n---\n   \n---\ntable b {\n}'
+      const docs = splitMultidoc(blob)
+      expect(docs.map((d) => d.name)).to.deep.equal(['a', 'b'])
+    })
+  })
+
+  describe('placeDocuments', () => {
+    // Use POSIX joins so relPaths are stable across host OSes.
+    const deps = {join: posix.join, relative: posix.relative, snakeCase}
+
+    it('places a full bundle into the pull layout', () => {
+      const docs = splitMultidoc(
+        [
+          'workspace microservice {\n}',
+          'table documents {\n}',
+          'api_group pdf {\n  canonical = "pdf"\n}',
+          'query documents verb=GET {\n  api_group = "pdf"\n}',
+          'query "documents/{document_id}" verb=GET {\n  api_group = "pdf"\n}',
+          'microservice pdf2text {\n}',
+        ].join('\n---\n'),
+      )
+      const placed = placeDocuments(docs, deps)
+      const paths = placed.map((p) => p.relPath)
+      expect(paths).to.include('workspace/microservice.xs')
+      expect(paths).to.include('table/documents.xs')
+      expect(paths).to.include('api/pdf/pdf.xs')
+      expect(paths).to.include('api/pdf/documents_GET.xs')
+      // A slashed query name nests as folders, leaf carries the verb suffix.
+      expect(paths).to.include('api/pdf/documents/document_id_GET.xs')
+      expect(paths).to.include('microservice/pdf_2_text.xs')
+    })
+
+    it('disambiguates duplicate leaf names within a directory with a _N suffix', () => {
+      // Two functions that snake_case to the same leaf must not collide.
+      const docs = splitMultidoc('function Foo {\n}\n---\nfunction foo {\n}')
+      const placed = placeDocuments(docs, deps)
+      expect(placed.map((p) => p.relPath)).to.deep.equal(['function/foo.xs', 'function/foo_2.xs'])
+    })
+
+    it('preserves each document body verbatim', () => {
+      const docs = splitMultidoc('table a {\n  x = 1\n}\n---\ntable b {\n  y = 2\n}')
+      const placed = placeDocuments(docs, deps)
+      expect(placed[0].content).to.equal('table a {\n  x = 1\n}')
+      expect(placed[1].content).to.equal('table b {\n  y = 2\n}')
+    })
+  })
 })

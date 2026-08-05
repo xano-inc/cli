@@ -229,6 +229,36 @@ export function readDocuments(files: string[]): Array<{content: string; filePath
   return entries
 }
 
+/**
+ * A `.xs` document separator: a line that is exactly `---`. The whole push
+ * pipeline (partial-diff filtering, the document→file map, and GUID writeback)
+ * assumes ONE document per file — it only ever parses the first document in a
+ * file and rewrites the first `guid =` line. A multi-document file therefore
+ * silently drops on a partial push and corrupts GUIDs on a full one, so it is
+ * refused up front (with a pointer to `xano flatten`).
+ */
+const DOC_SEPARATOR = /^---$/m
+
+/**
+ * Return the entries whose file holds more than one document (a `---`
+ * separator). Used to refuse multi-doc files before the push pipeline's
+ * single-doc-per-file assumptions can drop or corrupt them.
+ */
+export function findMultiDocEntries(
+  entries: Array<{content: string; filePath: string}>,
+): Array<{count: number; filePath: string}> {
+  const offenders: Array<{count: number; filePath: string}> = []
+  for (const entry of entries) {
+    if (DOC_SEPARATOR.test(entry.content)) {
+      // Count documents = separators + 1 (trailing/empty fragments don't change the "multi" verdict).
+      const count = entry.content.split('\n').filter((l) => l.trim() === '---').length + 1
+      offenders.push({count, filePath: entry.filePath})
+    }
+  }
+
+  return offenders
+}
+
 // ── Validation Rendering ────────────────────────────────────────────────────
 
 export function renderBadReferences(badRefs: BadReference[], log: (msg: string) => void): void {
@@ -627,6 +657,27 @@ export async function executePush(
 
     if (documentEntries.length === 0) {
       command.error(`All .xs files in ${inputDir} are empty`)
+    }
+
+    // ── Refuse multi-document files ───────────────────────────────────────
+    // The push pipeline assumes one document per file: the partial-diff filter
+    // and GUID-writeback both parse only the first document in a file, so a
+    // bundle like a single hand-authored multidoc.xs silently pushes nothing
+    // (partial) or clobbers a single guid line across every document (full).
+    // Refuse it up front and point at `xano flatten`, which splits it into the
+    // per-document layout `pull` produces.
+    const multiDocFiles = findMultiDocEntries(documentEntries)
+    if (multiDocFiles.length > 0) {
+      const list = multiDocFiles
+        .map((f) => `    ${relative(inputDir, f.filePath) || f.filePath} (${f.count} documents)`)
+        .join('\n')
+      command.error(
+        `Multi-document .xs file(s) are not supported for push:\n${list}\n\n` +
+          `Each .xs file must contain a single document — the push pipeline (partial diff,\n` +
+          `GUID writeback) operates per file. Split them into the standard layout with:\n\n` +
+          `    xano flatten ${relative(process.cwd(), multiDocFiles[0].filePath) || multiDocFiles[0].filePath}\n\n` +
+          `then push the resulting directory.`,
+      )
     }
 
     multidoc = documentEntries.map((d) => d.content).join('\n---\n')
