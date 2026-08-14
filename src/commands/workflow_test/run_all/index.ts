@@ -12,14 +12,18 @@ interface WorkflowTest {
 interface RunResult {
   message?: string
   status: string
-  timing: number
+  // Optional: a run can come back without timing. Treating it as required and
+  // calling .toFixed() on it throws into the per-test catch, which then records
+  // a *second* result for the same test -- inflating the counts and flipping
+  // the exit code on a suite where nothing actually failed.
+  timing?: number
 }
 
 interface TestResult {
   message?: string
   name: string
   status: 'fail' | 'pass'
-  timing: number
+  timing?: number
 }
 
 export default class WorkflowTestRunAll extends BaseCommand {
@@ -195,10 +199,10 @@ Results: 2 passed, 1 failed (2.691s total)
               timing: runResult.timing,
             }
             results.push(result)
-            totalTiming += runResult.timing
+            totalTiming += runResult.timing ?? 0
 
             if (flags.output === 'summary') {
-              const timing = `(${runResult.timing.toFixed(3)}s)`
+              const timing = `(${(runResult.timing ?? 0).toFixed(3)}s)`
               if (passed) {
                 log(`PASS  ${test.name} ${timing}`)
               } else {

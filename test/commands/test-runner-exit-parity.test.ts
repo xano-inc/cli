@@ -137,6 +137,7 @@ describe('test-runner exit-code and JSON parity', () => {
   let tmpDir: string
   let originalFetch: typeof globalThis.fetch
   let originalConfig: string | undefined
+  let originalProfile: string | undefined
 
   before(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xano-exit-parity-'))
@@ -153,6 +154,12 @@ describe('test-runner exit-code and JSON parity', () => {
     )
     originalConfig = process.env.XANO_CONFIG
     process.env.XANO_CONFIG = path.join(tmpDir, 'credentials.yaml')
+
+    // An inherited XANO_PROFILE would select a profile that does not exist in
+    // the fixture above, making every command exit 2 and failing every exit-1
+    // assertion below for a reason that has nothing to do with the code.
+    originalProfile = process.env.XANO_PROFILE
+    delete process.env.XANO_PROFILE
   })
 
   after(() => {
@@ -160,6 +167,10 @@ describe('test-runner exit-code and JSON parity', () => {
       delete process.env.XANO_CONFIG
     } else {
       process.env.XANO_CONFIG = originalConfig
+    }
+
+    if (originalProfile !== undefined) {
+      process.env.XANO_PROFILE = originalProfile
     }
 
     fs.rmSync(tmpDir, {force: true, recursive: true})
@@ -305,6 +316,32 @@ describe('test-runner exit-code and JSON parity', () => {
       const parsed = JSON.parse(stdout)
       expect(parsed.failed).to.equal(1)
       expect(parsed.results[0].message).to.contain('API error 500')
+    })
+
+    it('workflow_test run_all counts a timing-less result once and exits 0', async () => {
+      // timing was typed required here too. Calling .toFixed() on an absent
+      // value threw into the per-test catch, which recorded a SECOND result for
+      // the same test -- reporting "1 passed, 1 failed (NaNs total)" and exit 1
+      // for a suite where nothing failed, while -o json on the same payload
+      // exited 0. Exactly the json/summary divergence this release fixes.
+      stubFetch({run: {status: 'ok'}})
+
+      const {stdout} = await runCommand(['workflow_test', 'run_all'])
+
+      expect(process.exitCode ?? 0, 'exit code').to.equal(0)
+      expect(stdout).to.contain('1 passed, 0 failed')
+      expect(stdout).to.not.contain('NaN')
+    })
+
+    it('workflow_test run_all reports total_timing as a number without timing', async () => {
+      stubFetch({run: {status: 'ok'}})
+
+      const {stdout} = await runCommand(['workflow_test', 'run_all', '-o', 'json'])
+
+      const parsed = JSON.parse(stdout)
+      expect(parsed.total_timing, 'total_timing must stay numeric').to.equal(0)
+      expect(parsed.passed).to.equal(1)
+      expect(parsed.failed).to.equal(0)
     })
 
     it('run_all exits 2 when the list call fails', async () => {
