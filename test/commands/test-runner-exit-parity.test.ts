@@ -1,10 +1,12 @@
-/*
- * `fetch` and `Response` are flagged by n/no-unsupported-features/node-builtins
- * against this package's >=20.12.0 engine range. Both are used unguarded
- * throughout src/ (BaseCommand.verboseFetch among them), so stubbing them here
- * matches what the code under test already does.
- */
 /* eslint-disable n/no-unsupported-features/node-builtins */
+/*
+ * camelcase: `total_timing` mirrors the API's own field name.
+ *
+ * node-builtins: `fetch` and `Response` are flagged against this package's
+ * >=20.12.0 engine range. Both are used unguarded throughout src/
+ * (BaseCommand.verboseFetch among them), so stubbing them here matches what
+ * the code under test already does.
+ */
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
 import fs from 'node:fs'
