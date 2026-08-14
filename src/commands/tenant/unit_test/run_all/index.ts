@@ -138,7 +138,15 @@ Results: 4 passed, 1 failed
       )
 
       if (tests.length === 0) {
-        this.log('No unit tests found')
+        // An empty suite is a normal state (fresh branches have no tests) and
+        // is a success, not a failure. Under -o json it must still be parseable,
+        // with the same keys the populated path emits below.
+        if (flags.output === 'json') {
+          this.log(JSON.stringify({failed: 0, passed: 0, results: []}, null, 2))
+        } else {
+          this.log('No unit tests found')
+        }
+
         return
       }
 
