@@ -5,7 +5,9 @@ import BaseCommand from '../../../base-command.js'
 interface RunResult {
   message?: string
   status: string
-  timing: number
+  // Optional: a failing run can come back without timing. Calling .toFixed()
+  // on an absent value would throw into the catch and exit 2 instead of 1.
+  timing?: number
 }
 
 export default class WorkflowTestRun extends BaseCommand {
@@ -81,20 +83,25 @@ Result: PASS (1.234s)
 
       const result = await response.json() as RunResult
 
+      // Anything other than 'ok' is a failure -- the API has been observed
+      // returning several distinct non-ok statuses, so never enumerate them.
+      const passed = result.status === 'ok'
+
       if (flags.output === 'json') {
         this.log(JSON.stringify(result, null, 2))
       } else {
-        const timing = `(${result.timing.toFixed(3)}s)`
-        if (result.status === 'ok') {
-          this.log(`Result: PASS ${timing}`)
-        } else {
-          this.log(`Result: FAIL ${timing}`)
-          if (result.message) {
-            this.log(`  Error: ${result.message}`)
-          }
-
-          this.exit(1)
+        const timing = typeof result.timing === 'number' ? ` (${result.timing.toFixed(3)}s)` : ''
+        this.log(`Result: ${passed ? 'PASS' : 'FAIL'}${timing}`)
+        if (!passed && result.message) {
+          this.log(`  Error: ${result.message}`)
         }
+      }
+
+      // Set the code rather than throwing via this.exit(): the exit must apply
+      // in both output modes, and process.exitCode cannot be swallowed by the
+      // surrounding catch. Mirrors what run_all already does.
+      if (!passed) {
+        process.exitCode = 1
       }
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
