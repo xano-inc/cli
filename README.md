@@ -487,7 +487,7 @@ Every `run_all` command takes `--concurrency` (default `1`):
 
 ```bash
 xano unit_test run_all --concurrency 4
-xano tenant unit_test run_all my-tenant --concurrency 8
+xano tenant unit_test run_all --tenant my-tenant --concurrency 8
 ```
 
 Output stays in test order regardless of concurrency, so a parallel run is still diffable against a sequential one, and the JSON `results` array keeps a stable order.
@@ -495,6 +495,48 @@ Output stays in test order regardless of concurrency, so a parallel run is still
 `run_all` discovers the test list by paging at 100 per request rather than asking for the whole suite in one response, and stops when the API reports no next page.
 
 **The default is 1 on purpose.** These tests execute against a shared workspace database, so tests that touch the same tables or records can interfere with each other when run at the same time — producing failures that look like flakiness rather than a real regression. Raise `--concurrency` once you know your tests are independent.
+
+#### Exit codes
+
+Every `run` and `run_all` command — on all four surfaces (`unit_test`, `workflow_test`, `sandbox`, `tenant`) — uses the same exit codes:
+
+| Code | Meaning |
+|------|---------|
+| `0` | All tests passed, **or** there were no tests to run |
+| `1` | At least one test failed |
+| `2` | The command could not run the tests at all — bad workspace, auth failure, unreadable profile, or the test-list request failed |
+
+**This is identical for `-o json` and summary output.** Adding `-o json` to get machine-readable output does not change the exit code, so a CI job can rely on it in either mode.
+
+```bash
+xano workflow_test run_all -o json || echo "tests failed or the command errored"
+```
+
+**One asymmetry worth knowing about.** In `run`, a non-2xx response from the run endpoint is a CLI error and exits `2`. In `run_all`, a non-2xx response for an *individual* test is recorded as a failed test result with an `API error <status>` message and contributes to exit `1` — because `run_all`'s job is to finish the batch and report a roll-up rather than abort on one test's transport error. Exit `2` in `run_all` is reserved for failures that stop the batch from starting at all.
+
+If you need to tell a backend outage apart from a genuine assertion failure, the exit code alone will not do it — inspect `results[].message` for the `API error` prefix:
+
+```bash
+xano workflow_test run_all -o json | jq '[.results[] | select(.message // "" | startswith("API error"))] | length'
+```
+
+#### JSON output
+
+`run` returns the API's result object unchanged. Treat **any** `status` other than `"ok"` as a failure — several distinct non-`ok` values are returned in practice, so match on "not `ok`" rather than enumerating known failure values:
+
+```json
+{ "status": "exception", "timing": 0.02, "message": "Precondition failed." }
+```
+
+`run_all` returns a roll-up. A branch with no tests is a normal state — freshly created branches routinely have none — and still emits valid JSON rather than plain text, so `JSON.parse` is always safe:
+
+```json
+{ "passed": 0, "failed": 0, "results": [], "total_timing": 0 }
+```
+
+The `total_timing` field is currently emitted by `workflow_test run_all` only; the `unit_test`, `tenant`, and `sandbox` variants omit it. The empty-suite envelope always carries the same keys as that command's populated envelope.
+
+> **Changed in this release:** a failing `run` in summary mode previously exited `2` and printed a spurious `EEXIT: 1` line; it now exits `1` with clean output. A failing `run` with `-o json` previously exited `0`, which silently hid failures from CI. If you match on exit code `2` specifically to detect test failures, switch to a non-zero check.
 
 ### Tenants
 
