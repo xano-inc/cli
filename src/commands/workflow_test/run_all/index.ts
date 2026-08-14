@@ -201,6 +201,7 @@ Results: 2 passed, 1 failed (2.691s total)
               }
             }
           } catch (error) {
+            if (error instanceof Error && 'oclif' in error) throw error
             const message = error instanceof Error ? error.message : String(error)
             results.push({
               message,
@@ -246,6 +247,7 @@ Results: 2 passed, 1 failed (2.691s total)
         process.exitCode = 1
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to run workflow tests: ${error.message}`)
       } else {
