@@ -12,14 +12,18 @@ interface WorkflowTest {
 interface RunResult {
   message?: string
   status: string
-  timing: number
+  // Optional: a run can come back without timing. Treating it as required and
+  // calling .toFixed() on it throws into the per-test catch, which then records
+  // a *second* result for the same test -- inflating the counts and flipping
+  // the exit code on a suite where nothing actually failed.
+  timing?: number
 }
 
 interface TestResult {
   message?: string
   name: string
   status: 'fail' | 'pass'
-  timing: number
+  timing?: number
 }
 
 export default class WorkflowTestRunAll extends BaseCommand {
@@ -121,7 +125,15 @@ Results: 2 passed, 1 failed (2.691s total)
       )
 
       if (tests.length === 0) {
-        this.log('No workflow tests found')
+        // An empty suite is a normal state (fresh branches have no tests) and
+        // is a success, not a failure. Under -o json it must still be parseable,
+        // with the same keys the populated path emits below.
+        if (flags.output === 'json') {
+          this.log(JSON.stringify({failed: 0, passed: 0, results: [], total_timing: 0}, null, 2))
+        } else {
+          this.log('No workflow tests found')
+        }
+
         return
       }
 
@@ -187,10 +199,10 @@ Results: 2 passed, 1 failed (2.691s total)
               timing: runResult.timing,
             }
             results.push(result)
-            totalTiming += runResult.timing
+            totalTiming += runResult.timing ?? 0
 
             if (flags.output === 'summary') {
-              const timing = `(${runResult.timing.toFixed(3)}s)`
+              const timing = `(${(runResult.timing ?? 0).toFixed(3)}s)`
               if (passed) {
                 log(`PASS  ${test.name} ${timing}`)
               } else {
@@ -201,6 +213,7 @@ Results: 2 passed, 1 failed (2.691s total)
               }
             }
           } catch (error) {
+            if (error instanceof Error && 'oclif' in error) throw error
             const message = error instanceof Error ? error.message : String(error)
             results.push({
               message,
@@ -246,6 +259,7 @@ Results: 2 passed, 1 failed (2.691s total)
         process.exitCode = 1
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to run workflow tests: ${error.message}`)
       } else {
