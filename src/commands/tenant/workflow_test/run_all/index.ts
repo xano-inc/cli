@@ -125,7 +125,15 @@ Results: 2 passed, 1 failed
       )
 
       if (tests.length === 0) {
-        this.log('No workflow tests found')
+        // An empty suite is a normal state (fresh branches have no tests) and
+        // is a success, not a failure. Under -o json it must still be parseable,
+        // with the same keys the populated path emits below.
+        if (flags.output === 'json') {
+          this.log(JSON.stringify({failed: 0, passed: 0, results: []}, null, 2))
+        } else {
+          this.log('No workflow tests found')
+        }
+
         return
       }
 
@@ -199,6 +207,7 @@ Results: 2 passed, 1 failed
               }
             }
           } catch (error) {
+            if (error instanceof Error && 'oclif' in error) throw error
             const message = error instanceof Error ? error.message : String(error)
             results.push({
               message,
@@ -242,6 +251,7 @@ Results: 2 passed, 1 failed
         process.exitCode = 1
       }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to run workflow tests: ${error.message}`)
       } else {
