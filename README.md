@@ -425,9 +425,12 @@ xano tenant get <tenant_name>
 xano tenant create "My Tenant"
 xano tenant create "My Tenant" -d "Description" --type tier2 --cluster_id 1 --platform_id 5
 xano tenant create "My Tenant" --type tier2 --cluster_id 1 --license ./license.yaml
+xano tenant create "Production" --required_reviewers 1 --allow_deploy_bypass
 
 # Edit a tenant
 xano tenant edit <tenant_name> --display "New Name" -d "New description"
+xano tenant edit <tenant_name> --required_reviewers 1
+xano tenant edit <tenant_name> --required_reviewers 0
 
 # Delete a tenant (confirmation required)
 xano tenant delete <tenant_name>
@@ -476,6 +479,60 @@ xano tenant deploy_release <tenant_name> --release v1.0
 
 # Deploy with a license override file (deploy_platform only)
 xano tenant deploy_platform <tenant_name> --platform_id 5 --license ./license.yaml
+```
+
+If a tenant has `required_reviewers` set above 0, `tenant deploy_release` fails with an
+error naming the `tenant_deploy_request` command to run instead — see below.
+
+#### Tenant Deploy Requests
+
+When a tenant has `required_reviewers` set above 0 (see `tenant create`/`tenant edit`
+above), a release may only be deployed to it through an **approved deploy request**,
+requiring that many distinct reviewer approvals. An author with no deploy permission
+opens a request; a named reviewer who does hold deploy permission on the tenant votes to
+approve it, and once enough reviewers have approved, it deploys as part of that action.
+
+```bash
+# List deploy requests in a workspace (results show the target tenant and release)
+xano tenant_deploy_request list
+xano tenant_deploy_request list --tenant prod --status pending
+xano tenant_deploy_request list --tenant prod --release v1.2
+xano tenant_deploy_request list --to-review
+
+# Get details of a specific deploy request
+xano tenant_deploy_request get <id>
+
+# Open a deploy request (submits for review immediately unless --draft is passed)
+xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --reviewers 12,45
+xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --draft
+
+# Edit a deploy request's title, description or reviewers
+xano tenant_deploy_request edit <id> --title "Deploy v1.2.1 to prod"
+xano tenant_deploy_request edit <id> --reviewers 12,45,67
+
+# Change status: draft, submit, approve, request_changes, close, or reopen
+# (approve records one reviewer's vote; once enough votes are in it deploys the
+# release as part of that same call)
+xano tenant_deploy_request set_status <id> --status submit
+xano tenant_deploy_request set_status <id> --status approve
+xano tenant_deploy_request set_status <id> --status request_changes --reason "Needs a migration note"
+xano tenant_deploy_request set_status <id> --status close --reason "Superseded by a newer request"
+xano tenant_deploy_request set_status <id> --status reopen
+
+# Link a newer release to a request after changes were requested (author only)
+xano tenant_deploy_request revision <id> --release v1.2.1 --note "Added the missing migration"
+
+# Deploy past the approval gate under the deploy-bypass permission (requires the
+# tenant's allow_deploy_bypass to be enabled, and a separately-grantable RBAC
+# permission). Every use is audited.
+xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavailable"
+```
+
+CI example (e.g. a GitHub Action step):
+
+```bash
+xano tenant_deploy_request create "$PR_TITLE" --tenant prod --release v1.2 \
+  --description "$PR_BODY" --reviewers 12,45 -o json
 ```
 
 #### Tenant License
