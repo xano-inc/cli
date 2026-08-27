@@ -250,6 +250,34 @@ export function renderBadReferences(badRefs: BadReference[], log: (msg: string) 
   log('')
 }
 
+/**
+ * Non-alarming variant of {@link renderBadReferences} used on the `--force` path when the server
+ * could not be consulted (no dry-run URL, or the dry-run fetch/parse failed). The referenced objects
+ * were simply not part of this push; they are presumed to exist on the server. Deliberately avoids the
+ * "does not exist" / "will become placeholder statements" wording, which is only accurate when the
+ * server registry has confirmed the reference truly resolves nowhere.
+ */
+export function renderUnverifiedReferences(badRefs: BadReference[], log: (msg: string) => void): void {
+  log(ux.colorize('yellow', ux.colorize('bold', '=== References Not Verified Against Server ===')))
+  log('')
+  log(
+    ux.colorize(
+      'yellow',
+      'The following references point to objects not included in this push. They are assumed to exist on the server and were not verified.',
+    ),
+  )
+  log('')
+
+  for (const ref of badRefs) {
+    log(`  ${ux.colorize('yellow', 'WARNING'.padEnd(16))} ${ref.sourceType.padEnd(18)} ${ref.source}`)
+    log(
+      `  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `${ref.statementType} → ${ref.targetType} "${ref.target}" not included in this push`)}`,
+    )
+  }
+
+  log('')
+}
+
 export function renderBadIndexes(badIndexes: BadIndex[], log: (msg: string) => void): void {
   log('')
   log(ux.colorize('red', ux.colorize('bold', '=== CRITICAL: Invalid Indexes ===')))
@@ -581,6 +609,50 @@ function mergeKnowledgePreview(preview: DryRunResult, knowledge: KnowledgeDryRun
 }
 
 // ── Main Push Logic ─────────────────────────────────────────────────────────
+
+/**
+ * Fetch the dry-run operation list solely to build a server registry for reference checking on the
+ * `--force` path (which otherwise skips the dry-run entirely and would false-positive on every
+ * reference to a server-resident object that sits outside the include glob).
+ *
+ * Best-effort and fail-soft: a missing dry-run URL, a non-OK response, or any fetch/parse error
+ * yields `null`, so the caller degrades to a non-alarming "not verified" warning. It never throws —
+ * the push is already known-good and this extra read must not block or abort it.
+ *
+ * `delete=true` is set on the dry-run params (mirroring the non-force path) so the server reports
+ * remote-only, out-of-glob objects as `delete` operations — which is exactly what places them in the
+ * server registry. This only affects what the dry-run *reports*, never the real push.
+ */
+async function fetchServerOperations(opts: {
+  accessToken: string
+  multidoc: string
+  queryParams: URLSearchParams
+  requestHeaders: Record<string, string>
+  target: PushTarget
+  verbose: boolean
+  verboseFetch: PushContext['verboseFetch']
+}): Promise<Array<{name: string; type: string}> | null> {
+  try {
+    const dryRunParams = new URLSearchParams(opts.queryParams)
+    // Report remote-only (out-of-glob) objects so they enter the server registry.
+    dryRunParams.set('delete', 'true')
+    const url = opts.target.buildDryRunUrl(dryRunParams)
+    if (!url) return null
+
+    const response = await opts.verboseFetch(
+      url,
+      {body: opts.multidoc, headers: opts.requestHeaders, method: 'POST'},
+      opts.verbose,
+      opts.accessToken,
+    )
+    if (!response.ok) return null
+
+    const preview = JSON.parse(await response.text()) as {operations?: DryRunOperation[]}
+    return preview.operations ?? null
+  } catch {
+    return null
+  }
+}
 
 /**
  * Execute a multidoc push with preview, validation, partial mode, and GUID sync.
@@ -959,10 +1031,28 @@ export async function executePush(
   // ── Show bad references in force mode (preview mode shows them inline) ─
 
   if (flags.force && !knowledgeOnly) {
-    const badRefs = checkReferences(documentEntries)
+    // The force path skipped the dry-run above, so reference checking has no server registry and would
+    // false-positive on every reference to an object that lives on the server but sits outside the
+    // include glob. Do a lean, fail-soft dry-run fetch here solely to obtain the server operations,
+    // then warn only on references that resolve in NEITHER the push set NOR the server. When the server
+    // cannot be consulted, degrade to a non-alarming, "not verified" warning rather than asserting the
+    // objects do not exist.
+    const serverOps = dryRunUrl
+      ? await fetchServerOperations({
+          accessToken,
+          multidoc,
+          queryParams,
+          requestHeaders,
+          target,
+          verbose: flags.verbose,
+          verboseFetch,
+        })
+      : null
+    const badRefs = checkReferences(documentEntries, serverOps ?? undefined)
     if (badRefs.length > 0) {
       log('')
-      renderBadReferences(badRefs, log)
+      const render = serverOps ? renderBadReferences : renderUnverifiedReferences
+      render(badRefs, log)
     }
   }
 

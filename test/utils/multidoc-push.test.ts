@@ -1,6 +1,6 @@
 import {expect} from 'chai'
 
-import {filterChangedEntries} from '../../src/utils/multidoc-push.js'
+import {filterChangedEntries, renderBadReferences, renderUnverifiedReferences} from '../../src/utils/multidoc-push.js'
 
 describe('multidoc-push helpers', () => {
   describe('filterChangedEntries', () => {
@@ -61,6 +61,43 @@ describe('multidoc-push helpers', () => {
 
       const result = filterChangedEntries(entries, operations, false)
       expect(result).to.have.lengthOf(1)
+    })
+  })
+
+  const sampleBadRefs = [
+    {
+      source: 'say',
+      sourceType: 'function',
+      statementType: 'function.run',
+      target: 'chat_record',
+      targetType: 'function',
+    },
+  ]
+
+  describe('renderUnverifiedReferences', () => {
+    // DEV-7772: the force-path fallback (server could not be consulted) must NOT claim the referenced
+    // objects are missing — it only notes they were not part of this push.
+    it('uses non-alarming wording that never asserts the object is missing', () => {
+      const lines: string[] = []
+      renderUnverifiedReferences(sampleBadRefs, (msg) => lines.push(msg))
+      const output = lines.join('\n')
+
+      expect(output).to.include('not included in this push')
+      expect(output).to.include('assumed to exist')
+      expect(output).to.not.include('does not exist')
+      expect(output).to.not.include('placeholder')
+    })
+  })
+
+  describe('renderBadReferences', () => {
+    // The accurate message is preserved for genuine unresolved references (server was consulted).
+    it('keeps the "does not exist" / placeholder wording for genuine unresolved references', () => {
+      const lines: string[] = []
+      renderBadReferences(sampleBadRefs, (msg) => lines.push(msg))
+      const output = lines.join('\n')
+
+      expect(output).to.include('does not exist')
+      expect(output).to.include('placeholder')
     })
   })
 })
