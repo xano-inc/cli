@@ -3,7 +3,7 @@ import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import {Agent, type Dispatcher} from 'undici'
+import {Agent, type Dispatcher, fetch as undiciFetch} from 'undici'
 
 import {checkForUpdate} from './update-check.js'
 import {
@@ -14,6 +14,7 @@ import {
   parseLocalProfile,
   resolveProfileSelection,
 } from './utils/local-config.js'
+import {describeNetworkError} from './utils/network-error.js'
 
 export interface ProfileConfig {
   access_token: string
@@ -69,6 +70,81 @@ function getRequestDispatcher(timeoutMs: number): Dispatcher | undefined {
 
   sharedDispatcher ??= new Agent({bodyTimeout: timeoutMs, headersTimeout: timeoutMs})
   return sharedDispatcher
+}
+
+/** The options we hand to fetch — standard RequestInit plus the undici dispatcher. */
+type FetchOptions = RequestInit & {dispatcher?: Dispatcher}
+
+/** A fetch-shaped call. Both the global `fetch` and undici's `fetch` satisfy this. */
+type FetchLike = (url: string, options: FetchOptions) => Promise<Response>
+
+/**
+ * True when a thrown fetch error means the request's `dispatcher` (our undici
+ * `Agent`) was rejected as an incompatible argument — e.g. Node's built-in fetch
+ * refusing a dispatcher built by a *different* copy of undici (Node 26 surfaces
+ * this as UND_ERR_INVALID_ARG; older paths as ERR_INVALID_ARG_TYPE). Deliberately
+ * narrow: a genuine transport failure (ECONNREFUSED, ENOTFOUND, …) returns false,
+ * so it is never silently retried or masked by the plain-fetch fallback. Duck-typed
+ * over the error and its `cause` so it holds wherever the code is attached.
+ */
+export function isDispatcherRejection(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const rejectionCodes = new Set(['ERR_INVALID_ARG_TYPE', 'UND_ERR_INVALID_ARG'])
+  const {cause, code, message} = error as {cause?: unknown; code?: unknown; message?: unknown}
+  const causeCode = cause && typeof cause === 'object' && 'code' in cause ? (cause as {code?: unknown}).code : undefined
+
+  if (
+    (typeof code === 'string' && rejectionCodes.has(code)) ||
+    (typeof causeCode === 'string' && rejectionCodes.has(causeCode))
+  ) {
+    return true
+  }
+
+  return typeof message === 'string' && message.toLowerCase().includes('dispatcher')
+}
+
+/**
+ * Make the request, tolerating a Node/undici mismatch on the `dispatcher` option.
+ *
+ * Tier 1 — the built-in `fetch` with our undici `Agent` dispatcher. This is the
+ * long-standing working path (Node ≤24) and, being the global `fetch`, the path
+ * every test that stubs `globalThis.fetch` drives; it is unchanged from before.
+ *
+ * Tier 2 — if the built-in fetch rejects the dispatcher (Node 26 refuses an Agent
+ * built by a *different* undici copy; see {@link isDispatcherRejection}), retry
+ * with undici's own `fetch`, which accepts the Agent — so the header/body-timeout
+ * lift the dispatcher provides survives on Node 26.
+ *
+ * Tier 3 — if the dispatcher genuinely cannot be applied anywhere (undici's fetch
+ * rejects it too), drop it and use the built-in fetch bounded only by the
+ * `AbortSignal.timeout` ceiling on `options.signal`, so the CLI still reaches the
+ * instance.
+ *
+ * Any error that is *not* a dispatcher rejection propagates untouched, so a real
+ * transport failure (ECONNREFUSED, …) is never masked by a silent retry. The
+ * `fetchers` are injected so this tiering is unit-tested with fakes (no network).
+ */
+export async function requestWithFallback(
+  fetchers: {builtin: FetchLike; undici: FetchLike},
+  url: string,
+  options: FetchOptions,
+): Promise<Response> {
+  try {
+    return await fetchers.builtin(url, options)
+  } catch (builtinError) {
+    if (!isDispatcherRejection(builtinError)) throw builtinError
+
+    try {
+      return await fetchers.undici(url, options)
+    } catch (undiciError) {
+      if (!isDispatcherRejection(undiciError)) throw undiciError
+
+      const plain: FetchOptions = {...options}
+      delete plain.dispatcher
+      return fetchers.builtin(url, plain)
+    }
+  }
 }
 
 export interface SandboxTenant {
@@ -444,7 +520,18 @@ export default abstract class BaseCommand extends Command {
     }
 
     const startTime = Date.now()
-    const response = await fetch(url, fetchOptions)
+    // Keep the built-in fetch + undici Agent dispatcher as the primary path (the
+    // long-standing, working behavior). requestWithFallback transparently retries
+    // via undici's own fetch if Node rejects the dispatcher — Node 26 refuses a
+    // foreign undici Agent (UND_ERR_INVALID_ARG, surfaced as a bare "fetch failed").
+    // Any failure is wrapped so the message names the real cause, not "fetch failed".
+    const response = await requestWithFallback(
+      {builtin: fetch, undici: undiciFetch as unknown as FetchLike},
+      url,
+      fetchOptions,
+    ).catch((error: unknown): never => {
+      throw new Error(describeNetworkError(error, url, Date.now() - startTime), {cause: error})
+    })
     const elapsed = Date.now() - startTime
 
     if (verbose) {
