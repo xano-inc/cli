@@ -27,9 +27,22 @@ Created tenant: Production (production) - ID: 42
 `,
     `$ xano tenant create "Staging" --description "Staging env" --cluster_id 1 --platform_id 1 --type tier2 -o json`,
     `$ xano tenant create "Staging" --type tier2 --cluster_id 1 --license ./license.yaml`,
+    `$ xano tenant create "Production" --required_reviewers 1 --allow_deploy_bypass`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    allow_deploy_bypass: Flags.boolean({
+      default: false,
+      description:
+        'Allow authorized users to bypass the deploy approval gate on this tenant (via tenant_deploy_request bypass). Has no effect unless --required_reviewers is also set above 0.',
+      required: false,
+    }),
+    allow_quick_deploy: Flags.boolean({
+      default: false,
+      description:
+        'Allow this tenant to skip the deploy approval gate entirely for quick deploys, regardless of --required_reviewers.',
+      required: false,
+    }),
     cluster_id: Flags.integer({
       description: 'Cluster ID to deploy to (required for tier2/tier3)',
       required: false,
@@ -64,6 +77,12 @@ Created tenant: Production (production) - ID: 42
       description: 'Platform ID to use',
       required: false,
     }),
+    required_reviewers: Flags.integer({
+      default: 0,
+      description:
+        'When greater than 0, that many distinct reviewers must approve a tenant_deploy_request before a release may be deployed to this tenant. 0 (default) means not gated.',
+      required: false,
+    }),
     type: Flags.string({
       default: 'tier1',
       description: 'Tenant type',
@@ -93,6 +112,11 @@ Created tenant: Production (production) - ID: 42
     }
 
     const body: Record<string, unknown> = {
+      deploy_settings: {
+        allow_deploy_bypass: flags.allow_deploy_bypass,
+        allow_quick_deploy: flags.allow_quick_deploy,
+        required_reviewers: flags.required_reviewers,
+      },
       display: args.display,
       ingress: flags.ingress,
       license: flags.type,
