@@ -212,6 +212,7 @@ xano workspace push --env                                # Include environment v
 xano workspace push --truncate                           # Truncate tables before import
 xano workspace push --no-transaction                     # Disable database transaction wrapping
 xano workspace push --no-guids                           # Skip writing GUIDs back to local files
+xano workspace push --writeback                          # Write server-formatted XanoScript back to pushed files
 xano workspace push --force                              # Skip preview and confirmation (for CI/CD)
 xano workspace push -i "function/*"                      # Push only matching files
 xano workspace push -e "table/*"                         # Push all files except tables
@@ -717,6 +718,7 @@ xano sandbox push --dry-run                              # Preview changes witho
 xano sandbox push --records --env                        # Include records and environment variables
 xano sandbox push --truncate                             # Truncate tables before import
 xano sandbox push --no-guids                             # Skip writing GUIDs back to local files
+xano sandbox push --writeback                            # Write server-formatted XanoScript back to pushed files
 xano sandbox push --force                                # Skip preview and confirmation
 xano sandbox push --review                               # Push and open sandbox review in the browser
 

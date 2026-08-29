@@ -33,6 +33,9 @@ Skip preview and push immediately
     `$ xano sandbox push --review
 Push and open sandbox review in the browser
 `,
+    `$ xano sandbox push --writeback
+Push and write server-formatted XanoScript back to local files
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -95,6 +98,11 @@ Push and open sandbox review in the browser
       description: '[CRITICAL] STOP and confirm with the user; this truncates live tables before importing.',
       required: false,
     }),
+    writeback: Flags.boolean({
+      default: false,
+      description: 'After a successful push, write server-formatted XanoScript back to the files that were pushed',
+      required: false,
+    }),
   }
 
   async run(): Promise<void> {
@@ -136,6 +144,7 @@ Push and open sandbox review in the browser
       transaction: flags.transaction,
       truncate: flags.truncate,
       verbose: flags.verbose,
+      writeback: flags.writeback,
     }
 
     await executePush(

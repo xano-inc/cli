@@ -3,7 +3,7 @@ import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
-import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
+import {buildDocumentKey, findFilesWithGuid, type ParsedDocument, parseDocument} from './document-parser.js'
 import {
   collectKnowledgeObjects,
   fetchKnowledge,
@@ -31,6 +31,7 @@ export interface PushFlags {
   transaction: boolean
   truncate: boolean
   verbose: boolean
+  writeback: boolean
 }
 
 export interface PushTarget {
@@ -76,6 +77,13 @@ export interface PushContext {
   /** Optional knowledge sync config. Only workspace push sets this. */
   knowledge?: KnowledgeConfig
   verboseFetch: (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
+}
+
+/** The fetch fields writeback reads. */
+export interface WritebackHttpResponse {
+  ok: boolean
+  status: number
+  text: () => Promise<string>
 }
 
 interface GuidMapEntry {
@@ -149,6 +157,116 @@ export function filterChangedEntries(
     if (includeRecords && parsed.type === 'table' && /\bitems\s*=\s*\[/m.test(entry.content)) return true
     return false
   })
+}
+
+const ITEMS_BLOCK_REGEX = /^[ \t]*items\s*=\s*\[[\s\S]*?\n[ \t]*\]/m
+
+/**
+ * Split a GET /multidoc response into parsed documents, skipping empty or invalid segments.
+ */
+export function parseExportDocuments(multidoc: string): ParsedDocument[] {
+  const documents: ParsedDocument[] = []
+  for (const raw of multidoc.split('\n---\n')) {
+    const trimmed = raw.trim()
+    if (!trimmed) continue
+    const parsed = parseDocument(trimmed)
+    if (parsed) documents.push(parsed)
+  }
+
+  return documents
+}
+
+/**
+ * Reinsert a local table `items = [...]` block when the server export omitted records.
+ * If the export already has an items block, the server copy wins.
+ */
+export function preserveLocalTableRecords(localContent: string, serverContent: string): string {
+  if (ITEMS_BLOCK_REGEX.test(serverContent)) {
+    return serverContent
+  }
+
+  const localMatch = localContent.match(ITEMS_BLOCK_REGEX)
+  if (!localMatch) {
+    return serverContent
+  }
+
+  const lines = serverContent.split('\n')
+  let insertIndex = -1
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim() === '}') {
+      insertIndex = i
+      break
+    }
+  }
+
+  if (insertIndex === -1) {
+    return serverContent
+  }
+
+  lines.splice(insertIndex, 0, ...localMatch[0].split('\n'))
+  return lines.join('\n')
+}
+
+/**
+ * Choose which pushed local files should be overwritten with the server export.
+ * Only files in `pushedFiles` are candidates. Trailing whitespace is ignored when comparing.
+ */
+function indexPushedFiles(
+  pushedFiles: Map<string, string>,
+  localContents: Map<string, string>,
+): {byGuid: Map<string, string>; byKeyLower: Map<string, string>} {
+  const byKeyLower = new Map<string, string>()
+  for (const [key, filePath] of pushedFiles) {
+    const lower = key.toLowerCase()
+    if (byKeyLower.has(lower) && byKeyLower.get(lower) !== filePath) {
+      byKeyLower.set(lower, '')
+    } else if (!byKeyLower.has(lower)) {
+      byKeyLower.set(lower, filePath)
+    }
+  }
+
+  const byGuid = new Map<string, string>()
+  for (const [filePath, local] of localContents) {
+    const parsed = parseDocument(local)
+    if (parsed?.guid) byGuid.set(parsed.guid, filePath)
+  }
+
+  return {byGuid, byKeyLower}
+}
+
+function resolveWritebackPath(
+  doc: ParsedDocument,
+  pushedFiles: Map<string, string>,
+  index: {byGuid: Map<string, string>; byKeyLower: Map<string, string>},
+): string | undefined {
+  const key = buildDocumentKey(doc.type, doc.name, doc.verb, doc.apiGroup)
+  return pushedFiles.get(key) || index.byKeyLower.get(key.toLowerCase()) || (doc.guid ? index.byGuid.get(doc.guid) : undefined)
+}
+
+export function selectWritebacks(
+  exported: ParsedDocument[],
+  pushedFiles: Map<string, string>,
+  localContents: Map<string, string>,
+  options: {includeRecords: boolean},
+): Array<{content: string; filePath: string}> {
+  const result: Array<{content: string; filePath: string}> = []
+  const index = indexPushedFiles(pushedFiles, localContents)
+
+  for (const doc of exported) {
+    const filePath = resolveWritebackPath(doc, pushedFiles, index)
+    if (!filePath) continue
+
+    const local = localContents.get(filePath) ?? ''
+    let content = doc.content
+    if (!options.includeRecords && doc.type === 'table') {
+      content = preserveLocalTableRecords(local, content)
+    }
+
+    if (local.trim() === content.trim()) continue
+    result.push({content, filePath})
+  }
+
+  return result
 }
 
 // ── File Collection ─────────────────────────────────────────────────────────
@@ -968,19 +1086,16 @@ export async function executePush(
 
   // ── Partial push: filter to changed documents only ────────────────────
 
+  let pushedEntries = documentEntries
   if (!knowledgeOnly && isPartial && dryRunPreview) {
-    const filteredEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
+    pushedEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
 
-    if (filteredEntries.length === 0 && knowledgeObjects.length === 0) {
+    if (pushedEntries.length === 0 && knowledgeObjects.length === 0) {
       log('No changes to push.')
       return
     }
 
-    if (filteredEntries.length > 0) {
-      multidoc = filteredEntries.map((d) => d.content).join('\n---\n')
-    } else {
-      multidoc = ''
-    }
+    multidoc = pushedEntries.length > 0 ? pushedEntries.map((d) => d.content).join('\n---\n') : ''
   }
 
   // ── Execute the actual push ───────────────────────────────────────────
@@ -1080,6 +1195,21 @@ export async function executePush(
     }
   }
 
+  let writebackMs = 0
+  if (flags.writeback && pushedDocCount > 0) {
+    writebackMs = await writeBackFormattedDocuments({
+      accessToken,
+      branch: ctx.branch,
+      command,
+      includeEnv: flags.env,
+      includeRecords: flags.records,
+      pushedEntries,
+      target,
+      verbose: flags.verbose,
+      verboseFetch,
+    })
+  }
+
   // ── Push knowledge ────────────────────────────────────────────────────
 
   let knowledgeImported = 0
@@ -1123,7 +1253,7 @@ export async function executePush(
     }
   }
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+  const elapsed = (Math.max(0, Date.now() - startTime - writebackMs) / 1000).toFixed(1)
   const parts: string[] = []
   if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
@@ -1133,6 +1263,123 @@ export async function executePush(
   }
 
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
+}
+
+export async function writeBackFormattedDocuments(args: {
+  accessToken: string
+  branch: string
+  command: Command
+  includeEnv: boolean
+  includeRecords: boolean
+  pushedEntries: Array<{content: string; filePath: string}>
+  target: PushTarget
+  verbose: boolean
+  verboseFetch: (
+    url: string,
+    options: {headers?: Record<string, string>; method?: string},
+    verbose: boolean,
+    authToken?: string,
+  ) => Promise<WritebackHttpResponse>
+}): Promise<number> {
+  const started = Date.now()
+  const {accessToken, branch, command, includeEnv, includeRecords, pushedEntries, target, verbose, verboseFetch} = args
+  const log = command.log.bind(command)
+  const elapsedLabel = () => ` (${((Date.now() - started) / 1000).toFixed(1)}s)`
+
+  const exportParams = new URLSearchParams({
+    env: includeEnv.toString(),
+    records: includeRecords.toString(),
+  })
+  exportParams.set('include_draft', 'false')
+  if (target.supportsBranches) {
+    exportParams.set('branch', branch)
+  }
+
+  const exportUrl = target.buildPushUrl(exportParams)
+
+  let response: WritebackHttpResponse
+  try {
+    response = await verboseFetch(
+      exportUrl,
+      {
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      accessToken,
+    )
+  } catch (error) {
+    command.warn(`Failed to fetch server-formatted documents for writeback: ${(error as Error).message}`)
+    return Date.now() - started
+  }
+
+  if (!response.ok) {
+    command.warn(`Failed to fetch server-formatted documents for writeback (${response.status})`)
+    return Date.now() - started
+  }
+
+  const responseText = await response.text()
+  const exported = parseExportDocuments(responseText)
+  const pushedFiles = new Map<string, string>()
+  const localContents = new Map<string, string>()
+
+  for (const entry of pushedEntries) {
+    const parsed = parseDocument(entry.content)
+    if (!parsed) continue
+    const key = buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup)
+    pushedFiles.set(key, entry.filePath)
+    try {
+      localContents.set(entry.filePath, fs.readFileSync(entry.filePath, 'utf8'))
+    } catch {
+      localContents.set(entry.filePath, entry.content)
+    }
+  }
+
+  if (exported.length === 0) {
+    const preview = responseText.trim().slice(0, 200).replaceAll('\n', String.raw`\n`)
+    command.warn(
+      `Writeback: export contained no XanoScript documents (${pushedFiles.size} pushed). Response starts with: ${preview || '(empty)'}`,
+    )
+    return Date.now() - started
+  }
+
+  const index = indexPushedFiles(pushedFiles, localContents)
+  const matched = new Set<string>()
+  for (const doc of exported) {
+    const filePath = resolveWritebackPath(doc, pushedFiles, index)
+    if (filePath) matched.add(filePath)
+  }
+
+  const writebacks = selectWritebacks(exported, pushedFiles, localContents, {includeRecords})
+  let written = 0
+  for (const {content, filePath} of writebacks) {
+    try {
+      fs.writeFileSync(filePath, content.endsWith('\n') ? content : `${content}\n`, 'utf8')
+      written++
+    } catch (error) {
+      command.warn(`Failed to write formatted document to ${filePath}: ${(error as Error).message}`)
+    }
+  }
+
+  if (written > 0) {
+    log(`Wrote ${written} server-formatted file${written === 1 ? '' : 's'} back to disk${elapsedLabel()}`)
+    return Date.now() - started
+  }
+
+  if (matched.size === 0) {
+    command.warn(
+      `Writeback: fetched ${exported.length} documents, but none matched the ${pushedFiles.size} pushed file${pushedFiles.size === 1 ? '' : 's'}${elapsedLabel()}`,
+    )
+    return Date.now() - started
+  }
+
+  log(
+    `Writeback: ${matched.size} pushed file${matched.size === 1 ? '' : 's'} already match the server export${elapsedLabel()}`,
+  )
+  return Date.now() - started
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────
