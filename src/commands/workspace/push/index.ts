@@ -27,6 +27,9 @@ Preview changes without pushing
     `$ xano workspace push --force
 Skip preview and push immediately (for CI/CD)
 `,
+    `$ xano workspace push --writeback
+Push and write server-formatted XanoScript back to local files
+`,
     `$ xano workspace push -d ./output -w 40
 Pushed 15 documents from ./output
 `,
@@ -147,6 +150,11 @@ Full sync including knowledge files; removes server objects not present locally
       description: 'Workspace ID (optional if set in profile)',
       required: false,
     }),
+    writeback: Flags.boolean({
+      default: false,
+      description: 'After a successful push, write server-formatted XanoScript back to the files that were pushed',
+      required: false,
+    }),
   }
 
   async run(): Promise<void> {
@@ -203,6 +211,7 @@ Full sync including knowledge files; removes server objects not present locally
       transaction: flags.transaction,
       truncate: flags.truncate,
       verbose: flags.verbose,
+      writeback: flags.writeback,
     }
 
     await executePush(
