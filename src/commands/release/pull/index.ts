@@ -6,6 +6,7 @@ import snakeCase from 'lodash.snakecase'
 
 import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
 import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {resolveDocumentOutputPath} from '../../../utils/pull-layout.js'
 
 interface Release {
   id: number
@@ -157,80 +158,12 @@ Pulled 58 documents from release 'v1.0'
 
     let writtenCount = 0
     for (const doc of documents) {
-      let typeDir: string
-      let baseName: string
-
-      if (doc.type === 'workspace') {
-        // workspace → workspace/{name}.xs
-        typeDir = path.join(outputDir, 'workspace')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'workspace_trigger') {
-        // workspace_trigger → workspace/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'error_trigger') {
-        // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent') {
-        // agent → ai/agent/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'agent')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server') {
-        // mcp_server → ai/mcp_server/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'mcp_server')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'tool') {
-        // tool → ai/tool/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'tool')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent_trigger') {
-        // agent_trigger → ai/agent/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server_trigger') {
-        // mcp_server_trigger → ai/mcp_server/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'table_trigger') {
-        // table_trigger → table/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'table', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_channel') {
-        // realtime_channel → realtime/channel/{name}.xs
-        typeDir = path.join(outputDir, 'realtime', 'channel')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_trigger') {
-        // realtime_trigger → realtime/trigger/{name}.xs
-        typeDir = path.join(outputDir, 'realtime', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'api_group') {
-        // api_group "test" → api/{resolved_folder}/{name}.xs
-        const groupFolder = getApiGroupFolder(doc.name)
-        typeDir = path.join(outputDir, 'api', groupFolder)
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'query' && doc.apiGroup) {
-        // query in group "test" → api/{resolved_folder}/{query_name}.xs
-        const groupFolder = getApiGroupFolder(doc.apiGroup)
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, 'api', groupFolder, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      } else {
-        // Default: split folder path from name
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, doc.type, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      }
+      const {baseName, typeDir} = resolveDocumentOutputPath(
+        outputDir,
+        doc,
+        getApiGroupFolder,
+        (name) => this.sanitizeFilename(name),
+      )
 
       fs.mkdirSync(typeDir, {recursive: true})
 

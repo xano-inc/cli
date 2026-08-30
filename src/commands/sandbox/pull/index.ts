@@ -5,6 +5,7 @@ import snakeCase from 'lodash.snakecase'
 import BaseCommand from '../../../base-command.js'
 import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
+import {resolveDocumentOutputPath} from '../../../utils/pull-layout.js'
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -116,67 +117,12 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
 
     let writtenCount = 0
     for (const doc of documents) {
-      let typeDir: string
-      let baseName: string
-
-      if (doc.type === 'workspace') {
-        typeDir = path.join(outputDir, 'workspace')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'workspace_trigger') {
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'error_trigger') {
-        // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent') {
-        typeDir = path.join(outputDir, 'ai', 'agent')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server') {
-        typeDir = path.join(outputDir, 'ai', 'mcp_server')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'tool') {
-        typeDir = path.join(outputDir, 'ai', 'tool')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent_trigger') {
-        typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server_trigger') {
-        typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'table_trigger') {
-        typeDir = path.join(outputDir, 'table', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_channel') {
-        typeDir = path.join(outputDir, 'realtime', 'channel')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_trigger') {
-        typeDir = path.join(outputDir, 'realtime', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'api_group') {
-        const groupFolder = getApiGroupFolder(doc.name)
-        typeDir = path.join(outputDir, 'api', groupFolder)
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'query' && doc.apiGroup) {
-        const groupFolder = getApiGroupFolder(doc.apiGroup)
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, 'api', groupFolder, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      } else {
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, doc.type, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      }
+      const {baseName, typeDir} = resolveDocumentOutputPath(
+        outputDir,
+        doc,
+        getApiGroupFolder,
+        (name) => this.sanitizeFilename(name),
+      )
 
       fs.mkdirSync(typeDir, {recursive: true})
 
