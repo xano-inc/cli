@@ -102,6 +102,44 @@ describe('document-parser', () => {
       const {typeDir} = place(doc({channel: 'rooms/{room_id}', name: 'post', type: 'message'}))
       expect(typeDir).to.equal('/out/channel/rooms/[room_id]')
     })
+
+    // DEV-7712: v2 trigger docs used to fall through to the default handler and land at the OUTPUT ROOT
+    // (channel_trigger/…, realtime_server_trigger/…). They now nest under their v2 parents, like messages.
+    it('nests a realtime_server_trigger under its server (server/trigger)', () => {
+      const {baseName, typeDir} = place(doc({name: 'on_connect', server: 'chat', type: 'realtime_server_trigger'}))
+      expect(typeDir).to.equal('/out/realtime/server/chat/trigger')
+      expect(baseName).to.equal('on_connect')
+    })
+
+    it('nests a channel_trigger beside its channel (server/channel/trigger)', () => {
+      const {baseName, typeDir} = place(
+        doc({channel: 'rooms/{room_id}', name: 'on_join', server: 'chat', type: 'channel_trigger'}),
+      )
+      expect(typeDir).to.equal('/out/realtime/server/chat/channel/rooms_room_id/trigger')
+      expect(baseName).to.equal('on_join')
+    })
+
+    it('keeps a server-less realtime_server_trigger under realtime/, never the output root', () => {
+      const {typeDir} = place(doc({name: 'orphan', type: 'realtime_server_trigger'}))
+      expect(typeDir).to.equal('/out/realtime/server_trigger')
+    })
+
+    it('falls a channel_trigger with a channel but no server back to the flat channel/ layout', () => {
+      const {typeDir} = place(doc({channel: 'rooms/{room_id}', name: 'on_join', type: 'channel_trigger'}))
+      expect(typeDir).to.equal('/out/channel/rooms/[room_id]/trigger')
+    })
+
+    it('keeps a bare channel_trigger (no server, no channel) under realtime/, never the output root', () => {
+      const {typeDir} = place(doc({name: 'orphan', type: 'channel_trigger'}))
+      expect(typeDir).to.equal('/out/realtime/channel_trigger')
+    })
+
+    it('never places a v2 trigger at the output root (the DEV-7712 regression)', () => {
+      const ct = place(doc({channel: 'c', name: 'x', server: 's', type: 'channel_trigger'})).typeDir
+      const st = place(doc({name: 'x', server: 's', type: 'realtime_server_trigger'})).typeDir
+      expect(ct).to.match(/^\/out\/realtime\//)
+      expect(st).to.match(/^\/out\/realtime\//)
+    })
   })
 
   // ── resolveDocumentPath: other object types (regression coverage) ─────────────

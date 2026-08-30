@@ -264,6 +264,46 @@ export function resolveDocumentPath(
     return {baseName: sanitize(doc.name), typeDir: join(outputDir, 'realtime', 'trigger')}
   }
 
+  if (doc.type === 'realtime_server_trigger') {
+    // Realtime v2. A realtime_server's connect/disconnect trigger. It references its
+    // owning server by name via `realtime_server = "..."`, so it nests under that
+    // server's folder as `<server>/trigger/`, mirroring how the server's own document
+    // and its channels already nest under realtime/server/<server>/ (DEV-7712). Keeping
+    // it there means every realtime document stays under realtime/ instead of landing at
+    // the output root. A server-less doc (a malformed/legacy export) falls back to a flat
+    // realtime/server_trigger/ under realtime/ rather than the repo root.
+    return {
+      baseName: sanitize(doc.name),
+      typeDir: doc.server
+        ? join(outputDir, 'realtime', 'server', sanitize(doc.server), 'trigger')
+        : join(outputDir, 'realtime', 'server_trigger'),
+    }
+  }
+
+  if (doc.type === 'channel_trigger') {
+    // Realtime v2. A channel's join/leave/deliver trigger. It references BOTH its owning
+    // server (`realtime_server = "..."`) and its channel (`channel = "..."`), so it nests
+    // beside that channel as `<server>/channel/<channel>/trigger/` — the same path the
+    // channel's own document and messages already use (DEV-7712). Falls back gracefully:
+    // channel but no resolvable server → the legacy flat channel/<path>/trigger/ layout;
+    // neither → realtime/channel_trigger/ under realtime/ (never the output root).
+    if (doc.server && doc.channel) {
+      return {
+        baseName: sanitize(doc.name),
+        typeDir: join(outputDir, 'realtime', 'server', sanitize(doc.server), 'channel', snakeCase(doc.channel), 'trigger'),
+      }
+    }
+
+    if (doc.channel) {
+      return {
+        baseName: sanitize(doc.name),
+        typeDir: join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase), 'trigger'),
+      }
+    }
+
+    return {baseName: sanitize(doc.name), typeDir: join(outputDir, 'realtime', 'channel_trigger')}
+  }
+
   if (doc.type === 'realtime_server') {
     // Realtime v2. The realtime_server is the top-level container that owns
     // channels (which own messages). Its own document is named after itself
