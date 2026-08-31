@@ -345,6 +345,65 @@ when the function returns an error status.
 > denied with an access error — grant run/debug to the role (or use a token whose role has
 > it). `function list`/`get`/`create`/`edit` only need the Function permission.
 
+### Debug
+
+Run one object from your **local** workspace files in an isolated, throwaway debug
+environment — without mutating the real workspace. The CLI builds the multidoc from
+your local `.xs` files (the same way `workspace push` does), the server executes the
+named entry object in an isolated schema, and you get back a compact envelope
+(`status`, `timing`, `result`/`exception`, `debug_id`). The full per-statement stack
+trace is stored server-side under the `debug_id` and fetched separately.
+
+```bash
+# Run a function from the current directory's .xs files
+xano debug run --type function --name calcScore --data email=jo@x.com --data age:=30
+
+# Run an API endpoint (verb disambiguates GET /users from POST /users), raw JSON out
+xano debug run --type query --name /users --verb GET --json @payload.json -o json | jq .result
+
+# Run from a specific directory, limiting which files are uploaded (same globs as push)
+xano debug run --type task --name nightly_sync --dir ./my-workspace -i "function/*" -i "task/*"
+
+# Long-running object? Pre-supply a uuid so a proxy timeout can't lose the result
+xano debug run --type function --name slowJob --debug-id 018f3a6e-1111-4222-8333-444455556666
+xano debug get 018f3a6e-1111-4222-8333-444455556666   # recover it later
+
+# Run without folding local env values into the debug workspace
+xano debug run --type function --name calcScore --no-env
+
+# Capture values above the per-value size cap (otherwise stored as {{too_large}} markers)
+xano debug run --type function --name bigPayload --bypass-size-limit
+
+# Fetch the full stored stack trace by debug id
+xano debug get 018f3a6e-1111-4222-8333-444455556666            # summary: status, timing, entry, statement count
+xano debug get 018f3a6e-1111-4222-8333-444455556666 --out stack.json   # summary on screen + full payload to file
+xano debug get 018f3a6e-1111-4222-8333-444455556666 -o json | jq '.stack | length'
+```
+
+Entry types: `action`, `addon`, `function`, `middleware`, `query`, `task`, `tool`,
+`trigger`, `workflow_test`. Inputs use the same forms as `function run` (`--data key=value`,
+`--data key:=json`, `--data key@file`, `--json inline|@file|-`, `--stdin`), merged JSON-base-first.
+
+Exit codes for `debug run` (script/agent friendly): `0` = run completed with `status: ok`,
+`1` = run completed with `status: exception` (the exception is printed), `2` = usage or
+HTTP errors (parse failure, unknown entry object, auth, push gate).
+
+Notes:
+
+- Debug runs are gated by the same **Allow Direct Workspace Push** workspace preference
+  as `workspace push` — the debugged code executes for real (external side effects included).
+- The debug workspace is built **solely from the uploaded multidoc**: `$env` reads return
+  nothing unless env-bearing documents are included. When your local files contain env
+  values (from `workspace pull --env`), the CLI includes them and prints a notice;
+  `--no-env` omits them.
+- Stored results expire after about 7 days. Expired ids, foreign-workspace ids, and ids
+  that never existed all return the same not-found response.
+- `{{too_large}}` markers in a fetched stack mean a value exceeded the per-value size cap —
+  re-run with `--bypass-size-limit` to capture it (this inflates the stored payload, making
+  storage-cap truncation more likely). A `truncated` flag means the storage cap dropped the
+  largest values from the stored payload.
+- `--out` writes the payload with `0600` permissions; it may contain sensitive resolved values.
+
 ### Knowledge
 
 ```bash
