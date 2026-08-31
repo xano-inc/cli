@@ -1280,6 +1280,7 @@ export function describeNetworkError(error: unknown, url: string, elapsedMs?: nu
     ETIMEDOUT: `Connection to ${host} timed out. Check your network or VPN, then retry.`,
     UND_ERR_CONNECT_TIMEOUT: `Connection to ${host} timed out. Check your network or VPN, then retry.`,
     UND_ERR_HEADERS_TIMEOUT: `${host} accepted the connection but did not respond in time. The push may be too large; try splitting it or retrying.`,
+    UND_ERR_INVALID_ARG: `Your Node runtime rejected the CLI's HTTP dispatcher. Update the CLI, or run it under Node 24 (see DEV-7773).`,
   }
 
   let base: string
