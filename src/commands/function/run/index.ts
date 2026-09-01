@@ -41,7 +41,7 @@ static examples = [
     `$ xano function:run calcScore --json @payload.json --data env=staging`,
     `$ echo '{"email":"jo@x.com"}' | xano function:run calcScore --stdin -o json | jq .result`,
     `$ xano function:run calcScore --branch dev --logs`,
-    `$ xano function:run calcScore --data_source test
+    `$ xano function:run calcScore --datasource test
 # Runs against the 'test' data source instead of 'live'`,
   ]
 static override flags = {
@@ -56,9 +56,7 @@ static override flags = {
       multiple: true,
       required: false,
     }),
-    // eslint-disable-next-line camelcase -- underscore flag naming per project convention
-    data_source: Flags.string({
-      aliases: ['datasource'],
+    datasource: Flags.string({
       description: 'Data source to run against, e.g. test (defaults to live)',
       required: false,
     }),
@@ -155,7 +153,7 @@ static override flags = {
     // named by X-Data-Source (defaulting to `live`), so the run reads and writes
     // the same tables a request carrying that header would. An unknown label is
     // rejected server-side with "Invalid data source."
-    const dataSource = flags.data_source?.trim()
+    const dataSource = flags.datasource?.trim()
     if (dataSource) headers['X-Data-Source'] = dataSource
 
     const response = await this.verboseFetch(
