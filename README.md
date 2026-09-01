@@ -323,6 +323,7 @@ xano function run <name> --data email=jo@x.com --data age:=30 --data active:=tru
 xano function run <name> --json @payload.json --data env=staging   # base payload + override
 echo '{"email":"jo@x.com"}' | xano function run <name> --stdin -o json | jq .result
 xano function run <name> --branch dev --logs            # run on a branch, show execution logs
+xano function run <name> --datasource test              # run against the 'test' data source
 ```
 
 Input flexibility for `function run` (assembled into one JSON `input` object):
@@ -334,6 +335,11 @@ Input flexibility for `function run` (assembled into one JSON `input` object):
 | `--data key@file` | field value read from a file |
 | `--json '<inline>'` / `--json @file.json` / `--json -` | a base JSON object (stdin with `-`) |
 | `--stdin` | read the JSON object from stdin (same as `--json -`) |
+
+`--datasource <label>` runs the function against a non-live data source by sending the
+`X-Data-Source` header, so table reads and writes hit that data source's tables. Omit it
+to run against `live`; an unknown label is rejected by the server with
+`Invalid data source.`
 
 Merge order is JSON base first, then `--data` overrides. Missing required inputs are
 prompted for on an interactive terminal; in a non-TTY (CI) context the command fails

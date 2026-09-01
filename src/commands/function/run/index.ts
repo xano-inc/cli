@@ -41,6 +41,8 @@ static examples = [
     `$ xano function:run calcScore --json @payload.json --data env=staging`,
     `$ echo '{"email":"jo@x.com"}' | xano function:run calcScore --stdin -o json | jq .result`,
     `$ xano function:run calcScore --branch dev --logs`,
+    `$ xano function:run calcScore --datasource test
+# Runs against the 'test' data source instead of 'live'`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
@@ -52,6 +54,10 @@ static override flags = {
       char: 'd',
       description: 'Input field as key=value (string), key:=json (raw JSON), or key@file (file contents). Repeatable.',
       multiple: true,
+      required: false,
+    }),
+    datasource: Flags.string({
+      description: 'Data source to run against, e.g. test (defaults to live)',
       required: false,
     }),
     json: Flags.string({
@@ -137,15 +143,24 @@ static override flags = {
     const body: JsonObject = {input, name: functionName}
     if (branch) body.branch = branch
 
+    const headers: Record<string, string> = {
+      'accept': 'application/json',
+      'Authorization': `Bearer ${profile.access_token}`,
+      'Content-Type': 'application/json',
+    }
+
+    // The Metadata API resolves the workspace's tables against the data source
+    // named by X-Data-Source (defaulting to `live`), so the run reads and writes
+    // the same tables a request carrying that header would. An unknown label is
+    // rejected server-side with "Invalid data source."
+    const dataSource = flags.datasource?.trim()
+    if (dataSource) headers['X-Data-Source'] = dataSource
+
     const response = await this.verboseFetch(
       apiUrl,
       {
         body: JSON.stringify(body),
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${profile.access_token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         method: 'POST',
       },
       flags.verbose,
