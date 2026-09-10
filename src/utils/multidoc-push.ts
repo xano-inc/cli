@@ -81,6 +81,7 @@ export interface PushContext {
 
 interface GuidMapEntry {
   api_group?: string
+  canonical?: string
   guid: string
   name: string
   type: string
@@ -177,6 +178,45 @@ export function collectFiles(dir: string): string[] {
  * Apply include/exclude glob filters to a file list. Logs filter results.
  * Returns the filtered file list.
  */
+/**
+ * Normalize a filter pattern into one minimatch can actually match against a
+ * repo-relative FILE path.
+ *
+ * minimatch has no notion of "this pattern names a directory", and the two
+ * spellings a person reaches for first both silently match NOTHING:
+ *
+ *   "table/"  a trailing slash is not directory syntax; it matches nothing
+ *   "table"   no slash, so `matchBase` compares it to the file's BASENAME,
+ *             i.e. it asks "is this file called `table`", not "is it under
+ *             `table/`"
+ *
+ * Silently matching nothing is the dangerous half of this: combined with
+ * `--delete`, a filter that fails open pushes more than intended, and a filter
+ * that succeeds deletes what it was meant to protect. So a pattern that names a
+ * real directory is expanded to `<dir>/**` rather than left to match nothing.
+ */
+export function normalizeFilterPattern(pattern: string, inputDir: string): string {
+  const trimmed = pattern.replace(/[/\\]+$/, '')
+  if (trimmed === '') return pattern
+
+  // Anything with a glob character is taken exactly as written.
+  if (trimmed.includes('*') || trimmed.includes('?') || trimmed.includes('[')) {
+    return trimmed === pattern ? pattern : trimmed
+  }
+
+  // A trailing slash is an unambiguous "this is a directory".
+  if (trimmed !== pattern) return `${trimmed}/**`
+
+  try {
+    if (fs.statSync(join(inputDir, trimmed)).isDirectory()) return `${trimmed}/**`
+  } catch {
+    // Not a path in this tree - leave it alone (it may be a bare filename,
+    // which matchBase handles).
+  }
+
+  return pattern
+}
+
 export function applyFilters(
   files: string[],
   inputDir: string,
@@ -187,26 +227,50 @@ export function applyFilters(
   let filtered = files
   const totalCount = files.length
 
+  // Report each pattern's own match count. The aggregate line alone hides a dead
+  // pattern among live ones: a run with three -e patterns where one is a typo
+  // still prints a plausible number and says nothing about which one matched
+  // nothing.
+  const describe = (patterns: string[], rels: string[]): string =>
+    patterns
+      .map((raw) => {
+        const pattern = normalizeFilterPattern(raw, inputDir)
+        const hits = rels.filter((rel) => minimatch(rel, pattern, {matchBase: true})).length
+        const shown = pattern === raw ? raw : `${raw} -> ${pattern}`
+        return hits === 0
+          ? `${ux.colorize('yellow', shown)} ${ux.colorize('yellow', '(matched 0 files)')}`
+          : `${ux.colorize('cyan', shown)} ${ux.colorize('dim', `(${hits})`)}`
+      })
+      .join(', ')
+
   if (include && include.length > 0) {
-    filtered = filtered.filter((f) => {
-      const rel = relative(inputDir, f)
-      return include.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
-    })
+    const rels = filtered.map((f) => relative(inputDir, f))
+    const patterns = include.map((p) => normalizeFilterPattern(p, inputDir))
 
     log('')
-    log(`  ${ux.colorize('dim', 'Include:')} ${include.map((p) => ux.colorize('cyan', p)).join(', ')}`)
+    log(`  ${ux.colorize('dim', 'Include:')} ${describe(include, rels)}`)
+
+    filtered = filtered.filter((f) => {
+      const rel = relative(inputDir, f)
+      return patterns.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
+    })
+
     log(`  ${ux.colorize('dim', 'Matched:')} ${ux.colorize('bold', String(filtered.length))} of ${totalCount} files`)
   }
 
   if (exclude && exclude.length > 0) {
     const beforeCount = filtered.length
-    filtered = filtered.filter((f) => {
-      const rel = relative(inputDir, f)
-      return !exclude.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
-    })
+    const rels = filtered.map((f) => relative(inputDir, f))
+    const patterns = exclude.map((p) => normalizeFilterPattern(p, inputDir))
 
     log('')
-    log(`  ${ux.colorize('dim', 'Exclude:')} ${exclude.map((p) => ux.colorize('cyan', p)).join(', ')}`)
+    log(`  ${ux.colorize('dim', 'Exclude:')} ${describe(exclude, rels)}`)
+
+    filtered = filtered.filter((f) => {
+      const rel = relative(inputDir, f)
+      return !patterns.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
+    })
+
     log(
       `  ${ux.colorize('dim', 'Kept:')}    ${ux.colorize('bold', String(filtered.length))} of ${beforeCount} files (excluded ${beforeCount - filtered.length})`,
     )
@@ -333,6 +397,7 @@ function renderPreview(
   verbose: boolean,
   partial: boolean,
   log: (msg: string) => void,
+  filteredOutCount = 0,
 ): void {
   log('')
   log(ux.colorize('bold', `=== Push Preview: ${target.label} ===`))
@@ -421,6 +486,29 @@ function renderPreview(
   const alwaysDestructive = destructive.filter(
     (op) => op.action === 'truncate' || op.action === 'drop_field' || op.action === 'alter_field',
   )
+
+  // --include/--exclude and --delete are a dangerous pair, and the connection is
+  // not visible in the preview: a filtered-out file never reaches the payload,
+  // so the server's sweep sees the object as REMOVED from the tree and deletes
+  // it. Users reach for -e meaning "don't touch these", which is the opposite
+  // instruction. Say so explicitly rather than leaving them to infer it from a
+  // DELETE line for a file they thought they had protected.
+  if (willDelete && filteredOutCount > 0 && deleteOps.length > 0) {
+    log('')
+    log(
+      ux.colorize(
+        'yellow',
+        `  Note: ${filteredOutCount} file(s) were filtered out by --include/--exclude, and --delete is on.`,
+      ),
+    )
+    log(
+      ux.colorize(
+        'yellow',
+        '  A filtered-out document is absent from the push, so anything it defines is DELETED below.',
+      ),
+    )
+    log(ux.colorize('yellow', '  Drop --delete to filter without removing what you filtered out.'))
+  }
 
   // Show destructive operations (deletes only when --delete, truncates/drop_field always)
   const shownDestructive = [...(willDelete ? deleteOps : []), ...alwaysDestructive]
@@ -557,6 +645,36 @@ function syncGuidToFile(filePath: string, guid: string): boolean {
   return true
 }
 
+const CANONICAL_REGEX = /canonical\s*=\s*(["'])([^"']*)\1/
+
+/**
+ * Sync a server-assigned `canonical` into a local .xs file. Returns true if the
+ * file was modified.
+ *
+ * Like the GUID, a canonical is minted by the instance and the document can only
+ * ASK for one: it is unique across every workspace on the instance, so a tree
+ * cloned from another workspace names canonicals that are already taken and the
+ * import keeps the existing value instead. Without this writeback the local file
+ * kept asking for a value the server kept refusing, so every push reported the
+ * same objects as changed forever.
+ *
+ * Unlike the GUID this NEVER inserts a missing line: only the container kinds
+ * (api_group, realtime_server, mcp_server/agent/toolset) have the field, and the
+ * server omits the key for everything else, so an absent line means "this kind
+ * has no canonical" rather than "not yet assigned".
+ */
+function syncCanonicalToFile(filePath: string, canonical: string): boolean {
+  const content = fs.readFileSync(filePath, 'utf8')
+  const existingMatch = content.match(CANONICAL_REGEX)
+
+  if (!existingMatch || existingMatch[2] === canonical) {
+    return false
+  }
+
+  fs.writeFileSync(filePath, content.replace(CANONICAL_REGEX, `canonical = "${canonical}"`), 'utf8')
+  return true
+}
+
 // ── Knowledge Preview Helpers ─────────────────────────────────────────────────
 
 /**
@@ -636,6 +754,7 @@ export async function executePush(
 
   const allFiles = collectFiles(inputDir)
   const files = applyFilters(allFiles, inputDir, flags.include, flags.exclude, log)
+  const filteredOutCount = allFiles.length - files.length
 
   const knowledgeOnly = files.length === 0 && (knowledgeObjects.length > 0 || ctx.knowledge !== undefined)
 
@@ -832,7 +951,7 @@ export async function executePush(
             mergeKnowledgePreview(preview, knowledgeDryRun)
           }
 
-          renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log)
+          renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log, filteredOutCount)
 
           // Check for bad cross-references using dry-run operations to avoid false positives
           const badRefs = checkReferences(documentEntries, preview.operations)
@@ -1142,6 +1261,7 @@ export async function executePush(
         }
 
         let updatedCount = 0
+        let canonicalCount = 0
         for (const entry of guidMap) {
           if (!entry.guid) continue
 
@@ -1170,10 +1290,23 @@ export async function executePush(
           } catch (error) {
             command.warn(`Failed to sync GUID to ${filePath}: ${(error as Error).message}`)
           }
+
+          if (entry.canonical) {
+            try {
+              const updated = syncCanonicalToFile(filePath, entry.canonical)
+              if (updated) canonicalCount++
+            } catch (error) {
+              command.warn(`Failed to sync canonical to ${filePath}: ${(error as Error).message}`)
+            }
+          }
         }
 
         if (updatedCount > 0) {
           log(`Synced ${updatedCount} GUIDs to local files`)
+        }
+
+        if (canonicalCount > 0) {
+          log(`Synced ${canonicalCount} canonicals to local files (the instance assigned its own)`)
         }
       }
 
