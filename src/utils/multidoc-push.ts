@@ -81,6 +81,7 @@ export interface PushContext {
 
 interface GuidMapEntry {
   api_group?: string
+  canonical?: string
   guid: string
   name: string
   type: string
@@ -177,6 +178,45 @@ export function collectFiles(dir: string): string[] {
  * Apply include/exclude glob filters to a file list. Logs filter results.
  * Returns the filtered file list.
  */
+/**
+ * Normalize a filter pattern into one minimatch can actually match against a
+ * repo-relative FILE path.
+ *
+ * minimatch has no notion of "this pattern names a directory", and the two
+ * spellings a person reaches for first both silently match NOTHING:
+ *
+ *   "table/"  a trailing slash is not directory syntax; it matches nothing
+ *   "table"   no slash, so `matchBase` compares it to the file's BASENAME,
+ *             i.e. it asks "is this file called `table`", not "is it under
+ *             `table/`"
+ *
+ * Silently matching nothing is the dangerous half of this: combined with
+ * `--delete`, a filter that fails open pushes more than intended, and a filter
+ * that succeeds deletes what it was meant to protect. So a pattern that names a
+ * real directory is expanded to `<dir>/**` rather than left to match nothing.
+ */
+export function normalizeFilterPattern(pattern: string, inputDir: string): string {
+  const trimmed = pattern.replace(/[/\\]+$/, '')
+  if (trimmed === '') return pattern
+
+  // Anything with a glob character is taken exactly as written.
+  if (trimmed.includes('*') || trimmed.includes('?') || trimmed.includes('[')) {
+    return trimmed === pattern ? pattern : trimmed
+  }
+
+  // A trailing slash is an unambiguous "this is a directory".
+  if (trimmed !== pattern) return `${trimmed}/**`
+
+  try {
+    if (fs.statSync(join(inputDir, trimmed)).isDirectory()) return `${trimmed}/**`
+  } catch {
+    // Not a path in this tree - leave it alone (it may be a bare filename,
+    // which matchBase handles).
+  }
+
+  return pattern
+}
+
 export function applyFilters(
   files: string[],
   inputDir: string,
@@ -187,32 +227,138 @@ export function applyFilters(
   let filtered = files
   const totalCount = files.length
 
+  // Report each pattern's own match count. The aggregate line alone hides a dead
+  // pattern among live ones: a run with three -e patterns where one is a typo
+  // still prints a plausible number and says nothing about which one matched
+  // nothing.
+  const describe = (patterns: string[], rels: string[]): string =>
+    patterns
+      .map((raw) => {
+        const pattern = normalizeFilterPattern(raw, inputDir)
+        const hits = rels.filter((rel) => minimatch(rel, pattern, {matchBase: true})).length
+        const shown = pattern === raw ? raw : `${raw} -> ${pattern}`
+        return hits === 0
+          ? `${ux.colorize('yellow', shown)} ${ux.colorize('yellow', '(matched 0 files)')}`
+          : `${ux.colorize('cyan', shown)} ${ux.colorize('dim', `(${hits})`)}`
+      })
+      .join(', ')
+
   if (include && include.length > 0) {
-    filtered = filtered.filter((f) => {
-      const rel = relative(inputDir, f)
-      return include.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
-    })
+    const rels = filtered.map((f) => relative(inputDir, f))
+    const patterns = include.map((p) => normalizeFilterPattern(p, inputDir))
 
     log('')
-    log(`  ${ux.colorize('dim', 'Include:')} ${include.map((p) => ux.colorize('cyan', p)).join(', ')}`)
+    log(`  ${ux.colorize('dim', 'Include:')} ${describe(include, rels)}`)
+
+    filtered = filtered.filter((f) => {
+      const rel = relative(inputDir, f)
+      return patterns.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
+    })
+
     log(`  ${ux.colorize('dim', 'Matched:')} ${ux.colorize('bold', String(filtered.length))} of ${totalCount} files`)
   }
 
   if (exclude && exclude.length > 0) {
     const beforeCount = filtered.length
-    filtered = filtered.filter((f) => {
-      const rel = relative(inputDir, f)
-      return !exclude.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
-    })
+    const rels = filtered.map((f) => relative(inputDir, f))
+    const patterns = exclude.map((p) => normalizeFilterPattern(p, inputDir))
 
     log('')
-    log(`  ${ux.colorize('dim', 'Exclude:')} ${exclude.map((p) => ux.colorize('cyan', p)).join(', ')}`)
+    log(`  ${ux.colorize('dim', 'Exclude:')} ${describe(exclude, rels)}`)
+
+    filtered = filtered.filter((f) => {
+      const rel = relative(inputDir, f)
+      return !patterns.some((pattern) => minimatch(rel, pattern, {matchBase: true}))
+    })
+
     log(
       `  ${ux.colorize('dim', 'Kept:')}    ${ux.colorize('bold', String(filtered.length))} of ${beforeCount} files (excluded ${beforeCount - filtered.length})`,
     )
   }
 
   return filtered
+}
+
+/** A document the filter removed from the push, and therefore must protect. */
+export interface FilteredOutDocument {
+  guid?: string
+  key: string
+  name: string
+  relPath: string
+  type: string
+}
+
+/**
+ * Describe the documents a --include/--exclude filter removed.
+ *
+ * These are the objects the user asked NOT to touch, and they are exactly the
+ * ones a `--delete` sweep would remove: a filtered-out document never reaches
+ * the payload, so the server reads it as deleted from the tree. Their GUIDs are
+ * sent as `protect_guids` so the server spares them, and their keys are used to
+ * VERIFY the server actually did.
+ */
+export function describeFilteredOut(allFiles: string[], keptFiles: string[], inputDir: string): FilteredOutDocument[] {
+  const kept = new Set(keptFiles)
+  const out: FilteredOutDocument[] = []
+
+  for (const filePath of allFiles) {
+    if (kept.has(filePath)) continue
+
+    let content: string
+    try {
+      content = fs.readFileSync(filePath, 'utf8').trim()
+    } catch {
+      continue
+    }
+
+    if (!content) continue
+
+    const parsed = parseDocument(content)
+    if (!parsed) continue
+
+    const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
+    out.push({
+      guid: parsed.guid,
+      // The preview buckets every trigger subtype under the generic `trigger`
+      // type, so key triggers that way to match (DEV-7084, same as
+      // filterChangedEntries).
+      key: `${parsed.type.endsWith('_trigger') ? 'trigger' : parsed.type}:${opName}`,
+      name: opName,
+      relPath: relative(inputDir, filePath),
+      type: parsed.type,
+    })
+  }
+
+  return out
+}
+
+/**
+ * Delete operations that would remove something the filter excluded.
+ *
+ * This is the guard's actual test, and it is deliberately performed against the
+ * dry-run the SERVER returned rather than trusting that `protect_guids` was
+ * honoured: an older instance ignores the parameter entirely, and a document
+ * with no GUID cannot be protected at all. Either way the answer here is the
+ * truth about what the push is about to do.
+ */
+export function deletesHittingFilteredOut(
+  operations: Array<{action: string; name: string; type: string}>,
+  filteredOut: FilteredOutDocument[],
+): Array<{name: string; relPath: string; type: string}> {
+  if (filteredOut.length === 0) return []
+
+  const byKey = new Map(filteredOut.map((d) => [d.key, d]))
+  const hits: Array<{name: string; relPath: string; type: string}> = []
+
+  for (const op of operations) {
+    if (op.action !== 'delete' && op.action !== 'cascade_delete') continue
+    const match = byKey.get(`${op.type}:${op.name}`)
+    if (match) {
+      hits.push({name: op.name, relPath: match.relPath, type: op.type})
+    }
+  }
+
+  return hits
 }
 
 /**
@@ -333,6 +479,7 @@ function renderPreview(
   verbose: boolean,
   partial: boolean,
   log: (msg: string) => void,
+  filteredOutCount = 0,
 ): void {
   log('')
   log(ux.colorize('bold', `=== Push Preview: ${target.label} ===`))
@@ -422,6 +569,28 @@ function renderPreview(
     (op) => op.action === 'truncate' || op.action === 'drop_field' || op.action === 'alter_field',
   )
 
+  // --include/--exclude and --delete interact in a way the preview cannot show
+  // on its own: a filtered-out document is absent from the payload, so without
+  // the protection the push declares, the sweep would read it as removed. The
+  // objects it defines are spared (and the push is refused outright if they
+  // cannot be), but anything ELSE missing from the tree is still deleted below,
+  // which is worth saying while a filter is active.
+  if (willDelete && filteredOutCount > 0 && deleteOps.length > 0) {
+    log('')
+    log(
+      ux.colorize(
+        'yellow',
+        `  Note: ${filteredOutCount} file(s) were filtered out by --include/--exclude, and --delete is on.`,
+      ),
+    )
+    log(
+      ux.colorize(
+        'yellow',
+        '  What they define is protected from the sweep; the deletes below are objects missing from the tree entirely.',
+      ),
+    )
+  }
+
   // Show destructive operations (deletes only when --delete, truncates/drop_field always)
   const shownDestructive = [...(willDelete ? deleteOps : []), ...alwaysDestructive]
   if (shownDestructive.length > 0) {
@@ -506,6 +675,13 @@ export async function confirm(message: string): Promise<boolean> {
 
 // ── GUID Sync ───────────────────────────────────────────────────────────────
 
+/**
+ * Ceiling for the `protect_guids` query parameter. The whole request LINE must
+ * fit in one nginx buffer (8k by default), and the URL already carries the rest
+ * of the push parameters, so stay well inside it.
+ */
+const PROTECT_GUIDS_MAX_CHARS = 4000
+
 const GUID_REGEX = /guid\s*=\s*(["'])([^"']*)\1/
 
 /**
@@ -554,6 +730,36 @@ function syncGuidToFile(filePath: string, guid: string): boolean {
 
   lines.splice(insertIndex, 0, `${indent}guid = "${guid}"`)
   fs.writeFileSync(filePath, lines.join('\n'), 'utf8')
+  return true
+}
+
+const CANONICAL_REGEX = /canonical\s*=\s*(["'])([^"']*)\1/
+
+/**
+ * Sync a server-assigned `canonical` into a local .xs file. Returns true if the
+ * file was modified.
+ *
+ * Like the GUID, a canonical is minted by the instance and the document can only
+ * ASK for one: it is unique across every workspace on the instance, so a tree
+ * cloned from another workspace names canonicals that are already taken and the
+ * import keeps the existing value instead. Without this writeback the local file
+ * kept asking for a value the server kept refusing, so every push reported the
+ * same objects as changed forever.
+ *
+ * Unlike the GUID this NEVER inserts a missing line: only the container kinds
+ * (api_group, realtime_server, mcp_server/agent/toolset) have the field, and the
+ * server omits the key for everything else, so an absent line means "this kind
+ * has no canonical" rather than "not yet assigned".
+ */
+function syncCanonicalToFile(filePath: string, canonical: string): boolean {
+  const content = fs.readFileSync(filePath, 'utf8')
+  const existingMatch = content.match(CANONICAL_REGEX)
+
+  if (!existingMatch || existingMatch[2] === canonical) {
+    return false
+  }
+
+  fs.writeFileSync(filePath, content.replace(CANONICAL_REGEX, `canonical = "${canonical}"`), 'utf8')
   return true
 }
 
@@ -636,6 +842,8 @@ export async function executePush(
 
   const allFiles = collectFiles(inputDir)
   const files = applyFilters(allFiles, inputDir, flags.include, flags.exclude, log)
+  const filteredOut = describeFilteredOut(allFiles, files, inputDir)
+  const filteredOutCount = allFiles.length - files.length
 
   const knowledgeOnly = files.length === 0 && (knowledgeObjects.length > 0 || ctx.knowledge !== undefined)
 
@@ -779,6 +987,19 @@ export async function executePush(
     queryParams.set('source_workspace_id', target.sourceWorkspaceId)
   }
 
+  // Tell the server which objects the filter put out of scope, so its delete
+  // sweep spares them. Only meaningful with --delete; without it nothing is
+  // swept. The parameter travels in the query string (the body is the multidoc
+  // itself), so it has a length ceiling: past PROTECT_GUIDS_MAX_CHARS we send
+  // nothing and let the verification below refuse the push rather than issue a
+  // request the server may truncate or reject.
+  const protectableGuids = filteredOut.map((d) => d.guid).filter((g): g is string => typeof g === 'string' && g.length > 0)
+  const protectGuidsParam = protectableGuids.join(',')
+
+  if (shouldDelete && protectGuidsParam && protectGuidsParam.length <= PROTECT_GUIDS_MAX_CHARS) {
+    queryParams.set('protect_guids', protectGuidsParam)
+  }
+
   // ── Request headers ───────────────────────────────────────────────────
 
   const requestHeaders = {
@@ -832,7 +1053,58 @@ export async function executePush(
             mergeKnowledgePreview(preview, knowledgeDryRun)
           }
 
-          renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log)
+          renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log, filteredOutCount)
+
+          // GUARD: --include/--exclude must never cost you the objects it
+          // filtered out.
+          //
+          // A filtered-out document is absent from the payload, so a --delete
+          // sweep reads it as removed from the tree and deletes it - the exact
+          // opposite of what -e means to the person typing it. The server is
+          // told to spare them (protect_guids above), but this checks the
+          // SERVER'S OWN preview rather than assuming that worked: an older
+          // instance ignores the parameter, a document that has never been
+          // pushed has no GUID to protect, and a very large filter exceeds what
+          // the query string can carry. In every one of those cases the push is
+          // refused rather than allowed to delete.
+          if (shouldDelete) {
+            const endangered = deletesHittingFilteredOut(preview.operations, filteredOut)
+            if (endangered.length > 0) {
+              log('')
+              log(ux.colorize('red', '--- Refusing to push ---'))
+              log('')
+              log(
+                `  --delete would remove ${endangered.length} object(s) that --include/--exclude filtered out:`,
+              )
+              log('')
+              for (const hit of endangered.slice(0, 10)) {
+                log(`  ${ux.colorize('red', 'DELETE'.padEnd(8))} ${hit.type.padEnd(18)} ${hit.name}  ${ux.colorize('dim', `(${hit.relPath})`)}`)
+              }
+
+              if (endangered.length > 10) {
+                log(ux.colorize('dim', `  ... and ${endangered.length - 10} more`))
+              }
+
+              log('')
+              const unprotectable = filteredOut.filter((d) => !d.guid).length
+              if (unprotectable > 0) {
+                log(
+                  ux.colorize(
+                    'dim',
+                    `  ${unprotectable} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`,
+                  ),
+                )
+              }
+
+              if (protectGuidsParam.length > PROTECT_GUIDS_MAX_CHARS) {
+                log(ux.colorize('dim', '  Too many filtered-out documents to declare in one request.'))
+              }
+
+              log(ux.colorize('dim', '  This instance may also predate protected pushes.'))
+              log('')
+              command.error('Re-run without --delete, or without the --include/--exclude filter.')
+            }
+          }
 
           // Check for bad cross-references using dry-run operations to avoid false positives
           const badRefs = checkReferences(documentEntries, preview.operations)
@@ -1142,6 +1414,7 @@ export async function executePush(
         }
 
         let updatedCount = 0
+        let canonicalCount = 0
         for (const entry of guidMap) {
           if (!entry.guid) continue
 
@@ -1170,10 +1443,23 @@ export async function executePush(
           } catch (error) {
             command.warn(`Failed to sync GUID to ${filePath}: ${(error as Error).message}`)
           }
+
+          if (entry.canonical) {
+            try {
+              const updated = syncCanonicalToFile(filePath, entry.canonical)
+              if (updated) canonicalCount++
+            } catch (error) {
+              command.warn(`Failed to sync canonical to ${filePath}: ${(error as Error).message}`)
+            }
+          }
         }
 
         if (updatedCount > 0) {
           log(`Synced ${updatedCount} GUIDs to local files`)
+        }
+
+        if (canonicalCount > 0) {
+          log(`Synced ${canonicalCount} canonicals to local files (the instance assigned its own)`)
         }
       }
 
