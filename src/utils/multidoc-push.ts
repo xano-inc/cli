@@ -279,6 +279,88 @@ export function applyFilters(
   return filtered
 }
 
+/** A document the filter removed from the push, and therefore must protect. */
+export interface FilteredOutDocument {
+  guid?: string
+  key: string
+  name: string
+  relPath: string
+  type: string
+}
+
+/**
+ * Describe the documents a --include/--exclude filter removed.
+ *
+ * These are the objects the user asked NOT to touch, and they are exactly the
+ * ones a `--delete` sweep would remove: a filtered-out document never reaches
+ * the payload, so the server reads it as deleted from the tree. Their GUIDs are
+ * sent as `protect_guids` so the server spares them, and their keys are used to
+ * VERIFY the server actually did.
+ */
+export function describeFilteredOut(allFiles: string[], keptFiles: string[], inputDir: string): FilteredOutDocument[] {
+  const kept = new Set(keptFiles)
+  const out: FilteredOutDocument[] = []
+
+  for (const filePath of allFiles) {
+    if (kept.has(filePath)) continue
+
+    let content: string
+    try {
+      content = fs.readFileSync(filePath, 'utf8').trim()
+    } catch {
+      continue
+    }
+
+    if (!content) continue
+
+    const parsed = parseDocument(content)
+    if (!parsed) continue
+
+    const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
+    out.push({
+      guid: parsed.guid,
+      // The preview buckets every trigger subtype under the generic `trigger`
+      // type, so key triggers that way to match (DEV-7084, same as
+      // filterChangedEntries).
+      key: `${parsed.type.endsWith('_trigger') ? 'trigger' : parsed.type}:${opName}`,
+      name: opName,
+      relPath: relative(inputDir, filePath),
+      type: parsed.type,
+    })
+  }
+
+  return out
+}
+
+/**
+ * Delete operations that would remove something the filter excluded.
+ *
+ * This is the guard's actual test, and it is deliberately performed against the
+ * dry-run the SERVER returned rather than trusting that `protect_guids` was
+ * honoured: an older instance ignores the parameter entirely, and a document
+ * with no GUID cannot be protected at all. Either way the answer here is the
+ * truth about what the push is about to do.
+ */
+export function deletesHittingFilteredOut(
+  operations: Array<{action: string; name: string; type: string}>,
+  filteredOut: FilteredOutDocument[],
+): Array<{name: string; relPath: string; type: string}> {
+  if (filteredOut.length === 0) return []
+
+  const byKey = new Map(filteredOut.map((d) => [d.key, d]))
+  const hits: Array<{name: string; relPath: string; type: string}> = []
+
+  for (const op of operations) {
+    if (op.action !== 'delete' && op.action !== 'cascade_delete') continue
+    const match = byKey.get(`${op.type}:${op.name}`)
+    if (match) {
+      hits.push({name: op.name, relPath: match.relPath, type: op.type})
+    }
+  }
+
+  return hits
+}
+
 /**
  * Read .xs files into document entries, skipping empty files.
  */
@@ -487,12 +569,12 @@ function renderPreview(
     (op) => op.action === 'truncate' || op.action === 'drop_field' || op.action === 'alter_field',
   )
 
-  // --include/--exclude and --delete are a dangerous pair, and the connection is
-  // not visible in the preview: a filtered-out file never reaches the payload,
-  // so the server's sweep sees the object as REMOVED from the tree and deletes
-  // it. Users reach for -e meaning "don't touch these", which is the opposite
-  // instruction. Say so explicitly rather than leaving them to infer it from a
-  // DELETE line for a file they thought they had protected.
+  // --include/--exclude and --delete interact in a way the preview cannot show
+  // on its own: a filtered-out document is absent from the payload, so without
+  // the protection the push declares, the sweep would read it as removed. The
+  // objects it defines are spared (and the push is refused outright if they
+  // cannot be), but anything ELSE missing from the tree is still deleted below,
+  // which is worth saying while a filter is active.
   if (willDelete && filteredOutCount > 0 && deleteOps.length > 0) {
     log('')
     log(
@@ -504,10 +586,9 @@ function renderPreview(
     log(
       ux.colorize(
         'yellow',
-        '  A filtered-out document is absent from the push, so anything it defines is DELETED below.',
+        '  What they define is protected from the sweep; the deletes below are objects missing from the tree entirely.',
       ),
     )
-    log(ux.colorize('yellow', '  Drop --delete to filter without removing what you filtered out.'))
   }
 
   // Show destructive operations (deletes only when --delete, truncates/drop_field always)
@@ -593,6 +674,13 @@ export async function confirm(message: string): Promise<boolean> {
 }
 
 // ── GUID Sync ───────────────────────────────────────────────────────────────
+
+/**
+ * Ceiling for the `protect_guids` query parameter. The whole request LINE must
+ * fit in one nginx buffer (8k by default), and the URL already carries the rest
+ * of the push parameters, so stay well inside it.
+ */
+const PROTECT_GUIDS_MAX_CHARS = 4000
 
 const GUID_REGEX = /guid\s*=\s*(["'])([^"']*)\1/
 
@@ -754,6 +842,7 @@ export async function executePush(
 
   const allFiles = collectFiles(inputDir)
   const files = applyFilters(allFiles, inputDir, flags.include, flags.exclude, log)
+  const filteredOut = describeFilteredOut(allFiles, files, inputDir)
   const filteredOutCount = allFiles.length - files.length
 
   const knowledgeOnly = files.length === 0 && (knowledgeObjects.length > 0 || ctx.knowledge !== undefined)
@@ -898,6 +987,19 @@ export async function executePush(
     queryParams.set('source_workspace_id', target.sourceWorkspaceId)
   }
 
+  // Tell the server which objects the filter put out of scope, so its delete
+  // sweep spares them. Only meaningful with --delete; without it nothing is
+  // swept. The parameter travels in the query string (the body is the multidoc
+  // itself), so it has a length ceiling: past PROTECT_GUIDS_MAX_CHARS we send
+  // nothing and let the verification below refuse the push rather than issue a
+  // request the server may truncate or reject.
+  const protectableGuids = filteredOut.map((d) => d.guid).filter((g): g is string => typeof g === 'string' && g.length > 0)
+  const protectGuidsParam = protectableGuids.join(',')
+
+  if (shouldDelete && protectGuidsParam && protectGuidsParam.length <= PROTECT_GUIDS_MAX_CHARS) {
+    queryParams.set('protect_guids', protectGuidsParam)
+  }
+
   // ── Request headers ───────────────────────────────────────────────────
 
   const requestHeaders = {
@@ -952,6 +1054,57 @@ export async function executePush(
           }
 
           renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log, filteredOutCount)
+
+          // GUARD: --include/--exclude must never cost you the objects it
+          // filtered out.
+          //
+          // A filtered-out document is absent from the payload, so a --delete
+          // sweep reads it as removed from the tree and deletes it - the exact
+          // opposite of what -e means to the person typing it. The server is
+          // told to spare them (protect_guids above), but this checks the
+          // SERVER'S OWN preview rather than assuming that worked: an older
+          // instance ignores the parameter, a document that has never been
+          // pushed has no GUID to protect, and a very large filter exceeds what
+          // the query string can carry. In every one of those cases the push is
+          // refused rather than allowed to delete.
+          if (shouldDelete) {
+            const endangered = deletesHittingFilteredOut(preview.operations, filteredOut)
+            if (endangered.length > 0) {
+              log('')
+              log(ux.colorize('red', '--- Refusing to push ---'))
+              log('')
+              log(
+                `  --delete would remove ${endangered.length} object(s) that --include/--exclude filtered out:`,
+              )
+              log('')
+              for (const hit of endangered.slice(0, 10)) {
+                log(`  ${ux.colorize('red', 'DELETE'.padEnd(8))} ${hit.type.padEnd(18)} ${hit.name}  ${ux.colorize('dim', `(${hit.relPath})`)}`)
+              }
+
+              if (endangered.length > 10) {
+                log(ux.colorize('dim', `  ... and ${endangered.length - 10} more`))
+              }
+
+              log('')
+              const unprotectable = filteredOut.filter((d) => !d.guid).length
+              if (unprotectable > 0) {
+                log(
+                  ux.colorize(
+                    'dim',
+                    `  ${unprotectable} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`,
+                  ),
+                )
+              }
+
+              if (protectGuidsParam.length > PROTECT_GUIDS_MAX_CHARS) {
+                log(ux.colorize('dim', '  Too many filtered-out documents to declare in one request.'))
+              }
+
+              log(ux.colorize('dim', '  This instance may also predate protected pushes.'))
+              log('')
+              command.error('Re-run without --delete, or without the --include/--exclude filter.')
+            }
+          }
 
           // Check for bad cross-references using dry-run operations to avoid false positives
           const badRefs = checkReferences(documentEntries, preview.operations)

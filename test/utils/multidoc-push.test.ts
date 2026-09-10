@@ -4,7 +4,14 @@ import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
-import {applyFilters, filterChangedEntries, findMultiDocEntries, normalizeFilterPattern} from '../../src/utils/multidoc-push.js'
+import {
+  applyFilters,
+  deletesHittingFilteredOut,
+  describeFilteredOut,
+  filterChangedEntries,
+  findMultiDocEntries,
+  normalizeFilterPattern,
+} from '../../src/utils/multidoc-push.js'
 
 describe('multidoc-push helpers', () => {
   describe('findMultiDocEntries', () => {
@@ -195,6 +202,110 @@ describe('multidoc-push helpers', () => {
       applyFilters(files, dir, undefined, ['table/**'], (m) => lines.push(m))
       expect(lines.join('\n')).to.contain('(2)')
       expect(lines.join('\n')).to.not.contain('matched 0 files')
+    })
+  })
+
+  describe('the --include/--exclude delete guard', () => {
+    // A filtered-out document is absent from the payload, so a --delete sweep
+    // reads it as removed from the tree. -e means "don't touch these", which is
+    // the opposite instruction, so the objects it names must be declared to the
+    // server and the result verified.
+    let dir: string
+    let allFiles: string[]
+
+    before(() => {
+      dir = mkdtempSync(join(tmpdir(), 'xano-guard-'))
+      mkdirSync(join(dir, 'table'))
+      mkdirSync(join(dir, 'api'))
+      writeFileSync(join(dir, 'table', 'book.xs'), 'table book {\n  guid = "GUID_BOOK"\n}')
+      writeFileSync(join(dir, 'table', 'user.xs'), 'table user {\n}')
+      writeFileSync(join(dir, 'api', 'seed_POST.xs'), 'query seed verb=POST {\n  guid = "GUID_SEED"\n}')
+      allFiles = [
+        join(dir, 'api', 'seed_POST.xs'),
+        join(dir, 'table', 'book.xs'),
+        join(dir, 'table', 'user.xs'),
+      ]
+    })
+
+    after(() => {
+      fs.rmSync(dir, {force: true, recursive: true})
+    })
+
+    it('describes the documents a filter removed, with their guids', () => {
+      const kept = [join(dir, 'api', 'seed_POST.xs')]
+      const out = describeFilteredOut(allFiles, kept, dir)
+
+      expect(out.map((d) => d.key).sort()).to.deep.equal(['table:book', 'table:user'])
+      expect(out.find((d) => d.name === 'book')?.guid).to.equal('GUID_BOOK')
+      expect(out.find((d) => d.name === 'user')?.guid).to.equal(undefined)
+    })
+
+    it('reports nothing when nothing was filtered out', () => {
+      expect(describeFilteredOut(allFiles, allFiles, dir)).to.deep.equal([])
+    })
+
+    it('keys a query by name AND verb, the way the preview reports it', () => {
+      const out = describeFilteredOut(allFiles, [], dir)
+      expect(out.map((d) => d.key)).to.include('query:seed POST')
+    })
+
+    it('flags a delete that would remove a filtered-out document', () => {
+      const filteredOut = describeFilteredOut(allFiles, [join(dir, 'api', 'seed_POST.xs')], dir)
+      const hits = deletesHittingFilteredOut(
+        [
+          {action: 'delete', name: 'user', type: 'table'},
+          {action: 'update', name: 'seed POST', type: 'query'},
+        ],
+        filteredOut,
+      )
+
+      expect(hits).to.have.lengthOf(1)
+      expect(hits[0].name).to.equal('user')
+      expect(hits[0].relPath).to.contain('user.xs')
+    })
+
+    it('does not flag a delete for something that was never in the tree', () => {
+      const filteredOut = describeFilteredOut(allFiles, [join(dir, 'api', 'seed_POST.xs')], dir)
+      const hits = deletesHittingFilteredOut([{action: 'delete', name: 'orphan', type: 'table'}], filteredOut)
+
+      expect(hits).to.deep.equal([])
+    })
+
+    it('ignores non-delete operations', () => {
+      const filteredOut = describeFilteredOut(allFiles, [], dir)
+      const hits = deletesHittingFilteredOut(
+        [
+          {action: 'update', name: 'user', type: 'table'},
+          {action: 'create', name: 'book', type: 'table'},
+        ],
+        filteredOut,
+      )
+
+      expect(hits).to.deep.equal([])
+    })
+
+    it('catches a cascade_delete too', () => {
+      const filteredOut = describeFilteredOut(allFiles, [], dir)
+      const hits = deletesHittingFilteredOut([{action: 'cascade_delete', name: 'book', type: 'table'}], filteredOut)
+
+      expect(hits).to.have.lengthOf(1)
+    })
+
+    it('matches a trigger against the generic `trigger` bucket the preview uses', () => {
+      const triggerDir = mkdtempSync(join(tmpdir(), 'xano-guard-trig-'))
+      writeFileSync(
+        join(triggerDir, 'join.xs'),
+        'channel_trigger rooms_join {\n  realtime_server = "main"\n  guid = "G"\n}',
+      )
+      const filteredOut = describeFilteredOut([join(triggerDir, 'join.xs')], [], triggerDir)
+      const hits = deletesHittingFilteredOut([{action: 'delete', name: 'rooms_join', type: 'trigger'}], filteredOut)
+
+      expect(hits).to.have.lengthOf(1)
+      fs.rmSync(triggerDir, {force: true, recursive: true})
+    })
+
+    it('returns nothing when there is no filter at all, so an unfiltered push is never blocked', () => {
+      expect(deletesHittingFilteredOut([{action: 'delete', name: 'user', type: 'table'}], [])).to.deep.equal([])
     })
   })
 })
