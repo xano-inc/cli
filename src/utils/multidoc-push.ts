@@ -406,6 +406,37 @@ export function findMultiDocEntries(
   return offenders
 }
 
+/**
+ * Return every `workspace` document in the push set, with the name it declares.
+ *
+ * A tree must carry at most ONE. The server applies the first workspace
+ * document it encounters to the workspace being pushed into and silently
+ * discards the rest, with no check that the document actually describes that
+ * workspace — so a second one renames the destination to a foreign name while
+ * leaving its content untouched, and which name wins flips with the contents of
+ * the pushed set.
+ *
+ * Trees accumulate a second one easily, because `pull` names the file after the
+ * workspace's own name (`workspace/{name}.xs`): pulling a different workspace
+ * into the same directory ADDS a file rather than overwriting, and renaming a
+ * workspace leaves the old-name file behind.
+ */
+export function findWorkspaceEntries(
+  entries: Array<{content: string; filePath: string}>,
+): Array<{filePath: string; name: string}> {
+  const found: Array<{filePath: string; name: string}> = []
+  for (const entry of entries) {
+    const parsed = parseDocument(entry.content)
+    // Exact match: `workspace_trigger` is a different document type that also
+    // lives under workspace/ and must not be counted here.
+    if (parsed && parsed.type === 'workspace') {
+      found.push({filePath: entry.filePath, name: parsed.name})
+    }
+  }
+
+  return found
+}
+
 // ── Validation Rendering ────────────────────────────────────────────────────
 
 export function renderBadReferences(badRefs: BadReference[], log: (msg: string) => void): void {
@@ -940,6 +971,37 @@ export async function executePush(
       if (documentEntries.length === 0) {
         command.error('After flattening, no .xs documents remain to push.')
       }
+    }
+
+    // ── Refuse a tree carrying more than one workspace document ───────────
+    // The server applies the FIRST workspace document it sees to the workspace
+    // being pushed into and silently drops the rest, with no check that the
+    // document describes that workspace. A second one therefore renames the
+    // destination to a foreign name while leaving all of its content intact,
+    // and which name wins flips with whatever happens to be in the pushed set.
+    //
+    // Checked against the WHOLE tree rather than the partial changed-set, because
+    // the flip-flop case is exactly the one where only the foreign document is
+    // "changed" and would be the sole workspace document actually sent.
+    //
+    // No --force escape and no auto-fix: unlike the multi-doc bundle above there
+    // is no safe repair, since only the user knows which workspace this tree is
+    // meant to be. Picking one is the bug.
+    const workspaceDocs = findWorkspaceEntries(documentEntries)
+    if (workspaceDocs.length > 1) {
+      const list = workspaceDocs
+        .map((w) => `    ${relative(inputDir, w.filePath) || w.filePath}  →  workspace "${w.name}"`)
+        .join('\n')
+
+      command.error(
+        `${inputDir} holds ${workspaceDocs.length} workspace documents:\n${list}\n\n` +
+          'A push targets one workspace, and the server applies only the first of these and ' +
+          'silently discards the rest — renaming the destination to a foreign name while leaving ' +
+          'its content untouched.\n\n' +
+          'Delete the ones that do not describe the workspace you are pushing to, keeping a single ' +
+          'workspace/*.xs. (`pull` names this file after the workspace, so pulling a different ' +
+          'workspace into this tree, or renaming one, leaves the old file behind.)',
+      )
     }
 
     multidoc = documentEntries.map((d) => d.content).join('\n---\n')
