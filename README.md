@@ -702,7 +702,7 @@ xano tenant cluster license set <cluster_id> --file ./kubeconfig.yaml
 
 ### Ephemeral Tenants
 
-Manage ephemeral tenants — short-lived, auto-expiring tenants scoped to a workspace (default TTL 1h, max 72h). Unlike a sandbox, an ephemeral tenant requires a workspace.
+Manage ephemeral tenants — short-lived, auto-expiring tenants scoped to a workspace (default TTL 1h, max 24h). Unlike a sandbox, an ephemeral tenant requires a workspace.
 
 ```bash
 # List ephemeral tenants in the current workspace
@@ -715,7 +715,7 @@ xano ephemeral list --global
 # Create an ephemeral tenant (workspace required)
 xano ephemeral create "PR preview"
 xano ephemeral create "Demo" --expires-hours 24 -w 5
-xano ephemeral create "Load test" -d "48h soak" --expires-hours 48
+xano ephemeral create "Load test" -d "overnight soak" --expires-hours 24
 
 # Get / edit / delete
 xano ephemeral get <tenant_name>
