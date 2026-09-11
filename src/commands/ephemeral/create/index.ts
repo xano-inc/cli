@@ -24,7 +24,7 @@ Created ephemeral tenant: PR preview (e4f2-9ab1-...) - ID: 42
   Expires: in 1 hour
 `,
     `$ xano ephemeral create "Demo" --expires-hours 24 -w 114`,
-    `$ xano ephemeral create "Load test" --description "48h soak" --expires-hours 48 -o json`,
+    `$ xano ephemeral create "Load test" --description "overnight soak" --expires-hours 24 -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -35,8 +35,8 @@ Created ephemeral tenant: PR preview (e4f2-9ab1-...) - ID: 42
     }),
     'expires-hours': Flags.integer({
       default: 1,
-      description: 'Hours until the tenant auto-expires (1-72)',
-      max: 72,
+      description: 'Hours until the tenant auto-expires (1-24)',
+      max: 24,
       min: 1,
       required: false,
     }),
