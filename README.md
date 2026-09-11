@@ -229,6 +229,21 @@ xano workspace git pull -r https://github.com/owner/private-repo -t ghp_xxx
 xano workspace git pull -r https://github.com/owner/repo --path subdir
 ```
 
+**One workspace document per tree.** A push directory must contain at most one
+`workspace/*.xs` document. The server applies the first workspace document it
+receives to the workspace being pushed into and silently discards the rest,
+without checking that it describes that workspace — so a second one renames the
+destination to a foreign name while leaving its content untouched. `workspace push`
+and `sandbox push` refuse a tree carrying more than one, naming the offending
+files; there is no `--force` override, because only you know which workspace the
+tree is meant to be.
+
+Trees pick up a second one easily: `pull` names the file after the workspace
+itself (`workspace/{name}.xs`), so pulling a different workspace into the same
+directory *adds* a file rather than overwriting, and renaming a workspace leaves
+the old-name file behind. Delete the stale ones, keeping the single document that
+matches your target workspace.
+
 ### Knowledge
 
 Knowledge items are user-authored docs and skills (e.g. `CLAUDE.md`, `AGENTS.md`, runbooks)

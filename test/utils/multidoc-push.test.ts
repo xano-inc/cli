@@ -10,6 +10,7 @@ import {
   describeFilteredOut,
   filterChangedEntries,
   findMultiDocEntries,
+  findWorkspaceEntries,
   normalizeFilterPattern,
 } from '../../src/utils/multidoc-push.js'
 
@@ -42,6 +43,48 @@ describe('multidoc-push helpers', () => {
       // A triple-dash embedded mid-line must not be mistaken for a doc boundary.
       const entries = [{content: 'query q verb=GET {\n  note = "a --- b"\n}\n', filePath: 'q.xs'}]
       expect(findMultiDocEntries(entries)).to.have.lengthOf(0)
+    })
+  })
+
+  describe('findWorkspaceEntries', () => {
+    it('returns every workspace document, so a push carrying two can be refused', () => {
+      const entries = [
+        {content: 'workspace "Crypto Chainup Cashier V2" {\n}\n', filePath: 'workspace/crypto_chainup_cashier_v2.xs'},
+        {content: 'table users {\n}\n', filePath: 'table/users.xs'},
+        {content: 'workspace "Crypto Tron V2" {\n}\n', filePath: 'workspace/crypto_tron_v2.xs'},
+      ]
+
+      const found = findWorkspaceEntries(entries)
+
+      expect(found).to.have.lengthOf(2)
+      expect(found.map((f) => f.name)).to.deep.equal(['Crypto Chainup Cashier V2', 'Crypto Tron V2'])
+      expect(found.map((f) => f.filePath)).to.deep.equal([
+        'workspace/crypto_chainup_cashier_v2.xs',
+        'workspace/crypto_tron_v2.xs',
+      ])
+    })
+
+    it('returns a single entry for the normal one-workspace tree', () => {
+      const entries = [
+        {content: 'workspace "Only One" {\n}\n', filePath: 'workspace/only_one.xs'},
+        {content: 'table users {\n}\n', filePath: 'table/users.xs'},
+      ]
+      expect(findWorkspaceEntries(entries)).to.have.lengthOf(1)
+    })
+
+    it('does not count workspace triggers as workspace documents', () => {
+      const entries = [
+        {content: 'workspace "Only One" {\n}\n', filePath: 'workspace/only_one.xs'},
+        {content: 'workspace_trigger on_save {\n}\n', filePath: 'workspace/trigger/on_save.xs'},
+      ]
+      const found = findWorkspaceEntries(entries)
+      expect(found).to.have.lengthOf(1)
+      expect(found[0].filePath).to.equal('workspace/only_one.xs')
+    })
+
+    it('returns nothing when the tree carries no workspace document', () => {
+      const entries = [{content: 'table users {\n}\n', filePath: 'table/users.xs'}]
+      expect(findWorkspaceEntries(entries)).to.have.lengthOf(0)
     })
   })
 
