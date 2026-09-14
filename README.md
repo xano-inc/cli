@@ -175,6 +175,7 @@ xano profile delete myprofile --force
 Policies combine a human description with deterministic check rules. The platform validates and formats native XanoScript; the CLI does not maintain a policy grammar. Policy writes require an instance admin/explore membership and the dedicated `workspace:policy` permissions.
 
 ```bash
+xano policy catalogue                                 # Table of checks, inspected object kinds and required params
 xano policy catalogue -o json                         # Built-in checks and parameter schemas
 xano policy list -o json                              # Policies on the selected workspace branch
 xano policy parse --file policies/AUTH-001.xs           # Validate and print canonical XanoScript
@@ -183,9 +184,16 @@ xano policy publish --file policies/AUTH-001.xs         # Create/update by the p
 cat policies/AUTH-001.xs | xano policy publish --stdin
 xano policy evaluate -o json                          # Fresh evaluation with findings and policy_check
 xano policy status -o json                            # Latest stored run alongside current policies
+xano policy status --fail-on-findings -o json          # CI: fail on stale evidence or mandatory findings
 ```
 
-All policy commands support `-w/--workspace`, `-b/--branch`, `-o/--output summary|json`, and the standard profile/config/verbose flags. Workspace and branch default to the resolved profile. `parse` and `publish` accept exactly one of `--file` or `--stdin`. Publishing seeds or updates an ordinary owned policy; no template relationship is stored. Reserved `guard` and `test` blocks are rejected by the backend.
+All policy commands support `-w/--workspace`, `-b/--branch`, `-o/--output summary|json`, and the standard profile/config/verbose flags. Workspace and branch default to the resolved profile. An explicit empty branch (`-b ''` or `--branch=`) selects the live branch even when the profile specifies another branch. `parse` and `publish` accept exactly one of `--file` or `--stdin`. Publishing seeds or updates an ordinary owned policy; no template relationship is stored. Reserved `guard` and `test` blocks are rejected by the backend.
+
+Operational failures in policy commands (including missing credentials, transport errors, HTTP 4xx/5xx, invalid JSON, and unreadable source) exit **1**. Exit **2** is reserved for mandatory findings returned by a completed evaluation. A publish response without a saved policy ID and matching key is an indeterminate outcome and exits **1**; inspect the saved policies before retrying. A policy-route HTTP 403 names the required `workspace:policy` scope: reissue the Metadata API token with that scope in **Instance settings → Metadata API & MCP Server → Manage Access Tokens**.
+
+Backend errors show the code, message, and available source line/column/snippet. Internal traces appear only with `-v/--verbose` (or `XANO_VERBOSE`), on stderr. Empty branch-not-found errors name the branch selected by the flag or profile and the workspace ID.
+
+`policy status` remains informational (exit **0**) by default. Its JSON `status[]` rows include `stale`, `run_started_at`, and `policy_updated_at` (timestamps retain their native format, or are `null` when absent). A run older than a policy edit is stale; an active policy with no run is stale too. Draft policies show `draft; not evaluated` with zero findings and checked objects. Draft and stale rows omit historical rule diagnostics and counts; the native historical run remains available in JSON `run`. `--fail-on-findings` exits **1** for stale, missing, or errored evaluation evidence, then **2** for current mandatory findings; current advisory findings exit **0**. This reads stored evidence without evaluating or detecting unrelated inventory edits. Use `policy evaluate` for fresh results.
 
 `workspace pull` requests policies and writes them as `policies/<stable-key>.xs`, preserving keys such as `AUTH-001`. `workspace push` includes these files in the same native multidoc as the code. The server refuses a non-admin mixed payload before importing any objects. Policy GUIDs remain server-owned and are never inserted into local policy source. A code push that omits a policy does not delete it.
 
@@ -195,7 +203,9 @@ xano workspace push --force -o json                   # CI: retain raw import fi
 xano workspace push --allow_missing_policy_check      # Explicitly permit unavailable feedback
 ```
 
-After an actual workspace import, the CLI prints the server's `policy_check`, including findings and remediation. Mandatory findings exit **2**; missing, errored or unavailable feedback exits **1**; advisory findings exit **0**. The import has already completed, so these exit codes do not mean the changes were rolled back. `--allow_missing_policy_check` permits unavailable feedback for compatibility and never overrides mandatory findings. `policy evaluate` uses the same exit meanings. JSON output remains parseable even when findings cause a nonzero exit. Status reports an absent run, outdated policy, or zero examined objects explicitly rather than claiming coverage. Historical status does not run a fresh evaluation.
+After an actual workspace import, the CLI prints the server's `policy_check`, including findings and remediation. Mandatory findings exit **2**; missing, errored or unavailable feedback exits **1**; advisory findings exit **0**. The import has already completed, so these exit codes do not mean the changes were rolled back. `--allow_missing_policy_check` permits unavailable feedback for compatibility and never overrides mandatory findings. `policy evaluate` uses the same exit meanings. JSON output remains parseable even when findings cause a nonzero exit; verbose diagnostics (`-v` or `XANO_VERBOSE`) go to stderr with `-o json`. Evaluate, push, and status summaries include errored rule IDs and messages before the zero-object coverage notice. Status gives rule errors precedence over failures and reports an absent run, outdated policy, or zero examined objects explicitly rather than claiming coverage. Historical status does not run a fresh evaluation.
+
+For CI decisions about mandatory findings, key on `policy_check.blocking`, not `policy_check.status`. Native advisory-only feedback has `status: "fail"` and `blocking: false`; JSON preserves those values, while the summary reads `Policy check: advisory findings (not blocking)`. Also check the command exit code for operational failures or unavailable evidence.
 
 ### Workspaces
 
