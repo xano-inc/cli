@@ -170,6 +170,33 @@ xano profile delete myprofile
 xano profile delete myprofile --force
 ```
 
+### Policies
+
+Policies combine a human description with deterministic check rules. The platform validates and formats native XanoScript; the CLI does not maintain a policy grammar. Policy writes require an instance admin/explore membership and the dedicated `workspace:policy` permissions.
+
+```bash
+xano policy catalogue -o json                         # Built-in checks and parameter schemas
+xano policy list -o json                              # Policies on the selected workspace branch
+xano policy parse --file policies/AUTH-001.xs           # Validate and print canonical XanoScript
+xano policy parse --file policies/AUTH-001.xs -o json   # {policy, source} from the native parser
+xano policy publish --file policies/AUTH-001.xs         # Create/update by the parsed policy key
+cat policies/AUTH-001.xs | xano policy publish --stdin
+xano policy evaluate -o json                          # Fresh evaluation with findings and policy_check
+xano policy status -o json                            # Latest stored run alongside current policies
+```
+
+All policy commands support `-w/--workspace`, `-b/--branch`, `-o/--output summary|json`, and the standard profile/config/verbose flags. Workspace and branch default to the resolved profile. `parse` and `publish` accept exactly one of `--file` or `--stdin`. Publishing seeds or updates an ordinary owned policy; no template relationship is stored. Reserved `guard` and `test` blocks are rejected by the backend.
+
+`workspace pull` requests policies and writes them as `policies/<stable-key>.xs`, preserving keys such as `AUTH-001`. `workspace push` includes these files in the same native multidoc as the code. The server refuses a non-admin mixed payload before importing any objects. Policy GUIDs remain server-owned and are never inserted into local policy source. A code push that omits a policy does not delete it.
+
+```bash
+xano workspace push --dry-run -o json
+xano workspace push --force -o json                   # CI: retain raw import fields and policy feedback
+xano workspace push --allow_missing_policy_check      # Explicitly permit unavailable feedback
+```
+
+After an actual workspace import, the CLI prints the server's `policy_check`, including findings and remediation. Mandatory findings exit **2**; missing, errored or unavailable feedback exits **1**; advisory findings exit **0**. The import has already completed, so these exit codes do not mean the changes were rolled back. `--allow_missing_policy_check` permits unavailable feedback for compatibility and never overrides mandatory findings. `policy evaluate` uses the same exit meanings. JSON output remains parseable even when findings cause a nonzero exit. Status reports an absent run, outdated policy, or zero examined objects explicitly rather than claiming coverage. Historical status does not run a fresh evaluation.
+
 ### Workspaces
 
 ```bash

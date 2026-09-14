@@ -130,6 +130,9 @@
       },
       "workspace:git": {
         "description": "Pull workspaces from git repositories"
+      },
+      "policy": {
+        "description": "Author and evaluate workspace policies"
       }
     }
   },

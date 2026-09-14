@@ -1,3 +1,5 @@
+import {policyFileName} from './policy.js'
+
 export interface ParsedDocument {
   apiGroup?: string
   canonical?: string
@@ -17,7 +19,7 @@ export interface ParsedDocument {
  * Skips leading comment lines (starting with //) to find the first meaningful line.
  */
 export function parseDocument(content: string): null | ParsedDocument {
-  const lines = content.split('\n')
+  const lines = content.replace(/^(?:\s|\/\/[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*/, '').split('\n')
 
   // Find the first non-comment line
   let firstLine: null | string = null
@@ -52,6 +54,9 @@ export function parseDocument(content: string): null | ParsedDocument {
   if (name.startsWith('"') && name.endsWith('"')) {
     name = name.slice(1, -1)
   }
+
+  // Policy bodies are opaque. Prose/parameters may mention guid or api_group; these are not document identity.
+  if (type === 'policy') return {content, name, type}
 
   // Extract verb if present (e.g., verb=GET)
   let verb: string | undefined
@@ -212,6 +217,11 @@ export function resolveDocumentPath(
 ): DocumentPlacement {
   const {getApiGroupFolder, getChannelServer, join, snakeCase} = deps
   const sanitize = (name: string): string => sanitizeDocumentName(name, snakeCase)
+
+  if (doc.type === 'policy') {
+    // policy → policies/{key}.xs (the key is validated, never snake_cased)
+    return {baseName: policyFileName(doc.name).slice(0, -3), typeDir: join(outputDir, 'policies')}
+  }
 
   if (doc.type === 'workspace') {
     // workspace → workspace/{name}.xs

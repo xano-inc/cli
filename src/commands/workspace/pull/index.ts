@@ -93,6 +93,7 @@ Pulled 58 documents
       branch,
       env: flags.env.toString(),
       include_draft: flags.draft.toString(),
+      policy: 'true',
       records: flags.records.toString(),
     })
 
