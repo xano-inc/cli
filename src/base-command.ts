@@ -6,6 +6,7 @@ import path from 'node:path'
 import {Agent, type Dispatcher} from 'undici'
 
 import {checkForUpdate} from './update-check.js'
+import {foldApiError, formatApiError} from './utils/api_error.js'
 import {
   applyLocalOverrides,
   findLocalProfilePath,
@@ -359,18 +360,18 @@ export default abstract class BaseCommand extends Command {
 
     try {
       const errorJson = JSON.parse(errorText)
-      if (errorJson.message) {
-        message = errorJson.message
+      // Preserve the sandbox-specific guidance even when a backend code is present.
+      if (response.status === 500 && errorJson.message === 'Access Denied.') {
+        return 'Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.'
+      }
+
+      if (errorJson.message || errorJson.code || errorJson.payload) {
+        message = formatApiError(errorText)
       }
     } catch {
       if (errorText) {
         message += `\n${errorText}`
       }
-    }
-
-    // Provide guidance when sandbox access is denied (free plan restriction)
-    if (response.status === 500 && message === 'Access Denied.') {
-      message = 'Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.'
     }
 
     return message
@@ -450,20 +451,21 @@ export default abstract class BaseCommand extends Command {
       ...(timeoutMs > 0 && !options.signal ? {signal: AbortSignal.timeout(timeoutMs)} : {}),
     })
     const contentType = headers['Content-Type'] || 'application/json'
+    const logDiagnostic = this.isJsonOutput() ? this.logToStderr.bind(this) : this.log.bind(this)
 
     if (verbose) {
-      this.log('')
-      this.log('─'.repeat(60))
-      this.log(`→ ${method} ${url}`)
-      this.log(`  Content-Type: ${contentType}`)
+      logDiagnostic('')
+      logDiagnostic('─'.repeat(60))
+      logDiagnostic(`→ ${method} ${url}`)
+      logDiagnostic(`  Content-Type: ${contentType}`)
       if (authToken) {
-        this.log(`  Authorization: Bearer ${authToken.slice(0, 8)}...${authToken.slice(-4)}`)
+        logDiagnostic(`  Authorization: Bearer ${authToken.slice(0, 8)}...${authToken.slice(-4)}`)
       }
 
       if (options.body) {
         const bodyStr = typeof options.body === 'string' ? options.body : String(options.body)
         const bodyPreview = bodyStr.length > 500 ? bodyStr.slice(0, 500) + '...' : bodyStr
-        this.log(`  Body: ${bodyPreview}`)
+        logDiagnostic(`  Body: ${bodyPreview}`)
       }
     }
 
@@ -493,9 +495,27 @@ export default abstract class BaseCommand extends Command {
     const elapsed = Date.now() - startTime
 
     if (verbose) {
-      this.log(`← ${response.status} ${response.statusText} (${elapsed}ms)`)
-      this.log('─'.repeat(60))
-      this.log('')
+      logDiagnostic(`← ${response.status} ${response.statusText} (${elapsed}ms)`)
+      logDiagnostic('─'.repeat(60))
+      logDiagnostic('')
+    }
+
+    if (response.status >= 400) {
+      const body = await response.text()
+      const redacted = authToken ? body.replaceAll(authToken, '[REDACTED]') : body
+      if (verbose && redacted) this.logToStderr(redacted)
+      // Every command receives the same folded body, even handlers that print
+      // response.text() directly. Successful native JSON remains untouched.
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins -- Fetch APIs are available on the supported Node 20 runtime.
+      const headers = new Headers(response.headers)
+      headers.delete('content-length')
+      headers.delete('content-encoding')
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins -- Fetch APIs are available on the supported Node 20 runtime.
+      return new Response(foldApiError(redacted, response.status, url), {
+        headers,
+        status: response.status,
+        statusText: response.statusText,
+      })
     }
 
     return response
@@ -594,11 +614,12 @@ export default abstract class BaseCommand extends Command {
   }
 
   private isJsonOutput(): boolean {
-    const args = process.argv
+    const args = this.argv
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--output' && args[i + 1] === 'json') return true
       if (args[i] === '-o' && args[i + 1] === 'json') return true
       if (args[i] === '--output=json' || args[i] === '-o=json') return true
+      if (args[i] === '-ojson') return true
     }
 
     return false

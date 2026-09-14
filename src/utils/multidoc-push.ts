@@ -3,6 +3,7 @@ import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
+import {formatApiError} from './api_error.js'
 import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
 import {flattenBundleFile} from './flatten.js'
 import {
@@ -114,6 +115,23 @@ interface DryRunResult {
   source_workspace_mismatch?: boolean
   summary: Record<string, DryRunSummary>
   workspace_name?: string
+}
+
+function isDryRunResult(value: unknown): value is DryRunResult {
+  if (!value || typeof value !== 'object') return false
+  const {operations, summary} = value as DryRunResult
+  return Boolean(
+    summary && typeof summary === 'object' && !Array.isArray(summary) &&
+    Object.values(summary).every(counts =>
+      counts && ['created', 'deleted', 'truncated', 'unchanged', 'updated'].every(key =>
+        typeof counts[key as keyof DryRunSummary] === 'number' && Number.isFinite(counts[key as keyof DryRunSummary]),
+      ),
+    ) &&
+    Array.isArray(operations) && operations.every(op =>
+      op && typeof op === 'object' && typeof op.action === 'string' && typeof op.name === 'string' &&
+      typeof op.type === 'string' && (op.details === undefined || typeof op.details === 'string'),
+    ),
+  )
 }
 
 /**
@@ -1101,10 +1119,10 @@ export async function executePush(
 
       if (dryRunResponse.ok) {
         const dryRunText = await dryRunResponse.text()
-        const preview = JSON.parse(dryRunText) as DryRunResult
-        dryRunPreview = preview
+        const preview: unknown = JSON.parse(dryRunText)
 
-        if (preview && preview.summary) {
+        if (isDryRunResult(preview)) {
+          dryRunPreview = preview
           // ── Merge knowledge preview into the combined DryRunResult ──────
 
           if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
@@ -1209,13 +1227,7 @@ export async function executePush(
             }
 
             log('')
-            log(ux.colorize('red', `Push blocked: ${criticalOps.length} critical error(s) found.`))
-
-            if (!flags.force) {
-              return
-            }
-
-            log(ux.colorize('yellow', 'Proceeding anyway due to --force flag.'))
+            command.error(`Push blocked: ${criticalOps.length} critical error(s) found.`, {exit: 1})
           }
 
           // Check for actual changes (multidoc + knowledge combined)
@@ -1322,6 +1334,10 @@ export async function executePush(
           }
         } else {
           // Server returned unexpected response
+          if (flags['dry-run']) {
+            command.error('Invalid push preview response: expected summary counts and an operations array.', {exit: 1})
+          }
+
           log('')
           log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
           log('')
@@ -1332,15 +1348,19 @@ export async function executePush(
         // If we get here, the user confirmed to proceed without preview
       }
     } catch (error) {
+      // Preserve terminal failures, especially the dry-run boundary, before cancellation/fallback handling.
+      if (error instanceof Error && 'oclif' in error) {
+        throw error
+      }
+
+      if (flags['dry-run']) {
+        command.error(`Push preview failed: ${error instanceof Error ? error.message : String(error)}`, {exit: 1})
+      }
+
       // Ctrl+C or SIGINT
       if ((error as Error).name === 'AbortError' || (error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
         log('\nPush cancelled.')
         return
-      }
-
-      // Re-throw oclif errors
-      if (error instanceof Error && 'oclif' in error) {
-        throw error
       }
 
       // Dry-run failed unexpectedly — proceed without preview
@@ -1400,6 +1420,11 @@ export async function executePush(
     } else {
       command.error('Non-interactive environment detected. Use --force to skip confirmation.')
     }
+  }
+
+  // Successful dry-runs return above. No unsupported or failed preview may reach either import.
+  if (flags['dry-run']) {
+    command.error('Push preview failed: preview is not available for this target.', {exit: 1})
   }
 
   // ── Show bad references in force mode (preview mode shows them inline) ─
@@ -1695,78 +1720,38 @@ async function handleDryRunError(
   target: PushTarget,
 ): Promise<void> {
   const log = command.log.bind(command)
+  const errorText = await response.text()
+  let serverMessage: string | undefined
+  try {
+    const errorJson = JSON.parse(errorText)
+    if (typeof errorJson?.message === 'string') serverMessage = errorJson.message
+  } catch {
+    // Keep the original body when the server does not return JSON.
+  }
+
+  if (flags['dry-run']) {
+    command.error(`Push preview failed (${response.status}): ${formatApiError(errorText)}`, {exit: 1})
+  }
+
+  if (response.status === 403 && /push is disabled/i.test(serverMessage || errorText)) {
+    command.error(
+      `Push preview failed (${response.status}): ${serverMessage || errorText}\n` +
+        'Use xano sandbox push and xano sandbox review to test and review changes.\n' +
+        'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.',
+      {exit: 1},
+    )
+  }
 
   if (response.status === 404) {
-    const errorText = await response.text()
-
-    try {
-      const errorJson = JSON.parse(errorText)
-      if (errorJson.message) {
-        command.error(errorJson.message)
-      }
-    } catch {
-      // Not JSON
-    }
-
+    if (serverMessage) command.error(serverMessage, {exit: 1})
     if (target.supportsBranches) {
-      command.error('Workspace not found. Check the workspace ID and try again.')
+      command.error('Workspace not found. Check the workspace ID and try again.', {exit: 1})
     }
 
     log('')
     log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
     log('')
   } else {
-    const errorText = await response.text()
-
-    // Check if push is disabled
-    try {
-      const errorJson = JSON.parse(errorText)
-      if (errorJson.message?.includes('Push is disabled')) {
-        log('')
-        log(
-          ux.colorize(
-            'red',
-            ux.colorize(
-              'bold',
-              'Direct push is disabled to protect your production workspace from unintended changes.',
-            ),
-          ),
-        )
-        log(
-          ux.colorize(
-            'dim',
-            'Use your sandbox environment to test and review changes before applying them to your production workspace.',
-          ),
-        )
-        log('')
-        log(ux.colorize('dim', 'To apply changes to the workspace, use the sandbox review flow:'))
-        log(
-          `  ${ux.colorize('cyan', 'xano sandbox push')}    ${ux.colorize('dim', '— push changes to your sandbox')}`,
-        )
-        log(
-          `  ${ux.colorize('cyan', 'xano sandbox review')}  ${ux.colorize('dim', '— edit any logic, inspect the snapshot diff, and promote changes to the workspace')}`,
-        )
-        log('')
-        log(
-          ux.colorize(
-            'dim',
-            'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.',
-          ),
-        )
-        log('')
-        log(
-          ux.colorize(
-            'dim',
-            "Note: Free plan instances don't include sandbox environments, so direct push is always enabled.",
-          ),
-        )
-        log('')
-        process.exit(0)
-      }
-    } catch {
-      // Not JSON, fall through
-    }
-
     command.warn(`Push preview failed (${response.status}). Skipping preview.`)
     if (flags.verbose) {
       log(ux.colorize('dim', errorText))
@@ -1802,10 +1787,7 @@ function handlePushError(
 
   try {
     const errorJson = JSON.parse(errorText)
-    errorMessage += `: ${errorJson.message}`
-    if (errorJson.payload?.param) {
-      errorMessage += `\n  Parameter: ${errorJson.payload.param}`
-    }
+    errorMessage += `: ${formatApiError(errorText)}`
 
     // Provide guidance when push is disabled (workspace-specific)
     if (errorJson.message?.includes('Push is disabled')) {

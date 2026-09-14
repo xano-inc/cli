@@ -12,6 +12,7 @@ import {
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
+import {policyFileName} from '../../../utils/policy.js'
 
 export default class Pull extends BaseCommand {
   static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
@@ -119,8 +120,7 @@ Pulled 58 documents
       )
 
       if (!response.ok) {
-        const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        this.error(await this.parseApiError(response, 'API request failed'))
       }
 
       responseText = await response.text()
@@ -149,13 +149,14 @@ Pulled 58 documents
       }
     }
 
+    // Resolve the output directory
+    const outputDir = path.resolve(flags.directory)
+    this.checkPolicyFiles(documents, outputDir)
+
     if (documents.length === 0) {
       this.log('No documents found in response')
       return
     }
-
-    // Resolve the output directory
-    const outputDir = path.resolve(flags.directory)
 
     // Create the output directory if it doesn't exist
     fs.mkdirSync(outputDir, {recursive: true})
@@ -219,5 +220,51 @@ Pulled 58 documents
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
+  }
+
+  /**
+   * Refuse portable filename collisions before writing, and retain stale local policies with a warning.
+   */
+  private checkPolicyFiles(documents: ParsedDocument[], outputDir: string): void {
+    const targets = new Map<string, string>()
+    for (const doc of documents.filter(doc => doc.type === 'policy')) {
+      const filename = policyFileName(doc.name)
+      const normalized = filename.toLowerCase()
+      const existing = targets.get(normalized)
+      if (existing) {
+        this.error(
+          `Policy filename collision: policies/${existing} and policies/${filename} target the same case-insensitive filename. No files were written.`,
+          {exit: 1},
+        )
+      }
+
+      targets.set(normalized, filename)
+    }
+
+    const policyDir = path.join(outputDir, 'policies')
+    if (!fs.existsSync(policyDir)) return
+
+    const localFiles = fs.readdirSync(policyDir, {withFileTypes: true})
+      .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.xs'))
+      .map(entry => entry.name)
+      .sort()
+    const stale: string[] = []
+    for (const filename of localFiles) {
+      const target = targets.get(filename.toLowerCase())
+      if (target && target !== filename) {
+        this.error(
+          `Policy filename collision: local policies/${filename} and exported policies/${target} target the same case-insensitive filename. No files were written.`,
+          {exit: 1},
+        )
+      }
+
+      if (!target) stale.push(`policies/${filename}`)
+    }
+
+    if (stale.length > 0) {
+      this.warn(
+        `Stale local policy files are absent from this export and were kept:\n  ${stale.join('\n  ')}\nReview them before pushing; a push can publish these policies again.`,
+      )
+    }
   }
 }
