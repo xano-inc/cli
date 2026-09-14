@@ -15,11 +15,13 @@ import {
   syncGuidToFrontmatter,
   toPushItems,
 } from './knowledge-sync.js'
+import {type PolicyCheck, policyExitCode, policySummary} from './policy.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
 export interface PushFlags {
+  allow_missing_policy_check?: boolean
   delete: boolean
   'dry-run': boolean
   env: boolean
@@ -27,6 +29,7 @@ export interface PushFlags {
   force: boolean
   guids: boolean
   include?: string[]
+  output?: string
   records: boolean
   sync: boolean
   transaction: boolean
@@ -45,6 +48,7 @@ export interface PushTarget {
   instanceOrigin: string
   /** Human-readable label for log messages (e.g., "sandbox environment", "workspace 40") */
   label: string
+  requiresPolicyCheck?: boolean
   /**
    * The id of the source workspace being pushed (from the active profile). Sent to the sandbox
    * so the backend can flag a mismatch when it differs from the workspace the sandbox last held.
@@ -860,7 +864,8 @@ export async function executePush(
   flags: PushFlags,
 ): Promise<void> {
   const {accessToken, command, inputDir, verboseFetch} = ctx
-  const log = command.log.bind(command)
+  const log = flags.output === 'json' ? () => {} : command.log.bind(command)
+  let pushResponse: Record<string, unknown> = {}
 
   // ── Collect knowledge entries (before file check so knowledge-only push works) ─
 
@@ -1116,6 +1121,7 @@ export async function executePush(
           }
 
           renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log, filteredOutCount)
+          if (flags.output === 'json' && flags['dry-run']) command.log(JSON.stringify(preview, null, 2))
 
           // GUARD: --include/--exclude must never cost you the objects it
           // filtered out.
@@ -1246,6 +1252,7 @@ export async function executePush(
           if (!hasChanges && !hasLocalRecords) {
             log('')
             log('No changes to push.')
+            if (flags.output === 'json' && !flags['dry-run']) command.log(JSON.stringify({imported: false, preview}, null, 2))
             return
           }
 
@@ -1449,6 +1456,7 @@ export async function executePush(
       if (responseText && responseText !== 'null') {
         try {
           const responseJson = JSON.parse(responseText)
+          if (responseJson && typeof responseJson === 'object') pushResponse = responseJson
           if (responseJson?.guid_map && Array.isArray(responseJson.guid_map)) {
             guidMap = responseJson.guid_map
           }
@@ -1474,7 +1482,7 @@ export async function executePush(
         let updatedCount = 0
         let canonicalCount = 0
         for (const entry of guidMap) {
-          if (!entry.guid) continue
+          if (!entry.guid || entry.type === 'policy') continue
 
           const key = buildDocumentKey(entry.type, entry.name, entry.verb, entry.api_group)
           let filePath = documentFileMap.get(key)
@@ -1582,6 +1590,17 @@ export async function executePush(
   }
 
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
+  if (flags.output === 'json') command.log(JSON.stringify({...pushResponse, documents: pushedDocCount, imported: true, knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported}}, null, 2))
+  if (!knowledgeOnly && target.requiresPolicyCheck) {
+    const check = pushResponse.policy_check as PolicyCheck | undefined
+    if (flags.output !== 'json') for (const line of policySummary(check)) log(line)
+    const code = policyExitCode(check, flags.allow_missing_policy_check)
+    if (code) {
+      process.exitCode = code
+      command.warn('Workspace import completed. Policy feedback requires attention; imported changes were not rolled back.')
+    }
+  }
+
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────

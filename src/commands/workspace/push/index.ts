@@ -66,6 +66,7 @@ Full sync including knowledge files; removes server objects not present locally
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    'allow_missing_policy_check': Flags.boolean({default: false, description: 'Allow a missing or unavailable policy check after import (does not override mandatory findings)'}),
     branch: Flags.string({
       char: 'b',
       description: 'Branch name (optional if set in profile, defaults to live)',
@@ -119,6 +120,7 @@ Full sync including knowledge files; removes server objects not present locally
       multiple: true,
       required: false,
     }),
+    output: Flags.string({char: 'o', default: 'summary', description: 'Output format; JSON retains the complete import and policy feedback', options: ['summary', 'json']}),
     records: Flags.boolean({
       default: false,
       description:
@@ -186,11 +188,13 @@ Full sync including knowledge files; removes server objects not present locally
       cliVersion: this.config.version,
       instanceOrigin: profile.instance_origin,
       label: `workspace ${workspaceId}`,
+      requiresPolicyCheck: true,
       supportsBranches: true,
       supportsPartial: true,
     }
 
     const pushFlags: PushFlags = {
+      'allow_missing_policy_check': flags.allow_missing_policy_check,
       delete: flags.delete,
       'dry-run': flags['dry-run'],
       env: flags.env,
@@ -198,6 +202,7 @@ Full sync including knowledge files; removes server objects not present locally
       force: flags.force,
       guids: flags.guids,
       include: flags.include,
+      output: flags.output,
       records: flags.records,
       sync: flags.sync,
       transaction: flags.transaction,
