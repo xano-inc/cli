@@ -281,8 +281,10 @@ function extractSchemaFields(content: string): Set<string> {
   if (blockStart < 0 || blockEnd < 0) return fields
 
   const schemaBlock = content.slice(blockStart, blockEnd)
-  // Match field declarations: "type name" or "type? name" or "type name?=default"
-  const fieldRegex = /^\s*\w+\??\s+(\w+)[?\s{]/gm
+  // Match field declarations: "type name" or "type? name" or "type name?=default".
+  // The type token allows an optional `[]` array suffix (`enum[]`, `text[]`, `int[]?`, `json[]`)
+  // so array-typed columns are recognized as fields; the name group is unchanged.
+  const fieldRegex = /^\s*\w+(?:\[\])?\??\s+(\w+)[?\s{]/gm
   let match: null | RegExpExecArray
   while ((match = fieldRegex.exec(schemaBlock)) !== null) {
     fields.add(match[1])
@@ -294,11 +296,34 @@ function extractSchemaFields(content: string): Set<string> {
 function extractIndexes(content: string): Array<{fields: string[]; type: string}> {
   const indexes: Array<{fields: string[]; type: string}> = []
 
-  // Match the index array: index = [ ... ]
-  const indexMatch = content.match(/\bindex\s*=\s*\[([\s\S]*?)\n\s*\]/)
-  if (!indexMatch) return indexes
+  // Find the index array by matching brackets — the same balanced-scan technique
+  // extractSchemaFields uses for the `{ … }` schema block. A non-greedy `\n\s*]`
+  // terminator stops at the FIRST `]`-only line, which is often the closer of an
+  // inner multi-line `field: [ … ]` list, silently truncating the block and dropping
+  // any later index entries (e.g. a `gin` index after a multi-line first entry).
+  const indexStart = content.match(/\bindex\s*=\s*\[/)
+  if (!indexStart || indexStart.index === undefined) return indexes
 
-  const indexBlock = indexMatch[1]
+  let depth = 0
+  let blockStart = -1
+  let blockEnd = -1
+  for (let i = indexStart.index; i < content.length; i++) {
+    if (content[i] === '[') {
+      if (depth === 0) blockStart = i + 1
+      depth++
+    } else if (content[i] === ']') {
+      depth--
+      if (depth === 0) {
+        blockEnd = i
+        break
+      }
+    }
+  }
+
+  // Not found or unbalanced (malformed document) → degrade to "no indexes parsed".
+  if (blockStart < 0 || blockEnd < 0) return indexes
+
+  const indexBlock = content.slice(blockStart, blockEnd)
   // Match each index object: {type: "btree", field: [{name: "col", op: "desc"}]}
   const entryRegex = /\{([^}]+)\}/g
   let match: null | RegExpExecArray
