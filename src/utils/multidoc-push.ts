@@ -3,7 +3,6 @@ import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
-import {formatApiError} from './api_error.js'
 import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
 import {flattenBundleFile} from './flatten.js'
 import {
@@ -906,6 +905,7 @@ export async function executePush(
       flags.include || flags.exclude
         ? `No .xs files remain after ${[flags.include ? `include ${flags.include.join(', ')}` : '', flags.exclude ? `exclude ${flags.exclude.join(', ')}` : ''].filter(Boolean).join(' and ')} in ${inputDir}`
         : `No .xs files found in ${inputDir}`,
+      {exit: 1},
     )
   }
 
@@ -919,7 +919,7 @@ export async function executePush(
     documentEntries = readDocuments(files)
 
     if (documentEntries.length === 0) {
-      command.error(`All .xs files in ${inputDir} are empty`)
+      command.error(`All .xs files in ${inputDir} are empty`, {exit: 1})
     }
 
     // ── Handle multi-document files ───────────────────────────────────────
@@ -1045,7 +1045,7 @@ export async function executePush(
   const isPartial = !flags.sync
 
   if (flags.delete && isPartial) {
-    command.error('Cannot use --delete without --sync')
+    command.error('Cannot use --delete without --sync', {exit: 1})
   }
 
   const shouldDelete = isPartial ? false : flags.delete
@@ -1305,6 +1305,7 @@ export async function executePush(
             } else {
               command.error(
                 'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first to start clean.',
+                {exit: 1},
               )
             }
           }
@@ -1329,7 +1330,7 @@ export async function executePush(
                 return
               }
             } else {
-              command.error('Non-interactive environment detected. Use --force to skip confirmation.')
+              command.error('Non-interactive environment detected. Use --force to skip confirmation.', {exit: 1})
             }
           }
         } else {
@@ -1418,7 +1419,7 @@ export async function executePush(
         return
       }
     } else {
-      command.error('Non-interactive environment detected. Use --force to skip confirmation.')
+      command.error('Non-interactive environment detected. Use --force to skip confirmation.', {exit: 1})
     }
   }
 
@@ -1447,7 +1448,7 @@ export async function executePush(
       return
     }
 
-    multidoc = filteredEntries.length > 0 ? filteredEntries.map((d) => d.content).join('\n---\n') : '';
+    multidoc = filteredEntries.length > 0 ? filteredEntries.map((d) => d.content).join('\n---\n') : ''
   }
 
   // ── Execute the actual push ───────────────────────────────────────────
@@ -1558,7 +1559,7 @@ export async function executePush(
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
-      command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`)
+      command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`, {exit: 1})
     }
   }
 
@@ -1601,7 +1602,7 @@ export async function executePush(
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
-      command.error(`Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`)
+      command.error(`Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`, {exit: 1})
     }
   }
 
@@ -1713,6 +1714,19 @@ function formatFailureDuration(elapsedMs?: number): string {
     : ` (failed after ${human})`
 }
 
+/** Guidance for the workspace 'Allow Push' setting; the backend raises this via a YAML assert (HTTP 500). */
+function pushDisabledGuidance(serverMessage: string): string {
+  return (
+    `${serverMessage}\n` +
+    'Direct push is disabled to protect your production workspace from unintended changes.\n' +
+    'Use your sandbox environment to test and review changes before applying them to your production workspace:\n' +
+    '  xano sandbox push    — push changes to your sandbox\n' +
+    '  xano sandbox review  — edit any logic, inspect the snapshot diff, and promote changes to the workspace\n' +
+    'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.\n' +
+    "Note: Free plan instances don't include sandbox environments, so direct push is always enabled."
+  )
+}
+
 async function handleDryRunError(
   response: Response,
   command: Command,
@@ -1729,17 +1743,13 @@ async function handleDryRunError(
     // Keep the original body when the server does not return JSON.
   }
 
-  if (flags['dry-run']) {
-    command.error(`Push preview failed (${response.status}): ${formatApiError(errorText)}`, {exit: 1})
+  // Match the message, not the status: the assert arrives as HTTP 500, not 403.
+  if (/push is disabled/i.test(serverMessage || errorText)) {
+    command.error(pushDisabledGuidance(serverMessage || errorText), {exit: 1})
   }
 
-  if (response.status === 403 && /push is disabled/i.test(serverMessage || errorText)) {
-    command.error(
-      `Push preview failed (${response.status}): ${serverMessage || errorText}\n` +
-        'Use xano sandbox push and xano sandbox review to test and review changes.\n' +
-        'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.',
-      {exit: 1},
-    )
+  if (flags['dry-run']) {
+    command.error(`Push preview failed (${response.status}): ${serverMessage || errorText}`, {exit: 1})
   }
 
   if (response.status === 404) {
@@ -1772,7 +1782,7 @@ async function confirmOrAbort(
       command.exit(0)
     }
   } else {
-    command.error('Non-interactive environment detected. Use --force to skip confirmation.')
+    command.error('Non-interactive environment detected. Use --force to skip confirmation.', {exit: 1})
   }
 }
 
@@ -1784,30 +1794,28 @@ function handlePushError(
   command: Command,
 ): never {
   let errorMessage = `Push failed (${response.status})`
+  let serverMessage: string | undefined
 
   try {
     const errorJson = JSON.parse(errorText)
-    errorMessage += `: ${formatApiError(errorText)}`
-
-    // Provide guidance when push is disabled (workspace-specific)
-    if (errorJson.message?.includes('Push is disabled')) {
-      command.error(
-        `Direct push is disabled to protect your production workspace from unintended changes.\n` +
-          `Use your sandbox environment to test and review changes before applying them to your production workspace.\n\n` +
-          `Alternatively, use sandbox commands:\n` +
-          `  xano sandbox push <directory>\n` +
-          `  xano sandbox review\n\n` +
-          `To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.\n\n` +
-          `Note: Free plan instances don't include sandbox environments, so direct push is always enabled.`,
-      )
+    serverMessage = errorJson.message
+    errorMessage += `: ${errorJson.message}`
+    if (errorJson.payload?.param) {
+      errorMessage += `\n  Parameter: ${errorJson.payload.param}`
     }
   } catch {
     errorMessage += `\n${errorText}`
   }
 
+  // Provide guidance when push is disabled (workspace-specific). This must sit outside the
+  // try block: command.error throws, and the catch above would swallow the guidance.
+  if (serverMessage?.includes('Push is disabled')) {
+    command.error(pushDisabledGuidance(serverMessage), {exit: 1})
+  }
+
   // Provide guidance when sandbox access is denied (free plan restriction)
   if (response.status === 500 && errorMessage.includes('Access Denied')) {
-    command.error('Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.')
+    command.error('Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.', {exit: 1})
   }
 
   // Surface local files involved in duplicate GUID errors
@@ -1820,5 +1828,5 @@ function handlePushError(
     }
   }
 
-  command.error(errorMessage)
+  command.error(errorMessage, {exit: 1})
 }
