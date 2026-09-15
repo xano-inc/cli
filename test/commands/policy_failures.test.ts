@@ -1,4 +1,4 @@
-/* eslint-disable camelcase, n/no-unsupported-features/node-builtins, unicorn/filename-case -- Preserve native API fields; fetch is supported by the CLI runtime; CLAUDE.md requires underscore filenames. */
+/* eslint-disable unicorn/filename-case -- CLAUDE.md requires underscore filenames. */
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
 import path from 'node:path'

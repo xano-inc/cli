@@ -1,4 +1,3 @@
-/* eslint-disable camelcase -- Preserve native API field names in status JSON. */
 /** Reporting and file transport only. Policy grammar belongs to the platform. */
 export interface PolicyCatalogueEntry {
   description?: string

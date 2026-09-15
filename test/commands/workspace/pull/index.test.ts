@@ -1,4 +1,3 @@
-/* eslint-disable camelcase, n/no-unsupported-features/node-builtins -- Preserve profile API field names; native fetch is available on the supported Node 20 runtime. */
 import {Config} from '@oclif/core'
 import {expect} from 'chai'
 import * as fs from 'node:fs'
