@@ -1,12 +1,10 @@
 /* eslint-disable camelcase, n/no-unsupported-features/node-builtins, unicorn/filename-case -- Native API fields and supported Node fetch; repository filename convention. */
-import {Config} from '@oclif/core'
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
-import * as fs from 'node:fs'
-import * as os from 'node:os'
 import path from 'node:path'
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {status})
+import {json, policyFixture} from '../helpers/policy_fixture.js'
+
 const source = 'policy AUTH-001 { title = "Auth" }'
 const catalogue = [{
   description: 'Find forbidden statements at any nesting depth.',
@@ -29,49 +27,20 @@ const run = {
   started_at: 2000,
 }
 
+function statusRoute(current = policy, latest: null | typeof run = run): void {
+  globalThis.fetch = async input => String(input).includes('/run?')
+    ? json({items: latest ? [latest] : []}) : json([current])
+}
+
 describe('policy reporting regressions', () => {
-  let directory: string
-  let config: Config
-  let originalFetch: typeof globalThis.fetch
-  let environment: NodeJS.ProcessEnv
-
-  before(async () => {
-    directory = fs.mkdtempSync(path.join(os.tmpdir(), 'xano-policy-reporting-'))
-    fs.writeFileSync(path.join(directory, 'policy.xs'), source)
-    fs.writeFileSync(path.join(directory, 'credentials.yaml'),
-      'profiles:\n  fixture:\n    instance_origin: https://test.example.com\n    access_token: test-token\n    workspace: 3\n    branch: profile-branch\ndefault: fixture\n')
-    config = await Config.load({root: process.cwd()})
-    config.version = '1.2.0-beta.test'
-  })
-
-  after(() => fs.rmSync(directory, {force: true, recursive: true}))
-
-  beforeEach(() => {
-    environment = {...process.env}
-    originalFetch = globalThis.fetch
-    process.env.XANO_CONFIG = path.join(directory, 'credentials.yaml')
-    process.env.XANO_PROFILE = 'fixture'
-    delete process.env.XANO_VERBOSE
-    delete process.env.XANO_FORCE_UPDATE_CHECK
-  })
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch
-    process.env = environment
-    process.exitCode = undefined
-  })
+  const fixture = policyFixture({branch: 'profile-branch', source, workspace: '3'})
 
   function command(action: string, flags: string[] = []) {
     const args = action.split(' ')
-    if (['parse', 'publish'].includes(args[1])) args.push('-f', path.join(directory, 'policy.xs'))
-    if (args[0] === 'workspace') args.push('-d', directory)
+    if (['parse', 'publish'].includes(args[1])) args.push('-f', path.join(fixture.directory, 'policy.xs'))
+    if (args[0] === 'workspace') args.push('-d', fixture.directory)
     if (action === 'workspace push') args.push('--force', '--no-guids')
-    return runCommand([...args, ...flags], config)
-  }
-
-  function statusRoute(current = policy, latest: null | typeof run = run): void {
-    globalThis.fetch = async input => String(input).includes('/run?')
-      ? json({items: latest ? [latest] : []}) : json([current])
+    return runCommand([...args, ...flags], fixture.config)
   }
 
   for (const flags of [[], ['-o', 'summary']]) {
@@ -102,12 +71,12 @@ describe('policy reporting regressions', () => {
     expect(result.stdout.split('\n').every(line => line.length <= 144)).to.equal(true)
   })
 
-  for (const action of ['policy parse', 'policy publish', 'workspace push', 'workspace pull']) {
+  for (const action of ['policy parse', 'policy publish']) {
     for (const verbose of [false, true]) {
-      for (const output of action === 'workspace pull' ? ['summary'] : ['summary', 'json']) {
+      for (const output of ['summary', 'json']) {
         it(`${action} folds traces in ${output}, verbose=${verbose}`, async () => {
-          globalThis.fetch = async () => json(backendError, action === 'workspace push' ? 500 : 400)
-          const result = await command(action, [...(action === 'workspace pull' ? [] : ['-o', output]), ...(verbose ? ['-v'] : [])])
+          globalThis.fetch = async () => json(backendError, 400)
+          const result = await command(action, ['-o', output, ...(verbose ? ['-v'] : [])])
           expect(result.error).to.exist
           expect(result.error?.message).to.contain('ERROR_CODE_SYNTAX_ERROR').and.to.contain('Invalid block: enforcement')
           for (const text of ['21', '2', 'R1']) expect(result.error?.message).to.contain(text)
@@ -121,7 +90,7 @@ describe('policy reporting regressions', () => {
     }
   }
 
-  for (const action of ['policy catalogue', 'policy list', 'policy parse', 'policy publish', 'policy evaluate', 'policy status', 'workspace push', 'workspace pull']) {
+  for (const action of ['policy catalogue', 'policy list', 'policy parse', 'policy publish', 'policy evaluate', 'policy status']) {
     for (const explicit of [false, true]) {
       it(`${action} names missing ${explicit ? 'flag' : 'profile'} branch`, async () => {
         globalThis.fetch = async () => json({code: 'ERROR_CODE_NOT_FOUND', message: ''}, 404)
@@ -137,10 +106,11 @@ describe('policy reporting regressions', () => {
     expect(result.error?.message).to.contain('Policy was deleted.').and.not.to.contain('Branch "')
   })
 
-  it('names a missing branch during push preview', async () => {
+  it('does not fold, redact or synthesize errors for non-policy commands', async () => {
     globalThis.fetch = async () => json({code: 'ERROR_CODE_NOT_FOUND', message: ''}, 404)
-    const result = await command('workspace push', ['--dry-run', '-b', 'missing'])
-    expect(result.error?.message).to.contain('Branch "missing" was not found in workspace 3.')
+    const result = await command('workspace pull', ['-b', 'missing', '-v'])
+    expect(result.error?.message).to.contain('API request failed (404)').and.not.to.contain('Branch "')
+    expect(result.stderr).not.to.contain('ERROR_CODE_NOT_FOUND')
   })
 
   it('folds publish save errors after a successful parse and lookup', async () => {

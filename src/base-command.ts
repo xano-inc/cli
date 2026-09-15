@@ -6,7 +6,6 @@ import path from 'node:path'
 import {Agent, type Dispatcher} from 'undici'
 
 import {checkForUpdate} from './update-check.js'
-import {foldApiError, formatApiError} from './utils/api_error.js'
 import {
   applyLocalOverrides,
   findLocalProfilePath,
@@ -360,18 +359,18 @@ export default abstract class BaseCommand extends Command {
 
     try {
       const errorJson = JSON.parse(errorText)
-      // Preserve the sandbox-specific guidance even when a backend code is present.
-      if (response.status === 500 && errorJson.message === 'Access Denied.') {
-        return 'Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.'
-      }
-
-      if (errorJson.message || errorJson.code || errorJson.payload) {
-        message = formatApiError(errorText)
+      if (errorJson.message) {
+        message = errorJson.message
       }
     } catch {
       if (errorText) {
         message += `\n${errorText}`
       }
+    }
+
+    // Provide guidance when sandbox access is denied (free plan restriction)
+    if (response.status === 500 && message === 'Access Denied.') {
+      message = 'Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.'
     }
 
     return message
@@ -500,24 +499,6 @@ export default abstract class BaseCommand extends Command {
       logDiagnostic('')
     }
 
-    if (response.status >= 400) {
-      const body = await response.text()
-      const redacted = authToken ? body.replaceAll(authToken, '[REDACTED]') : body
-      if (verbose && redacted) this.logToStderr(redacted)
-      // Every command receives the same folded body, even handlers that print
-      // response.text() directly. Successful native JSON remains untouched.
-      // eslint-disable-next-line n/no-unsupported-features/node-builtins -- Fetch APIs are available on the supported Node 20 runtime.
-      const headers = new Headers(response.headers)
-      headers.delete('content-length')
-      headers.delete('content-encoding')
-      // eslint-disable-next-line n/no-unsupported-features/node-builtins -- Fetch APIs are available on the supported Node 20 runtime.
-      return new Response(foldApiError(redacted, response.status, url), {
-        headers,
-        status: response.status,
-        statusText: response.statusText,
-      })
-    }
-
     return response
   }
 
@@ -619,7 +600,6 @@ export default abstract class BaseCommand extends Command {
       if (args[i] === '--output' && args[i + 1] === 'json') return true
       if (args[i] === '-o' && args[i + 1] === 'json') return true
       if (args[i] === '--output=json' || args[i] === '-o=json') return true
-      if (args[i] === '-ojson') return true
     }
 
     return false

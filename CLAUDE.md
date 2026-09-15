@@ -78,10 +78,12 @@ npm test         # Run Mocha tests + lint
 ```
 src/
 ├── base-command.ts              # Base class for all commands (profile flag)
+├── policy-command.ts            # Base class for `policy *` commands (policy routes, folded errors, exit codes)
 ├── help.ts                      # Custom oclif help class
 ├── index.ts                     # Entry point (re-exports oclif run)
 ├── commands/
 │   ├── auth/                    # Browser-based authentication
+│   ├── policy/                  # Policy management (catalogue, list, parse, publish, evaluate, status)
 │   ├── profile/                 # Profile management (9 commands)
 │   │   ├── wizard.ts            # Interactive profile creation
 │   │   ├── create.ts            # Manual profile creation
@@ -128,6 +130,8 @@ test/
 | `src/utils/multidoc-push.ts` | Shared push logic for both `sandbox push` and `workspace push` — file collection, glob filtering, dry-run preview, confirmation, partial push, GUID sync, validation rendering |
 | `src/utils/document-parser.ts` | XanoScript document parsing — type/name/verb/guid extraction, document key building |
 | `src/utils/reference-checker.ts` | Cross-reference validation and table index checking |
+| `src/utils/policy.ts` | Policy reporting — `policies/<key>.xs` filenames, `policy_check` exit codes and summaries, `computeStatusRows`/`statusExitCode` for `policy status` |
+| `src/utils/api_error.ts` | Folds policy-route backend errors to code/message/source coordinates (`foldApiError`, `formatApiError`); not used by other commands |
 
 ## Coding Conventions
 
@@ -171,6 +175,7 @@ export default class MyCommand extends BaseCommand {
 | Class | Location | Purpose |
 |-------|----------|---------|
 | `BaseCommand` | `src/base-command.ts` | All commands - provides `-p/--profile` flag, credential loading |
+| `PolicyCommand` | `src/policy-command.ts` | `policy *` commands - shared `-w/-b/-o` flags, `runPolicy(action, flags)`, operational errors exit 1 |
 
 ### Credential & Profile Resolution
 

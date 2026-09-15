@@ -19,7 +19,7 @@ export interface ParsedDocument {
  * Skips leading comment lines (starting with //) to find the first meaningful line.
  */
 export function parseDocument(content: string): null | ParsedDocument {
-  const lines = content.replace(/^(?:\s|\/\/[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*/, '').split('\n')
+  const lines = content.split('\n')
 
   // Find the first non-comment line
   let firstLine: null | string = null

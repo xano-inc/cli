@@ -187,19 +187,19 @@ xano policy status -o json                            # Latest stored run alongs
 xano policy status --fail-on-findings -o json          # CI: fail on stale evidence or mandatory findings
 ```
 
-All policy commands support `-w/--workspace`, `-b/--branch`, `-o/--output summary|json`, and the standard profile/config/verbose flags. Workspace and branch default to the resolved profile. An explicit empty branch (`-b ''` or `--branch=`) selects the live branch even when the profile specifies another branch. `parse` and `publish` accept exactly one of `--file` or `--stdin`. Publishing seeds or updates an ordinary owned policy; no template relationship is stored. Reserved `guard` and `test` blocks are rejected by the backend.
+All policy commands support `-w/--workspace`, `-b/--branch`, `-o/--output summary|json`, and the standard profile/config/verbose flags. Workspace and branch default to the resolved profile. An explicit empty branch (`-b ''` or `--branch=`) selects the live branch even when the profile specifies another branch. `parse` and `publish` accept exactly one of `--file` or `--stdin`. Publishing seeds or updates an ordinary owned policy; no template relationship is stored.
 
-Operational failures in policy commands (including missing credentials, transport errors, HTTP 4xx/5xx, invalid JSON, and unreadable source) exit **1**. Exit **2** is reserved for mandatory findings returned by a completed evaluation. A publish response without a saved policy ID and matching key is an indeterminate outcome and exits **1**; inspect the saved policies before retrying. A policy-route HTTP 403 names the required `workspace:policy` scope: reissue the Metadata API token with that scope in **Instance settings → Metadata API & MCP Server → Manage Access Tokens**.
+Operational failures in policy commands (including missing credentials, transport errors, HTTP 4xx/5xx, invalid JSON, and unreadable source) exit **1**, as do failed `workspace push`/`sandbox push` previews and imports. Exit **2** is reserved for mandatory findings returned by a completed evaluation. A publish response without a saved policy ID and matching key is an indeterminate outcome and exits **1**; inspect the saved policies before retrying. A policy-route HTTP 403 names the required `workspace:policy` scope: reissue the Metadata API token with that scope in **Instance settings → Metadata API & MCP Server → Manage Access Tokens**.
 
-Backend errors show the code, message, and available source line/column/snippet. Internal traces appear only with `-v/--verbose` (or `XANO_VERBOSE`), on stderr. Empty branch-not-found errors name the branch selected by the flag or profile and the workspace ID.
+Policy-route backend errors show the code, message, and available source line/column/snippet. Internal traces appear only with `-v/--verbose` (or `XANO_VERBOSE`), on stderr. Empty branch-not-found errors name the branch selected by the flag or profile and the workspace ID. Other commands keep their existing error text.
 
 `policy status` remains informational (exit **0**) by default. Its JSON `status[]` rows include `stale`, `run_started_at`, and `policy_updated_at` (timestamps retain their native format, or are `null` when absent). A run older than a policy edit is stale; an active policy with no run is stale too. Draft policies show `draft; not evaluated` with zero findings and checked objects. Draft and stale rows omit historical rule diagnostics and counts; the native historical run remains available in JSON `run`. `--fail-on-findings` exits **1** for stale, missing, or errored evaluation evidence, then **2** for current mandatory findings; current advisory findings exit **0**. This reads stored evidence without evaluating or detecting unrelated inventory edits. Use `policy evaluate` for fresh results.
 
-`workspace pull` requests policies and writes them as `policies/<stable-key>.xs`, preserving keys such as `AUTH-001`. `workspace push` includes these files in the same native multidoc as the code. The server refuses a non-admin mixed payload before importing any objects. Policy GUIDs remain server-owned and are never inserted into local policy source. A code push that omits a policy does not delete it.
+`workspace pull` writes the policies included in the export as `policies/<stable-key>.xs`, preserving keys such as `AUTH-001`. `workspace push` includes these files in the same native multidoc as the code. The server refuses a non-admin mixed payload before importing any objects. Policy GUIDs remain server-owned and are never inserted into local policy source. A code push that omits a policy does not delete it.
 
 ```bash
 xano workspace push --dry-run -o json
-xano workspace push --force -o json                   # CI: retain raw import fields and policy feedback
+xano workspace push --force -o json                   # CI: skip the preview; JSON retains raw import fields and policy feedback
 xano workspace push --allow_missing_policy_check      # Explicitly permit unavailable feedback
 ```
 
@@ -253,6 +253,8 @@ xano workspace push --force                              # Skip preview and conf
 xano workspace push -i "function/*"                      # Push only matching files
 xano workspace push -e "table/*"                         # Push all files except tables
 xano workspace push -i "function/*" -e "**/test*"        # Include functions, exclude tests
+xano workspace push -o json                              # JSON output: preview (with --dry-run) or import result with policy_check
+xano workspace push --allow_missing_policy_check         # Exit 0 when the server returns no policy feedback (never overrides mandatory findings)
 
 # Pull from a git repository to local files (defaults to current directory)
 xano workspace git pull -r https://github.com/owner/repo
@@ -265,6 +267,8 @@ xano workspace git pull -r https://gitlab.com/owner/repo/-/tree/master/path
 xano workspace git pull -r https://github.com/owner/private-repo -t ghp_xxx
 xano workspace git pull -r https://github.com/owner/repo --path subdir
 ```
+
+`workspace push --dry-run` exits **1** without importing when the preview fails, is unavailable, is malformed, or reports critical errors, and when push is disabled for the workspace (enable **Allow Push** in Workspace Settings or use the sandbox flow). A failed import also exits **1**. After a successful import, mandatory policy findings exit **2** and missing policy feedback exits **1** unless `--allow_missing_policy_check` is set; see [Policies](#policies).
 
 **One workspace document per tree.** A push directory must contain at most one
 `workspace/*.xs` document. The server applies the first workspace document it
@@ -878,6 +882,8 @@ xano sandbox impersonate
 xano sandbox reset
 xano sandbox reset --force
 ```
+
+`sandbox push --dry-run` exits **1** without importing when the preview fails, is unavailable, is malformed, or reports critical errors. A failed import also exits **1**.
 
 ### Static Hosts
 
