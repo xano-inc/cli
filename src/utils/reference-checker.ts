@@ -25,6 +25,13 @@ interface ReferencePattern {
   keyword: string
   /** Regex to extract the referenced name from the statement line */
   regex: RegExp
+  /**
+   * If set, this pattern only applies to source documents of this type. Used to
+   * scope field-level references (e.g. a channel's `server = "..."`) that would
+   * otherwise false-match an identically-named field on an unrelated object
+   * (e.g. a microservice's `registry_auth.server`).
+   */
+  sourceType?: string
   /** The type of object being referenced (used to look up in the registry) */
   targetType: string
 }
@@ -59,6 +66,16 @@ const REFERENCE_PATTERNS: ReferencePattern[] = [
   },
   // Schema foreign key references: table = "name" inside field definitions
   {keyword: 'table (FK)', regex: /\btable\s*=\s*"([^"]*)"/gm, targetType: 'table'},
+  // Realtime v2: a channel references its owning realtime_server by name via a
+  // top-level `realtime_server = "..."` (renamed from a bare `server` to match
+  // the api_group/mcp_server convention). The full keyword is unambiguous, so no
+  // false-match against another object type's `server` field.
+  {
+    keyword: 'channel (realtime_server)',
+    regex: /^\s*realtime_server\s*=\s*"([^"]*)"/gm,
+    sourceType: 'channel',
+    targetType: 'realtime_server',
+  },
 ]
 
 /**
@@ -76,13 +93,13 @@ function stripQuotes(name: string): string {
  * Map from XanoScript document types to the canonical type used in the registry.
  * Some types are aliases (agent, mcp_server → toolset bucket, but referenced as "agent").
  */
-/* eslint-disable camelcase */
+ 
 const TYPE_ALIASES: Record<string, string> = {
   agent: 'agent',
   mcp_server: 'agent',
   toolset: 'agent',
 }
-/* eslint-enable camelcase */
+ 
 
 /**
  * Normalize a document type to its canonical registry type.
@@ -162,6 +179,7 @@ export function checkReferences(
       }
     }
   }
+
   const badRefs: BadReference[] = []
 
   for (const doc of documents) {
@@ -169,6 +187,9 @@ export function checkReferences(
     if (!parsed) continue
 
     for (const pattern of REFERENCE_PATTERNS) {
+      // Skip patterns scoped to a different source document type.
+      if (pattern.sourceType && pattern.sourceType !== parsed.type) continue
+
       // Reset regex state for each document
       pattern.regex.lastIndex = 0
 
@@ -236,7 +257,7 @@ export function checkTableIndexes(documents: Array<{content: string}>): BadIndex
 
 function extractSchemaFields(content: string): Set<string> {
   // id, created_at, and xdo are system fields not declared in the schema
-  const fields = new Set<string>(['id', 'created_at', 'xdo'])
+  const fields = new Set<string>(['created_at', 'id', 'xdo'])
 
   // Find the schema block by matching braces
   const schemaStart = content.match(/\bschema\s*\{/)

@@ -1,7 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 
@@ -64,16 +64,16 @@ Created tenant: Production (production) - ID: 42
       description: 'Platform ID to use',
       required: false,
     }),
+    tasks: Flags.boolean({
+      allowNo: true,
+      default: true,
+      description: 'Enable background tasks',
+    }),
     type: Flags.string({
       default: 'tier1',
       description: 'Tenant type',
       options: ['tier1', 'tier2', 'tier3'],
       required: false,
-    }),
-    tasks: Flags.boolean({
-      allowNo: true,
-      default: true,
-      description: 'Enable background tasks',
     }),
     workspace: Flags.string({
       char: 'w',
@@ -105,6 +105,7 @@ Created tenant: Production (production) - ID: 42
       body.cluster_id = flags.cluster_id
       body.license = 'tier3'
     }
+
     if (flags.platform_id) body.platform_id = flags.platform_id
     if (flags.domain) body.domain = flags.domain
 

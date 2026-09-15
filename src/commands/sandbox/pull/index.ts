@@ -1,13 +1,17 @@
 import {Flags} from '@oclif/core'
-
 import snakeCase from 'lodash.snakecase'
+import * as fs from 'node:fs'
+import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
-import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../utils/document-parser.js'
+import {
+  buildApiGroupFolderResolver,
+  buildChannelServerResolver,
+  type ParsedDocument,
+  parseDocument,
+  resolveDocumentPath,
+} from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
-
-import * as fs from 'node:fs'
-import * as path from 'node:path'
 
 export default class SandboxPull extends BaseCommand {
   static override description = 'Pull documents from your sandbox environment and split into individual files'
@@ -112,71 +116,20 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
 
     const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
 
+    // Resolve a realtime v2 channel path -> owning realtime_server name, so
+    // messages can nest under their channel's server (see resolver docs).
+    const getChannelServer = buildChannelServerResolver(documents)
+
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
     let writtenCount = 0
     for (const doc of documents) {
-      let typeDir: string
-      let baseName: string
-
-      if (doc.type === 'workspace') {
-        typeDir = path.join(outputDir, 'workspace')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'workspace_trigger') {
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'error_trigger') {
-        // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
-        typeDir = path.join(outputDir, 'workspace', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent') {
-        typeDir = path.join(outputDir, 'ai', 'agent')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server') {
-        typeDir = path.join(outputDir, 'ai', 'mcp_server')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'tool') {
-        typeDir = path.join(outputDir, 'ai', 'tool')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'agent_trigger') {
-        typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'mcp_server_trigger') {
-        typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'table_trigger') {
-        typeDir = path.join(outputDir, 'table', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_channel') {
-        typeDir = path.join(outputDir, 'realtime', 'channel')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'realtime_trigger') {
-        typeDir = path.join(outputDir, 'realtime', 'trigger')
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'api_group') {
-        const groupFolder = getApiGroupFolder(doc.name)
-        typeDir = path.join(outputDir, 'api', groupFolder)
-        baseName = this.sanitizeFilename(doc.name)
-      } else if (doc.type === 'query' && doc.apiGroup) {
-        const groupFolder = getApiGroupFolder(doc.apiGroup)
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, 'api', groupFolder, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      } else {
-        const nameParts = doc.name.split('/')
-        const leafName = nameParts.pop()!
-        const folderParts = nameParts.map((part) => snakeCase(part))
-        typeDir = path.join(outputDir, doc.type, ...folderParts)
-        baseName = this.sanitizeFilename(leafName)
-        if (doc.verb) {
-          baseName = `${baseName}_${doc.verb}`
-        }
-      }
+      const {baseName, typeDir} = resolveDocumentPath(doc, outputDir, {
+        getApiGroupFolder,
+        getChannelServer,
+        join: path.join,
+        snakeCase,
+      })
 
       fs.mkdirSync(typeDir, {recursive: true})
 
@@ -189,8 +142,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       const count = typeCounters.get(baseName) || 0
       typeCounters.set(baseName, count + 1)
 
-      let filename: string
-      filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
+      const filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')
@@ -216,9 +168,5 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} from sandbox environment to ${flags.directory}`)
-  }
-
-  private sanitizeFilename(name: string): string {
-    return snakeCase(name.replaceAll('"', ''))
   }
 }

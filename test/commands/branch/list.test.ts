@@ -1,4 +1,4 @@
-/* eslint-disable camelcase */
+ 
 import {expect} from 'chai'
 
 import {Branch, filterBackups} from '../../../src/commands/branch/list/index.js'

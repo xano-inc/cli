@@ -51,7 +51,9 @@ export default class Help extends BaseHelp {
       .map((c) => {
         if (this.config.topicSeparator !== ':') c.id = c.id.replaceAll(':', this.config.topicSeparator)
         const summary = this.summary(c)
-        return [c.id, summary ? summary.replace(/\u001B\[\d+m/g, '') : ''] as [string, string]
+        // Strip ANSI colour codes from the summary so the help table aligns.
+        // eslint-disable-next-line no-control-regex -- matching the escape char is the point
+        return [c.id, summary ? summary.replaceAll(/\u001B\[\d+m/g, '') : ''] as [string, string]
       })
 
     // Only add promoted commands at the root level, not within a specific topic
@@ -69,6 +71,6 @@ export default class Help extends BaseHelp {
       stripAnsi: this.opts.stripAnsi,
     })
 
-    return this.section('COMMANDS', body + `\n\n\x1b[2mSee xano <topic> --help for all commands in a topic.\x1b[0m`)
+    return this.section('COMMANDS', body + `\n\n\u001B[2mSee xano <topic> --help for all commands in a topic.\u001B[0m`)
   }
 }

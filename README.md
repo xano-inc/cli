@@ -46,16 +46,16 @@ The Metadata API pages unevenly, so `list` commands differ in what they expose. 
 | Commands | Flags | Footer |
 |---|---|---|
 | `function list`, `unit_test list`, `workflow_test list` (plus `sandbox` / `tenant` variants) | `--page`, `--per_page` | `Page 2 · 50 shown · next: --page 3` |
-| `static_host list`, `static_host build list` | `--page` only | `Page 2 · 100 shown · 340 total` |
+| `static_host list`, `static_host build list` (plus `ephemeral` variants) | `--page` only | `Page 2 · 100 shown · 340 total` |
 | `branch list`, `workspace list`, `tenant snapshot list`, `sandbox env list`, `tenant env list` | none | `12 branches` |
-| `tenant list`, `release list`, `platform list`, `tenant cluster list` | none | none |
+| `tenant list`, `release list`, `platform list`, `tenant cluster list`, `ephemeral list` | none | none |
 | `tenant backup list` | `--page` only (pre-existing) | none |
 
 Notes:
 
 - **`--per_page` is only offered where the endpoint accepts it.** Static-host endpoints hardcode 100 items per page server-side, so those commands take `--page` alone. `xano static_host list --per_page 10` previously parsed but did nothing; it is now rejected rather than silently ignored.
 - **All paged commands default `--per_page` to 50.** The test-list commands previously requested 10000 internally so nothing was ever cut off; now that the footer and the JSON envelope both report position, a page that stops at 50 is visible rather than silent. Raise it (up to 10000) when you want everything in one call.
-- **The last group has no CLI paging.** Those endpoints page server-side but return a plain array with no page or total metadata, so the CLI cannot tell you where you are. Rather than show a page number with no context — or infer "more available" from a full page, which is wrong exactly when the result count is a multiple of the page size — these commands are left as-is. **They return at most 25–50 items** (50 for tenants, 25 for releases, platforms, and tenant backups). If you have more than that, query the Metadata API directly until those endpoints return paging metadata.
+- **The last group has no CLI paging.** Those endpoints page server-side but return a plain array with no page or total metadata, so the CLI cannot tell you where you are. Rather than show a page number with no context — or infer "more available" from a full page, which is wrong exactly when the result count is a multiple of the page size — these commands are left as-is. **They return at most 25–50 items** (50 for tenants and ephemerals, 25 for releases, platforms, and tenant backups). If you have more than that, query the Metadata API directly until those endpoints return paging metadata.
 - **`--output json` returns an envelope, not a bare array.** Every list command emits `{items, ...}` using the Metadata API's own field names — `curPage`, `nextPage`, `prevPage`, `itemsTotal` — each included only when the endpoint actually reports it. `perPage` is the one field the CLI adds, since the API never echoes it back and it is otherwise invisible at its default. This is a **breaking change** for scripts that parsed the previous bare array — read `.items` instead.
 
   ```jsonc
@@ -229,6 +229,51 @@ xano workspace git pull -r https://github.com/owner/private-repo -t ghp_xxx
 xano workspace git pull -r https://github.com/owner/repo --path subdir
 ```
 
+**One workspace document per tree.** A push directory must contain at most one
+`workspace/*.xs` document. The server applies the first workspace document it
+receives to the workspace being pushed into and silently discards the rest,
+without checking that it describes that workspace — so a second one renames the
+destination to a foreign name while leaving its content untouched. `workspace push`
+and `sandbox push` refuse a tree carrying more than one, naming the offending
+files; there is no `--force` override, because only you know which workspace the
+tree is meant to be.
+
+Trees pick up a second one easily: `pull` names the file after the workspace
+itself (`workspace/{name}.xs`), so pulling a different workspace into the same
+directory *adds* a file rather than overwriting, and renaming a workspace leaves
+the old-name file behind. Delete the stale ones, keeping the single document that
+matches your target workspace.
+
+### Flatten
+
+A hand-authored `.xs` file can hold several documents joined by `---`. That is
+convenient to edit but unsupported by `push`: the partial-diff filter and GUID
+writeback both parse only the first document in a file, so such a bundle
+silently pushes nothing (partial mode) or corrupts GUIDs (full mode). `push`
+refuses these files and offers to flatten them.
+
+`xano flatten` performs that split on demand, producing the same
+one-document-per-file tree `pull` would have written. It is purely local — no
+profile, token, or network — and deletes the original bundle once the split
+succeeds, unless you pass `--keep-source`.
+
+```bash
+# Split a bundle in place into per-document files (removes the original)
+xano flatten secret/pdf-micro/multidoc.xs
+
+# Write the split files somewhere else instead of alongside the bundle
+xano flatten ./bundle.xs -o ./workspace
+
+# Preview the resulting layout without writing anything
+xano flatten secret/pdf-micro/multidoc.xs --dry-run
+
+# Flatten every multi-doc .xs under a directory, keeping the originals
+xano flatten ./dir-of-bundles --keep-source
+
+# Overwrite existing destination files instead of erroring
+xano flatten ./bundle.xs --force
+```
+
 ### Knowledge
 
 Knowledge items are user-authored docs and skills (e.g. `CLAUDE.md`, `AGENTS.md`, runbooks)
@@ -323,6 +368,7 @@ xano function run <name> --data email=jo@x.com --data age:=30 --data active:=tru
 xano function run <name> --json @payload.json --data env=staging   # base payload + override
 echo '{"email":"jo@x.com"}' | xano function run <name> --stdin -o json | jq .result
 xano function run <name> --branch dev --logs            # run on a branch, show execution logs
+xano function run <name> --datasource test              # run against the 'test' data source
 ```
 
 Input flexibility for `function run` (assembled into one JSON `input` object):
@@ -334,6 +380,11 @@ Input flexibility for `function run` (assembled into one JSON `input` object):
 | `--data key@file` | field value read from a file |
 | `--json '<inline>'` / `--json @file.json` / `--json -` | a base JSON object (stdin with `-`) |
 | `--stdin` | read the JSON object from stdin (same as `--json -`) |
+
+`--datasource <label>` runs the function against a non-live data source by sending the
+`X-Data-Source` header, so table reads and writes hit that data source's tables. Omit it
+to run against `live`; an unknown label is rejected by the server with
+`Invalid data source.`
 
 Merge order is JSON base first, then `--data` overrides. Missing required inputs are
 prompted for on an interactive terminal; in a non-TTY (CI) context the command fails
@@ -693,6 +744,64 @@ xano tenant cluster license get <cluster_id>
 xano tenant cluster license set <cluster_id>
 xano tenant cluster license set <cluster_id> --file ./kubeconfig.yaml
 ```
+
+### Ephemeral Tenants
+
+Manage ephemeral tenants — short-lived, auto-expiring tenants scoped to a workspace (default TTL 1h, max 24h). Unlike a sandbox, an ephemeral tenant requires a workspace.
+
+```bash
+# List ephemeral tenants in the current workspace
+xano ephemeral list
+xano ephemeral list -w 5
+
+# List ephemeral tenants across every workspace you can access
+xano ephemeral list --global
+
+# Create an ephemeral tenant (workspace required)
+xano ephemeral create "PR preview"
+xano ephemeral create "Demo" --expires-hours 24 -w 5
+xano ephemeral create "Load test" -d "overnight soak" --expires-hours 24
+
+# Get / edit / delete
+xano ephemeral get <tenant_name>
+xano ephemeral edit <tenant_name> --display "New Name" -d "New description"
+xano ephemeral delete <tenant_name> --force
+
+# Pull to / push from local files (multidoc)
+xano ephemeral pull <tenant_name> -d ./my-ephemeral
+xano ephemeral push <tenant_name> -d ./my-ephemeral --dry-run   # preview first
+xano ephemeral push <tenant_name> -d ./my-ephemeral
+
+# Open in the browser (or print the URL)
+xano ephemeral impersonate <tenant_name>
+xano ephemeral impersonate <tenant_name> --url-only
+xano ephemeral impersonate <tenant_name> --guest       # read-only session (browse only)
+```
+
+#### Static hosting for an ephemeral tenant
+
+An ephemeral tenant can host static sites, scoped to that tenant. These commands mirror
+`xano static_host *` but take the tenant name as the first argument (the tenant's static
+hosting is isolated inside the tenant's own database).
+
+```bash
+# List / create / inspect a tenant's static hosts
+xano ephemeral static_host list <tenant_name>
+xano ephemeral static_host create <tenant_name> --name marketing --description "Marketing site"
+xano ephemeral static_host get <tenant_name> -H marketing
+xano ephemeral static_host edit <tenant_name> -H marketing --description "Updated"
+
+# Builds: push a directory, list, inspect, deploy to an env, pull, delete
+xano ephemeral static_host build push <tenant_name> -H default -f ./site
+xano ephemeral static_host build list <tenant_name> -H default
+xano ephemeral static_host build get <tenant_name> -H default --build_id 52
+xano ephemeral static_host deploy <tenant_name> -H default --build_id 52 --env prod
+xano ephemeral static_host build pull <tenant_name> -H default --latest
+xano ephemeral static_host build delete <tenant_name> -H default --build_id 52
+```
+
+> Static hosting is currently available for **local** tenants. Remote (tier2/tier3)
+> tenants are not yet supported and will return an error.
 
 ### Sandbox
 

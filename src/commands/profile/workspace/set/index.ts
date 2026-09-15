@@ -1,8 +1,6 @@
 import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
 
 import BaseCommand, {buildUserAgent} from '../../../../base-command.js'
 
@@ -25,8 +23,7 @@ Fetching workspaces...
 Workspace updated to 'Production API' (xyz789) on profile 'production'
 `,
   ]
-
-  static override flags = {
+static override flags = {
     ...BaseCommand.baseFlags,
   }
 
@@ -88,9 +85,9 @@ Workspace updated to 'Production API' (xyz789) on profile 'production'
   private async fetchWorkspaces(accessToken: string, origin: string): Promise<Workspace[]> {
     const response = await fetch(`${origin}/api:meta/workspace`, {
       headers: {
-        'User-Agent': buildUserAgent(this.config.version),
         accept: 'application/json',
         Authorization: `Bearer ${accessToken}`,
+        'User-Agent': buildUserAgent(this.config.version),
       },
       method: 'GET',
     })

@@ -112,8 +112,7 @@ function yo {
     }
 
     // If function_id is not provided, prompt user to select from list
-    let functionId: string
-    functionId = args.function_id ? args.function_id : await this.promptForFunctionId(profile, workspaceId)
+    const functionId = args.function_id || (await this.promptForFunctionId(profile, workspaceId))
 
     // Build query parameters
     // Automatically set include_xanoscript to true if output format is xs
@@ -215,9 +214,9 @@ function yo {
 
       const response = await fetch(listUrl, {
         headers: {
-          'User-Agent': buildUserAgent(this.config.version),
           accept: 'application/json',
           Authorization: `Bearer ${profile.access_token}`,
+          'User-Agent': buildUserAgent(this.config.version),
         },
         method: 'GET',
       })

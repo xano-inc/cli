@@ -1,4 +1,4 @@
-/* eslint-disable camelcase */
+ 
 import {Flags} from '@oclif/core'
 
 /**
@@ -19,7 +19,8 @@ import {Flags} from '@oclif/core'
  *                         so the item count IS the total.
  *
  * There is deliberately no tier for endpoints that page but return a bare array
- * with no metadata (tenants, releases, platforms, clusters, tenant backups). Those commands are left alone: the only has-more signal available
+ * with no metadata (tenants, releases, platforms, clusters, ephemerals, tenant
+ * backups). Those commands are left alone: the only has-more signal available
  * would be "the page came back full", which is a guaranteed false positive when
  * the result set is an exact multiple of the page size — sending the user to an
  * empty page. Better to offer nothing than to offer a lie.

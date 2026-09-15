@@ -1,13 +1,18 @@
 import {Flags} from '@oclif/core'
+import snakeCase from 'lodash.snakecase'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
-import * as path from 'node:path'
-
-import snakeCase from 'lodash.snakecase'
+import path from 'node:path'
 
 import BaseCommand, {buildUserAgent} from '../../../../base-command.js'
-import {buildApiGroupFolderResolver, type ParsedDocument, parseDocument} from '../../../../utils/document-parser.js'
+import {
+  buildApiGroupFolderResolver,
+  buildChannelServerResolver,
+  channelPathSegments,
+  type ParsedDocument,
+  parseDocument,
+} from '../../../../utils/document-parser.js'
 
 interface RepoInfo {
   host: 'github' | 'gitlab' | 'other'
@@ -20,8 +25,7 @@ interface RepoInfo {
 
 export default class GitPull extends BaseCommand {
   static override description = 'Pull XanoScript files from a git repository into a local directory'
-
-  static override examples = [
+static override examples = [
     `$ xano workspace git pull -r https://github.com/owner/repo`,
     `$ xano workspace git pull -d ./output -r https://github.com/owner/repo`,
     `$ xano workspace git pull -r https://github.com/owner/repo/tree/main/path/to/dir`,
@@ -31,8 +35,7 @@ export default class GitPull extends BaseCommand {
     `$ xano workspace git pull -r https://gitlab.com/owner/repo/-/tree/master/path`,
     `$ xano workspace git pull -r https://gitlab.com/owner/repo -b main`,
   ]
-
-  static override flags = {
+static override flags = {
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
@@ -79,13 +82,7 @@ export default class GitPull extends BaseCommand {
 
     try {
       // Fetch repository contents
-      let repoRoot: string
-
-      if (repoInfo.host === 'github') {
-        repoRoot = await this.fetchGitHubTarball(repoInfo.owner, repoInfo.repo, ref, token, tempDir, flags.verbose)
-      } else {
-        repoRoot = this.cloneRepo(repoInfo.url, ref, token, tempDir, flags.verbose)
-      }
+      const repoRoot = repoInfo.host === 'github' ? (await this.fetchGitHubTarball(repoInfo.owner, repoInfo.repo, ref, token, tempDir, flags.verbose)) : this.cloneRepo(repoInfo.url, ref, token, tempDir, flags.verbose);
 
       // Determine source directory (optionally scoped to --path or URL path)
       const sourceDir = subPath ? path.join(repoRoot, subPath) : repoRoot
@@ -125,11 +122,14 @@ export default class GitPull extends BaseCommand {
       fs.mkdirSync(outputDir, {recursive: true})
 
       const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
+      // Resolve a realtime v2 channel path -> owning realtime_server name, so
+      // messages can nest under their channel's server (see resolver docs).
+      const getChannelServer = buildChannelServerResolver(documents)
       const filenameCounters: Map<string, Map<string, number>> = new Map()
       let writtenCount = 0
 
       for (const doc of documents) {
-        const {baseName, typeDir} = this.resolveOutputPath(outputDir, doc, getApiGroupFolder)
+        const {baseName, typeDir} = this.resolveOutputPath(outputDir, doc, getApiGroupFolder, getChannelServer)
 
         fs.mkdirSync(typeDir, {recursive: true})
 
@@ -155,25 +155,6 @@ export default class GitPull extends BaseCommand {
       // Clean up temp directory
       fs.rmSync(tempDir, {force: true, recursive: true})
     }
-  }
-
-  /**
-   * Recursively collect all .xs files from a directory, sorted for deterministic ordering.
-   */
-  private collectFiles(dir: string): string[] {
-    const files: string[] = []
-    const entries = fs.readdirSync(dir, {withFileTypes: true})
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        files.push(...this.collectFiles(fullPath))
-      } else if (entry.isFile() && entry.name.endsWith('.xs')) {
-        files.push(fullPath)
-      }
-    }
-
-    return files.sort()
   }
 
   /**
@@ -208,6 +189,25 @@ export default class GitPull extends BaseCommand {
     }
 
     return cloneTarget
+  }
+
+  /**
+   * Recursively collect all .xs files from a directory, sorted for deterministic ordering.
+   */
+  private collectFiles(dir: string): string[] {
+    const files: string[] = []
+    const entries = fs.readdirSync(dir, {withFileTypes: true})
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        files.push(...this.collectFiles(fullPath))
+      } else if (entry.isFile() && entry.name.endsWith('.xs')) {
+        files.push(fullPath)
+      }
+    }
+
+    return files.sort()
   }
 
   /**
@@ -403,43 +403,155 @@ export default class GitPull extends BaseCommand {
     outputDir: string,
     doc: ParsedDocument,
     getApiGroupFolder: (name: string) => string,
+    getChannelServer: (channelName: string) => string | undefined,
   ): {baseName: string; typeDir: string} {
     let typeDir: string
     let baseName: string
 
-    if (doc.type === 'workspace') {
-      typeDir = path.join(outputDir, 'workspace')
+    switch (doc.type) {
+    case 'agent': {
+      typeDir = path.join(outputDir, 'ai', 'agent')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'workspace_trigger') {
-      typeDir = path.join(outputDir, 'workspace', 'trigger')
+    
+    break;
+    }
+
+    case 'agent_trigger': {
+      typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'error_trigger') {
+    
+    break;
+    }
+
+    case 'channel': {
+      // Realtime v2. The channel owns a directory named after itself (the full
+      // channel name, snake_cased into a single flat segment — like every other
+      // object), and its messages live in a message/ subfolder inside it. It
+      // nests under its owning realtime_server (from `server = "..."`):
+      //   channel "rooms/{room_id}" (server "chat")
+      //     → realtime/server/chat/channel/rooms_room_id/rooms_room_id.xs
+      //
+      // The channel name is snake_cased as a whole (rooms/{room_id} →
+      // rooms_room_id), so there is no path nesting and no bracket escaping —
+      // the on-disk name is a display form; the .xs content keeps the real
+      // name. A channel with no resolvable server (e.g. a pre-server export)
+      // falls back to the legacy flat channel/<path>/_channel.xs layout.
+      if (doc.server) {
+        typeDir = path.join(
+          outputDir,
+          'realtime',
+          'server',
+          this.sanitizeFilename(doc.server),
+          'channel',
+          snakeCase(doc.name),
+        )
+        baseName = snakeCase(doc.name)
+      } else {
+        typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
+        baseName = '_channel'
+      }
+    
+    break;
+    }
+
+    case 'error_trigger': {
       // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
       typeDir = path.join(outputDir, 'workspace', 'trigger')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'agent') {
-      typeDir = path.join(outputDir, 'ai', 'agent')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'mcp_server') {
+    
+    break;
+    }
+
+    case 'mcp_server': {
       typeDir = path.join(outputDir, 'ai', 'mcp_server')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'tool') {
-      typeDir = path.join(outputDir, 'ai', 'tool')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'agent_trigger') {
-      typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'mcp_server_trigger') {
+    
+    break;
+    }
+
+    case 'mcp_server_trigger': {
       typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'table_trigger') {
-      typeDir = path.join(outputDir, 'table', 'trigger')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'realtime_channel') {
+    
+    break;
+    }
+
+    case 'realtime_channel': {
       typeDir = path.join(outputDir, 'realtime', 'channel')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'realtime_trigger') {
+    
+    break;
+    }
+
+    case 'realtime_server': {
+      // Realtime v2 — see workspace/pull for the full rationale. Its own
+      // document is named after itself, mirroring api_group.
+      // realtime_server "chat" → realtime/server/chat/chat.xs
+      typeDir = path.join(outputDir, 'realtime', 'server', this.sanitizeFilename(doc.name))
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'realtime_trigger': {
       typeDir = path.join(outputDir, 'realtime', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'table_trigger': {
+      typeDir = path.join(outputDir, 'table', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'tool': {
+      typeDir = path.join(outputDir, 'ai', 'tool')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'workspace': {
+      typeDir = path.join(outputDir, 'workspace')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'workspace_trigger': {
+      typeDir = path.join(outputDir, 'workspace', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    default: { if (doc.type === 'message' && doc.channel) {
+      // Realtime v2 message → nests in a message/ subfolder under its channel,
+      // under that channel's server. The message names only its channel; the
+      // server is resolved by looking that channel up in the same multidoc
+      // (two-pass resolve).
+      //   message "post" on channel "rooms/{room_id}" (server "chat")
+      //     → realtime/server/chat/channel/rooms_room_id/message/post.xs
+      //
+      // Nesting matters beyond tidiness: message names are unique only WITHIN
+      // a channel, so a flat message/ directory would collide when two
+      // channels both define e.g. "say". A channel whose server can't be
+      // resolved falls back to the legacy flat channel/ layout.
+      const messageServer = getChannelServer(doc.channel)
+      typeDir = messageServer
+        ? path.join(
+            outputDir,
+            'realtime',
+            'server',
+            this.sanitizeFilename(messageServer),
+            'channel',
+            snakeCase(doc.channel),
+            'message',
+          )
+        : path.join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase))
       baseName = this.sanitizeFilename(doc.name)
     } else if (doc.type === 'api_group') {
       const groupFolder = getApiGroupFolder(doc.name)
@@ -464,6 +576,8 @@ export default class GitPull extends BaseCommand {
       if (doc.verb) {
         baseName = `${baseName}_${doc.verb}`
       }
+    }
+    }
     }
 
     return {baseName, typeDir}

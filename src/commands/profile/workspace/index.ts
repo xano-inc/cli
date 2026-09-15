@@ -1,8 +1,6 @@
 import {Command, Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
 
 import {resolveCredentialsPath} from '../../../base-command.js'
 
@@ -31,8 +29,7 @@ abc123-workspace-id
 # Copies the workspace ID to clipboard on macOS
 `,
   ]
-
-  static override flags = {
+static override flags = {
     config: Flags.string({
       char: 'c',
       description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
