@@ -33,10 +33,10 @@ export interface WaitOptions {
   statusUrl: string
   /** Overall wait budget in ms (default 300000 = 300s). */
   timeoutMs?: number
-  /** Authed fetch (command.verboseFetch bound), so TLS/dispatcher settings apply. */
-  verboseFetch: (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
   /** Verbose request logging passthrough. */
   verbose?: boolean
+  /** Authed fetch (command.verboseFetch bound), so TLS/dispatcher settings apply. */
+  verboseFetch: (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
 }
 
 export interface WaitResult {
@@ -49,11 +49,14 @@ export interface WaitResult {
 }
 
 /** Statuses that mean an awaited microservice has settled (no longer in flight). */
-const SETTLED = new Set(['ok', 'error'])
+const SETTLED = new Set(['error', 'ok'])
 /** Statuses that mean we don't wait on this microservice at all. */
-const NOT_AWAITED = new Set(['skipped', 'disabled'])
+const NOT_AWAITED = new Set(['disabled', 'skipped'])
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+const sleep = (ms: number): Promise<void> =>
+  new Promise((r) => {
+    setTimeout(r, ms)
+  })
 
 /** An awaited microservice is one that was auto-deployed and is not skipped/disabled. */
 export function isAwaited(entry: MicroserviceStatusEntry): boolean {
@@ -85,7 +88,7 @@ async function fetchStatus(opts: WaitOptions): Promise<MicroserviceStatusEntry[]
 
   const body = (await res.json()) as unknown
   if (!Array.isArray(body)) {
-    throw new Error('unexpected status response shape')
+    throw new TypeError('unexpected status response shape')
   }
 
   return body as MicroserviceStatusEntry[]
@@ -98,28 +101,26 @@ async function fetchStatus(opts: WaitOptions): Promise<MicroserviceStatusEntry[]
  */
 export async function waitForMicroservices(opts: WaitOptions): Promise<WaitResult> {
   const pollIntervalMs = opts.pollIntervalMs ?? 2000
-  const timeoutMs = opts.timeoutMs ?? 300000
+  const timeoutMs = opts.timeoutMs ?? 300_000
   const start = Date.now()
 
   let entries: MicroserviceStatusEntry[] = []
-  let consecutiveErrors = 0
 
   // Poll loop. We always do at least one fetch so `--wait` reports even when the
   // deployment already settled between the push returning and the first poll.
   for (;;) {
     const elapsed = Date.now() - start
     try {
+      // eslint-disable-next-line no-await-in-loop -- polling is sequential by design
       entries = await fetchStatus(opts)
-      consecutiveErrors = 0
       opts.onPoll?.(entries, elapsed)
       if (allSettled(entries)) {
         return {entries, hadError: entries.some((e) => isAwaited(e) && e.status === 'error'), timedOut: false}
       }
     } catch {
       // A transient status read failure is non-fatal — keep polling until the
-      // overall timeout. (Mirrors the frontend poller's tolerate-with-cap.) We
-      // don't surface each blip; the timeout is the real failure signal.
-      consecutiveErrors++
+      // overall timeout. There is deliberately no consecutive-failure cap: we
+      // don't surface each blip, and the timeout is the only failure signal.
     }
 
     if (Date.now() - start + pollIntervalMs > timeoutMs) {
@@ -131,6 +132,7 @@ export async function waitForMicroservices(opts: WaitOptions): Promise<WaitResul
       }
     }
 
+    // eslint-disable-next-line no-await-in-loop -- pacing the poll loop is the point
     await sleep(pollIntervalMs)
   }
 }

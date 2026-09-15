@@ -1,7 +1,7 @@
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
 import * as os from 'node:os'
+import path from 'node:path'
 
 const UPDATE_CHECK_FILE = path.join(os.homedir(), '.xano', 'update-check.json')
 const CHECK_INTERVAL_MS = 8 * 60 * 60 * 1000 // 8 hours
@@ -27,7 +27,7 @@ function isNewer(latest: string, current: string): boolean {
   return false
 }
 
-function readCache(): UpdateCheckCache | null {
+function readCache(): null | UpdateCheckCache {
   try {
     if (!fs.existsSync(UPDATE_CHECK_FILE)) return null
     const data = JSON.parse(fs.readFileSync(UPDATE_CHECK_FILE, 'utf8'))
@@ -64,7 +64,7 @@ function writeCache(latestVersion: string): void {
   }
 }
 
-function fetchLatestVersion(): string | null {
+function fetchLatestVersion(): null | string {
   try {
     return execSync('npm view @xano/cli version', {encoding: 'utf8', timeout: 5000}).trim()
   } catch {
@@ -78,13 +78,13 @@ function fetchLatestVersion(): string | null {
  *
  * The check hits npm at most once every 24 hours and caches the result.
  */
-export function checkForUpdate(currentVersion: string, forceCheck = false): string | null {
+export function checkForUpdate(currentVersion: string, forceCheck = false): null | string {
   if (!forceCheck && isBeta(currentVersion)) return null
 
   const cache = readCache()
   const now = Date.now()
 
-  let latestVersion: string | null = null
+  let latestVersion: null | string = null
 
   if (cache && now - cache.lastCheck < CHECK_INTERVAL_MS) {
     latestVersion = cache.latestVersion

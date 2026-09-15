@@ -1,8 +1,7 @@
 import {Args, Command, Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import {resolveCredentialsPath} from '../../../base-command.js'
 
@@ -49,12 +48,6 @@ Profile 'selfhosted' created successfully at ~/.xano/credentials.yaml
 `,
   ]
   static override flags = {
-    config: Flags.string({
-      char: 'c',
-      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
-      env: 'XANO_CONFIG',
-      required: false,
-    }),
     access_token: Flags.string({
       char: 't',
       description: 'Access token for the Xano Metadata API',
@@ -68,6 +61,12 @@ Profile 'selfhosted' created successfully at ~/.xano/credentials.yaml
     branch: Flags.string({
       char: 'b',
       description: 'Branch name',
+      required: false,
+    }),
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to credentials file (default: ~/.xano/credentials.yaml)',
+      env: 'XANO_CONFIG',
       required: false,
     }),
     default: Flags.boolean({

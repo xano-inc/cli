@@ -3,7 +3,7 @@ import inquirer from 'inquirer'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import BaseCommand, {buildUserAgent, type ProfileConfig} from '../../../base-command.js'
 
@@ -148,8 +148,7 @@ Name: my_function
     }
 
     // If function_id is not provided, prompt user to select from list
-    let functionId: string
-    functionId = args.function_id ? args.function_id : await this.promptForFunctionId(profile, workspaceId)
+    const functionId = args.function_id || (await this.promptForFunctionId(profile, workspaceId))
 
     // Read XanoScript content
     let xanoscript: string
@@ -259,7 +258,7 @@ Name: my_function
 
     if (!editor) {
       this.error(
-        'No editor configured. Please set the EDITOR or VISUAL environment variable.\n' + 'Example: export EDITOR=vim',
+        'No editor configured. Please set the EDITOR or VISUAL environment variable.\nExample: export EDITOR=vim',
       )
     }
 
@@ -267,7 +266,7 @@ Name: my_function
     try {
       execSync(`which ${editor.split(' ')[0]}`, {stdio: 'ignore'})
     } catch {
-      this.error(`Editor '${editor}' not found. Please set EDITOR to a valid editor.\n` + 'Example: export EDITOR=vim')
+      this.error(`Editor '${editor}' not found. Please set EDITOR to a valid editor.\nExample: export EDITOR=vim`)
     }
 
     // Read the original file
@@ -369,40 +368,36 @@ Name: my_function
     })
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/${functionId}?${queryParams.toString()}`
 
-    try {
-      const response = await fetch(apiUrl, {
-        headers: {
-          'User-Agent': buildUserAgent(this.config.version),
-          accept: 'application/json',
-          Authorization: `Bearer ${profile.access_token}`,
-        },
-        method: 'GET',
-      })
+    const response = await fetch(apiUrl, {
+      headers: {
+        accept: 'application/json',
+        Authorization: `Bearer ${profile.access_token}`,
+        'User-Agent': buildUserAgent(this.config.version),
+      },
+      method: 'GET',
+    })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
-      }
-
-      const result = (await response.json()) as any
-
-      // Handle xanoscript as an object with status and value
-      if (result.xanoscript) {
-        if (result.xanoscript.status === 'ok' && result.xanoscript.value !== undefined) {
-          return result.xanoscript.value
-        }
-
-        if (typeof result.xanoscript === 'string') {
-          return result.xanoscript
-        }
-
-        throw new Error(`Invalid xanoscript format: ${JSON.stringify(result.xanoscript)}`)
-      }
-
-      return ''
-    } catch (error) {
-      throw error
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
     }
+
+    const result = (await response.json()) as any
+
+    // Handle xanoscript as an object with status and value
+    if (result.xanoscript) {
+      if (result.xanoscript.status === 'ok' && result.xanoscript.value !== undefined) {
+        return result.xanoscript.value
+      }
+
+      if (typeof result.xanoscript === 'string') {
+        return result.xanoscript
+      }
+
+      throw new Error(`Invalid xanoscript format: ${JSON.stringify(result.xanoscript)}`)
+    }
+
+    return ''
   }
 
   private async promptForFunctionId(profile: ProfileConfig, workspaceId: string): Promise<string> {
@@ -421,9 +416,9 @@ Name: my_function
 
       const response = await fetch(listUrl, {
         headers: {
-          'User-Agent': buildUserAgent(this.config.version),
           accept: 'application/json',
           Authorization: `Bearer ${profile.access_token}`,
+          'User-Agent': buildUserAgent(this.config.version),
         },
         method: 'GET',
       })

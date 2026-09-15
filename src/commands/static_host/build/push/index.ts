@@ -1,7 +1,7 @@
 import {Args, Flags, ux} from '@oclif/core'
 import archiver from 'archiver'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import BaseCommand from '../../../../base-command.js'
 import {collectStaticHostFiles} from '../../../../utils/static-host-files.js'

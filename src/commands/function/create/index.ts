@@ -2,7 +2,7 @@ import {Flags} from '@oclif/core'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 

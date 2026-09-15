@@ -1,4 +1,4 @@
-/* eslint-disable camelcase */
+ 
 import {Flags} from '@oclif/core'
 
 /**

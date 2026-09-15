@@ -1,8 +1,6 @@
 import {Args, Command, Flags} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
 
 import {resolveCredentialsPath} from '../../../base-command.js'
 
@@ -20,8 +18,7 @@ export default class ProfileSet extends Command {
       required: true,
     }),
   }
-
-  static description = 'Set the default profile'
+static description = 'Set the default profile'
   static examples = [
     `$ xano profile set production
 Default profile set to 'production'

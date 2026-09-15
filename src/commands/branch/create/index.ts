@@ -10,13 +10,13 @@ interface Branch {
 }
 
 export default class BranchCreate extends BaseCommand {
-  static description = 'Create a new branch by cloning from an existing branch'
   static override args = {
     label: Args.string({
       description: 'Label for the new branch',
       required: true,
     }),
   }
+  static description = 'Create a new branch by cloning from an existing branch'
   static examples = [
     `$ xano branch create dev
 Created branch: dev

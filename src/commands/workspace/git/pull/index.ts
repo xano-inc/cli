@@ -1,10 +1,9 @@
 import {Flags} from '@oclif/core'
+import snakeCase from 'lodash.snakecase'
 import {execSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
-import * as path from 'node:path'
-
-import snakeCase from 'lodash.snakecase'
+import path from 'node:path'
 
 import BaseCommand, {buildUserAgent} from '../../../../base-command.js'
 import {
@@ -26,8 +25,7 @@ interface RepoInfo {
 
 export default class GitPull extends BaseCommand {
   static override description = 'Pull XanoScript files from a git repository into a local directory'
-
-  static override examples = [
+static override examples = [
     `$ xano workspace git pull -r https://github.com/owner/repo`,
     `$ xano workspace git pull -d ./output -r https://github.com/owner/repo`,
     `$ xano workspace git pull -r https://github.com/owner/repo/tree/main/path/to/dir`,
@@ -37,8 +35,7 @@ export default class GitPull extends BaseCommand {
     `$ xano workspace git pull -r https://gitlab.com/owner/repo/-/tree/master/path`,
     `$ xano workspace git pull -r https://gitlab.com/owner/repo -b main`,
   ]
-
-  static override flags = {
+static override flags = {
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
@@ -85,13 +82,7 @@ export default class GitPull extends BaseCommand {
 
     try {
       // Fetch repository contents
-      let repoRoot: string
-
-      if (repoInfo.host === 'github') {
-        repoRoot = await this.fetchGitHubTarball(repoInfo.owner, repoInfo.repo, ref, token, tempDir, flags.verbose)
-      } else {
-        repoRoot = this.cloneRepo(repoInfo.url, ref, token, tempDir, flags.verbose)
-      }
+      const repoRoot = repoInfo.host === 'github' ? (await this.fetchGitHubTarball(repoInfo.owner, repoInfo.repo, ref, token, tempDir, flags.verbose)) : this.cloneRepo(repoInfo.url, ref, token, tempDir, flags.verbose);
 
       // Determine source directory (optionally scoped to --path or URL path)
       const sourceDir = subPath ? path.join(repoRoot, subPath) : repoRoot
@@ -167,25 +158,6 @@ export default class GitPull extends BaseCommand {
   }
 
   /**
-   * Recursively collect all .xs files from a directory, sorted for deterministic ordering.
-   */
-  private collectFiles(dir: string): string[] {
-    const files: string[] = []
-    const entries = fs.readdirSync(dir, {withFileTypes: true})
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        files.push(...this.collectFiles(fullPath))
-      } else if (entry.isFile() && entry.name.endsWith('.xs')) {
-        files.push(fullPath)
-      }
-    }
-
-    return files.sort()
-  }
-
-  /**
    * Clone a git repository using shallow clone.
    */
   private cloneRepo(cloneUrl: string, ref: string, token: string, tempDir: string, verbose: boolean): string {
@@ -217,6 +189,25 @@ export default class GitPull extends BaseCommand {
     }
 
     return cloneTarget
+  }
+
+  /**
+   * Recursively collect all .xs files from a directory, sorted for deterministic ordering.
+   */
+  private collectFiles(dir: string): string[] {
+    const files: string[] = []
+    const entries = fs.readdirSync(dir, {withFileTypes: true})
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        files.push(...this.collectFiles(fullPath))
+      } else if (entry.isFile() && entry.name.endsWith('.xs')) {
+        files.push(fullPath)
+      }
+    }
+
+    return files.sort()
   }
 
   /**
@@ -417,47 +408,22 @@ export default class GitPull extends BaseCommand {
     let typeDir: string
     let baseName: string
 
-    if (doc.type === 'workspace') {
-      typeDir = path.join(outputDir, 'workspace')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'workspace_trigger') {
-      typeDir = path.join(outputDir, 'workspace', 'trigger')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'error_trigger') {
-      // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
-      typeDir = path.join(outputDir, 'workspace', 'trigger')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'agent') {
+    switch (doc.type) {
+    case 'agent': {
       typeDir = path.join(outputDir, 'ai', 'agent')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'mcp_server') {
-      typeDir = path.join(outputDir, 'ai', 'mcp_server')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'tool') {
-      typeDir = path.join(outputDir, 'ai', 'tool')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'agent_trigger') {
+    
+    break;
+    }
+
+    case 'agent_trigger': {
       typeDir = path.join(outputDir, 'ai', 'agent', 'trigger')
       baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'mcp_server_trigger') {
-      typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'table_trigger') {
-      typeDir = path.join(outputDir, 'table', 'trigger')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'realtime_channel') {
-      typeDir = path.join(outputDir, 'realtime', 'channel')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'realtime_trigger') {
-      typeDir = path.join(outputDir, 'realtime', 'trigger')
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'realtime_server') {
-      // Realtime v2 — see workspace/pull for the full rationale. Its own
-      // document is named after itself, mirroring api_group.
-      // realtime_server "chat" → realtime/server/chat/chat.xs
-      typeDir = path.join(outputDir, 'realtime', 'server', this.sanitizeFilename(doc.name))
-      baseName = this.sanitizeFilename(doc.name)
-    } else if (doc.type === 'channel') {
+    
+    break;
+    }
+
+    case 'channel': {
       // Realtime v2. The channel owns a directory named after itself (the full
       // channel name, snake_cased into a single flat segment — like every other
       // object), and its messages live in a message/ subfolder inside it. It
@@ -484,7 +450,85 @@ export default class GitPull extends BaseCommand {
         typeDir = path.join(outputDir, 'channel', ...channelPathSegments(doc.name, snakeCase))
         baseName = '_channel'
       }
-    } else if (doc.type === 'message' && doc.channel) {
+    
+    break;
+    }
+
+    case 'error_trigger': {
+      // error_trigger → workspace/trigger/{name}.xs (singleton, colocated with workspace triggers)
+      typeDir = path.join(outputDir, 'workspace', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'mcp_server': {
+      typeDir = path.join(outputDir, 'ai', 'mcp_server')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'mcp_server_trigger': {
+      typeDir = path.join(outputDir, 'ai', 'mcp_server', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'realtime_channel': {
+      typeDir = path.join(outputDir, 'realtime', 'channel')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'realtime_server': {
+      // Realtime v2 — see workspace/pull for the full rationale. Its own
+      // document is named after itself, mirroring api_group.
+      // realtime_server "chat" → realtime/server/chat/chat.xs
+      typeDir = path.join(outputDir, 'realtime', 'server', this.sanitizeFilename(doc.name))
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'realtime_trigger': {
+      typeDir = path.join(outputDir, 'realtime', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'table_trigger': {
+      typeDir = path.join(outputDir, 'table', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'tool': {
+      typeDir = path.join(outputDir, 'ai', 'tool')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'workspace': {
+      typeDir = path.join(outputDir, 'workspace')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    case 'workspace_trigger': {
+      typeDir = path.join(outputDir, 'workspace', 'trigger')
+      baseName = this.sanitizeFilename(doc.name)
+    
+    break;
+    }
+
+    default: { if (doc.type === 'message' && doc.channel) {
       // Realtime v2 message → nests in a message/ subfolder under its channel,
       // under that channel's server. The message names only its channel; the
       // server is resolved by looking that channel up in the same multidoc
@@ -532,6 +576,8 @@ export default class GitPull extends BaseCommand {
       if (doc.verb) {
         baseName = `${baseName}_${doc.verb}`
       }
+    }
+    }
     }
 
     return {baseName, typeDir}

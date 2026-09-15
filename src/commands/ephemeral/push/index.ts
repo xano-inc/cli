@@ -10,6 +10,30 @@ import {
 } from '../../../utils/microservice-wait.js'
 import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
 
+/** Status glyph for one microservice row in the `--wait` progress block. */
+const icon = (e: MicroserviceStatusEntry): string => {
+  if (!isAwaited(e)) return '➖'
+  switch (e.status) {
+    case 'error': {
+      return '❌'
+    }
+
+    case 'ok': {
+      return '✅'
+    }
+
+    default: {
+      return '⏳'
+    }
+  }
+}
+
+/** One rendered microservice row: glyph, padded name, status detail. */
+const line = (e: MicroserviceStatusEntry): string => {
+  const detail = isAwaited(e) ? e.detail || e.status : `skipped (${e.tenant_deploy ?? 'manual'})`
+  return `  ${icon(e)} ${e.name.padEnd(24)} ${detail}`
+}
+
 export default class EphemeralPush extends BaseCommand {
   static override args = {
     tenant_name: Args.string({
@@ -43,15 +67,15 @@ Skip preview and push immediately
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    delete: Flags.boolean({
+      default: false,
+      description: 'Delete remote objects not included in the push (requires --sync)',
+      required: false,
+    }),
     directory: Flags.string({
       char: 'd',
       default: '.',
       description: 'Directory containing documents to push (defaults to current directory)',
-      required: false,
-    }),
-    delete: Flags.boolean({
-      default: false,
-      description: 'Delete remote objects not included in the push (requires --sync)',
       required: false,
     }),
     'dry-run': Flags.boolean({
@@ -115,6 +139,8 @@ Skip preview and push immediately
       required: false,
     }),
   }
+/** Number of lines the last progress render wrote (for in-place TTY updates). */
+  private lastRenderLines = 0
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(EphemeralPush)
@@ -198,28 +224,6 @@ Skip preview and push immediately
     this.log('')
     this.log(`Waiting for microservices to deploy (timeout ${timeoutSeconds}s)…`)
 
-    const icon = (e: MicroserviceStatusEntry): string => {
-      if (!isAwaited(e)) return '➖'
-      switch (e.status) {
-        case 'error': {
-          return '❌'
-        }
-
-        case 'ok': {
-          return '✅'
-        }
-
-        default: {
-          return '⏳'
-        }
-      }
-    }
-
-    const line = (e: MicroserviceStatusEntry): string => {
-      const detail = isAwaited(e) ? e.detail || e.status : `skipped (${e.tenant_deploy ?? 'manual'})`
-      return `  ${icon(e)} ${e.name.padEnd(24)} ${detail}`
-    }
-
     const result = await waitForMicroservices({
       accessToken,
       onPoll: (entries) => {
@@ -256,8 +260,5 @@ Skip preview and push immediately
 
     this.log(`All microservices ready (${ready}/${awaited.length}).`)
   }
-
-  /** Number of lines the last progress render wrote (for in-place TTY updates). */
-  private lastRenderLines = 0
 
 }

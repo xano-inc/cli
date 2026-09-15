@@ -1,8 +1,7 @@
 import {Args, Flags} from '@oclif/core'
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-
 import snakeCase from 'lodash.snakecase'
+import * as fs from 'node:fs'
+import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {
@@ -69,7 +68,7 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
   async run(): Promise<void> {
     const {args, flags} = await this.parse(EphemeralPull)
 
-    const {profileName, profile} = this.resolveProfile(flags)
+    const {profile, profileName} = this.resolveProfile(flags)
 
     // Determine workspace_id from flag or profile
     let workspaceId: string
@@ -189,8 +188,7 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
       typeCounters.set(baseName, count + 1)
 
       // Append numeric suffix for duplicates
-      let filename: string
-      filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
+      const filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')

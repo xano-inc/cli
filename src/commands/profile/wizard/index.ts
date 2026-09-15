@@ -1,10 +1,8 @@
-import {ExitPromptError} from '@inquirer/core'
-import {Args, Command, Flags} from '@oclif/core'
+import {Command, Flags} from '@oclif/core'
 import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import {buildUserAgent, resolveCredentialsPath} from '../../../base-command.js'
 
@@ -249,20 +247,15 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       this.log('')
       this.log(`✓ Profile '${profileName}' created successfully!`)
     } catch (error) {
-      if (error instanceof ExitPromptError) {
+      // Ctrl+C at an inquirer prompt throws ExitPromptError. Match on the name
+      // rather than `instanceof`: inquirer bundles its own copy of
+      // @inquirer/core, so the thrown class won't match an imported one.
+      if ((error as Error)?.name === 'ExitPromptError') {
         this.log('Wizard cancelled.')
         process.exit(0)
       }
 
       throw error
-    }
-  }
-
-  private getHeaders(accessToken?: string): Record<string, string> {
-    return {
-      'User-Agent': buildUserAgent(this.config.version),
-      accept: 'application/json',
-      ...(accessToken && {Authorization: `Bearer ${accessToken}`}),
     }
   }
 
@@ -411,6 +404,14 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       return 'default'
     } catch {
       return 'default'
+    }
+  }
+
+  private getHeaders(accessToken?: string): Record<string, string> {
+    return {
+      accept: 'application/json',
+      'User-Agent': buildUserAgent(this.config.version),
+      ...(accessToken && {Authorization: `Bearer ${accessToken}`}),
     }
   }
 

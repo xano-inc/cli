@@ -1,8 +1,7 @@
 import {Flags} from '@oclif/core'
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-
 import snakeCase from 'lodash.snakecase'
+import * as fs from 'node:fs'
+import path from 'node:path'
 
 import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
 import {
@@ -187,8 +186,7 @@ Pulled 58 documents from release 'v1.0'
       typeCounters.set(baseName, count + 1)
 
       // Append numeric suffix for duplicates
-      let filename: string
-      filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
+      const filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')

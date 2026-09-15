@@ -2,7 +2,7 @@ import {Command, Flags, ux} from '@oclif/core'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
-import * as path from 'node:path'
+import path from 'node:path'
 import {Agent, type Dispatcher} from 'undici'
 
 import {checkForUpdate} from './update-check.js'
@@ -113,7 +113,7 @@ export interface SandboxTenant {
   ephemeral?: boolean
   id: number
   name: string
-  sandbox_expires_at?: string | number
+  sandbox_expires_at?: number | string
   state?: string
   xano_domain?: string
 }
@@ -179,91 +179,10 @@ export default abstract class BaseCommand extends Command {
   }
   // Override the flags property to include baseFlags
   static flags = BaseCommand.baseFlags
-
-  // Resolved project-local profile.yaml, set once in init() before run().
+// Resolved project-local profile.yaml, set once in init() before run().
   // Null when none was found or when an explicit -p/XANO_PROFILE overrides it.
   protected localProfile: null | {config: LocalProfileConfig; path: string} = null
-  protected updateNotice: string | null = null
-
-  async init(): Promise<void> {
-    await super.init()
-    this.localProfile = this.loadLocalProfile()
-    this.applyInsecureFromProfile()
-    this.maybePrintLocalProfileBanner()
-
-    const forceUpdateCheck = process.env.XANO_FORCE_UPDATE_CHECK === '1'
-    this.updateNotice = checkForUpdate(this.config.version, forceUpdateCheck)
-  }
-
-  /**
-   * Find and parse the nearest project-local profile.yaml, unless an explicit
-   * -p/XANO_PROFILE was given (in which case the local file is ignored).
-   */
-  private loadLocalProfile(): null | {config: LocalProfileConfig; path: string} {
-    if (argvHasProfileFlag(process.argv, process.env)) {
-      return null
-    }
-
-    // Walks up to the filesystem root (git-style). parseLocalProfile returns
-    // null for a profile.yaml with no recognized keys, so an unrelated file
-    // belonging to another tool is ignored rather than hijacked.
-    const filePath = findLocalProfilePath(process.cwd())
-    if (!filePath) {
-      return null
-    }
-
-    let config: LocalProfileConfig | null
-    try {
-      config = parseLocalProfile(fs.readFileSync(filePath, 'utf8'))
-    } catch (error) {
-      this.error(`${filePath}: ${(error as Error).message}`)
-    }
-
-    if (!config) {
-      this.warn(`Ignoring ${filePath}: no recognized profile keys found.`)
-      return null
-    }
-
-    return {config, path: filePath}
-  }
-
-  /** Print the one-line target banner when a local profile.yaml is in effect. */
-  private maybePrintLocalProfileBanner(): void {
-    if (!this.localProfile || this.isJsonOutput()) {
-      return
-    }
-
-    // Credential-management commands (the `profile` topic) operate on the
-    // credentials store directly and intentionally ignore the project-local
-    // pin, so the banner would be misleading for them.
-    if (this.id?.startsWith('profile')) {
-      return
-    }
-
-    const {config, path: filePath} = this.localProfile
-    const profileName = config.profile ?? this.getDefaultProfile()
-    const relativePath = path.relative(process.cwd(), filePath) || path.basename(filePath)
-    this.log(formatLocalProfileBanner(profileName, config.workspace, relativePath))
-  }
-
-  async finally(_: Error | undefined): Promise<void> {
-    if (this.updateNotice && !this.isJsonOutput()) {
-      this.log(this.updateNotice)
-    }
-
-    await super.finally(_)
-  }
-
-  private isJsonOutput(): boolean {
-    const args = process.argv
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] === '--output' && args[i + 1] === 'json') return true
-      if (args[i] === '-o' && args[i + 1] === 'json') return true
-      if (args[i] === '--output=json' || args[i] === '-o=json') return true
-    }
-
-    return false
-  }
+  protected updateNotice: null | string = null
 
   /**
    * Apply insecure TLS mode if the active profile has insecure: true.
@@ -286,23 +205,12 @@ export default abstract class BaseCommand extends Command {
     }
   }
 
-  // Helper method to get the default profile from credentials file
-  protected getDefaultProfile(): string {
-    try {
-      const credentials = this.loadCredentialsFile()
-      if (credentials?.default) {
-        return credentials.default
-      }
-
-      return 'default'
-    } catch {
-      return 'default'
+  async finally(_: Error | undefined): Promise<void> {
+    if (this.updateNotice && !this.isJsonOutput()) {
+      this.log(this.updateNotice)
     }
-  }
 
-  // Helper method to get the profile flag value
-  protected getProfile(): string | undefined {
-    return (this as any).flags?.profile
+    await super.finally(_)
   }
 
   /**
@@ -320,21 +228,18 @@ export default abstract class BaseCommand extends Command {
     return resolveCredentialsPath()
   }
 
-  protected loadCredentialsFile(): CredentialsFile | null {
-    const credentialsPath = this.getCredentialsPath()
+  // Helper method to get the default profile from credentials file
+  protected getDefaultProfile(): string {
+    try {
+      const credentials = this.loadCredentialsFile()
+      if (credentials?.default) {
+        return credentials.default
+      }
 
-    if (!fs.existsSync(credentialsPath)) {
-      return null
+      return 'default'
+    } catch {
+      return 'default'
     }
-
-    const fileContent = fs.readFileSync(credentialsPath, 'utf8')
-    const parsed = yaml.load(fileContent) as CredentialsFile
-
-    if (parsed && typeof parsed === 'object' && 'profiles' in parsed) {
-      return parsed
-    }
-
-    return null
   }
 
   /**
@@ -363,6 +268,112 @@ export default abstract class BaseCommand extends Command {
     }
 
     return (await response.json()) as SandboxTenant
+  }
+
+  // Helper method to get the profile flag value
+  protected getProfile(): string | undefined {
+    return (this as any).flags?.profile
+  }
+
+  async init(): Promise<void> {
+    await super.init()
+    this.localProfile = this.loadLocalProfile()
+    this.applyInsecureFromProfile()
+    this.maybePrintLocalProfileBanner()
+
+    const forceUpdateCheck = process.env.XANO_FORCE_UPDATE_CHECK === '1'
+    this.updateNotice = checkForUpdate(this.config.version, forceUpdateCheck)
+  }
+
+  protected loadCredentialsFile(): CredentialsFile | null {
+    const credentialsPath = this.getCredentialsPath()
+
+    if (!fs.existsSync(credentialsPath)) {
+      return null
+    }
+
+    const fileContent = fs.readFileSync(credentialsPath, 'utf8')
+    const parsed = yaml.load(fileContent) as CredentialsFile
+
+    if (parsed && typeof parsed === 'object' && 'profiles' in parsed) {
+      return parsed
+    }
+
+    return null
+  }
+
+  /**
+   * Poll a static-host build until it reaches a terminal status (ok | error),
+   * showing a live, ticking spinner with the current stage and elapsed time —
+   * mirroring the UI's build progress for async (package.json) builds, which
+   * keep running after the upload returns.
+   *
+   * On a TTY it renders an animated spinner via ux.action; when quiet (JSON
+   * output) or non-interactive it falls back to plain one-line status updates.
+   *
+   * Returns the final status. Resolves to the last-seen status on timeout.
+   */
+  protected async logStaticHostUrls(opts: {
+    profile: ProfileConfig
+    staticHost: string
+    tenantName?: string
+    verbose: boolean
+    workspaceId: string
+  }): Promise<void> {
+    const {profile, staticHost, tenantName, verbose, workspaceId} = opts
+    // When a tenant is scoped, target the tenant's static hosting; otherwise the
+    // workspace-level static host (default, unchanged behavior).
+    const scope = tenantName ? `/tenant/${tenantName}` : ''
+    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}${scope}/static_host/${staticHost}`
+
+    try {
+      const response = await this.verboseFetch(
+        url,
+        {
+          headers: {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`},
+          method: 'GET',
+        },
+        verbose,
+        profile.access_token,
+      )
+
+      if (!response.ok) return
+
+      const host = (await response.json()) as {dev?: {custom_url?: string; default_url?: string}; prod?: {custom_url?: string; default_url?: string}}
+      if (host.dev?.default_url) this.log(`Dev URL: ${host.dev.default_url}`)
+      if (host.dev?.custom_url) this.log(`Dev Custom URL: ${host.dev.custom_url}`)
+      if (host.prod?.default_url) this.log(`Prod URL: ${host.prod.default_url}`)
+      if (host.prod?.custom_url) this.log(`Prod Custom URL: ${host.prod.custom_url}`)
+    } catch {
+      // Non-fatal — the build succeeded, we just can't show the URL.
+    }
+  }
+
+  /**
+   * Parse an API error response and return a clean error message.
+   * Extracts the message from JSON responses and adds context for common errors.
+   */
+  protected async parseApiError(response: Response, fallbackPrefix: string): Promise<string> {
+    const errorText = await response.text()
+    let message = `${fallbackPrefix} (${response.status})`
+
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.message) {
+        message = errorJson.message
+      }
+    } catch {
+      if (errorText) {
+        message += `\n${errorText}`
+      }
+    }
+
+    // Provide guidance when sandbox access is denied (free plan restriction)
+    if (response.status === 500 && message === 'Access Denied.') {
+      message = 'Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.'
+    }
+
+    return message
   }
 
   /**
@@ -406,33 +417,6 @@ export default abstract class BaseCommand extends Command {
     }
 
     return {profile, profileName}
-  }
-
-  /**
-   * Parse an API error response and return a clean error message.
-   * Extracts the message from JSON responses and adds context for common errors.
-   */
-  protected async parseApiError(response: Response, fallbackPrefix: string): Promise<string> {
-    const errorText = await response.text()
-    let message = `${fallbackPrefix} (${response.status})`
-
-    try {
-      const errorJson = JSON.parse(errorText)
-      if (errorJson.message) {
-        message = errorJson.message
-      }
-    } catch {
-      if (errorText) {
-        message += `\n${errorText}`
-      }
-    }
-
-    // Provide guidance when sandbox access is denied (free plan restriction)
-    if (response.status === 500 && message === 'Access Denied.') {
-      message = 'Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.'
-    }
-
-    return message
   }
 
   /**
@@ -515,53 +499,6 @@ export default abstract class BaseCommand extends Command {
     }
 
     return response
-  }
-
-  /**
-   * Poll a static-host build until it reaches a terminal status (ok | error),
-   * showing a live, ticking spinner with the current stage and elapsed time —
-   * mirroring the UI's build progress for async (package.json) builds, which
-   * keep running after the upload returns.
-   *
-   * On a TTY it renders an animated spinner via ux.action; when quiet (JSON
-   * output) or non-interactive it falls back to plain one-line status updates.
-   *
-   * Returns the final status. Resolves to the last-seen status on timeout.
-   */
-  protected async logStaticHostUrls(opts: {
-    profile: ProfileConfig
-    staticHost: string
-    tenantName?: string
-    verbose: boolean
-    workspaceId: string
-  }): Promise<void> {
-    const {profile, staticHost, tenantName, verbose, workspaceId} = opts
-    // When a tenant is scoped, target the tenant's static hosting; otherwise the
-    // workspace-level static host (default, unchanged behavior).
-    const scope = tenantName ? `/tenant/${tenantName}` : ''
-    const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}${scope}/static_host/${staticHost}`
-
-    try {
-      const response = await this.verboseFetch(
-        url,
-        {
-          headers: {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`},
-          method: 'GET',
-        },
-        verbose,
-        profile.access_token,
-      )
-
-      if (!response.ok) return
-
-      const host = (await response.json()) as {dev?: {custom_url?: string; default_url?: string}; prod?: {custom_url?: string; default_url?: string}}
-      if (host.dev?.default_url) this.log(`Dev URL: ${host.dev.default_url}`)
-      if (host.dev?.custom_url) this.log(`Dev Custom URL: ${host.dev.custom_url}`)
-      if (host.prod?.default_url) this.log(`Prod URL: ${host.prod.default_url}`)
-      if (host.prod?.custom_url) this.log(`Prod Custom URL: ${host.prod.custom_url}`)
-    } catch {
-      // Non-fatal — the build succeeded, we just can't show the URL.
-    }
   }
 
   protected async waitForBuild(opts: {
@@ -654,6 +591,68 @@ export default abstract class BaseCommand extends Command {
 
     conclude(`stopped waiting after ${Math.round(timeoutMs / 1000)}s (last status: ${stage || 'unknown'})`)
     return stage
+  }
+
+  private isJsonOutput(): boolean {
+    const args = process.argv
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--output' && args[i + 1] === 'json') return true
+      if (args[i] === '-o' && args[i + 1] === 'json') return true
+      if (args[i] === '--output=json' || args[i] === '-o=json') return true
+    }
+
+    return false
+  }
+
+  /**
+   * Find and parse the nearest project-local profile.yaml, unless an explicit
+   * -p/XANO_PROFILE was given (in which case the local file is ignored).
+   */
+  private loadLocalProfile(): null | {config: LocalProfileConfig; path: string} {
+    if (argvHasProfileFlag(process.argv, process.env)) {
+      return null
+    }
+
+    // Walks up to the filesystem root (git-style). parseLocalProfile returns
+    // null for a profile.yaml with no recognized keys, so an unrelated file
+    // belonging to another tool is ignored rather than hijacked.
+    const filePath = findLocalProfilePath(process.cwd())
+    if (!filePath) {
+      return null
+    }
+
+    let config: LocalProfileConfig | null
+    try {
+      config = parseLocalProfile(fs.readFileSync(filePath, 'utf8'))
+    } catch (error) {
+      this.error(`${filePath}: ${(error as Error).message}`)
+    }
+
+    if (!config) {
+      this.warn(`Ignoring ${filePath}: no recognized profile keys found.`)
+      return null
+    }
+
+    return {config, path: filePath}
+  }
+
+  /** Print the one-line target banner when a local profile.yaml is in effect. */
+  private maybePrintLocalProfileBanner(): void {
+    if (!this.localProfile || this.isJsonOutput()) {
+      return
+    }
+
+    // Credential-management commands (the `profile` topic) operate on the
+    // credentials store directly and intentionally ignore the project-local
+    // pin, so the banner would be misleading for them.
+    if (this.id?.startsWith('profile')) {
+      return
+    }
+
+    const {config, path: filePath} = this.localProfile
+    const profileName = config.profile ?? this.getDefaultProfile()
+    const relativePath = path.relative(process.cwd(), filePath) || path.basename(filePath)
+    this.log(formatLocalProfileBanner(profileName, config.workspace, relativePath))
   }
 }
 

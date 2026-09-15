@@ -6,10 +6,8 @@ import {clearUpdateCache} from '../../update-check.js'
 
 export default class Update extends BaseCommand {
   static override description = 'Update the Xano CLI to the latest version'
-
-  static override examples = [`$ xano update`, `$ xano update --check`, `$ xano update --beta`]
-
-  static override flags = {
+static override examples = [`$ xano update`, `$ xano update --check`, `$ xano update --beta`]
+static override flags = {
     ...BaseCommand.flags,
     beta: Flags.boolean({
       description: 'Update to the latest beta version',

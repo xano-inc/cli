@@ -70,7 +70,7 @@ postgres://localhost:5432/mydb
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
-      const envVar = (await response.json()) as {name: string; value: string} | null
+      const envVar = (await response.json()) as null | {name: string; value: string}
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(envVar, null, 2))
