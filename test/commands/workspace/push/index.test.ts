@@ -170,18 +170,38 @@ describe('workspace push preview safety', () => {
     })
   }
 
-  for (const dryRun of [false, true]) {
-    for (const force of [false, true]) {
-      it(`fails disabled push with dry-run=${dryRun}, force=${force}`, async () => {
-        flags['dry-run'] = dryRun
-        flags.force = force
-        response = () => new Response('{"message":"Push is disabled"}', {status: 403})
-        const error = await failure()
-        expect(error.oclif?.exit).to.be.greaterThan(0)
-        expect(error.message.toLowerCase()).to.contain('push is disabled')
-        expect(requests).to.have.length(1)
-        expect(prompts).to.equal(0)
-      })
+  const disabled = [
+    // The backend raises this from a YAML assert (cloud-client meta/multidoc.yaml), so it is an HTTP 500.
+    {message: "Push is disabled for this workspace. Enable 'Allow Push' in Workspace Settings, or use sandbox commands instead: xano sandbox push, xano sandbox impersonate", status: 500},
+    {message: 'Push is disabled', status: 403},
+  ]
+  for (const {message, status} of disabled) {
+    for (const dryRun of [false, true]) {
+      for (const force of [false, true]) {
+        it(`fails disabled push with HTTP ${status}, dry-run=${dryRun}, force=${force}`, async () => {
+          flags['dry-run'] = dryRun
+          flags.force = force
+          response = () => new Response(JSON.stringify({message}), {status})
+          const error = await failure()
+          expect(error.oclif?.exit).to.equal(1)
+          expect(error.message).to.contain(message)
+          expect(error.message).to.contain('Allow Direct Workspace Push')
+          expect(error.message).not.to.contain('{"message"')
+          expect(requests).to.have.length(1)
+          expect(prompts).to.equal(0)
+        })
+      }
     }
   }
+
+  it('exits 1 with the raw server message when the import itself fails', async () => {
+    flags['dry-run'] = false
+    flags.force = true
+    response = () => new Response(JSON.stringify({message: 'Invalid block: enforcement', payload: {param: 'source'}}), {status: 500})
+    const error = await failure()
+    expect(error.oclif?.exit).to.equal(1)
+    expect(error.message).to.equal('Push failed (500): Invalid block: enforcement\n  Parameter: source')
+    expect(requests).to.have.length(1)
+    expect(new URL(requests[0]).pathname).to.match(/\/multidoc$/)
+  })
 })
