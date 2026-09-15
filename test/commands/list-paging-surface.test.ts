@@ -2,6 +2,9 @@
 import {expect} from 'chai'
 
 import BranchList from '../../src/commands/branch/list/index.js'
+import EphemeralList from '../../src/commands/ephemeral/list/index.js'
+import EphemeralStaticHostBuildList from '../../src/commands/ephemeral/static_host/build/list/index.js'
+import EphemeralStaticHostList from '../../src/commands/ephemeral/static_host/list/index.js'
 import FunctionList from '../../src/commands/function/list/index.js'
 import KnowledgeList from '../../src/commands/knowledge/list/index.js'
 import PlatformList from '../../src/commands/platform/list/index.js'
@@ -85,6 +88,15 @@ describe('list command paging surface', () => {
       expect(flagsOf(StaticHostBuildList)).to.not.include('per_page')
     })
 
+    it('ephemeral static_host list exposes page but not per_page', () => {
+      expect(flagsOf(EphemeralStaticHostList)).to.not.include('per_page')
+    })
+
+    it('ephemeral static_host build list exposes page but not per_page', () => {
+      expect(flagsOf(EphemeralStaticHostBuildList)).to.include('page')
+      expect(flagsOf(EphemeralStaticHostBuildList)).to.not.include('per_page')
+    })
+
     it('documents the server-fixed page size on the page flag', () => {
       const page = StaticHostList.flags.page as {description?: string}
       expect(page.description).to.contain('100')
@@ -101,6 +113,7 @@ describe('list command paging surface', () => {
       ['release list', ReleaseList],
       ['platform list', PlatformList],
       ['tenant cluster list', TenantClusterList],
+      ['ephemeral list', EphemeralList],
     ]
 
     for (const [name, cmd] of bareArray) {

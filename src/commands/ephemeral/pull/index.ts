@@ -1,10 +1,10 @@
-import {Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import snakeCase from 'lodash.snakecase'
 
-import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
+import BaseCommand from '../../../base-command.js'
 import {
   buildApiGroupFolderResolver,
   buildChannelServerResolver,
@@ -13,26 +13,28 @@ import {
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 
-interface Release {
-  id: number
-  name: string
-}
-
-export default class ReleasePull extends BaseCommand {
-  static override description = 'Pull a release multidoc from the Xano Metadata API and split into individual files'
+export default class EphemeralPull extends BaseCommand {
+  static override args = {
+    tenant_name: Args.string({
+      description: 'Ephemeral tenant name to pull from',
+      required: true,
+    }),
+  }
+  static override description = 'Pull an ephemeral tenant multidoc from the Xano Metadata API and split into individual files'
   static override examples = [
-    `$ xano release pull -r v1.0
-Pulled 42 documents from release 'v1.0' to current directory
+    `$ xano ephemeral pull e4f2-9ab1-xyz1
+Pulled 42 documents from tenant e4f2-9ab1-xyz1 to current directory
 `,
-    `$ xano release pull -d ./my-release -r v1.0
-Pulled 42 documents from release 'v1.0' to ./my-release
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 -d ./my-tenant
+Pulled 42 documents from tenant e4f2-9ab1-xyz1 to ./my-tenant
 `,
-    `$ xano release pull -d ./output -r v1.0 -w 40
-Pulled 15 documents from release 'v1.0' to ./output
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 -d ./output -w 40
+Pulled 15 documents from tenant e4f2-9ab1-xyz1 to ./output
 `,
-    `$ xano release pull -r v1.0 --profile production --env --records
-Pulled 58 documents from release 'v1.0'
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 --profile production --env --records
+Pulled 58 documents from tenant e4f2-9ab1-xyz1
 `,
+    `$ xano ephemeral pull e4f2-9ab1-xyz1 --draft`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -40,6 +42,11 @@ Pulled 58 documents from release 'v1.0'
       char: 'd',
       default: '.',
       description: 'Output directory for pulled documents (defaults to current directory)',
+      required: false,
+    }),
+    draft: Flags.boolean({
+      default: false,
+      description: 'Include draft versions',
       required: false,
     }),
     env: Flags.boolean({
@@ -52,11 +59,6 @@ Pulled 58 documents from release 'v1.0'
       description: 'Include records',
       required: false,
     }),
-    release: Flags.string({
-      char: 'r',
-      description: 'Release name to pull from',
-      required: true,
-    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -65,9 +67,9 @@ Pulled 58 documents from release 'v1.0'
   }
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(ReleasePull)
+    const {args, flags} = await this.parse(EphemeralPull)
 
-    const {profile} = this.resolveProfile(flags)
+    const {profileName, profile} = this.resolveProfile(flags)
 
     // Determine workspace_id from flag or profile
     let workspaceId: string
@@ -78,22 +80,22 @@ Pulled 58 documents from release 'v1.0'
     } else {
       this.error(
         `Workspace ID is required. Either:\n` +
-          `  1. Provide it as a flag: xano release pull -r <release_name> -w <workspace_id>\n` +
-          `  2. Set it in your profile using: xano profile:edit --workspace <workspace_id>`,
+          `  1. Provide it as a flag: xano ephemeral pull <tenant_name> -w <workspace_id>\n` +
+          `  2. Set it in your profile using: xano profile:edit ${profileName} -w <workspace_id>`,
       )
     }
 
-    const releaseName = flags.release
-    const releaseId = await this.resolveReleaseName(profile, workspaceId, releaseName, flags.verbose)
+    const tenantName = args.tenant_name
 
     // Build query parameters
     const queryParams = new URLSearchParams({
       env: flags.env.toString(),
+      include_draft: flags.draft.toString(),
       records: flags.records.toString(),
     })
 
     // Construct the API URL
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release/${releaseId}/multidoc?${queryParams.toString()}`
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/multidoc?${queryParams.toString()}`
 
     // Fetch multidoc from the API
     let responseText: string
@@ -195,49 +197,7 @@ Pulled 58 documents from release 'v1.0'
       writtenCount++
     }
 
-    this.log(`Pulled ${writtenCount} documents from release '${releaseName}' to ${flags.directory}`)
-  }
-
-  private async resolveReleaseName(
-    profile: ProfileConfig,
-    workspaceId: string,
-    releaseName: string,
-    verbose: boolean,
-  ): Promise<number> {
-    const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release`
-
-    const response = await this.verboseFetch(
-      listUrl,
-      {
-        headers: {
-          accept: 'application/json',
-          Authorization: `Bearer ${profile.access_token}`,
-        },
-        method: 'GET',
-      },
-      verbose,
-      profile.access_token,
-    )
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      this.error(`Failed to list releases: ${response.status} ${response.statusText}\n${errorText}`)
-    }
-
-    const data = (await response.json()) as Release[] | {items?: Release[]}
-    const releases: Release[] = Array.isArray(data)
-      ? data
-      : data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)
-        ? data.items
-        : []
-
-    const match = releases.find((r) => r.name === releaseName)
-    if (!match) {
-      const available = releases.map((r) => r.name).join(', ')
-      this.error(`Release '${releaseName}' not found.${available ? ` Available releases: ${available}` : ''}`)
-    }
-
-    return match.id
+    this.log(`Pulled ${writtenCount} documents from tenant ${tenantName} to ${flags.directory}`)
   }
 
 }
