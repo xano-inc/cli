@@ -1,4 +1,3 @@
-/* eslint-disable n/no-unsupported-features/node-builtins -- Fetch APIs are available on the supported Node 20 runtime. */
 import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 

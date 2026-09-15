@@ -1,4 +1,4 @@
-/* eslint-disable camelcase, n/no-unsupported-features/node-builtins, unicorn/filename-case -- Native API fields and supported Node fetch; repository filename convention. */
+/* eslint-disable unicorn/filename-case -- Repository filename convention. */
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
 import path from 'node:path'

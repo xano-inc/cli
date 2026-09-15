@@ -1,4 +1,4 @@
-/* eslint-disable camelcase, unicorn/filename-case -- Native API fields and repository filename convention. */
+/* eslint-disable unicorn/filename-case -- Repository filename convention. */
 import {expect} from 'chai'
 
 import {foldApiError, formatApiError} from '../../src/utils/api_error.js'

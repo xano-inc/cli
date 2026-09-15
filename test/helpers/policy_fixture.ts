@@ -1,4 +1,4 @@
-/* eslint-disable mocha/no-exports, mocha/no-top-level-hooks, n/no-unsupported-features/node-builtins, unicorn/filename-case -- Shared suite scaffolding registers hooks for the calling describe; native fetch is available on the supported Node 20 runtime; CLAUDE.md requires underscore filenames. */
+/* eslint-disable mocha/no-exports, mocha/no-top-level-hooks, unicorn/filename-case -- Shared suite scaffolding registers hooks for the calling describe; CLAUDE.md requires underscore filenames. */
 import {Config} from '@oclif/core'
 import * as fs from 'node:fs'
 import * as os from 'node:os'

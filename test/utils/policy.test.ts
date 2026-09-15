@@ -1,4 +1,3 @@
-/* eslint-disable camelcase -- Preserve server response field names. */
 import {expect} from 'chai'
 
 import {parseDocument} from '../../src/utils/document-parser.js'
