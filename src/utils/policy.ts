@@ -50,8 +50,10 @@ export interface PolicyCheck {
     message?: string
     object?: {name?: string; type?: string}
     policy_key?: string
+    policy_title?: string
     remediation?: string
     rule_id?: string
+    rule_title?: string
   }>
   message?: string
   results?: PolicyRuleResult[]
@@ -78,10 +80,12 @@ export function policySummary(check?: PolicyCheck): string[] {
   const lines = [`Policy check: ${outcome}`]
   if (check.message) lines.push(check.message)
   for (const finding of check.findings ?? []) {
+    const rule = finding.rule_title ?? finding.rule_id ?? 'finding'
+    const policy = finding.policy_title ?? finding.policy_key ?? 'policy'
     lines.push(
-      `  ${finding.rule_id ?? finding.policy_key ?? 'finding'}  ${finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${finding.message ?? ''}`,
+      `  ${rule} (${policy})  ${finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${finding.message ?? ''}`,
     )
-    if (finding.remediation) lines.push(`    Fix: ${finding.remediation}`)
+    if (finding.remediation) lines.push(`    How to fix: ${finding.remediation}`)
   }
 
   lines.push(...policyResultSummary(check.results))
