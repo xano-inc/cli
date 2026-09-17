@@ -66,7 +66,9 @@ Full sync including knowledge files; removes server objects not present locally
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    'allow_missing_policy_check': Flags.boolean({default: false, description: 'Allow a missing or unavailable policy check after import (does not override mandatory findings)'}),
+    // The repository convention is underscores; `--dry-run` and `--fail-on-findings` sit beside
+    // this one, so the hyphenated spelling is accepted too rather than failing as unknown.
+    'allow_missing_policy_check': Flags.boolean({aliases: ['allow-missing-policy-check'], default: false, description: 'Allow a missing or unavailable policy check after import (does not override mandatory findings). Also accepted as --allow-missing-policy-check'}),
     branch: Flags.string({
       char: 'b',
       description: 'Branch name (optional if set in profile, defaults to live)',

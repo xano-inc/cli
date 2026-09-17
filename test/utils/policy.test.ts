@@ -2,7 +2,18 @@ import {expect} from 'chai'
 
 import {parseDocument} from '../../src/utils/document-parser.js'
 import {filterChangedEntries} from '../../src/utils/multidoc-push.js'
-import {computeStatusRows, policyExitCode, policyFileName, policySummary, statusExitCode} from '../../src/utils/policy.js'
+import {
+  computeStatusRows,
+  policyExitCode,
+  policyFileName,
+  policyRuleName,
+  policyRunDetail,
+  policyRunRow,
+  policyRunSummary,
+  policySettings,
+  policySummary,
+  statusExitCode,
+} from '../../src/utils/policy.js'
 
 const result = (status: string, checked = 1) => ({check_id: 'R1', checked, policy_key: 'AUTH-001', status})
 
@@ -36,7 +47,22 @@ describe('policy carriage and feedback', () => {
       results: [{check_id: 'AUTH-001.R1', checked: 3, policy_key: 'AUTH-001', status: 'pass', warnings: ['API group "incidents" is not on this branch.']}],
       status: 'pass',
     }).join('\n')
-    expect(summary).to.contain('AUTH-001 AUTH-001.R1: warning: API group "incidents" is not on this branch.')
+    // Warnings are grouped under their own heading so "your scope is wrong" is not
+    // read as another finding.
+    expect(summary).to.contain('Warnings:\n  AUTH-001 AUTH-001.R1: API group "incidents" is not on this branch.')
+  })
+
+  it('separates rule errors from scope warnings under their own headings', () => {
+    const summary = policySummary({
+      results: [
+        {check_id: 'AUTH-001.R1', checked: 1, message: 'Unknown check', policy_key: 'AUTH-001', status: 'error'},
+        {check_id: 'AUTH-001.R2', checked: 1, policy_key: 'AUTH-001', status: 'pass', warnings: ['Tag "pii" is not on this branch.']},
+      ],
+      status: 'fail',
+    }).join('\n')
+    expect(summary).to.contain('Errors:\n  AUTH-001 AUTH-001.R1: Unknown check')
+    expect(summary).to.contain('Warnings:\n  AUTH-001 AUTH-001.R2: Tag "pii" is not on this branch.')
+    expect(summary.indexOf('Errors:')).to.be.lessThan(summary.indexOf('Warnings:'))
   })
 
   it('names an unnamed rule by its id instead of printing nothing', () => {
@@ -45,6 +71,106 @@ describe('policy carriage and feedback', () => {
       status: 'fail',
     }).join('\n')
     expect(summary).to.contain('AUTH-001.R1 (AUTH-001)')
+  })
+
+  it('names a rule by its author, then its check label, then its id', () => {
+    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication or a public tag'}
+    expect(policyRuleName({...rule, title: 'Endpoints declare auth'})).to.equal('Endpoints declare auth')
+    expect(policyRuleName({...rule, title: '  '})).to.equal('Endpoints declare authentication or a public tag')
+    expect(policyRuleName(rule)).to.equal('Endpoints declare authentication or a public tag')
+    expect(policyRuleName({check: 'query.auth_required', id: 'AUTH-001.R1'})).to.equal('AUTH-001.R1')
+    expect(policyRuleName({})).to.equal('')
+  })
+
+  it('names an unnamed finding by the label the run snapshot recorded', () => {
+    const check = {findings: [{message: 'No auth', policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1', rule_title: ''}], status: 'fail'}
+    const snapshot = [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication or a public tag', title: ''}]}]
+    expect(policySummary(check, snapshot).join('\n')).to.contain('Endpoints declare authentication or a public tag (AUTH-001)')
+    // An author title on the finding wins, and without a snapshot the id still names the rule.
+    expect(policySummary({...check, findings: [{...check.findings[0], rule_title: 'Auth declared'}]}, snapshot).join('\n')).to.contain('Auth declared (AUTH-001)')
+    expect(policySummary(check).join('\n')).to.contain('AUTH-001.R1 (AUTH-001)')
+  })
+
+  it('separates blocking findings from advisory ones and leads each line with its rule id', () => {
+    const findings = [
+      {id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1', rule_title: 'Endpoints declare auth'},
+      {id: 'F2', message: 'Stale tag', object: {name: 'account', type: 'table'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R2', rule_title: 'Tables carry a tag'},
+    ]
+    const summary = policySummary({blocking: true, blocking_findings: [findings[0]], findings, status: 'fail'}).join('\n')
+    // The only distinction that changes what the reader does next.
+    expect(summary).to.contain('Blocking findings (1) — these stop the merge:\n  AUTH-001.R1  Endpoints declare auth (AUTH-001)  query GET /x: No auth')
+    expect(summary).to.contain('Advisory findings (1) — reported, not blocking:\n  AUTH-001.R2  Tables carry a tag (AUTH-001)  table account: Stale tag')
+    expect(summary.indexOf('Blocking findings')).to.be.lessThan(summary.indexOf('Advisory findings'))
+  })
+
+  it('prints one ungrouped list when the platform did not distinguish the two groups', () => {
+    const findings = [{id: 'F1', message: 'No auth', policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}]
+    // An instance that sends no blocking_findings[] gets exactly the output it had before.
+    const advisory = policySummary({blocking: false, findings, status: 'fail'}).join('\n')
+    expect(advisory).to.not.contain('Blocking findings')
+    expect(advisory).to.not.contain('Advisory findings')
+    expect(advisory).to.contain('  AUTH-001.R1 (AUTH-001)')
+    // Every finding blocking is still worth saying, but there is no second group to name.
+    const allBlocking = policySummary({blocking: true, blocking_findings: findings, findings, status: 'fail'}).join('\n')
+    expect(allBlocking).to.contain('Blocking findings (1) — these stop the merge:')
+    expect(allBlocking).to.not.contain('Advisory findings')
+  })
+
+  it('reads a stored run without pretending it recorded whether a finding blocks', () => {
+    const run = {
+      findings: [{id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1', severity: 'high'}],
+      finished_at: '2026-09-17T22:42:00.980Z',
+      id: 1674,
+      objects_checked: 23,
+      results: [{check_id: 'AUTH-001.R1', checked: 23, policy_key: 'AUTH-001', status: 'fail'}],
+      started_at: '2026-09-17T22:42:00.903Z',
+      status: 'fail',
+      trigger: 'push',
+    }
+    const summary = policyRunSummary(run).join('\n')
+    expect(summary).to.contain('Run 1674  fail  push  2026-09-17T22:42:00.903Z → 2026-09-17T22:42:00.980Z  23 objects checked')
+    expect(summary).to.contain('Findings (1):\n  AUTH-001.R1 [high] (AUTH-001)  query GET /x: No auth')
+    // A stored run carries no `blocking`, so it never claims one way or the other.
+    expect(summary).to.not.contain('Blocking')
+    expect(policyRunSummary({findings: [], id: 9, status: 'pass'}).join('\n')).to.contain('No findings.')
+    expect(policyRunRow(run)).to.equal('1674  fail    1 findings    23 objects  push     2026-09-17T22:42:00.903Z')
+    // A run stored before objects_checked was recorded says so rather than showing a zero.
+    expect(policyRunRow({findings: [], id: 402, started_at: '2026-09-14T22:18:47.148Z', status: 'fail', trigger: 'manual'}))
+      .to.equal('402   fail    0 findings    — objects   manual   2026-09-14T22:18:47.148Z')
+  })
+
+  it('renders resolved settings compactly and treats an empty map as none', () => {
+    // Settings are sorted by name: the platform's own key order varies between runs, so
+    // printing it verbatim made two identical rules diff against each other.
+    expect(policySettings(JSON.parse('{"public_tag":"public","api_groups":["lab","incidents"]}'))).to.equal('settings: api_groups=[lab, incidents], public_tag=public')
+    expect(policySettings(JSON.parse('{"api_groups":["lab","incidents"],"public_tag":"public"}'))).to.equal('settings: api_groups=[lab, incidents], public_tag=public')
+    expect(policySettings({follow_addons: false, table_selector: {has_field: 'employee_id'}})).to.equal('settings: follow_addons=false, table_selector={"has_field":"employee_id"}')
+    // PHP spells an empty map `[]`, and an absent map is an older run.
+    for (const empty of [{}, [], undefined, null]) expect(policySettings(empty)).to.equal('')
+  })
+
+  it('reports what a run recorded and stays silent about a run that recorded nothing', () => {
+    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication or a public tag', title: ''}
+    const run = {
+      id: 1129,
+      policies: [{key: 'AUTH-001', rules: [{...rule, params: {api_groups: ['lab'], public_tag: 'public'}}], statement: 'A query declares an auth table or is tagged public.'}],
+      started_at: '2026-09-17T18:23:09.341Z',
+      trigger: 'manual',
+    }
+    expect(policyRunDetail(run)).to.deep.equal([
+      'Run 1129 as recorded (manual, 2026-09-17T18:23:09.341Z):',
+      '  AUTH-001  A query declares an auth table or is tagged public.',
+      '    AUTH-001.R1  Endpoints declare authentication or a public tag  settings: api_groups=[lab], public_tag=public',
+    ])
+    // A rule with nothing configured still ran; an old run carries neither statement nor params.
+    expect(policyRunDetail({...run, policies: [{key: 'AUTH-001', rules: [{...rule, params: []}], statement: ''}]})).to.deep.equal([
+      'Run 1129 as recorded (manual, 2026-09-17T18:23:09.341Z):',
+      '  AUTH-001',
+      '    AUTH-001.R1  Endpoints declare authentication or a public tag  settings: none',
+    ])
+    expect(policyRunDetail({...run, policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', title: ''}]}]})).to.deep.equal([])
+    expect(policyRunDetail({...run, policies: []})).to.deep.equal([])
+    expect(policyRunDetail()).to.deep.equal([])
   })
 
   it('keeps commented policy headers and treats their bodies as opaque source', () => {
@@ -82,6 +208,23 @@ describe('policy carriage and feedback', () => {
       expect(computeStatusRows([numeric], {...run, started_at: 2000})[0]).to.include({stale: false, status: 'fail'})
       expect(computeStatusRows([numeric])[0]).to.include({run_started_at: null, stale: true, status: 'not evaluated'})
       expect(computeStatusRows([{...numeric, lifecycle: 'draft'}])[0]).to.include({stale: false, status: 'draft; not evaluated'})
+    })
+
+    it('decides staleness on the version the run recorded, not on timestamps', () => {
+      // `version` moves only when the definition moves, so an equal one outranks a newer timestamp.
+      const versioned = {...policy, version: 4}
+      const snapshot = (version?: number) => ({...run, policies: [{key: 'AUTH-001', ...(version === undefined ? {} : {version})}]})
+      const later = {...versioned, updated_at: '2026-09-03T00:00:00Z'}
+      expect(computeStatusRows([later], snapshot(4))[0]).to.include({stale: false, status: 'fail'})
+      // A different version is stale even when the policy row looks older than the run.
+      expect(computeStatusRows([versioned], snapshot(3))[0]).to.include({stale: true, status: 'outdated; evaluate again'})
+
+      // Fallbacks, all three of them: a run stored before snapshots, a run whose snapshot never saw
+      // this policy, and an instance whose policy rows carry no version.
+      expect(computeStatusRows([later], run)[0]).to.include({stale: true})
+      expect(computeStatusRows([later], snapshot())[0]).to.include({stale: true})
+      expect(computeStatusRows([later], {...run, policies: [{key: 'PII-001', version: 4}]})[0]).to.include({stale: true})
+      expect(computeStatusRows([policy], snapshot(4))[0]).to.include({stale: false})
     })
 
     it('distinguishes error, partial, empty-coverage and advisory outcomes', () => {

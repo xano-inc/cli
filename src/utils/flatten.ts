@@ -2,7 +2,7 @@ import snakeCase from 'lodash.snakecase'
 import * as fs from 'node:fs'
 import {basename, dirname, join, relative, resolve} from 'node:path'
 
-import {placeDocuments, splitMultidoc} from './document-parser.js'
+import {documentFileContent, placeDocuments, splitMultidoc} from './document-parser.js'
 
 /** Outcome of flattening one bundle file. */
 export interface FlattenResult {
@@ -73,7 +73,7 @@ export function flattenBundleFile(bundleFile: string, opts: FlattenOptions = {})
     if (log) log(`  WRITE  ${relative(process.cwd(), abs) || p.relPath}`)
     if (!dryRun) {
       fs.mkdirSync(dirname(abs), {recursive: true})
-      fs.writeFileSync(abs, p.content.endsWith('\n') ? p.content : `${p.content}\n`, 'utf8')
+      fs.writeFileSync(abs, documentFileContent(p.content), 'utf8')
     }
 
     written.push(abs)

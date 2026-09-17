@@ -1608,7 +1608,10 @@ export async function executePush(
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   const parts: string[] = []
-  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
+  // `--force` skips the preview, so every document is sent whether or not it changed.
+  // Saying "28 documents" after a dry-run said "No changes to push." reads as a
+  // contradiction unless the count says what it is counting.
+  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents${flags.force && !dryRunPreview ? ' (--force sends every document, changed or not)' : ''}`)
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const kParts = [`${knowledgeImported} knowledge file${knowledgeImported === 1 ? '' : 's'}`]
     if (shouldDelete && knowledgeDeleted > 0) kParts.push(`${knowledgeDeleted} deleted`)
@@ -1619,14 +1622,52 @@ export async function executePush(
   if (flags.output === 'json') command.log(JSON.stringify({...pushResponse, documents: pushedDocCount, imported: true, knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported}}, null, 2))
   if (!knowledgeOnly && target.requiresPolicyCheck) {
     const check = pushResponse.policy_check as PolicyCheck | undefined
-    if (flags.output !== 'json') for (const line of policySummary(check)) log(line)
+    if (flags.output !== 'json') {
+      // The push writes policy documents like any other, but they are the one document
+      // type whose effect the reader cannot see anywhere else in this output — so name
+      // them, and say what happened to each, before the findings they will produce.
+      for (const line of policyDocumentSummary(multidoc, dryRunPreview)) log(line)
+      for (const line of policySummary(check)) log(line)
+    }
+
     const code = policyExitCode(check, flags.allow_missing_policy_check)
     if (code) {
       process.exitCode = code
+      // "Requires attention" is not a next step. Name the command that shows the run.
+      if (flags.output !== 'json') log('Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
       command.warn('Workspace import completed. Policy feedback requires attention; imported changes were not rolled back.')
     }
   }
 
+}
+
+/**
+ * Which policy documents this push wrote, and what happened to each. The dry-run
+ * preview knows created/updated/unchanged; a `--force` push skips the preview, so it
+ * can only name what it sent. Either way the reader stops having to infer from a
+ * document count whether their policy actually landed.
+ */
+export function policyDocumentSummary(multidoc: string, preview: null | {operations: Array<{action: string; name: string; type: string}>}): string[] {
+  const sent = multidoc
+    .split('\n---\n')
+    .map((block) => parseDocument(block))
+    .filter((parsed) => parsed?.type === 'policy')
+    .map((parsed) => parsed!.name)
+  const operations = (preview?.operations ?? []).filter((op) => op.type === 'policy')
+  if (sent.length === 0 && operations.length === 0) return []
+  if (operations.length === 0) return [`Policy documents sent (${sent.length}): ${[...sent].sort().join(', ')}`]
+
+  const named = (action: string) =>
+    operations.filter((op) => op.action === action).map((op) => op.name).sort()
+  const created = named('create')
+  const updated = named('update')
+  const unchanged = named('unchanged')
+  const parts = [
+    created.length > 0 && `${created.length} created (${created.join(', ')})`,
+    updated.length > 0 && `${updated.length} updated (${updated.join(', ')})`,
+    unchanged.length > 0 && `${unchanged.length} unchanged`,
+  ].filter(Boolean)
+  return parts.length > 0 ? [`Policy documents: ${parts.join(', ')}`] : []
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────

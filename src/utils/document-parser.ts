@@ -469,6 +469,22 @@ export function splitMultidoc(blob: string): ParsedDocument[] {
   return documents
 }
 
+/**
+ * The bytes a pulled document is written with: its content, terminated by a
+ * newline.
+ *
+ * Splitting a multidoc on `\n---\n` and trimming each block strips the newline
+ * the platform's own canonical form ends with (`policy parse` emits `}\n`), so
+ * writing `doc.content` straight out leaves every file one byte short of the
+ * form it would be published in — and git reports `\ No newline at end of file`
+ * on every file of a fresh pull. `flatten` already terminated its output this
+ * way; every pull writer uses this so all document types, not just policies,
+ * follow the one rule.
+ */
+export function documentFileContent(content: string): string {
+  return content.endsWith('\n') ? content : `${content}\n`
+}
+
 /** A document's resolved on-disk location relative to the output root, plus its content. */
 export interface PlacedDocument {
   content: string
