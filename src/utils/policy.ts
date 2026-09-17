@@ -1,6 +1,7 @@
 /** Reporting and file transport only. Policy grammar belongs to the platform. */
 export interface PolicyCatalogueEntry {
   description?: string
+  fix_hint?: string
   id: string
   object_kinds?: string[]
   params?: Record<string, {required?: boolean; type?: string}>
@@ -13,7 +14,7 @@ export function policyCatalogueSummary(checks: PolicyCatalogueEntry[]): string[]
     ['Check ID', 'Title / Description', 'Object kinds', 'Required params'],
     ...checks.map(check => [
       check.id,
-      [check.title, check.description].filter(Boolean).join(': '),
+      [[check.title, check.description].filter(Boolean).join(': '), check.fix_hint && `Fix hint: ${check.fix_hint}`].filter(Boolean).join('\n'),
       (check.object_kinds ?? []).join(', ') || '—',
       Object.entries(check.params ?? {}).filter(([, schema]) => schema.required)
         .map(([name, schema]) => `${name}: ${schema.type ?? 'any'}`).join(', ') || 'none',
@@ -21,16 +22,16 @@ export function policyCatalogueSummary(checks: PolicyCatalogueEntry[]): string[]
   ]
   const widths = rows[0].map((_, column) => Math.min([36, 46, 24, 32][column], Math.max(...rows.map(row => row[column].length))))
   return rows.flatMap(row => {
-    const cells = row.map((cell, column) => {
+    const cells = row.map((cell, column) => cell.split('\n').flatMap(paragraph => {
       const lines = ['']
-      for (const word of cell.split(/\s+/)) {
+      for (const word of paragraph.split(/\s+/)) {
         const last = lines.length - 1
         if (lines[last] && lines[last].length + word.length + 1 > widths[column]) lines.push(word)
         else lines[last] += `${lines[last] ? ' ' : ''}${word}`
       }
 
       return lines
-    })
+    }))
     return Array.from({length: Math.max(...cells.map(cell => cell.length))}, (_, line) =>
       cells.map((cell, column) => (cell[line] ?? '').padEnd(widths[column])).join('  ').trimEnd())
   })
@@ -42,6 +43,7 @@ export interface PolicyRuleResult {
   message?: string
   policy_key?: string
   status?: string
+  warnings?: string[]
 }
 
 export interface PolicyCheck {
@@ -51,7 +53,6 @@ export interface PolicyCheck {
     object?: {name?: string; type?: string}
     policy_key?: string
     policy_title?: string
-    remediation?: string
     rule_id?: string
     rule_title?: string
   }>
@@ -80,12 +81,12 @@ export function policySummary(check?: PolicyCheck): string[] {
   const lines = [`Policy check: ${outcome}`]
   if (check.message) lines.push(check.message)
   for (const finding of check.findings ?? []) {
-    const rule = finding.rule_title ?? finding.rule_id ?? 'finding'
-    const policy = finding.policy_title ?? finding.policy_key ?? 'policy'
+    // A rule has no name of its own unless its author gave it one, so an empty title falls through.
+    const rule = finding.rule_title || finding.rule_id || 'finding'
+    const policy = finding.policy_title || finding.policy_key || 'policy'
     lines.push(
       `  ${rule} (${policy})  ${finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${finding.message ?? ''}`,
     )
-    if (finding.remediation) lines.push(`    How to fix: ${finding.remediation}`)
   }
 
   lines.push(...policyResultSummary(check.results))
@@ -97,6 +98,11 @@ export function policyResultSummary(results: PolicyRuleResult[] = []): string[] 
   for (const result of results) {
     if (result.status === 'error') {
       lines.push(`  ${result.policy_key ?? 'policy'} ${result.check_id ?? 'rule'}: error: ${result.message ?? 'No diagnostic returned.'}`)
+    }
+
+    // A rule can pass on the names that exist while part of its scope selects nothing.
+    for (const warning of result.warnings ?? []) {
+      lines.push(`  ${result.policy_key ?? 'policy'} ${result.check_id ?? 'rule'}: warning: ${warning}`)
     }
   }
 

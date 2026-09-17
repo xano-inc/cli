@@ -20,15 +20,31 @@ describe('policy carriage and feedback', () => {
     expect(policyExitCode(undefined, true)).to.equal(0)
   })
 
-  it('prints remediation and does not call missing checks a pass', () => {
+  it('prints findings and does not call missing checks a pass', () => {
     expect(policySummary().join('\n')).to.contain('unavailable')
     expect(
       policySummary({
         blocking: true,
-        findings: [{message: 'No auth', remediation: 'Enable auth', rule_id: 'R1'}],
+        findings: [{message: 'No auth', rule_id: 'R1'}],
         status: 'fail',
       }).join('\n'),
-    ).to.contain('Enable auth')
+    ).to.contain('No auth')
+  })
+
+  it('prints a warning for a name the branch does not have, even when the rule passed', () => {
+    const summary = policySummary({
+      results: [{check_id: 'AUTH-001.R1', checked: 3, policy_key: 'AUTH-001', status: 'pass', warnings: ['API group "incidents" is not on this branch.']}],
+      status: 'pass',
+    }).join('\n')
+    expect(summary).to.contain('AUTH-001 AUTH-001.R1: warning: API group "incidents" is not on this branch.')
+  })
+
+  it('names an unnamed rule by its id instead of printing nothing', () => {
+    const summary = policySummary({
+      findings: [{message: 'No auth', policy_key: 'AUTH-001', policy_title: '', rule_id: 'AUTH-001.R1', rule_title: ''}],
+      status: 'fail',
+    }).join('\n')
+    expect(summary).to.contain('AUTH-001.R1 (AUTH-001)')
   })
 
   it('keeps commented policy headers and treats their bodies as opaque source', () => {

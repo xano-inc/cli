@@ -11,7 +11,7 @@ const catalogue = [{
   id: 'stack.statement_forbidden',
   object_kinds: ['query', 'function'],
   params: {scope: {required: false, type: 'object'}, statements: {required: true, type: 'string[]'}},
-}, {description: 'Check authentication tables.', id: 'table.auth_table_rules', object_kinds: ['table'], params: []}]
+}, {description: 'Check authentication tables.', fix_hint: 'Enable auth.', id: 'table.auth_table_rules', object_kinds: ['table'], params: []}]
 const backendError = {
   code: 'ERROR_CODE_SYNTAX_ERROR',
   message: 'Invalid block: enforcement',
@@ -48,7 +48,7 @@ describe('policy reporting regressions', () => {
       globalThis.fetch = async () => json(catalogue)
       const result = await command('policy catalogue', flags)
       expect(result.error).to.equal(undefined)
-      for (const text of ['Check ID', 'Description', 'Object kinds', 'Required params', 'stack.statement_forbidden', 'query, function', 'statements: string[]', 'Check authentication tables.'])
+      for (const text of ['Check ID', 'Description', 'Object kinds', 'Required params', 'stack.statement_forbidden', 'query, function', 'statements: string[]', 'Check authentication tables.', 'Fix hint: Enable auth.'])
         expect(result.stdout).to.contain(text)
       expect(result.stdout).not.to.contain('"required":')
       expect(result.stdout).not.to.contain('scope: object')

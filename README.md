@@ -175,8 +175,8 @@ xano profile delete myprofile --force
 Policies combine a human description with deterministic check rules. The platform validates and formats native XanoScript; the CLI does not maintain a policy grammar. Policy writes require an instance admin/explore membership and the dedicated `workspace:policy` permissions.
 
 ```bash
-xano policy catalogue                                 # Table of checks, inspected object kinds and required params
-xano policy catalogue -o json                         # Built-in checks and parameter schemas
+xano policy catalogue                                 # Table of checks, inspected object kinds, required params and any fix hint
+xano policy catalogue -o json                         # Built-in checks, parameter schemas and optional fix_hint
 xano policy list -o json                              # Policies on the selected workspace branch
 xano policy parse --file policies/AUTH-001.xs           # Validate and print canonical XanoScript
 xano policy parse --file policies/AUTH-001.xs -o json   # {policy, source} from the native parser
@@ -203,7 +203,7 @@ xano workspace push --force -o json                   # CI: skip the preview; JS
 xano workspace push --allow_missing_policy_check      # Explicitly permit unavailable feedback
 ```
 
-After an actual workspace import, the CLI prints the server's `policy_check`, including findings and remediation. Mandatory findings exit **2**; missing, errored or unavailable feedback exits **1**; advisory findings exit **0**. The import has already completed, so these exit codes do not mean the changes were rolled back. `--allow_missing_policy_check` permits unavailable feedback for compatibility and never overrides mandatory findings. `policy evaluate` uses the same exit meanings. JSON output remains parseable even when findings cause a nonzero exit; verbose diagnostics (`-v` or `XANO_VERBOSE`) go to stderr with `-o json`. Evaluate, push, and status summaries include errored rule IDs and messages before the zero-object coverage notice. Status gives rule errors precedence over failures and reports an absent run, outdated policy, or zero examined objects explicitly rather than claiming coverage. Historical status does not run a fresh evaluation.
+After an actual workspace import, the CLI prints the server's `policy_check`, including each finding's object and message. Mandatory findings exit **2**; missing, errored or unavailable feedback exits **1**; advisory findings exit **0**. The import has already completed, so these exit codes do not mean the changes were rolled back. `--allow_missing_policy_check` permits unavailable feedback for compatibility and never overrides mandatory findings. `policy evaluate` uses the same exit meanings. JSON output remains parseable even when findings cause a nonzero exit; verbose diagnostics (`-v` or `XANO_VERBOSE`) go to stderr with `-o json`. Evaluate, push, and status summaries include errored rule IDs and messages before the zero-object coverage notice. Status gives rule errors precedence over failures and reports an absent run, outdated policy, or zero examined objects explicitly rather than claiming coverage. Historical status does not run a fresh evaluation.
 
 For CI decisions about mandatory findings, key on `policy_check.blocking`, not `policy_check.status`. Native advisory-only feedback has `status: "fail"` and `blocking: false`; JSON preserves those values, while the summary reads `Policy check: advisory findings (not blocking)`. Also check the command exit code for operational failures or unavailable evidence.
 
