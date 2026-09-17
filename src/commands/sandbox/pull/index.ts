@@ -7,6 +7,7 @@ import BaseCommand from '../../../base-command.js'
 import {
   buildApiGroupFolderResolver,
   buildChannelServerResolver,
+  documentFileContent,
   type ParsedDocument,
   parseDocument,
   resolveDocumentPath,
@@ -145,7 +146,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       const filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
 
       const filePath = path.join(typeDir, filename)
-      fs.writeFileSync(filePath, doc.content, 'utf8')
+      fs.writeFileSync(filePath, documentFileContent(doc.content), 'utf8')
       writtenCount++
     }
 

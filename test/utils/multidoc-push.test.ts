@@ -12,6 +12,7 @@ import {
   findMultiDocEntries,
   findWorkspaceEntries,
   normalizeFilterPattern,
+  policyDocumentSummary,
 } from '../../src/utils/multidoc-push.js'
 
 describe('multidoc-push helpers', () => {
@@ -349,6 +350,36 @@ describe('multidoc-push helpers', () => {
 
     it('returns nothing when there is no filter at all, so an unfiltered push is never blocked', () => {
       expect(deletesHittingFilteredOut([{action: 'delete', name: 'user', type: 'table'}], [])).to.deep.equal([])
+    })
+  })
+
+  describe('policyDocumentSummary', () => {
+    const multidoc = [
+      'policy AUTH-001 {\n  title = "Auth"\n}',
+      'policy SEC-100 {\n  title = "Appsec"\n}',
+      'table account {\n  schema {\n  }\n}',
+    ].join('\n---\n')
+
+    it('says what happened to each policy when the push previewed the change', () => {
+      // The preview knows more than the multidoc does: it also sees the policies that
+      // a partial push did not send because nothing about them changed.
+      expect(policyDocumentSummary(multidoc, {operations: [
+        {action: 'create', name: 'AUTH-001', type: 'policy'},
+        {action: 'update', name: 'SEC-100', type: 'policy'},
+        {action: 'unchanged', name: 'POL-001', type: 'policy'},
+        {action: 'update', name: 'account', type: 'table'},
+      ]})).to.deep.equal(['Policy documents: 1 created (AUTH-001), 1 updated (SEC-100), 1 unchanged'])
+    })
+
+    it('names what it sent when --force skipped the preview', () => {
+      expect(policyDocumentSummary(multidoc, null)).to.deep.equal([
+        'Policy documents sent (2): AUTH-001, SEC-100',
+      ])
+    })
+
+    it('stays silent about a push that carries no policy at all', () => {
+      expect(policyDocumentSummary('table account {\n  schema {\n  }\n}', null)).to.deep.equal([])
+      expect(policyDocumentSummary('', {operations: [{action: 'update', name: 'account', type: 'table'}]})).to.deep.equal([])
     })
   })
 })

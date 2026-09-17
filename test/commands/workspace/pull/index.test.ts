@@ -7,6 +7,8 @@ import path from 'node:path'
 import Pull from '../../../../src/commands/workspace/pull/index.js'
 
 const policy = (key: string) => `policy ${key} {\n title = "${key}"\n}`
+/** What the writer puts on disk: the document's own bytes, newline-terminated. */
+const onDisk = (key: string) => `${policy(key)}\n`
 
 describe('workspace pull policy files', () => {
   let directory: string
@@ -56,7 +58,26 @@ describe('workspace pull policy files', () => {
 
     expect(error?.message).to.contain('Policy filename collision')
     expect(fs.readdirSync(path.join(directory, 'policies'))).to.deep.equal(['AUTH-001.xs'])
-    expect(fs.readFileSync(path.join(directory, 'policies', 'AUTH-001.xs'), 'utf8')).to.equal(policy('AUTH-001'))
+    expect(fs.readFileSync(path.join(directory, 'policies', 'AUTH-001.xs'), 'utf8')).to.equal(onDisk('AUTH-001'))
+  })
+
+  it('writes every pulled document newline-terminated, whatever its type', async () => {
+    // The multidoc splits on `\n---\n` and each block is trimmed, so the terminator
+    // has to be put back — otherwise a freshly pulled tree differs from the platform's
+    // own canonical form by one byte and git flags every file.
+    source = [policy('SEC-100'), 'table plan {\n}', 'function price_usage {\n}', 'workspace meterworks {\n}'].join('\n---\n')
+    await command.run()
+    for (const relative of ['policies/SEC-100.xs', 'table/plan.xs', 'function/price_usage.xs', 'workspace/meterworks.xs']) {
+      const written = fs.readFileSync(path.join(directory, ...relative.split('/')), 'utf8')
+      expect(written, relative).to.match(/\n$/)
+      expect(written, relative).not.to.match(/\n\n$/)
+    }
+  })
+
+  it('leaves a document that already ends in a newline exactly as it is', async () => {
+    source = `${policy('SEC-100')}\n`
+    await command.run()
+    expect(fs.readFileSync(path.join(directory, 'policies', 'SEC-100.xs'), 'utf8')).to.equal(onDisk('SEC-100'))
   })
 
   for (const remaining of [[policy('KEEP'), policy('NEW')], ['function first {\n}'], []]) {
@@ -72,8 +93,8 @@ describe('workspace pull policy files', () => {
       expect(warnings.join('\n')).not.to.contain('README.md')
       if (remaining.length === 2) expect(warnings.join('\n')).not.to.contain('policies/KEEP.xs')
       else expect(warnings.join('\n')).to.contain('policies/KEEP.xs')
-      expect(fs.readFileSync(path.join(directory, 'policies', 'OLD.xs'), 'utf8')).to.equal(policy('OLD'))
-      expect(fs.readFileSync(path.join(directory, 'policies', 'KEEP.xs'), 'utf8')).to.equal(policy('KEEP'))
+      expect(fs.readFileSync(path.join(directory, 'policies', 'OLD.xs'), 'utf8')).to.equal(onDisk('OLD'))
+      expect(fs.readFileSync(path.join(directory, 'policies', 'KEEP.xs'), 'utf8')).to.equal(onDisk('KEEP'))
     })
   }
 })

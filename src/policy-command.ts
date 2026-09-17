@@ -12,17 +12,26 @@ import {
   policyExitCode,
   policyResultSummary,
   type PolicyRun,
+  policyRunDetail,
+  policyRunRow,
+  policyRunSummary,
   policySummary,
+  selectCatalogueCheck,
   statusExitCode,
 } from './utils/policy.js'
 
 interface PolicyFlags {
   branch?: string
+  check?: string
   config?: string
   'fail-on-findings'?: boolean
   file?: string
+  force?: boolean
+  limit?: number
+  message?: string
   output?: string
   profile?: string
+  'run-detail'?: boolean
   stdin?: boolean
   verbose: boolean
   workspace?: string
@@ -55,6 +64,10 @@ export default abstract class PolicyCommand extends BaseCommand {
     output: Flags.string({char: 'o', default: 'summary', description: 'Output format', options: ['summary', 'json']}),
     workspace: Flags.string({char: 'w', description: 'Workspace ID (defaults to profile workspace)'}),
   }
+  /** Only `publish` writes, so only `publish` can label a Version History entry. */
+  static publishFlags = {
+    message: Flags.string({char: 'm', description: 'Message stored on the Version History entry this save creates'}),
+  }
   static sourceFlags = {
     file: Flags.string({char: 'f', description: 'Policy XanoScript file', exclusive: ['stdin']}),
     stdin: Flags.boolean({default: false, description: 'Read policy XanoScript from stdin', exclusive: ['file']}),
@@ -67,7 +80,7 @@ export default abstract class PolicyCommand extends BaseCommand {
     this.error(error, {exit: 1})
   }
 
-  protected async runPolicy(action: string, flags: PolicyFlags): Promise<void> {
+  protected async runPolicy(action: string, flags: PolicyFlags, target?: string): Promise<void> {
     const {profile} = this.resolveProfile(flags)
     const workspace = flags.workspace || profile.workspace
     if (!workspace) this.error('Workspace ID required. Use --workspace or set one in your profile.')
@@ -76,6 +89,11 @@ export default abstract class PolicyCommand extends BaseCommand {
 
     try {
       switch (action) {
+        case 'delete': {
+          await this.runDelete(context, target ?? '')
+          break
+        }
+
         case 'evaluate': {
           await this.runEvaluate(context)
           break
@@ -84,6 +102,11 @@ export default abstract class PolicyCommand extends BaseCommand {
         case 'parse':
         case 'publish': {
           await this.runSource(action, context)
+          break
+        }
+
+        case 'runs': {
+          await this.runRuns(context, target)
           break
         }
 
@@ -100,6 +123,18 @@ export default abstract class PolicyCommand extends BaseCommand {
       if (error instanceof Error && 'oclif' in error) throw error
       this.error(`Policy ${action} failed: ${error instanceof Error ? error.message : String(error)}`)
     }
+  }
+
+  /** Simple y/N on stdin, the same prompt every other destructive command in this CLI uses. */
+  private async confirmPolicyDelete(message: string): Promise<boolean> {
+    const readline = await import('node:readline')
+    const rl = readline.createInterface({input: process.stdin, output: process.stdout})
+    return new Promise((resolve) => {
+      rl.question(message, (answer) => {
+        rl.close()
+        resolve(['y', 'yes'].includes(answer.trim().toLowerCase()))
+      })
+    })
   }
 
   /** Policy routes fold backend errors, redact the credential and name a missing branch; other commands keep the raw server message. */
@@ -135,20 +170,81 @@ export default abstract class PolicyCommand extends BaseCommand {
         this.error(await this.describeFailure(response, url, profile.access_token, verbose), {exit: 1})
       }
 
-      return response.json()
+      // The native DELETE route answers with the HTTP status and, on some builds, no body
+      // at all. Every other policy route sends JSON, so an empty body is only ever that.
+      const text = await response.text()
+      if (text.trim() === '') return {}
+      try {
+        return JSON.parse(text)
+      } catch {
+        return this.error(`Policy request to ${path || '/'} returned a ${response.status} that is not JSON.`, {exit: 1})
+      }
     }
   }
 
+  /**
+   * Deleting is the one lifecycle step the CLI could not do: a policy created from the
+   * terminal had to be removed from the MCP or Studio, because `workspace push` is
+   * additive and deleting the file leaves the policy in place.
+   */
+  private async runDelete({branch, flags, request, workspace}: PolicyContext, target: string): Promise<void> {
+    const wanted = target.trim()
+    if (!wanted) this.error('Provide the policy key or ID to delete.')
+    const policies = list(await request())
+    // A key is what an author holds; an id is what the MCP and the API answer with.
+    const matched = policies.find((policy) => policy.key === wanted)
+      ?? (/^\d+$/.test(wanted) ? policies.find((policy) => policy.id === Number(wanted)) : undefined)
+    if (!matched) {
+      const known = policies.map((policy) => policy.key).sort()
+      this.error(`No policy "${wanted}" on workspace ${workspace}${branch ? ` (${branch})` : ''}.${
+        known.length > 0 ? ` This branch has: ${known.join(', ')}.` : ' This branch has no policies.'}`)
+    }
+
+    const version = typeof matched.version === 'number' ? `, Version ${matched.version}` : ''
+    const where = `workspace ${workspace}${branch ? ` (${branch})` : ''}`
+    if (!flags.force) {
+      const confirmed = await this.confirmPolicyDelete(
+        `Delete policy ${matched.key} (ID: ${matched.id}${version}) from ${where}? Its Version History goes with it. (y/N) `,
+      )
+      if (!confirmed) {
+        this.log('Deletion cancelled.')
+        return
+      }
+    }
+
+    await request(`/${matched.id}`, 'DELETE')
+    if (flags.output === 'json') this.log(JSON.stringify({deleted: true, id: matched.id, key: matched.key}, null, 2))
+    else this.log(`Deleted policy ${matched.key} (ID: ${matched.id}) from ${where}.`)
+  }
+
   private async runEvaluate({flags, request}: PolicyContext): Promise<void> {
-    const result = (await request('/evaluate', 'POST', {trigger: 'manual'})) as {policy_check?: PolicyCheck}
+    // The evaluation answers with the stored run, so its own snapshot names any unnamed rule.
+    const result = (await request('/evaluate', 'POST', {trigger: 'manual'})) as PolicyRun & {policy_check?: PolicyCheck}
     if (flags.output === 'json') this.log(JSON.stringify(result, null, 2))
-    else for (const line of policySummary(result.policy_check)) this.log(line)
+    else {
+      for (const line of policySummary(result.policy_check, result.policies ?? [])) this.log(line)
+      // The command that just produced the run can show what it recorded, instead of
+      // sending the caller to `policy status --run-detail` for the same run.
+      if (flags['run-detail']) {
+        const detail = policyRunDetail(result)
+        for (const line of detail) this.log(line)
+        if (detail.length === 0) this.log('This run recorded no policy descriptions or rule settings.')
+      }
+    }
+
     const code = policyExitCode(result.policy_check)
     if (code) process.exitCode = code
   }
 
   private async runList(action: string, {flags, request}: PolicyContext): Promise<void> {
     const result = await request(action === 'catalogue' ? '/check' : '')
+    if (action === 'catalogue' && flags.check) {
+      // `--check` narrows both output modes, so `-o json` stays pipeable for one check too.
+      const selected = selectCatalogueCheck(list<PolicyCatalogueEntry>(result), flags.check)
+      this.log(flags.output === 'json' ? JSON.stringify(selected, null, 2) : policyCatalogueSummary(selected).join('\n'))
+      return
+    }
+
     if (flags.output === 'json') this.log(JSON.stringify(result, null, 2))
     else if (action === 'catalogue') {
       for (const line of policyCatalogueSummary(list<PolicyCatalogueEntry>(result))) this.log(line)
@@ -156,8 +252,52 @@ export default abstract class PolicyCommand extends BaseCommand {
       const policies = list(result)
       if (policies.length === 0) this.log('No policies found.')
       for (const policy of policies)
-        this.log(`${policy.key}  ${policy.lifecycle ?? 'draft'}  ${policy.title ?? ''} (ID: ${policy.id})`)
+        // The version is what tells a reader whether stored evidence is still current,
+        // so it belongs beside the lifecycle rather than only in `-o json`.
+        this.log(`${policy.key}  ${policy.lifecycle ?? 'draft'}  ${policy.title ?? ''} (ID: ${policy.id}${
+          typeof policy.version === 'number' ? `, Version ${policy.version}` : ''})`)
     }
+  }
+
+  /**
+   * The retained runs, and any one of them. `policy status` answers "where do I stand
+   * now?" from the newest run only; this answers "what did the run before that check?",
+   * which until now was reachable from an agent and not from a terminal.
+   */
+  private async runRuns({flags, request}: PolicyContext, target?: string): Promise<void> {
+    const wanted = target?.trim() ?? ''
+    if (wanted !== '') {
+      if (!/^\d+$/.test(wanted)) this.error(`"${wanted}" is not a run ID. Run \`xano policy runs\` for the retained runs.`)
+      const run = (await request(`/run/${wanted}`)) as PolicyRun
+      if (flags.output === 'json') {
+        this.log(JSON.stringify(run, null, 2))
+        return
+      }
+
+      for (const line of policyRunSummary(run)) this.log(line)
+      if (flags['run-detail']) {
+        const detail = policyRunDetail(run)
+        for (const line of detail) this.log(line)
+        if (detail.length === 0) this.log(`Run ${run.id ?? wanted} predates recorded descriptions and settings; evaluate again to record them.`)
+      }
+
+      return
+    }
+
+    const runs = list<PolicyRun>(await request('/run', 'GET', undefined, {limit: String(flags.limit ?? 20)}))
+    if (flags.output === 'json') {
+      this.log(JSON.stringify(runs, null, 2))
+      return
+    }
+
+    if (runs.length === 0) {
+      this.log('No policy runs retained on this branch.')
+      return
+    }
+
+    this.log('Run   Status  Findings      Checked     Trigger  Started')
+    for (const run of runs) this.log(policyRunRow(run))
+    this.log('Only the newest twenty runs are retained per branch. Read one with `xano policy runs <id> --run-detail`.')
   }
 
   private async runSource(action: string, {branch, flags, request, workspace}: PolicyContext): Promise<void> {
@@ -172,17 +312,28 @@ export default abstract class PolicyCommand extends BaseCommand {
     }
 
     const existing = list(await request()).find((policy) => policy.key === parsed.policy.key)
-    const saved = await request(existing ? `/${existing.id}` : '', existing ? 'PUT' : 'POST', {
-      data: {source: parsed.source},
-    })
+    const body: {data: {source: string}; message?: string} = {data: {source: parsed.source}}
+    if (flags.message) body.message = flags.message
+    const saved = await request(existing ? `/${existing.id}` : '', existing ? 'PUT' : 'POST', body)
     if (!isSavedPolicy(saved, parsed.policy.key)) {
       this.error('Publish outcome is indeterminate: the server did not return a saved policy with an id and matching key. Check policy list/status before retrying.', {exit: 1})
     }
 
+    // `-o json` stays a faithful passthrough, `unchanged` included.
+    if (flags.output === 'json') {
+      this.log(JSON.stringify(saved, null, 2))
+      return
+    }
+
+    // A save whose definition matches the stored one writes nothing at all: no version, no history
+    // entry, no audit record. An instance that predates the flag sends neither field.
+    const row = saved as {unchanged?: unknown; version?: unknown}
+    const version = typeof row.version === 'number' ? ` (Version ${row.version})` : ''
+    const where = `workspace ${workspace}${branch ? ` (${branch})` : ''}`
     this.log(
-      flags.output === 'json'
-        ? JSON.stringify(saved, null, 2)
-        : `Published ${parsed.policy.key} to workspace ${workspace}${branch ? ` (${branch})` : ''}.`,
+      row.unchanged === true
+        ? `No changes to ${parsed.policy.key}${version} in ${where}.`
+        : `Published ${parsed.policy.key}${version} to ${where}.`,
     )
   }
 
@@ -194,9 +345,19 @@ export default abstract class PolicyCommand extends BaseCommand {
     if (flags.output === 'json') this.log(JSON.stringify({policies, run: run ?? null, status: rows}, null, 2))
     else if (rows.length === 0) this.log('No policies found.')
     else {
-      for (const row of rows) this.log(`${row.key}  ${row.status}  ${row.findings} findings  ${row.title ?? ''}`)
-      const currentKeys = new Set(rows.filter((row) => !row.stale && row.status !== 'draft; not evaluated').map((row) => row.key))
+      // A stale or draft row carries no counts at all, so printing `0 findings` there would read
+      // as "nothing wrong" for a policy with known findings. Say the count is not counted instead.
+      const counted = (row: (typeof rows)[number]) => !row.stale && row.status !== 'draft; not evaluated'
+      for (const row of rows)
+        this.log(`${row.key}  ${row.status}  ${counted(row) ? `${row.findings} findings` : '— findings'}  ${row.title ?? ''}`)
+      const currentKeys = new Set(rows.filter((row) => counted(row)).map((row) => row.key))
       for (const line of policyResultSummary(run?.results?.filter((result) => currentKeys.has(result.policy_key ?? '')))) this.log(line)
+      if (flags['run-detail']) {
+        const detail = policyRunDetail(run)
+        for (const line of detail) this.log(line)
+        // A retained run from before the platform recorded them has nothing to show.
+        if (run && detail.length === 0) this.log(`Run ${run.id ?? '?'} predates recorded descriptions and settings; evaluate again to record them.`)
+      }
     }
 
     if (flags['fail-on-findings']) {

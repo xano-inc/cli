@@ -9,9 +9,10 @@ const source = 'policy AUTH-001 { title = "Auth" }'
 const catalogue = [{
   description: 'Find forbidden statements at any nesting depth.',
   id: 'stack.statement_forbidden',
+  label: 'Stacks exclude listed statements',
   object_kinds: ['query', 'function'],
   params: {scope: {required: false, type: 'object'}, statements: {required: true, type: 'string[]'}},
-}, {description: 'Check authentication tables.', fix_hint: 'Enable auth.', id: 'table.auth_table_rules', object_kinds: ['table'], params: []}]
+}, {description: 'Check authentication tables.', fix_hint: 'Enable auth.', id: 'table.auth_table_rules', label: 'Endpoints use the single auth table', object_kinds: ['table'], params: []}]
 const backendError = {
   code: 'ERROR_CODE_SYNTAX_ERROR',
   message: 'Invalid block: enforcement',
@@ -21,13 +22,21 @@ const backendError = {
   traceId: 'private-trace-id',
 }
 const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: 1000}
+const snapshot = [{
+  key: 'AUTH-001',
+  rules: [{check: 'query.auth_required', id: 'R1', label: 'Endpoints declare authentication or a public tag', params: {api_groups: ['lab'], public_tag: 'public'}, title: ''}],
+  statement: 'A query declares an auth table or is tagged public.',
+}]
 const run = {
   findings: [{policy_key: 'AUTH-001'}],
   results: [{check_id: 'R1', checked: 10, message: '', policy_key: 'AUTH-001', status: 'fail'}],
   started_at: 2000,
 }
+const detailRun = {...run, id: 1129, policies: snapshot, trigger: 'manual'}
+// A run stored before the platform recorded descriptions and settings.
+const oldRun = {...detailRun, id: 1075, policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'R1', title: ''}]}]}
 
-function statusRoute(current = policy, latest: null | typeof run = run): void {
+function statusRoute(current = policy, latest: null | typeof oldRun | typeof run = run): void {
   globalThis.fetch = async input => String(input).includes('/run?')
     ? json({items: latest ? [latest] : []}) : json([current])
 }
@@ -55,11 +64,78 @@ describe('policy reporting regressions', () => {
     })
   }
 
+  it('catalogue names each check by its label beside the id', async () => {
+    globalThis.fetch = async () => json(catalogue)
+    const result = await command('policy catalogue')
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain('Label / Description')
+    for (const [id, label] of [['stack.statement_forbidden', 'Stacks exclude listed statements'], ['table.auth_table_rules', 'Endpoints use the single auth table']]) {
+      expect(result.stdout.split('\n').find(line => line.startsWith(id))).to.contain(label)
+    }
+  })
+
+  it('catalogue falls back to a title when an older instance sends no label', async () => {
+    globalThis.fetch = async () => json([{...catalogue[0], label: undefined, title: 'Stacks exclude listed statements'}])
+    const result = await command('policy catalogue')
+    expect(result.stdout).to.contain('Stacks exclude listed statements').and.to.contain('Find forbidden statements')
+  })
+
   it('catalogue JSON retains the complete native schemas', async () => {
     globalThis.fetch = async () => json(catalogue)
     const result = await command('policy catalogue', ['-o', 'json'])
     expect(result.error).to.equal(undefined)
     expect(JSON.parse(result.stdout)).to.deep.equal(catalogue)
+  })
+
+  it('catalogue --check narrows both output modes to the one check', async () => {
+    globalThis.fetch = async () => json(catalogue)
+    const summary = await command('policy catalogue', ['--check', 'table.auth_table_rules'])
+    expect(summary.error).to.equal(undefined)
+    expect(summary.stdout).to.contain('table.auth_table_rules').and.not.to.contain('stack.statement_forbidden')
+    globalThis.fetch = async () => json(catalogue)
+    const asJson = await command('policy catalogue', ['--check', 'table.auth_table_rules', '-o', 'json'])
+    expect(JSON.parse(asJson.stdout)).to.deep.equal([catalogue[1]])
+  })
+
+  it('catalogue --check names the near miss instead of reprinting the catalogue', async () => {
+    globalThis.fetch = async () => json(catalogue)
+    const result = await command('policy catalogue', ['--check', 'table.auth_table_rule'])
+    expect(result.error?.message).to.contain('is not a policy check')
+      .and.to.contain('Did you mean table.auth_table_rules?')
+    expect(result.stdout).to.equal('')
+  })
+
+  it('catalogue --check says where the list is when nothing is close', async () => {
+    globalThis.fetch = async () => json(catalogue)
+    const result = await command('policy catalogue', ['--check', 'totally.unrelated'])
+    expect(result.error?.message).to.contain('Run `xano policy catalogue` for the full list.')
+  })
+
+  it('list prints the version beside the lifecycle', async () => {
+    globalThis.fetch = async () => json([{id: 7, key: 'AUTH-001', lifecycle: 'active', title: 'Auth', version: 5}])
+    const result = await command('policy list')
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain('AUTH-001  active  Auth (ID: 7, Version 5)')
+  })
+
+  it('list omits the version an older instance does not send', async () => {
+    globalThis.fetch = async () => json([{id: 7, key: 'AUTH-001', lifecycle: 'active', title: 'Auth'}])
+    const result = await command('policy list')
+    expect(result.stdout).to.contain('(ID: 7)').and.not.to.contain('Version')
+  })
+
+  it('evaluate --run-detail reports what the run it just produced recorded', async () => {
+    globalThis.fetch = async () => json({...detailRun, policy_check: {blocking: false, findings: [], status: 'pass'}})
+    const result = await command('policy evaluate', ['--run-detail'])
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
+      .and.to.contain('R1  Endpoints declare authentication or a public tag  settings: api_groups=[lab], public_tag=public')
+  })
+
+  it('evaluate omits run detail unless asked', async () => {
+    globalThis.fetch = async () => json({...detailRun, policy_check: {blocking: false, findings: [], status: 'pass'}})
+    const result = await command('policy evaluate')
+    expect(result.stdout).not.to.contain('as recorded').and.not.to.contain('settings:')
   })
 
   it('catalogue wraps long descriptions and lists instead of truncating them', async () => {
@@ -137,9 +213,47 @@ describe('policy reporting regressions', () => {
     statusRoute({...policy, lifecycle: 'draft', updated_at: 3000}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
     const result = await command('policy status')
     expect(result.error).to.equal(undefined)
-    expect(result.stdout).to.contain('draft; not evaluated  0 findings').and.not.to.contain('OLD ERROR')
+    // A draft is never evaluated, so there is no count to print — `0 findings` would read as "clean".
+    expect(result.stdout).to.contain('draft; not evaluated  — findings').and.not.to.contain('OLD ERROR')
     expect(process.exitCode ?? 0).to.equal(0)
   })
+
+  it('status --run-detail reports the description and settings the run recorded', async () => {
+    statusRoute(policy, detailRun)
+    const result = await command('policy status', ['--run-detail'])
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
+      .and.to.contain('AUTH-001  A query declares an auth table or is tagged public.')
+      .and.to.contain('R1  Endpoints declare authentication or a public tag  settings: api_groups=[lab], public_tag=public')
+  })
+
+  it('status omits run detail unless asked, and JSON stays a passthrough of the native run', async () => {
+    statusRoute(policy, detailRun)
+    const summary = await command('policy status')
+    expect(summary.stdout).not.to.contain('as recorded').and.not.to.contain('settings:')
+    statusRoute(policy, detailRun)
+    const result = await command('policy status', ['--run-detail', '-o', 'json'])
+    expect(result.error).to.equal(undefined)
+    expect(JSON.parse(result.stdout).run).to.deep.equal(detailRun)
+    expect(result.stdout).not.to.contain('as recorded')
+  })
+
+  it('status --run-detail says so when the retained run predates the recorded fields', async () => {
+    statusRoute(policy, oldRun)
+    const result = await command('policy status', ['--run-detail'])
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain('Run 1075 predates recorded descriptions and settings')
+      .and.not.to.contain('as recorded').and.not.to.contain('settings:')
+  })
+
+  it('evaluate names an unnamed rule by the label its own run snapshot recorded', async () => {
+    const check = {blocking: true, findings: [{message: 'No auth', object: {name: 'orders', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'R1', rule_title: ''}], status: 'fail'}
+    globalThis.fetch = async () => json({...detailRun, policy_check: check})
+    const result = await command('policy evaluate')
+    expect(result.stdout).to.contain('Endpoints declare authentication or a public tag (AUTH-001)')
+    expect(process.exitCode).to.equal(2)
+  })
+
   for (const [current, latest, stale, label] of [
     [policy, run, false, 'fail'],
     [{...policy, updated_at: 3000}, run, true, 'outdated; evaluate again'],
