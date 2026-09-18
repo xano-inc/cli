@@ -16,7 +16,7 @@ const catalogue = [{
 const backendError = {
   code: 'ERROR_CODE_SYNTAX_ERROR',
   message: 'Invalid block: enforcement',
-  payload: {col: 2, error_snippet: 'rule "R1" {', line: 21, stack: ['/internal/nested.php']},
+  payload: {col: 2, error_snippet: 'enforcement = "advisory"', line: 21, stack: ['/internal/nested.php']},
   stack: '#0 /internal/Stack.php',
   trace: ['file: /internal/Schema.php(444)', 'credential test-token'],
   traceId: 'private-trace-id',
@@ -24,8 +24,8 @@ const backendError = {
 const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: 1000}
 const snapshot = [{
   key: 'AUTH-001',
-  rules: [{check: 'query.auth_required', id: 'R1', label: 'Endpoints declare authentication or a public tag', params: {api_groups: ['lab'], public_tag: 'public'}, title: ''}],
-  statement: 'A query declares an auth table or is tagged public.',
+  rules: [{check: 'query.auth_required', id: 'R1', label: 'Endpoints require authentication', params: {api_groups: ['lab'], except_tags: ['public']}, title: ''}],
+  statement: 'Every endpoint requires authentication unless it is tagged public.',
 }]
 const run = {
   findings: [{policy_key: 'AUTH-001'}],
@@ -129,7 +129,7 @@ describe('policy reporting regressions', () => {
     const result = await command('policy evaluate', ['--run-detail'])
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
-      .and.to.contain('R1  Endpoints declare authentication or a public tag  settings: api_groups=[lab], public_tag=public')
+      .and.to.contain('R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]')
   })
 
   it('evaluate omits run detail unless asked', async () => {
@@ -148,6 +148,20 @@ describe('policy reporting regressions', () => {
   })
 
   for (const action of ['policy parse', 'policy publish']) {
+    it(`${action} reports a named rule with the platform's sentence and where the name is`, async () => {
+      // Only `rule {` is legal: the backend refuses `rule foo {` at parse time, pointing at the name.
+      const message = 'rule[1]: A rule cannot be named. Write "rule {" — rules are identified by position (KEY.R1, KEY.R2…).'
+      globalThis.fetch = async () => json({
+        code: 'ERROR_CODE_BAD_REQUEST',
+        message,
+        payload: {char: 61, col: 7, error_line: '  rule foo {', error_snippet: 'foo {', line: 4},
+      }, 400)
+      const result = await command(action, [])
+      expect(result.error?.message).to.contain(message).and.to.contain('at line 5, col 8:   rule foo {')
+    })
+  }
+
+  for (const action of ['policy parse', 'policy publish']) {
     for (const verbose of [false, true]) {
       for (const output of ['summary', 'json']) {
         it(`${action} folds traces in ${output}, verbose=${verbose}`, async () => {
@@ -155,7 +169,10 @@ describe('policy reporting regressions', () => {
           const result = await command(action, ['-o', output, ...(verbose ? ['-v'] : [])])
           expect(result.error).to.exist
           expect(result.error?.message).to.contain('ERROR_CODE_SYNTAX_ERROR').and.to.contain('Invalid block: enforcement')
-          for (const text of ['21', '2', 'R1']) expect(result.error?.message).to.contain(text)
+          // Summary counts like an editor (payload line 21, col 2 -> line 22, col 3); -o json keeps the payload as sent.
+          expect(result.error?.message).to.contain(output === 'json' ? '"line":21' : 'at line 22, col 3: enforcement = "advisory"')
+          if (output === 'json') expect(result.error?.message).to.contain('"col":2').and.to.contain('advisory')
+          else expect(result.error?.message).not.to.contain('payload:')
           expect(result.error?.message).not.to.contain('/internal/').and.not.to.contain('private-trace-id')
           expect(result.stdout).not.to.contain('/internal/').and.not.to.contain('private-trace-id')
           if (verbose) expect(result.stderr).to.contain('/internal/Schema.php').and.to.contain('private-trace-id')
@@ -223,8 +240,8 @@ describe('policy reporting regressions', () => {
     const result = await command('policy status', ['--run-detail'])
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
-      .and.to.contain('AUTH-001  A query declares an auth table or is tagged public.')
-      .and.to.contain('R1  Endpoints declare authentication or a public tag  settings: api_groups=[lab], public_tag=public')
+      .and.to.contain('AUTH-001  Every endpoint requires authentication unless it is tagged public.')
+      .and.to.contain('R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]')
   })
 
   it('status omits run detail unless asked, and JSON stays a passthrough of the native run', async () => {
@@ -250,7 +267,7 @@ describe('policy reporting regressions', () => {
     const check = {blocking: true, findings: [{message: 'No auth', object: {name: 'orders', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'R1', rule_title: ''}], status: 'fail'}
     globalThis.fetch = async () => json({...detailRun, policy_check: check})
     const result = await command('policy evaluate')
-    expect(result.stdout).to.contain('Endpoints declare authentication or a public tag (AUTH-001)')
+    expect(result.stdout).to.contain('Endpoints require authentication (AUTH-001)')
     expect(process.exitCode).to.equal(2)
   })
 

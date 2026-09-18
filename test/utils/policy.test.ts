@@ -74,18 +74,18 @@ describe('policy carriage and feedback', () => {
   })
 
   it('names a rule by its author, then its check label, then its id', () => {
-    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication or a public tag'}
+    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication'}
     expect(policyRuleName({...rule, title: 'Endpoints declare auth'})).to.equal('Endpoints declare auth')
-    expect(policyRuleName({...rule, title: '  '})).to.equal('Endpoints declare authentication or a public tag')
-    expect(policyRuleName(rule)).to.equal('Endpoints declare authentication or a public tag')
+    expect(policyRuleName({...rule, title: '  '})).to.equal('Endpoints require authentication')
+    expect(policyRuleName(rule)).to.equal('Endpoints require authentication')
     expect(policyRuleName({check: 'query.auth_required', id: 'AUTH-001.R1'})).to.equal('AUTH-001.R1')
     expect(policyRuleName({})).to.equal('')
   })
 
   it('names an unnamed finding by the label the run snapshot recorded', () => {
     const check = {findings: [{message: 'No auth', policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1', rule_title: ''}], status: 'fail'}
-    const snapshot = [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication or a public tag', title: ''}]}]
-    expect(policySummary(check, snapshot).join('\n')).to.contain('Endpoints declare authentication or a public tag (AUTH-001)')
+    const snapshot = [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}]}]
+    expect(policySummary(check, snapshot).join('\n')).to.contain('Endpoints require authentication (AUTH-001)')
     // An author title on the finding wins, and without a snapshot the id still names the rule.
     expect(policySummary({...check, findings: [{...check.findings[0], rule_title: 'Auth declared'}]}, snapshot).join('\n')).to.contain('Auth declared (AUTH-001)')
     expect(policySummary(check).join('\n')).to.contain('AUTH-001.R1 (AUTH-001)')
@@ -142,31 +142,31 @@ describe('policy carriage and feedback', () => {
   it('renders resolved settings compactly and treats an empty map as none', () => {
     // Settings are sorted by name: the platform's own key order varies between runs, so
     // printing it verbatim made two identical rules diff against each other.
-    expect(policySettings(JSON.parse('{"public_tag":"public","api_groups":["lab","incidents"]}'))).to.equal('settings: api_groups=[lab, incidents], public_tag=public')
-    expect(policySettings(JSON.parse('{"api_groups":["lab","incidents"],"public_tag":"public"}'))).to.equal('settings: api_groups=[lab, incidents], public_tag=public')
+    expect(policySettings(JSON.parse('{"except_tags":["public"],"api_groups":["lab","incidents"]}'))).to.equal('settings: api_groups=[lab, incidents], except_tags=[public]')
+    expect(policySettings(JSON.parse('{"api_groups":["lab","incidents"],"except_tags":["public"]}'))).to.equal('settings: api_groups=[lab, incidents], except_tags=[public]')
     expect(policySettings({follow_addons: false, table_selector: {has_field: 'employee_id'}})).to.equal('settings: follow_addons=false, table_selector={"has_field":"employee_id"}')
     // PHP spells an empty map `[]`, and an absent map is an older run.
     for (const empty of [{}, [], undefined, null]) expect(policySettings(empty)).to.equal('')
   })
 
   it('reports what a run recorded and stays silent about a run that recorded nothing', () => {
-    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication or a public tag', title: ''}
+    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}
     const run = {
       id: 1129,
-      policies: [{key: 'AUTH-001', rules: [{...rule, params: {api_groups: ['lab'], public_tag: 'public'}}], statement: 'A query declares an auth table or is tagged public.'}],
+      policies: [{key: 'AUTH-001', rules: [{...rule, params: {api_groups: ['lab'], except_tags: ['public']}}], statement: 'Every endpoint requires authentication unless it is tagged public.'}],
       started_at: '2026-09-17T18:23:09.341Z',
       trigger: 'manual',
     }
     expect(policyRunDetail(run)).to.deep.equal([
       'Run 1129 as recorded (manual, 2026-09-17T18:23:09.341Z):',
-      '  AUTH-001  A query declares an auth table or is tagged public.',
-      '    AUTH-001.R1  Endpoints declare authentication or a public tag  settings: api_groups=[lab], public_tag=public',
+      '  AUTH-001  Every endpoint requires authentication unless it is tagged public.',
+      '    AUTH-001.R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]',
     ])
     // A rule with nothing configured still ran; an old run carries neither statement nor params.
     expect(policyRunDetail({...run, policies: [{key: 'AUTH-001', rules: [{...rule, params: []}], statement: ''}]})).to.deep.equal([
       'Run 1129 as recorded (manual, 2026-09-17T18:23:09.341Z):',
       '  AUTH-001',
-      '    AUTH-001.R1  Endpoints declare authentication or a public tag  settings: none',
+      '    AUTH-001.R1  Endpoints require authentication  settings: none',
     ])
     expect(policyRunDetail({...run, policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', title: ''}]}]})).to.deep.equal([])
     expect(policyRunDetail({...run, policies: []})).to.deep.equal([])

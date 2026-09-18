@@ -198,7 +198,7 @@ describe('official policy commands and workspace carriage', () => {
     finished_at: '2026-09-17T22:42:00.980Z',
     id: 1674,
     objects_checked: 23,
-    policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication', params: {public_tag: 'public'}}], statement: 'Every endpoint declares auth.'}],
+    policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication', params: {except_tags: ['public']}}], statement: 'Every endpoint declares auth.'}],
     results: [{check_id: 'AUTH-001.R1', checked: 23, policy_key: 'AUTH-001', status: 'fail'}],
     started_at: '2026-09-17T22:42:00.903Z',
     status: 'fail',
@@ -225,7 +225,7 @@ describe('official policy commands and workspace carriage', () => {
     // The rule id leads the finding line, because a check label is shared by every rule using it.
     expect(result.stdout).to.contain('AUTH-001.R1  Endpoints declare authentication [high] (Auth)  query GET /x: no auth')
     expect(result.stdout).to.contain('Run 1674 as recorded')
-    expect(result.stdout).to.contain('settings: public_tag=public')
+    expect(result.stdout).to.contain('settings: except_tags=[public]')
   })
 
   it('runs refuses a non-numeric run id and keeps JSON faithful', async () => {

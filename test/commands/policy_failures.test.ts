@@ -62,19 +62,44 @@ describe('policy failure contracts', () => {
       expect(fixture.calls).to.have.length(0)
     })
     for (const status of [400, 401, 403, 500, 503]) {
-      it(`${action}: HTTP ${status} exits 1 with actionable policy scope guidance for 403`, async () => {
+      it(`${action}: HTTP ${status} exits 1, redacted, with guidance only where a permission answered`, async () => {
         fixture.route(() => json({message: 'Access Denied test-token'}, status))
         const result = await run(action)
         expectOperationalError(result)
         expect(result.error?.message).to.contain('[REDACTED]')
         expect(result.error?.message).not.to.contain('test-token')
         if (status === 403) {
+          // The generic refusal is the scope gate (token scope or the role's permission).
           expect(result.error?.message).to.contain('workspace:policy')
           expect(result.error?.message).to.contain('Reissue')
           expect(result.error?.message).to.contain('Instance settings → Metadata API & MCP Server → Manage Access Tokens')
+          expect(result.error?.message).to.contain('Workspace Policies')
+        } else if (status === 401) {
+          expect(result.error?.message).to.contain('missing, expired or revoked')
+        } else {
+          expect(result.error?.message).not.to.contain('Reissue')
         }
       })
     }
+
+    it(`${action}: a role refusal is not blamed on the token`, async () => {
+      fixture.route(() => json({message: 'Policy changes require the admin role.'}, 403))
+      const result = await run(action)
+      expectOperationalError(result)
+      expect(result.error?.message).to.contain('Policy changes require the admin role.')
+      expect(result.error?.message).to.contain('requires the admin role on the instance')
+      expect(result.error?.message).to.contain('reissuing it will not help')
+      expect(result.error?.message).not.to.contain('Manage Access Tokens')
+    })
+    it(`${action}: the feature being off is not blamed on the token or the role`, async () => {
+      fixture.route(() => json({message: 'Policies are not enabled on this instance.'}, 403))
+      const result = await run(action)
+      expectOperationalError(result)
+      expect(result.error?.message).to.contain('Policies are not enabled on this instance.')
+      expect(result.error?.message).to.contain('turned off for this instance')
+      expect(result.error?.message).not.to.contain('Manage Access Tokens')
+      expect(result.error?.message).not.to.contain('admin role')
+    })
 
     it(`${action}: transport failures exit 1`, async () => {
       fixture.route(() => { throw new Error('connection refused') })

@@ -3,6 +3,7 @@ import * as fs from 'node:fs'
 
 import BaseCommand, {type ProfileConfig} from './base-command.js'
 import {foldApiError, formatApiError} from './utils/api_error.js'
+import {policyPermissionGuidance} from './utils/policy-permission.js'
 import {
   computeStatusRows,
   type Policy,
@@ -85,7 +86,7 @@ export default abstract class PolicyCommand extends BaseCommand {
     const workspace = flags.workspace || profile.workspace
     if (!workspace) this.error('Workspace ID required. Use --workspace or set one in your profile.')
     const branch = flags.branch ?? profile.branch ?? ''
-    const context: PolicyContext = {branch, flags, request: this.policyRequest(profile, workspace, branch, flags.verbose), workspace}
+    const context: PolicyContext = {branch, flags, request: this.policyRequest(profile, workspace, branch, flags.verbose, flags.output === 'json'), workspace}
 
     try {
       switch (action) {
@@ -138,17 +139,18 @@ export default abstract class PolicyCommand extends BaseCommand {
   }
 
   /** Policy routes fold backend errors, redact the credential and name a missing branch; other commands keep the raw server message. */
-  private async describeFailure(response: Response, url: string, accessToken: string, verbose: boolean): Promise<string> {
+  private async describeFailure(response: Response, url: string, accessToken: string, verbose: boolean, rawPayload = false): Promise<string> {
     const redacted = (await response.text()).replaceAll(accessToken, '[REDACTED]')
     if (verbose && redacted) this.logToStderr(redacted)
-    const detail = formatApiError(foldApiError(redacted, response.status, url))
-    const guidance = response.status === 403
-      ? '\nPolicy access requires the workspace:policy scope. Reissue the Metadata API token with that scope: Instance settings → Metadata API & MCP Server → Manage Access Tokens.'
-      : ''
+    // Summary output locates a parse error the way a person counts (line 1 is the first line);
+    // `-o json` keeps the platform's payload untouched for whatever parses it.
+    const detail = formatApiError(foldApiError(redacted, response.status, url), {rawPayload})
+    // Scope, role and feature-off are three different 403s with three different remedies.
+    const guidance = policyPermissionGuidance(response.status, detail)
     return `Policy request failed (${response.status}): ${detail}${guidance}`
   }
 
-  private policyRequest(profile: ProfileConfig, workspace: string, branch: string, verbose: boolean): PolicyRequest {
+  private policyRequest(profile: ProfileConfig, workspace: string, branch: string, verbose: boolean, rawPayload = false): PolicyRequest {
     const base = `${profile.instance_origin}/api:meta/workspace/${workspace}/policy`
     return async (path = '', method = 'GET', body?: unknown, query: Record<string, string> = {}) => {
       const url = `${base}${path}?${new URLSearchParams({branch, ...query})}`
@@ -167,7 +169,7 @@ export default abstract class PolicyCommand extends BaseCommand {
         profile.access_token,
       )
       if (!response.ok) {
-        this.error(await this.describeFailure(response, url, profile.access_token, verbose), {exit: 1})
+        this.error(await this.describeFailure(response, url, profile.access_token, verbose, rawPayload), {exit: 1})
       }
 
       // The native DELETE route answers with the HTTP status and, on some builds, no body
