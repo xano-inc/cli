@@ -1608,10 +1608,7 @@ export async function executePush(
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   const parts: string[] = []
-  // `--force` skips the preview, so every document is sent whether or not it changed.
-  // Saying "28 documents" after a dry-run said "No changes to push." reads as a
-  // contradiction unless the count says what it is counting.
-  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents${flags.force && !dryRunPreview ? ' (--force sends every document, changed or not)' : ''}`)
+  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const kParts = [`${knowledgeImported} knowledge file${knowledgeImported === 1 ? '' : 's'}`]
     if (shouldDelete && knowledgeDeleted > 0) kParts.push(`${knowledgeDeleted} deleted`)
