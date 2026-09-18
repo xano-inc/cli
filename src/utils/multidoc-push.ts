@@ -15,6 +15,7 @@ import {
   syncGuidToFrontmatter,
   toPushItems,
 } from './knowledge-sync.js'
+import {isPolicyFileRefusal, policyFilePushGuidance} from './policy-permission.js'
 import {type PolicyCheck, policyExitCode, policySummary} from './policy.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
@@ -1765,6 +1766,13 @@ function pushDisabledGuidance(serverMessage: string): string {
   )
 }
 
+/** A push (or its preview) the server refused for permission reasons that are not about policy files. */
+function permissionRefusalGuidance(status: number): string {
+  return status === 401
+    ? '\nThe access token was not accepted: it is missing, expired or revoked. Check the active profile (xano profile list).'
+    : '\nYour token or role does not allow this push. Nothing was imported. The message above names the permission that is missing.'
+}
+
 async function handleDryRunError(
   response: Response,
   command: Command,
@@ -1784,6 +1792,17 @@ async function handleDryRunError(
   // Match the message, not the status: the assert arrives as HTTP 500, not 403.
   if (/push is disabled/i.test(serverMessage || errorText)) {
     command.error(pushDisabledGuidance(serverMessage || errorText), {exit: 1})
+  }
+
+  // A permission refusal on the preview is the answer, not a missing preview: the push itself would be
+  // refused the same way, so never fall through to "Skipping preview" and a prompt to proceed.
+  if (response.status === 401 || response.status === 403) {
+    const refusal = serverMessage || errorText
+    command.error(
+      `Push refused (${response.status}): ${refusal}${
+        isPolicyFileRefusal(refusal) ? policyFilePushGuidance() : permissionRefusalGuidance(response.status)}`,
+      {exit: 1},
+    )
   }
 
   if (flags['dry-run']) {
@@ -1849,6 +1868,11 @@ function handlePushError(
   // try block: command.error throws, and the catch above would swallow the guidance.
   if (serverMessage?.includes('Push is disabled')) {
     command.error(pushDisabledGuidance(serverMessage), {exit: 1})
+  }
+
+  // Changed policy files in a non-admin push: say what to do instead of only what was refused.
+  if (response.status === 403 && serverMessage && isPolicyFileRefusal(serverMessage)) {
+    command.error(`${errorMessage}${policyFilePushGuidance()}`, {exit: 1})
   }
 
   // Provide guidance when sandbox access is denied (free plan restriction)

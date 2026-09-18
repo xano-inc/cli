@@ -19,7 +19,28 @@ describe('shared API error formatting', () => {
       code: 'SYNTAX_ERROR', message: 'Invalid assignment',
       payload: {col: 0, error_line: 'title =', error_snippet: 'title =', line: 0},
     })
-    expect(formatApiError(folded)).to.contain('SYNTAX_ERROR: Invalid assignment').and.to.contain('"line":0')
+    // The fold keeps the platform's 0-based payload; only the human rendering renumbers it.
+    expect(formatApiError(folded)).to.equal('SYNTAX_ERROR: Invalid assignment\n  at line 1, col 1: title =')
+    expect(formatApiError(folded, {rawPayload: true})).to.contain('SYNTAX_ERROR: Invalid assignment').and.to.contain('"line":0')
+  })
+
+  it('locates a parse error 1-based, as the MCP server does, and never prints two numbers for one place', () => {
+    const named = JSON.stringify({
+      code: 'ERROR_CODE_BAD_REQUEST', message: 'rule[0]: A rule cannot be named.',
+      payload: {col: 7, error_line: '  rule foo {', error_snippet: 'foo {', line: 6},
+    })
+    expect(formatApiError(named)).to.equal('ERROR_CODE_BAD_REQUEST: rule[0]: A rule cannot be named.\n  at line 7, col 8:   rule foo {')
+    expect(formatApiError(named, {rawPayload: true})).to.contain('payload: {"col":7,"error_line":"  rule foo {","error_snippet":"foo {","line":6}')
+
+    // The platform's own sentence already says `line 3` (1-based): show the text, not a second number.
+    const comment = JSON.stringify({message: 'line 3: policy files cannot contain "//" comments.', payload: {col: 2, error_line: '  // why', line: 2}})
+    expect(formatApiError(comment)).to.equal('line 3: policy files cannot contain "//" comments.\n  at:   // why')
+
+    // No text to show falls back to the snippet, then to the position alone; no position prints nothing.
+    expect(formatApiError(JSON.stringify({message: 'Invalid block: enforcement', payload: {col: 2, error_snippet: 'enforcement = "advisory"', line: 21}})))
+      .to.equal('Invalid block: enforcement\n  at line 22, col 3: enforcement = "advisory"')
+    expect(formatApiError(JSON.stringify({message: 'Bad', payload: {line: 4}}))).to.equal('Bad\n  at line 5')
+    expect(formatApiError(JSON.stringify({message: 'Bad', payload: {param: 'source'}}))).to.equal('Bad')
   })
 
   for (const body of ['', '{"message":""}']) {

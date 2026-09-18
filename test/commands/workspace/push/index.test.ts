@@ -113,6 +113,47 @@ describe('workspace push preview safety', () => {
     }
   }
 
+  // A real push (no --dry-run): the preview's permission refusal is the answer. It must never be
+  // downgraded to "Skipping preview" followed by a prompt (or a --force hint) to push anyway.
+  const refusals = [
+    {
+      body: {message: 'Policy files require the admin role; nothing was imported: AUTH-001'},
+      expected: ['Policy files require the admin role', 'AUTH-001', '-e "policies/*"', 'Nothing was imported'],
+      label: 'a non-admin changed a policy file',
+      status: 403,
+    },
+    {body: {message: 'Access Denied.'}, expected: ['Access Denied.', 'token or role'], label: 'missing scope', status: 403},
+    {body: {message: 'Invalid token.'}, expected: ['Invalid token.', 'xano profile list'], label: 'rejected token', status: 401},
+  ]
+  for (const isTTY of [false, true]) {
+    for (const refusal of refusals) {
+      it(`stops a real push when the preview is refused: ${refusal.label}, tty=${isTTY}`, async () => {
+        Object.defineProperty(process.stdin, 'isTTY', {configurable: true, value: isTTY})
+        flags['dry-run'] = false
+        response = () => new Response(JSON.stringify(refusal.body), {status: refusal.status})
+        const error = await failure()
+        expect(error.oclif?.exit).to.equal(1)
+        for (const text of refusal.expected) expect(error.message).to.contain(text)
+        const everything = [error.message, ...output].join('\n')
+        expect(everything).not.to.contain('Skipping preview')
+        expect(everything).not.to.contain('Use --force')
+        expect(prompts).to.equal(0)
+        expect(requests, 'the import must never be attempted').to.have.length(1)
+        expect(new URL(requests[0]).pathname).to.match(/\/multidoc\/dry-run$/)
+      })
+    }
+  }
+
+  it('keeps the old behaviour for a preview that failed for any other reason: warn, then ask', async () => {
+    Object.defineProperty(process.stdin, 'isTTY', {configurable: true, value: false})
+    flags['dry-run'] = false
+    response = () => new Response('Preview unavailable', {status: 503})
+    const error = await failure()
+    expect(output.join('\n')).to.contain('Push preview failed (503). Skipping preview.')
+    expect(error.message).to.contain('Use --force to skip confirmation')
+    expect(requests).to.have.length(1)
+  })
+
   for (const force of [false, true]) {
     it(`refuses dry-run import when the target has no preview URL, force=${force}`, async () => {
       flags.force = force
