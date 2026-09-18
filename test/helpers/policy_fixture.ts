@@ -39,9 +39,8 @@ export function policyFixture(options: {branch?: string; profile?: string; sourc
       path.join(fixture.directory, 'credentials.yaml'),
       `profiles:\n  ${profile}:\n    instance_origin: https://test.example.com\n    access_token: test-token\n    workspace: ${workspace}\n    branch: ${branch}\ndefault: ${profile}\n`,
     )
-    fixture.config = await Config.load({root: process.cwd()})
-    // Skip the npm update check: these suites are entirely offline.
-    fixture.config.version = '1.2.0-beta.test'
+    // Set the load option so oclif keeps the offline version when it reloads this config.
+    fixture.config = await Config.load({root: process.cwd(), version: '1.2.0-beta.test'})
   })
 
   after(() => fs.rmSync(fixture.directory, {force: true, recursive: true}))
