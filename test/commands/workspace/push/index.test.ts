@@ -234,6 +234,31 @@ describe('workspace push preview safety', () => {
     }
   }
 
+  // `-m` labels the Version History entry of each policy document the import writes. Only the
+  // workspace multidoc route reads it, and only the import writes anything there is to label.
+  for (const message of ['Tightened the auth policies', undefined]) {
+    it(`${message ? 'sends' : 'omits'} message= on the import URL for -m ${JSON.stringify(message)}`, async () => {
+      flags['dry-run'] = false
+      flags.force = true
+      flags.message = message
+      response = () => new Response(JSON.stringify({guid_map: [], policy_check: {blocking: false, status: 'pass'}}))
+      await command.run()
+      expect(requests).to.have.length(1)
+      const sent = new URL(requests[0]).searchParams
+      expect(new URL(requests[0]).pathname).to.match(/\/multidoc$/)
+      expect(sent.get('message')).to.equal(message ?? null)
+    })
+  }
+
+  it('sends no message= for an -m that is only whitespace', async () => {
+    flags['dry-run'] = false
+    flags.force = true
+    flags.message = '   '
+    response = () => new Response(JSON.stringify({guid_map: [], policy_check: {blocking: false, status: 'pass'}}))
+    await command.run()
+    expect(new URL(requests[0]).searchParams.has('message')).to.equal(false)
+  })
+
   it('exits 1 with the raw server message when the import itself fails', async () => {
     flags['dry-run'] = false
     flags.force = true

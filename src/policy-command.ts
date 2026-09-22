@@ -1,4 +1,4 @@
-import {Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 
 import BaseCommand, {type ProfileConfig} from './base-command.js'
@@ -6,6 +6,7 @@ import {foldApiError, formatApiError} from './utils/api_error.js'
 import {policyPermissionGuidance} from './utils/policy-permission.js'
 import {
   computeStatusRows,
+  enforcementLabel,
   type Policy,
   type PolicyCatalogueEntry,
   policyCatalogueSummary,
@@ -19,6 +20,7 @@ import {
   policySummary,
   selectCatalogueCheck,
   statusExitCode,
+  statusExitReason,
 } from './utils/policy.js'
 
 interface PolicyFlags {
@@ -69,6 +71,10 @@ export default abstract class PolicyCommand extends BaseCommand {
   static publishFlags = {
     message: Flags.string({char: 'm', description: 'Message stored on the Version History entry this save creates'}),
   }
+  /** One positional, as CLAUDE.md requires: the file `--file` would otherwise name. */
+  static sourceArgs = {
+    file: Args.string({description: 'Policy XanoScript file (same as --file)', ignoreStdin: true, required: false}),
+  }
   static sourceFlags = {
     file: Flags.string({char: 'f', description: 'Policy XanoScript file', exclusive: ['stdin']}),
     stdin: Flags.boolean({default: false, description: 'Read policy XanoScript from stdin', exclusive: ['file']}),
@@ -78,7 +84,51 @@ export default abstract class PolicyCommand extends BaseCommand {
     // Only completed evaluations set exit 2. Include profile/init and flag errors
     // in the operational exit contract, preserving intentional successful exits.
     if (error.oclif?.exit === 0) return super.catch(error)
+    // `-o json` promised parseable stdout and delivered an empty one on every failure, so a
+    // caller piping to `jq` saw nothing at all. The envelope is the policy topic's convention;
+    // the message is the same folded, redacted text stderr carries.
+    if (this.isJsonOutput()) this.log(JSON.stringify({error: {exit: 1, message: error.message}}, null, 2))
     this.error(error, {exit: 1})
+  }
+
+  /**
+   * A request against a workspace route that answers like the policy routes do: folded errors,
+   * the permission guidance for the `workspace:policy` gates, and exit 1 on any failure.
+   * `route` names a sibling of `/policy` (and how its failures introduce themselves).
+   */
+  protected policyRequest(profile: ProfileConfig, workspace: string, branch: string, verbose: boolean, rawPayload = false, route: {label?: string; path?: string} = {}): PolicyRequest {
+    const {label = 'Policy', path: routePath = '/policy'} = route
+    const base = `${profile.instance_origin}/api:meta/workspace/${workspace}${routePath}`
+    return async (path = '', method = 'GET', body?: unknown, query: Record<string, string> = {}) => {
+      const url = `${base}${path}?${new URLSearchParams({branch, ...query})}`
+      const response = await this.verboseFetch(
+        url,
+        {
+          body: body === undefined ? undefined : JSON.stringify(body),
+          headers: {
+            accept: 'application/json',
+            Authorization: `Bearer ${profile.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          method,
+        },
+        verbose,
+        profile.access_token,
+      )
+      if (!response.ok) {
+        this.error(await this.describeFailure(response, url, profile.access_token, verbose, rawPayload, label), {exit: 1})
+      }
+
+      // The native DELETE route answers with the HTTP status and, on some builds, no body
+      // at all. Every other policy route sends JSON, so an empty body is only ever that.
+      const text = await response.text()
+      if (text.trim() === '') return {}
+      try {
+        return JSON.parse(text)
+      } catch {
+        return this.error(`${label} request to ${path || '/'} returned a ${response.status} that is not JSON.`, {exit: 1})
+      }
+    }
   }
 
   protected async runPolicy(action: string, flags: PolicyFlags, target?: string): Promise<void> {
@@ -102,7 +152,7 @@ export default abstract class PolicyCommand extends BaseCommand {
 
         case 'parse':
         case 'publish': {
-          await this.runSource(action, context)
+          await this.runSource(action, context, target)
           break
         }
 
@@ -139,7 +189,7 @@ export default abstract class PolicyCommand extends BaseCommand {
   }
 
   /** Policy routes fold backend errors, redact the credential and name a missing branch; other commands keep the raw server message. */
-  private async describeFailure(response: Response, url: string, accessToken: string, verbose: boolean, rawPayload = false): Promise<string> {
+  private async describeFailure(response: Response, url: string, accessToken: string, verbose: boolean, rawPayload = false, label = 'Policy'): Promise<string> {
     const redacted = (await response.text()).replaceAll(accessToken, '[REDACTED]')
     if (verbose && redacted) this.logToStderr(redacted)
     // Summary output locates a parse error the way a person counts (line 1 is the first line);
@@ -147,41 +197,20 @@ export default abstract class PolicyCommand extends BaseCommand {
     const detail = formatApiError(foldApiError(redacted, response.status, url), {rawPayload})
     // Scope, role and feature-off are three different 403s with three different remedies.
     const guidance = policyPermissionGuidance(response.status, detail)
-    return `Policy request failed (${response.status}): ${detail}${guidance}`
+    return `${label} request failed (${response.status}): ${detail}${guidance}`
   }
 
-  private policyRequest(profile: ProfileConfig, workspace: string, branch: string, verbose: boolean, rawPayload = false): PolicyRequest {
-    const base = `${profile.instance_origin}/api:meta/workspace/${workspace}/policy`
-    return async (path = '', method = 'GET', body?: unknown, query: Record<string, string> = {}) => {
-      const url = `${base}${path}?${new URLSearchParams({branch, ...query})}`
-      const response = await this.verboseFetch(
-        url,
-        {
-          body: body === undefined ? undefined : JSON.stringify(body),
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${profile.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          method,
-        },
-        verbose,
-        profile.access_token,
-      )
-      if (!response.ok) {
-        this.error(await this.describeFailure(response, url, profile.access_token, verbose, rawPayload), {exit: 1})
-      }
-
-      // The native DELETE route answers with the HTTP status and, on some builds, no body
-      // at all. Every other policy route sends JSON, so an empty body is only ever that.
-      const text = await response.text()
-      if (text.trim() === '') return {}
-      try {
-        return JSON.parse(text)
-      } catch {
-        return this.error(`Policy request to ${path || '/'} returned a ${response.status} that is not JSON.`, {exit: 1})
-      }
-    }
+  /**
+   * The file, however it was named. `xano policy parse policies/AUTH-001.xs` used to be swallowed
+   * into the command id (`command policy:parse:policies/AUTH-001.xs not found`, exit 2, the code
+   * reserved for findings), because the command declared no positional at all.
+   */
+  private resolveSourceFile(flags: PolicyFlags, positional?: string): string | undefined {
+    const named = positional?.trim()
+    if (!named) return flags.file
+    if (flags.stdin) this.error('Provide policy source once: a file (positional or --file) or --stdin.')
+    if (flags.file && flags.file !== named) this.error('Provide the file once: as a positional or as --file.')
+    return flags.file ?? named
   }
 
   /**
@@ -302,9 +331,10 @@ export default abstract class PolicyCommand extends BaseCommand {
     this.log('Only the newest twenty runs are retained per branch. Read one with `xano policy runs <id> --run-detail`.')
   }
 
-  private async runSource(action: string, {branch, flags, request, workspace}: PolicyContext): Promise<void> {
-    if (!flags.file && !flags.stdin) this.error('Provide --file or --stdin for policy source.')
-    const source = fs.readFileSync(flags.stdin ? 0 : flags.file!, 'utf8')
+  private async runSource(action: string, {branch, flags, request, workspace}: PolicyContext, positional?: string): Promise<void> {
+    const file = this.resolveSourceFile(flags, positional)
+    if (!file && !flags.stdin) this.error('Provide --file or --stdin for policy source.')
+    const source = fs.readFileSync(flags.stdin ? 0 : file!, 'utf8')
     const parsed = (await request('/parse', 'POST', {source})) as {policy: Policy; source: string}
     if (!parsed.policy?.key || typeof parsed.source !== 'string')
       this.error('The platform did not return a parsed policy and canonical source.')
@@ -350,8 +380,11 @@ export default abstract class PolicyCommand extends BaseCommand {
       // A stale or draft row carries no counts at all, so printing `0 findings` there would read
       // as "nothing wrong" for a policy with known findings. Say the count is not counted instead.
       const counted = (row: (typeof rows)[number]) => !row.stale && row.status !== 'draft; not evaluated'
+      // Enforcement is what decides whether a finding stops a merge, and the table never said it:
+      // a mandatory policy and an advisory one printed the same row. Studio's words, so they agree.
       for (const row of rows)
-        this.log(`${row.key}  ${row.status}  ${counted(row) ? `${row.findings} findings` : '— findings'}  ${row.title ?? ''}`)
+        this.log(`${row.key}  ${row.status}  ${enforcementLabel(row.enforcement)}  ${
+          counted(row) ? `${row.findings} findings` : '— findings'}  ${row.title ?? ''}`)
       const currentKeys = new Set(rows.filter((row) => counted(row)).map((row) => row.key))
       for (const line of policyResultSummary(run?.results?.filter((result) => currentKeys.has(result.policy_key ?? '')))) this.log(line)
       if (flags['run-detail']) {
@@ -363,8 +396,13 @@ export default abstract class PolicyCommand extends BaseCommand {
     }
 
     if (flags['fail-on-findings']) {
-      const code = statusExitCode(policies, rows)
-      if (code) process.exitCode = code
+      const code = statusExitCode(rows)
+      if (code) {
+        process.exitCode = code
+        // A CI failure that names no policy is a failure the reader has to reconstruct.
+        const reason = statusExitReason(rows)
+        if (reason && flags.output !== 'json') this.log(reason)
+      }
     }
   }
 }

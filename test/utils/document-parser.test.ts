@@ -3,6 +3,8 @@ import snakeCase from 'lodash.snakecase'
 import {posix} from 'node:path'
 
 import {
+  apiGroupFolderSlug,
+  buildApiGroupFolderResolver,
   buildChannelServerResolver,
   channelPathSegments,
   type ParsedDocument,
@@ -15,6 +17,8 @@ import {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const OUT = '/out'
+
+const group = (name: string): ParsedDocument => ({content: '', name, type: 'api_group'})
 
 // Resolve a document's on-disk location using POSIX joins, so assertions are
 // stable regardless of the host OS. `documents` seeds the channel→server map
@@ -214,6 +218,46 @@ describe('document-parser', () => {
       const blob = 'table a {\n}\n---\n\n---\n   \n---\ntable b {\n}'
       const docs = splitMultidoc(blob)
       expect(docs.map((d) => d.name)).to.deep.equal(['a', 'b'])
+    })
+  })
+
+  describe('api group folders', () => {
+    it('keeps a letter/digit run together and splits only on separators and camelCase humps', () => {
+      // lodash snakeCase splits E2E into e_2_e; a folder is named after what a person typed.
+      expect(apiGroupFolderSlug('E2E-LOCAL-public')).to.equal('e2e_local_public')
+      expect(apiGroupFolderSlug('MyGroup')).to.equal('my_group')
+      expect(apiGroupFolderSlug('v1')).to.equal('v1')
+      expect(apiGroupFolderSlug('pdf2text')).to.equal('pdf2text')
+      expect(apiGroupFolderSlug('Lab API 2')).to.equal('lab_api_2')
+      expect(apiGroupFolderSlug('  --Mixed__Up/Name!  ')).to.equal('mixed_up_name')
+    })
+
+    it('resolves each api_group to its folder, suffixing a collision', () => {
+      const resolve = buildApiGroupFolderResolver(
+        [group('E2E-LOCAL-public'), group('Authentication'), group('authentication')],
+        snakeCase,
+      )
+      expect(resolve('E2E-LOCAL-public')).to.equal('e2e_local_public')
+      expect(resolve('Authentication')).to.equal('authentication')
+      expect(resolve('authentication')).to.equal('authentication_2')
+      // A group the document set never declared still resolves, by the same rule.
+      expect(resolve('Lab API 2')).to.equal('lab_api_2')
+    })
+
+    it('keeps a tree that an older CLI already pulled where it is', () => {
+      const documents = [group('E2E-LOCAL-public'), group('MyGroup')]
+      const onDisk = new Set(['e_2_e_local_public'])
+      const resolve = buildApiGroupFolderResolver(documents, snakeCase, (folder) => onDisk.has(folder))
+      // The old folder exists and the new one does not: writing the new one would strand it.
+      expect(resolve('E2E-LOCAL-public')).to.equal('e_2_e_local_public')
+      // A group with nothing on disk gets the new spelling.
+      expect(resolve('MyGroup')).to.equal('my_group')
+      // Once the new folder exists too, the new spelling wins — nothing to strand.
+      onDisk.add('e2e_local_public')
+      expect(buildApiGroupFolderResolver(documents, snakeCase, (folder) => onDisk.has(folder))('E2E-LOCAL-public'))
+        .to.equal('e2e_local_public')
+      // Without the check (`flatten`, previews) the new spelling is always used.
+      expect(buildApiGroupFolderResolver(documents, snakeCase)('E2E-LOCAL-public')).to.equal('e2e_local_public')
     })
   })
 

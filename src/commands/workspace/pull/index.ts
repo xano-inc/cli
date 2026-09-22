@@ -162,7 +162,8 @@ Pulled 58 documents
 
     // Resolve api_group names to unique folder names, disambiguating collisions
     // where different names produce the same snakeCase (e.g., "Authentication" vs "authentication")
-    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
+    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase, (folder) =>
+      fs.existsSync(path.join(outputDir, 'api', folder)))
 
     // Resolve a realtime v2 channel path -> owning realtime_server name, so
     // messages can nest under their channel's server (see resolver docs).
@@ -219,6 +220,11 @@ Pulled 58 documents
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
+    // The policy files are rules for an agent to follow, and nothing in the tree says what they
+    // mean. The skill the instance generates does, so name it the moment policies land locally.
+    if (documents.some((doc) => doc.type === 'policy')) {
+      this.log('Run `xano skills pull` to install the policies skill for your coding agent.')
+    }
   }
 
   /**

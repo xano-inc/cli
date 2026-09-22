@@ -4,8 +4,10 @@ import {parseDocument} from '../../src/utils/document-parser.js'
 import {filterChangedEntries} from '../../src/utils/multidoc-push.js'
 import {
   computeStatusRows,
+  enforcementLabel,
   policyExitCode,
   policyFileName,
+  policyResultSummary,
   policyRuleName,
   policyRunDetail,
   policyRunRow,
@@ -13,6 +15,7 @@ import {
   policySettings,
   policySummary,
   statusExitCode,
+  statusExitReason,
 } from '../../src/utils/policy.js'
 
 const result = (status: string, checked = 1) => ({check_id: 'R1', checked, policy_key: 'AUTH-001', status})
@@ -63,6 +66,44 @@ describe('policy carriage and feedback', () => {
     expect(summary).to.contain('Errors:\n  AUTH-001 AUTH-001.R1: Unknown check')
     expect(summary).to.contain('Warnings:\n  AUTH-001 AUTH-001.R2: Tag "pii" is not on this branch.')
     expect(summary.indexOf('Errors:')).to.be.lessThan(summary.indexOf('Warnings:'))
+  })
+
+  it('names the rules that checked nothing instead of printing them as passes', () => {
+    const results = [
+      {check_id: 'AUTH-001.R1', checked: 12, policy_key: 'AUTH-001', status: 'pass'},
+      {check_id: 'AUTH-001.R2', checked: 0, policy_key: 'AUTH-001', status: 'pass'},
+      {check_id: 'SEC-100.R1', policy_key: 'SEC-100', status: 'pass'},
+    ]
+    const summary = policyResultSummary(results).join('\n')
+    expect(summary).to.contain('No objects checked (proves nothing about coverage):\n  AUTH-001 AUTH-001.R2: no objects checked\n  SEC-100 SEC-100.R1: no objects checked')
+    // The per-rule list follows the errors and warnings rather than interleaving with them.
+    const withDiagnostics = policyResultSummary([
+      {check_id: 'AUTH-001.R0', checked: 3, message: 'Unknown check', policy_key: 'AUTH-001', status: 'error'},
+      ...results,
+    ]).join('\n')
+    expect(withDiagnostics.indexOf('Errors:')).to.be.lessThan(withDiagnostics.indexOf('No objects checked ('))
+
+    // Every rule checking nothing is one sentence about the run, not a list repeating it.
+    const none = policyResultSummary([{check_id: 'AUTH-001.R2', checked: 0, policy_key: 'AUTH-001', status: 'pass'}])
+    expect(none).to.deep.equal(['No objects checked; this run does not demonstrate coverage.'])
+    // A run where every rule reached something says nothing at all.
+    expect(policyResultSummary([{check_id: 'AUTH-001.R1', checked: 12, policy_key: 'AUTH-001', status: 'pass'}])).to.deep.equal([])
+    expect(policyResultSummary()).to.deep.equal([])
+  })
+
+  it('refuses to call unusable policy feedback a pass', () => {
+    // `policyExitCode` demands a boolean `blocking`; truthiness here printed `Policy check: pass`
+    // beside exit 1. Everything else about the feedback is still shown.
+    for (const blocking of [undefined, null, 'false', 0, 1, 'true']) {
+      const summary = policySummary({blocking, findings: [{message: 'No auth', rule_id: 'R1'}], status: 'pass'} as never).join('\n')
+      expect(summary).to.contain('Policy check unavailable: the server returned policy feedback without a usable status/blocking flag.')
+      expect(summary).to.not.contain('Policy check: pass')
+      expect(summary).to.contain('No auth')
+    }
+
+    // A status the exit code does not recognise is unusable too, boolean `blocking` or not.
+    expect(policySummary({blocking: false, status: 'partial'}).join('\n')).to.contain('Policy check unavailable:')
+    expect(policySummary({blocking: false, status: 'pass'}).join('\n')).to.equal('Policy check: pass')
   })
 
   it('names an unnamed rule by its id instead of printing nothing', () => {
@@ -171,6 +212,12 @@ describe('policy carriage and feedback', () => {
     expect(policyRunDetail({...run, policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', title: ''}]}]})).to.deep.equal([])
     expect(policyRunDetail({...run, policies: []})).to.deep.equal([])
     expect(policyRunDetail()).to.deep.equal([])
+
+    // What each rule actually inspected comes from the results, not from the snapshot.
+    expect(policyRunDetail({...run, results: [{check_id: 'AUTH-001.R1', checked: 23, policy_key: 'AUTH-001', status: 'pass'}]})[2])
+      .to.equal('    AUTH-001.R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]  checked 23')
+    expect(policyRunDetail({...run, results: [{check_id: 'AUTH-001.R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}]})[2])
+      .to.equal('    AUTH-001.R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]  no objects checked')
   })
 
   it('keeps commented policy headers and treats their bodies as opaque source', () => {
@@ -189,18 +236,24 @@ describe('policy carriage and feedback', () => {
 
     it('compares ISO timestamps and reports a current failing run', () => {
       const [row] = computeStatusRows([policy], run)
+      // The row carries the policy's own enforcement and lifecycle, so nothing joins by index.
       expect(row).to.deep.equal({
-        checked: 10, findings: 1, key: 'AUTH-001', policy_updated_at: policy.updated_at,
+        checked: 10, enforcement: 'mandatory', findings: 1, key: 'AUTH-001', lifecycle: 'active',
+        policy_updated_at: policy.updated_at,
         run_started_at: run.started_at, stale: false, status: 'fail', title: undefined,
       })
-      expect(statusExitCode([policy], [row])).to.equal(2)
+      expect(statusExitCode([row])).to.equal(2)
+      expect(statusExitReason([row])).to.equal(
+        'Merge blocked by policy: 1 blocking finding on mandatory policies (AUTH-001).')
     })
 
     it('marks a policy edited after the run as outdated with ISO timestamps', () => {
       const edited = {...policy, updated_at: '2026-09-03T00:00:00Z'}
       const [row] = computeStatusRows([edited], run)
       expect(row).to.include({checked: 0, findings: 0, stale: true, status: 'outdated; evaluate again'})
-      expect(statusExitCode([edited], [row])).to.equal(1)
+      expect(statusExitCode([row])).to.equal(1)
+      expect(statusExitReason([row])).to.equal(
+        'Evaluation evidence is stale, missing or errored (AUTH-001 outdated; evaluate again); exit 1.')
     })
 
     it('accepts epoch numbers and a missing run', () => {
@@ -236,7 +289,47 @@ describe('policy carriage and feedback', () => {
       expect(rows([result('pass'), {...result('pass'), check_id: 'R2'}])[0].status).to.equal('pass')
       expect(computeStatusRows([{...policy, rules: []}], {...run, results: []})[0].status).to.equal('no checks')
       const advisory = {...policy, enforcement: 'advisory'}
-      expect(statusExitCode([advisory], computeStatusRows([advisory], run))).to.equal(0)
+      expect(statusExitCode(computeStatusRows([advisory], run))).to.equal(0)
+      expect(statusExitReason(computeStatusRows([advisory], run))).to.equal(null)
+    })
+
+    it('says a policy passed on rules that inspected nothing, rather than just "pass"', () => {
+      const rules = [{id: 'R1'}, {id: 'R2'}]
+      const results = [result('pass', 7), {...result('pass', 0), check_id: 'R2'}]
+      const [row] = computeStatusRows([{...policy, rules}], {...run, findings: [], results})
+      // The nonzero total hides the rule that reached nothing; the row says so instead.
+      expect(row.status).to.equal('pass; 1 rule no objects checked')
+      expect(statusExitCode([row])).to.equal(0)
+      const both = [{...result('pass', 0)}, {...result('pass', 0), check_id: 'R2'}]
+      expect(computeStatusRows([{...policy, rules}], {...run, findings: [], results: both})[0].status)
+        .to.equal('no objects checked')
+    })
+
+    it('names every policy behind a CI failure, and the blocking finding count', () => {
+      const second = {...policy, id: 8, key: 'SEC-100'}
+      const rows = computeStatusRows([policy, second], {
+        ...run,
+        findings: [{policy_key: 'AUTH-001'}, {policy_key: 'SEC-100'}, {policy_key: 'SEC-100'}],
+        results: [...run.results, {check_id: 'R1', checked: 4, policy_key: 'SEC-100', status: 'fail'}],
+      })
+      expect(statusExitCode(rows)).to.equal(2)
+      expect(statusExitReason(rows)).to.equal(
+        'Merge blocked by policy: 3 blocking findings on mandatory policies (AUTH-001, SEC-100).')
+      // Unreliable evidence outranks findings, exactly as the exit code does.
+      const stale = computeStatusRows([policy, second])
+      expect(statusExitCode(stale)).to.equal(1)
+      expect(statusExitReason(stale)).to.equal(
+        'Evaluation evidence is stale, missing or errored (AUTH-001 not evaluated, SEC-100 not evaluated); exit 1.')
+      expect(statusExitReason([])).to.equal(null)
+    })
+
+    it('speaks the language Studio speaks for enforcement', () => {
+      expect(enforcementLabel('mandatory')).to.equal('Blocking')
+      expect(enforcementLabel('advisory')).to.equal('Advisory')
+      // An instance sending something else says it verbatim rather than guessing.
+      expect(enforcementLabel('')).to.equal('—')
+      expect(enforcementLabel()).to.equal('—')
+      expect(enforcementLabel('conditional')).to.equal('conditional')
     })
   })
 })

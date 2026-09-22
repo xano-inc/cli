@@ -213,7 +213,10 @@ describe('policy reporting regressions', () => {
     const result = await command('policy publish', ['-v', '-o', 'json'])
     expect(result.error).to.have.nested.property('oclif.exit', 1)
     expect(result.error?.message).to.contain('ERROR_CODE_SYNTAX_ERROR').and.not.to.contain('/internal/')
-    expect(result.stdout).to.equal('')
+    // stdout carries the failure as JSON, with the same folded, redacted message as stderr.
+    expect(JSON.parse(result.stdout).error).to.include({exit: 1})
+    expect(JSON.parse(result.stdout).error.message).to.contain('ERROR_CODE_SYNTAX_ERROR')
+    expect(result.stdout).not.to.contain('/internal/').and.not.to.contain('private-trace-id')
     expect(result.stderr).to.contain('/internal/Schema.php')
   })
 
@@ -221,7 +224,8 @@ describe('policy reporting regressions', () => {
     process.env.XANO_VERBOSE = 'true'
     globalThis.fetch = async () => json(backendError, 400)
     const result = await command('policy parse', ['-o', 'json'])
-    expect(result.stdout).to.equal('')
+    expect(JSON.parse(result.stdout).error).to.include({exit: 1})
+    expect(result.stdout).not.to.contain('/internal/').and.not.to.contain('private-trace-id')
     expect(result.stderr).to.contain('/internal/Schema.php')
     expect(result.error?.message).not.to.contain('/internal/')
   })
@@ -231,17 +235,63 @@ describe('policy reporting regressions', () => {
     const result = await command('policy status')
     expect(result.error).to.equal(undefined)
     // A draft is never evaluated, so there is no count to print — `0 findings` would read as "clean".
-    expect(result.stdout).to.contain('draft; not evaluated  — findings').and.not.to.contain('OLD ERROR')
+    expect(result.stdout).to.contain('draft; not evaluated  Blocking  — findings').and.not.to.contain('OLD ERROR')
     expect(process.exitCode ?? 0).to.equal(0)
   })
 
-  it('status --run-detail reports the description and settings the run recorded', async () => {
+  it('status --run-detail reports the description, settings and coverage the run recorded', async () => {
     statusRoute(policy, detailRun)
     const result = await command('policy status', ['--run-detail'])
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
       .and.to.contain('AUTH-001  Every endpoint requires authentication unless it is tagged public.')
-      .and.to.contain('R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]')
+      // What the rule was configured to do, and what it actually reached.
+      .and.to.contain('R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]  checked 10')
+    statusRoute(policy, {...detailRun, results: [{...detailRun.results[0], checked: 0, status: 'pass'}]})
+    const empty = await command('policy status', ['--run-detail'])
+    expect(empty.stdout).to.contain('except_tags=[public]  no objects checked')
+  })
+
+  it('status prints the enforcement that decides whether a row can stop a merge', async () => {
+    statusRoute(policy, run)
+    const mandatory = await command('policy status')
+    expect(mandatory.error).to.equal(undefined)
+    expect(mandatory.stdout).to.contain('AUTH-001  fail  Blocking  1 findings')
+    statusRoute({...policy, enforcement: 'advisory'}, run)
+    const advisory = await command('policy status')
+    expect(advisory.stdout).to.contain('AUTH-001  fail  Advisory  1 findings')
+  })
+
+  it('status names the rules that checked nothing while others passed', async () => {
+    const rules = [{id: 'R1'}, {id: 'R2'}]
+    const results = [
+      {check_id: 'R1', checked: 9, message: '', policy_key: 'AUTH-001', status: 'pass'},
+      {check_id: 'R2', checked: 0, message: '', policy_key: 'AUTH-001', status: 'pass'},
+    ]
+    statusRoute({...policy, rules}, {...run, findings: [], results})
+    const result = await command('policy status')
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain('AUTH-001  pass; 1 rule no objects checked  Blocking  0 findings')
+    expect(result.stdout).to.contain('No objects checked (proves nothing about coverage):\n  AUTH-001 R2: no objects checked')
+  })
+
+  it('--fail-on-findings says in one line why it failed, naming the policies', async () => {
+    statusRoute(policy, run)
+    const blocked = await command('policy status', ['--fail-on-findings'])
+    expect(blocked.error).to.equal(undefined)
+    expect(blocked.stdout).to.contain('Merge blocked by policy: 1 blocking finding on mandatory policies (AUTH-001).')
+    expect(process.exitCode).to.equal(2)
+
+    statusRoute({...policy, updated_at: 3000}, run)
+    const stale = await command('policy status', ['--fail-on-findings'])
+    expect(stale.stdout).to.contain('Evaluation evidence is stale, missing or errored (AUTH-001 outdated; evaluate again); exit 1.')
+    expect(process.exitCode).to.equal(1)
+
+    // `-o json` keeps stdout parseable: the exit code carries the verdict there.
+    statusRoute(policy, run)
+    const asJson = await command('policy status', ['--fail-on-findings', '-o', 'json'])
+    expect(JSON.parse(asJson.stdout).status[0]).to.include({enforcement: 'mandatory', lifecycle: 'active'})
+    expect(process.exitCode).to.equal(2)
   })
 
   it('status omits run detail unless asked, and JSON stays a passthrough of the native run', async () => {

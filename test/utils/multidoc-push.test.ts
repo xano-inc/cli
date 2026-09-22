@@ -12,6 +12,7 @@ import {
   findMultiDocEntries,
   findWorkspaceEntries,
   normalizeFilterPattern,
+  policyDocumentNames,
   policyDocumentSummary,
 } from '../../src/utils/multidoc-push.js'
 
@@ -363,7 +364,7 @@ describe('multidoc-push helpers', () => {
     it('says what happened to each policy when the push previewed the change', () => {
       // The preview knows more than the multidoc does: it also sees the policies that
       // a partial push did not send because nothing about them changed.
-      expect(policyDocumentSummary(multidoc, {operations: [
+      expect(policyDocumentSummary({operations: [
         {action: 'create', name: 'AUTH-001', type: 'policy'},
         {action: 'update', name: 'SEC-100', type: 'policy'},
         {action: 'unchanged', name: 'POL-001', type: 'policy'},
@@ -371,15 +372,18 @@ describe('multidoc-push helpers', () => {
       ]})).to.deep.equal(['Policy documents: 1 created (AUTH-001), 1 updated (SEC-100), 1 unchanged'])
     })
 
-    it('names what it sent when --force skipped the preview', () => {
-      expect(policyDocumentSummary(multidoc, null)).to.deep.equal([
-        'Policy documents sent (2): AUTH-001, SEC-100',
-      ])
+    it('says nothing when --force skipped the preview, because nothing knows what changed', () => {
+      // The import response reports an unchanged policy exactly as it reports a saved one, so
+      // naming what was *sent* claimed a write on every --force push of an untouched tree.
+      expect(policyDocumentSummary(null)).to.deep.equal([])
+      // The names are still available to fold the count into the import summary line.
+      expect(policyDocumentNames(multidoc)).to.deep.equal(['AUTH-001', 'SEC-100'])
+      expect(policyDocumentNames('table account {\n  schema {\n  }\n}')).to.deep.equal([])
     })
 
-    it('stays silent about a push that carries no policy at all', () => {
-      expect(policyDocumentSummary('table account {\n  schema {\n  }\n}', null)).to.deep.equal([])
-      expect(policyDocumentSummary('', {operations: [{action: 'update', name: 'account', type: 'table'}]})).to.deep.equal([])
+    it('stays silent about a push whose preview named no policy at all', () => {
+      expect(policyDocumentSummary({operations: [{action: 'update', name: 'account', type: 'table'}]})).to.deep.equal([])
+      expect(policyDocumentNames('table account {\n  schema {\n  }\n}')).to.deep.equal([])
     })
   })
 })

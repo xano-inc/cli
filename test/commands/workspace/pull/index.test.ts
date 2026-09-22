@@ -13,12 +13,14 @@ describe('workspace pull policy files', () => {
   let command: Pull
   let source: string
   let warnings: string[]
+  let logs: string[]
 
   beforeEach(() => {
     directory = fs.mkdtempSync(path.join(tmpdir(), 'xano-pull-policy-'))
     warnings = []
+    logs = []
     command = Object.assign(new Pull([], {} as Config), {
-      log() {},
+      log: (message: string) => logs.push(message),
       parse: async () => ({flags: {directory, draft: false, env: false, records: false}}),
       resolveProfile: () => ({profile: {access_token: 'test', instance_origin: 'https://test.example', workspace: '1'}}),
       verboseFetch: async (url: string) => new Response(url.endsWith('/knowledge/sync') ? '[]' : source),
@@ -74,6 +76,20 @@ describe('workspace pull policy files', () => {
     await command.run()
     expect(fs.readFileSync(path.join(directory, 'policies', 'SEC-100.xs'), 'utf8')).to.equal(policy('SEC-100'))
     expect(fs.readFileSync(path.join(directory, 'function', 'price_usage.xs'), 'utf8')).to.equal('function price_usage {\n}')
+  })
+
+  it('points at the skill that explains the policies it just wrote', async () => {
+    source = [policy('SEC-100'), 'function price_usage {\n}'].join('\n---\n')
+    await command.run()
+    expect(logs.at(-2)).to.contain('Pulled 2 documents')
+    expect(logs.at(-1)).to.equal('Run `xano skills pull` to install the policies skill for your coding agent.')
+  })
+
+  it('says nothing about the skill when the export carried no policy', async () => {
+    source = ['function price_usage {\n}', 'table plan {\n}'].join('\n---\n')
+    await command.run()
+    expect(logs.join('\n')).to.contain('Pulled 2 documents')
+    expect(logs.join('\n')).not.to.contain('xano skills pull')
   })
 
   for (const remaining of [[policy('KEEP'), policy('NEW')], ['function first {\n}'], []]) {

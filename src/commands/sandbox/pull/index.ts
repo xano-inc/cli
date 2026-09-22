@@ -114,7 +114,8 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
     const outputDir = path.resolve(flags.directory)
     fs.mkdirSync(outputDir, {recursive: true})
 
-    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
+    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase, (folder) =>
+      fs.existsSync(path.join(outputDir, 'api', folder)))
 
     // Resolve a realtime v2 channel path -> owning realtime_server name, so
     // messages can nest under their channel's server (see resolver docs).
