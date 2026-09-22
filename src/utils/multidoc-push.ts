@@ -30,6 +30,7 @@ export interface PushFlags {
   force: boolean
   guids: boolean
   include?: string[]
+  message?: string
   output?: string
   records: boolean
   sync: boolean
@@ -57,6 +58,12 @@ export interface PushTarget {
   sourceWorkspaceId?: string
   /** Does this target support branches? */
   supportsBranches: boolean
+  /**
+   * Does this target's import route accept a `message` query parameter (the label for the Version
+   * History entry of each policy document the push writes)? Only the workspace multidoc route does;
+   * the sandbox, ephemeral and release routes share this code and would see an unknown parameter.
+   */
+  supportsMessage?: boolean
   /** Does this target support the partial query param? */
   supportsPartial: boolean
   /**
@@ -1458,7 +1465,10 @@ export async function executePush(
   let pushedDocCount = 0
 
   if (!knowledgeOnly && multidoc) {
-    const apiUrl = target.buildPushUrl(queryParams)
+    const message = target.supportsMessage ? (flags.message ?? '').trim() : ''
+    const pushParams = message ? new URLSearchParams(queryParams) : queryParams
+    if (message) pushParams.set('message', message)
+    const apiUrl = target.buildPushUrl(pushParams)
 
     try {
       const response = await verboseFetch(
@@ -1609,7 +1619,15 @@ export async function executePush(
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   const parts: string[] = []
-  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
+  // Without a preview nothing can say which policies changed, so the count rides the import
+  // line rather than standing on its own claiming every policy in the tree was written.
+  const previewNamedPolicies = (dryRunPreview?.operations ?? []).some((op) => op.type === 'policy')
+  const unpreviewedPolicies = target.requiresPolicyCheck && !previewNamedPolicies
+    ? policyDocumentNames(multidoc).length
+    : 0
+  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents${unpreviewedPolicies > 0
+    ? ` (${unpreviewedPolicies} policy document${unpreviewedPolicies === 1 ? '' : 's'})`
+    : ''}`)
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const kParts = [`${knowledgeImported} knowledge file${knowledgeImported === 1 ? '' : 's'}`]
     if (shouldDelete && knowledgeDeleted > 0) kParts.push(`${knowledgeDeleted} deleted`)
@@ -1624,7 +1642,7 @@ export async function executePush(
       // The push writes policy documents like any other, but they are the one document
       // type whose effect the reader cannot see anywhere else in this output — so name
       // them, and say what happened to each, before the findings they will produce.
-      for (const line of policyDocumentSummary(multidoc, dryRunPreview)) log(line)
+      for (const line of policyDocumentSummary(dryRunPreview)) log(line)
       for (const line of policySummary(check)) log(line)
     }
 
@@ -1639,21 +1657,26 @@ export async function executePush(
 
 }
 
-/**
- * Which policy documents this push wrote, and what happened to each. The dry-run
- * preview knows created/updated/unchanged; a `--force` push skips the preview, so it
- * can only name what it sent. Either way the reader stops having to infer from a
- * document count whether their policy actually landed.
- */
-export function policyDocumentSummary(multidoc: string, preview: null | {operations: Array<{action: string; name: string; type: string}>}): string[] {
-  const sent = multidoc
+/** The policy documents a multidoc carries, by key, in the order they were sent. */
+export function policyDocumentNames(multidoc: string): string[] {
+  return multidoc
     .split('\n---\n')
     .map((block) => parseDocument(block))
     .filter((parsed) => parsed?.type === 'policy')
     .map((parsed) => parsed!.name)
+}
+
+/**
+ * What happened to each policy document this push wrote. Only the dry-run preview knows:
+ * it reports created/updated/unchanged per policy. A `--force` push skips the preview and
+ * the import response never says either — its `guid_map` carries an unchanged policy and a
+ * saved one identically — so naming what was *sent* claimed a change on every push of an
+ * untouched tree. With no preview the count folds into the import line instead (see
+ * `policyDocumentNames`), and this returns nothing.
+ */
+export function policyDocumentSummary(preview: null | {operations: Array<{action: string; name: string; type: string}>}): string[] {
   const operations = (preview?.operations ?? []).filter((op) => op.type === 'policy')
-  if (sent.length === 0 && operations.length === 0) return []
-  if (operations.length === 0) return [`Policy documents sent (${sent.length}): ${[...sent].sort().join(', ')}`]
+  if (operations.length === 0) return []
 
   const named = (action: string) =>
     operations.filter((op) => op.action === action).map((op) => op.name).sort()

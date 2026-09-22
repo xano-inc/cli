@@ -238,7 +238,7 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(asJson.stdout).id).to.equal(1674)
   })
 
-  it('push names the policy documents it sent, marks blocking findings and points at the next command', async () => {
+  it('push folds the policy count into the import line when no preview said what changed', async () => {
     const findings = [
       {id: 'F1', message: 'no auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'},
       {id: 'F2', message: 'stale tag', object: {name: 'account', type: 'table'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R2'},
@@ -250,14 +250,65 @@ describe('official policy commands and workspace carriage', () => {
       fixture.config,
     )
     expect(result.error).to.equal(undefined)
-    // `--force` skips the preview, so created-vs-updated is unknowable; naming them is not.
-    expect(result.stdout).to.contain('Policy documents sent (1): AUTH-001')
+    // `--force` skips the preview, and the import response reports an unchanged policy exactly
+    // as it reports a saved one — so the count rides the import line rather than a claim of its own.
+    expect(result.stdout).to.contain('1 documents (1 policy document) to')
+    expect(result.stdout).not.to.contain('Policy documents sent')
     expect(result.stdout).to.contain('Blocking findings (1) — these stop the merge:')
     expect(result.stdout).to.contain('SEC-100.R1 (SEC-100)  query GET /x: no auth')
     expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:')
     expect(result.stdout).to.contain('SEC-100.R2 (SEC-100)  table account: stale tag')
     expect(result.stdout).to.contain('Next: `xano policy status --run-detail`')
     expect(process.exitCode).to.equal(2)
+  })
+
+  it('parses the file named as a positional, exactly as --file names it', async () => {
+    // Without a declared positional, oclif folded the path into the command id and failed with
+    // `command policy:parse:policies/AUTH-001.xs not found` — exit 2, the findings code.
+    fixture.route(() => json({policy: {key: 'AUTH-001'}, source}))
+    const result = await runCommand(['policy', 'parse', policyFile], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.equal(`${source}\n`)
+    expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({source})
+  })
+
+  it('refuses a file named twice with two different paths', async () => {
+    fixture.route(() => { throw new Error('unexpected request') })
+    const result = await runCommand(['policy', 'parse', policyFile, '--file', 'other.xs'], fixture.config)
+    expect(result.error?.message).to.contain('Provide the file once: as a positional or as --file.')
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(fixture.calls).to.have.length(0)
+  })
+
+  it('leaves piped stdin to --stdin instead of reading it as the positional', async () => {
+    // oclif fills a missing positional from stdin whenever stdin is not a TTY, so the first
+    // version of the positional turned `xano policy parse --stdin < file` into "source named
+    // twice" — the whole document had become the file argument. The arg opts out.
+    const {default: PolicyCommand} = await import('../../src/policy-command.js')
+    expect(PolicyCommand.sourceArgs.file.ignoreStdin).to.equal(true)
+  })
+
+  it('publishes the file named as a positional', async () => {
+    fixture.route((url, method) =>
+      url.pathname.endsWith('/parse')
+        ? json({policy: {key: 'AUTH-001'}, source})
+        : method === 'GET'
+          ? json([])
+          : json({id: 7, key: 'AUTH-001'}),
+    )
+    const result = await runCommand(['policy', 'publish', policyFile], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain('Published AUTH-001 to workspace 1 (feature).')
+  })
+
+  it('-o json reports a failure as JSON on stdout and still exits 1', async () => {
+    fixture.route(() => json({code: 'ERROR_CODE_BAD_REQUEST', message: 'unknown check query.removed'}, 400))
+    const result = await runCommand(['policy', 'parse', policyFile, '-o', 'json'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    const envelope = JSON.parse(result.stdout)
+    expect(envelope.error.exit).to.equal(1)
+    expect(envelope.error.message).to.contain('unknown check query.removed')
+    expect(envelope.error.message).to.equal(result.error?.message)
   })
 
   it('redacts the active credential if an API error reflects it', async () => {

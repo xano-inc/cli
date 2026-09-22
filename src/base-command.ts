@@ -285,6 +285,19 @@ export default abstract class BaseCommand extends Command {
     this.updateNotice = checkForUpdate(this.config.version, forceUpdateCheck)
   }
 
+  /** Raw-argv check: the parsed flags are not available yet when the banner prints. */
+  protected isJsonOutput(): boolean {
+    const args = this.argv
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--output' && args[i + 1] === 'json') return true
+      if (args[i] === '-o' && args[i + 1] === 'json') return true
+      // oclif accepts a short flag's value attached to it, with or without the `=`.
+      if (args[i] === '--output=json' || args[i] === '-o=json' || args[i] === '-ojson') return true
+    }
+
+    return false
+  }
+
   protected loadCredentialsFile(): CredentialsFile | null {
     const credentialsPath = this.getCredentialsPath()
 
@@ -594,17 +607,6 @@ export default abstract class BaseCommand extends Command {
     return stage
   }
 
-  private isJsonOutput(): boolean {
-    const args = this.argv
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] === '--output' && args[i + 1] === 'json') return true
-      if (args[i] === '-o' && args[i + 1] === 'json') return true
-      if (args[i] === '--output=json' || args[i] === '-o=json') return true
-    }
-
-    return false
-  }
-
   /**
    * Find and parse the nearest project-local profile.yaml, unless an explicit
    * -p/XANO_PROFILE was given (in which case the local file is ignored).
@@ -653,7 +655,9 @@ export default abstract class BaseCommand extends Command {
     const {config, path: filePath} = this.localProfile
     const profileName = config.profile ?? this.getDefaultProfile()
     const relativePath = path.relative(process.cwd(), filePath) || path.basename(filePath)
-    this.log(formatLocalProfileBanner(profileName, config.workspace, relativePath))
+    // Stderr: the banner is about the session, not the command's answer, and on stdout it sat
+    // above output meant to be read or piped whole (the canonical source `policy parse` prints).
+    this.logToStderr(formatLocalProfileBanner(profileName, config.workspace, relativePath))
   }
 }
 

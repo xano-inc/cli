@@ -36,12 +36,6 @@ Pushed 58 documents
     `$ xano workspace push -b dev
 Pushed 42 documents
 `,
-    `$ xano workspace push --no-records
-Push schema only, skip importing table records
-`,
-    `$ xano workspace push --no-env
-Push without overwriting environment variables
-`,
     `$ xano workspace push --truncate
 Truncate all table records before importing
 `,
@@ -59,6 +53,9 @@ Push functions but exclude test files
 `,
     `$ xano workspace push -i "knowledge/**"
 Push only knowledge files (agents.md / skills / docs)
+`,
+    `$ xano workspace push -m "Tightened the auth policies"
+Label the Version History entry of each policy document this push changes
 `,
     `$ xano workspace push --sync --delete
 Full sync including knowledge files; removes server objects not present locally
@@ -122,6 +119,7 @@ Full sync including knowledge files; removes server objects not present locally
       multiple: true,
       required: false,
     }),
+    message: Flags.string({char: 'm', description: 'Message stored on the Version History entry of each policy document this push changes'}),
     output: Flags.string({char: 'o', default: 'summary', description: 'Output format; JSON retains the complete import and policy feedback', options: ['summary', 'json']}),
     records: Flags.boolean({
       default: false,
@@ -192,6 +190,8 @@ Full sync including knowledge files; removes server objects not present locally
       label: `workspace ${workspaceId}`,
       requiresPolicyCheck: true,
       supportsBranches: true,
+      // The workspace multidoc route is the only push route that labels Version History entries.
+      supportsMessage: true,
       supportsPartial: true,
     }
 
@@ -204,6 +204,7 @@ Full sync including knowledge files; removes server objects not present locally
       force: flags.force,
       guids: flags.guids,
       include: flags.include,
+      message: flags.message,
       output: flags.output,
       records: flags.records,
       sync: flags.sync,

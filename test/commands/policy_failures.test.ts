@@ -43,7 +43,9 @@ describe('policy failure contracts', () => {
       const result = await run('evaluate', ['-v', '-o', 'json'])
       if (code === 1) {
         expectOperationalError(result)
-        expect(result.stdout).to.equal('')
+        // `-o json` keeps its promise on the way out too: the failure is an object, not silence.
+        expect(JSON.parse(result.stdout).error).to.include({exit: 1})
+        expect(JSON.parse(result.stdout).error.message).to.be.a('string').and.not.to.equal('')
       } else {
         expect(result.error).to.equal(undefined)
         expect(JSON.parse(result.stdout)).to.have.property('policy_check')
