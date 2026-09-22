@@ -469,11 +469,6 @@ export function splitMultidoc(blob: string): ParsedDocument[] {
   return documents
 }
 
-/** Preserve existing export bytes; policy files use the native source's final newline. */
-export function documentFileContent(doc: ParsedDocument): string {
-  return doc.type === 'policy' && !doc.content.endsWith('\n') ? `${doc.content}\n` : doc.content
-}
-
 /** A document's resolved on-disk location relative to the output root, plus its content. */
 export interface PlacedDocument {
   content: string

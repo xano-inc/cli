@@ -10,7 +10,6 @@ import {
   buildApiGroupFolderResolver,
   buildChannelServerResolver,
   channelPathSegments,
-  documentFileContent,
   type ParsedDocument,
   parseDocument,
 } from '../../../../utils/document-parser.js'
@@ -146,7 +145,7 @@ static override flags = {
 
         const filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
         const filePath = path.join(typeDir, filename)
-        fs.writeFileSync(filePath, documentFileContent(doc), 'utf8')
+        fs.writeFileSync(filePath, doc.content, 'utf8')
         writtenCount++
       }
 
