@@ -72,7 +72,7 @@ Push functions but exclude test files
 Push only knowledge files (agents.md / skills / docs)
 `,
     `$ xano workspace push -m "Tightened the auth policies"
-Label the Version History entry of each policy document this push changes
+Label the Version History entry of each policy this push changes; other objects get no message
 `,
     `$ xano workspace push --sync --delete
 Full sync including knowledge files; removes server objects not present locally
@@ -135,7 +135,7 @@ Full sync including knowledge files; removes server objects not present locally
     }),
     message: Flags.string({
       char: 'm',
-      description: 'Message stored on the Version History entry of each policy document this push changes',
+      description: 'Labels the Version History entry of each policy this push changes; other objects get no message',
       required: false,
     }),
     output: Flags.string({
