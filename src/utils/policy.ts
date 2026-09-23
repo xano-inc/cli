@@ -149,6 +149,10 @@ export interface PolicyCheck {
   findings?: PolicyFinding[]
   message?: string
   results?: PolicyRuleResult[]
+  /**
+   * `pass` or `fail` for a completed evaluation; otherwise why there is none: `disabled`,
+   * `not_applicable`, `forbidden`, `unavailable` or `error`.
+   */
   status?: string
 }
 
@@ -157,11 +161,28 @@ export function policyFileName(key: string): string {
   return `${key}.xs`
 }
 
-export function policyExitCode(check?: PolicyCheck, allowMissing = false): number {
-  if (check?.blocking === true) return 2
-  if (!check || !['fail', 'pass'].includes(check.status ?? '') || typeof check.blocking !== 'boolean')
-    return allowMissing ? 0 : 1
-  return 0
+/** A completed evaluation that says whether its findings block. */
+function isSettled(check: PolicyCheck): boolean {
+  return ['fail', 'pass'].includes(check.status ?? '') && typeof check.blocking === 'boolean'
+}
+
+/** 2 when an active mandatory policy failed; every other outcome, including no feedback, is 0. */
+export function policyExitCode(check?: PolicyCheck): number {
+  return check?.status === 'fail' && check.blocking === true ? 2 : 0
+}
+
+/**
+ * The one warning line for feedback that is not a settled pass or fail: the server's own status
+ * and message, or that none came back. `null` when the feedback is settled.
+ */
+export function policyCheckWarning(check?: PolicyCheck): null | string {
+  if (!check) return 'Policy check: no policy feedback returned.'
+  if (isSettled(check)) return null
+  const status = typeof check.status === 'string' && check.status.trim() !== '' ? check.status.trim() : 'unknown'
+  const message = typeof check.message === 'string' && check.message.trim() !== ''
+    ? check.message.trim()
+    : (['fail', 'pass'].includes(status) ? 'the server did not say whether its findings block.' : 'no message returned.')
+  return `Policy check ${status}: ${message}`
 }
 
 /** A finding names its rule the way the platform does, falling back to what the run recorded. */
@@ -198,20 +219,22 @@ function blockingIds(check: PolicyCheck): Set<string> {
   return new Set((check.blocking_findings ?? []).map(finding => finding.id ?? '').filter(Boolean))
 }
 
-/** `snapshot` is the run's own `policies[]`, when the same payload carries it; it names unnamed rules. */
+/**
+ * The feedback on stdout: a headline for a settled pass or fail, then any findings, errors and
+ * warnings. Unsettled feedback gets no headline; `policyCheckWarning` reports it instead.
+ * `snapshot` is the run's own `policies[]`, when the same payload carries it; it names unnamed rules.
+ */
 export function policySummary(check?: PolicyCheck, snapshot: PolicySnapshotPolicy[] = []): string[] {
-  if (!check) return ['Policy check unavailable: the server did not return policy feedback.']
-  const outcome = check.status === 'fail' && check.blocking === false
-    ? 'advisory findings (not blocking)'
-    : `${check.status ?? 'unavailable'}${check.blocking ? ' (mandatory findings)' : ''}`
-  // `policyExitCode` is strict about both fields, so feedback the exit code calls unusable
-  // must not be summarised as a pass: a non-boolean `blocking` (absent, null, "false", 0)
-  // read as truthiness printed `Policy check: pass` beside a nonzero exit.
-  const usable = ['fail', 'pass'].includes(check.status ?? '') && typeof check.blocking === 'boolean'
-  const lines = [usable
-    ? `Policy check: ${outcome}`
-    : 'Policy check unavailable: the server returned policy feedback without a usable status/blocking flag.']
-  if (check.message) lines.push(check.message)
+  if (!check) return []
+  const lines: string[] = []
+  if (isSettled(check)) {
+    const outcome = check.status === 'pass'
+      ? 'pass'
+      : (check.blocking ? 'fail (mandatory findings)' : 'advisory findings (not blocking)')
+    lines.push(`Policy check: ${outcome}`)
+    if (check.message) lines.push(check.message)
+  }
+
   const rules = snapshotRules(snapshot)
   const findings = check.findings ?? []
   const blocking = blockingIds(check)

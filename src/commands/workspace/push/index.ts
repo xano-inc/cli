@@ -63,9 +63,6 @@ Full sync including knowledge files; removes server objects not present locally
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
-    // The repository convention is underscores; `--dry-run` and `--fail-on-findings` sit beside
-    // this one, so the hyphenated spelling is accepted too rather than failing as unknown.
-    'allow_missing_policy_check': Flags.boolean({aliases: ['allow-missing-policy-check'], default: false, description: 'Allow a missing or unavailable policy check after import (does not override mandatory findings). Also accepted as --allow-missing-policy-check'}),
     branch: Flags.string({
       char: 'b',
       description: 'Branch name (optional if set in profile, defaults to live)',
@@ -196,7 +193,6 @@ Full sync including knowledge files; removes server objects not present locally
     }
 
     const pushFlags: PushFlags = {
-      'allow_missing_policy_check': flags.allow_missing_policy_check,
       delete: flags.delete,
       'dry-run': flags['dry-run'],
       env: flags.env,

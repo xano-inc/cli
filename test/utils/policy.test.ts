@@ -5,6 +5,7 @@ import {filterChangedEntries} from '../../src/utils/multidoc-push.js'
 import {
   computeStatusRows,
   enforcementLabel,
+  policyCheckWarning,
   policyExitCode,
   policyFileName,
   policyResultSummary,
@@ -26,23 +27,33 @@ describe('policy carriage and feedback', () => {
     expect(() => policyFileName('../escape')).to.throw('Invalid policy key')
   })
 
-  it('distinguishes mandatory findings, advisory findings and missing evidence', () => {
+  const unsettled = ['disabled', 'not_applicable', 'forbidden', 'unavailable', 'error']
+
+  it('exits 2 only for a failed evaluation with blocking findings', () => {
     expect(policyExitCode({blocking: true, status: 'fail'})).to.equal(2)
     expect(policyExitCode({blocking: false, status: 'fail'})).to.equal(0)
-    expect(policyExitCode({blocking: false, status: 'unavailable'})).to.equal(1)
-    expect(policyExitCode()).to.equal(1)
-    expect(policyExitCode(undefined, true)).to.equal(0)
+    expect(policyExitCode({blocking: false, status: 'pass'})).to.equal(0)
+    for (const status of unsettled) expect(policyExitCode({blocking: false, message: 'M', status})).to.equal(0)
+    expect(policyExitCode({blocking: true, status: 'error'})).to.equal(0)
+    expect(policyExitCode()).to.equal(0)
   })
 
-  it('prints findings and does not call missing checks a pass', () => {
-    expect(policySummary().join('\n')).to.contain('unavailable')
-    expect(
-      policySummary({
-        blocking: true,
-        findings: [{message: 'No auth', rule_id: 'R1'}],
-        status: 'fail',
-      }).join('\n'),
-    ).to.contain('No auth')
+  it('warns once with the server status and message for feedback that is not a pass or fail', () => {
+    for (const status of unsettled) {
+      expect(policyCheckWarning({blocking: false, message: `Said ${status}.`, status})).to.equal(`Policy check ${status}: Said ${status}.`)
+      expect(policySummary({blocking: false, message: `Said ${status}.`, status})).to.deep.equal([])
+    }
+
+    expect(policyCheckWarning()).to.equal('Policy check: no policy feedback returned.')
+    expect(policyCheckWarning({status: 'error'})).to.equal('Policy check error: no message returned.')
+    expect(policyCheckWarning({blocking: false, status: 'pass'})).to.equal(null)
+    expect(policyCheckWarning({blocking: true, status: 'fail'})).to.equal(null)
+  })
+
+  it('prints findings under their outcome, and nothing for missing feedback', () => {
+    expect(policySummary()).to.deep.equal([])
+    const summary = policySummary({blocking: true, findings: [{message: 'No auth', rule_id: 'R1'}], status: 'fail'}).join('\n')
+    expect(summary).to.contain('Policy check: fail (mandatory findings)').and.to.contain('No auth')
   })
 
   it('prints a warning for a name the branch does not have, even when the rule passed', () => {
@@ -91,19 +102,17 @@ describe('policy carriage and feedback', () => {
     expect(policyResultSummary()).to.deep.equal([])
   })
 
-  it('refuses to call unusable policy feedback a pass', () => {
-    // `policyExitCode` demands a boolean `blocking`; truthiness here printed `Policy check: pass`
-    // beside exit 1. Everything else about the feedback is still shown.
+  it('never headlines a pass or fail that does not say whether it blocks', () => {
     for (const blocking of [undefined, null, 'false', 0, 1, 'true']) {
-      const summary = policySummary({blocking, findings: [{message: 'No auth', rule_id: 'R1'}], status: 'pass'} as never).join('\n')
-      expect(summary).to.contain('Policy check unavailable: the server returned policy feedback without a usable status/blocking flag.')
+      const check = {blocking, findings: [{message: 'No auth', rule_id: 'R1'}], status: 'pass'} as never
+      const summary = policySummary(check).join('\n')
       expect(summary).to.not.contain('Policy check: pass')
       expect(summary).to.contain('No auth')
+      expect(policyCheckWarning(check)).to.equal('Policy check pass: the server did not say whether its findings block.')
     }
 
-    // A status the exit code does not recognise is unusable too, boolean `blocking` or not.
-    expect(policySummary({blocking: false, status: 'partial'}).join('\n')).to.contain('Policy check unavailable:')
-    expect(policySummary({blocking: false, status: 'pass'}).join('\n')).to.equal('Policy check: pass')
+    expect(policyCheckWarning({blocking: false, status: 'partial'})).to.equal('Policy check partial: no message returned.')
+    expect(policySummary({blocking: false, status: 'pass'})).to.deep.equal(['Policy check: pass'])
   })
 
   it('names an unnamed rule by its id instead of printing nothing', () => {
