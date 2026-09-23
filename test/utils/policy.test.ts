@@ -21,19 +21,19 @@ describe('policy carriage and feedback', () => {
     expect(() => policyBaseName('../escape')).to.throw('Invalid policy key')
   })
 
-  const unsettled = ['disabled', 'not_applicable', 'forbidden', 'unavailable', 'error']
+  const warned = ['disabled', 'forbidden', 'unavailable', 'error']
 
-  it('exits 2 only for a failed evaluation with blocking findings', () => {
+  it('exits 2 whenever the platform says a finding blocks, whatever the status', () => {
     expect(policyExitCode({blocking: true, status: 'fail'})).to.equal(2)
+    expect(policyExitCode({blocking: true, status: 'error'})).to.equal(2)
     expect(policyExitCode({blocking: false, status: 'fail'})).to.equal(0)
     expect(policyExitCode({blocking: false, status: 'pass'})).to.equal(0)
-    for (const status of unsettled) expect(policyExitCode({blocking: false, message: 'M', status})).to.equal(0)
-    expect(policyExitCode({blocking: true, status: 'error'})).to.equal(0)
+    for (const status of [...warned, 'not_applicable']) expect(policyExitCode({blocking: false, message: 'M', status})).to.equal(0)
     expect(policyExitCode()).to.equal(0)
   })
 
-  it('warns once with the server status and message for feedback that is not a pass or fail', () => {
-    for (const status of unsettled) {
+  it('warns once with the server status and message for disabled, forbidden, unavailable and error', () => {
+    for (const status of warned) {
       expect(policyCheckWarning({blocking: false, message: `Said ${status}.`, status})).to.equal(`Policy check ${status}: Said ${status}.`)
       expect(policySummary({blocking: false, message: `Said ${status}.`, status})).to.deep.equal([])
     }
@@ -44,10 +44,16 @@ describe('policy carriage and feedback', () => {
     expect(policyCheckWarning({blocking: true, status: 'fail'})).to.equal(null)
   })
 
+  it('headlines a branch with no active policy with the server message, and does not warn', () => {
+    const check = {blocking: false, message: 'No active policies on this branch; nothing was evaluated.', status: 'not_applicable'}
+    expect(policyCheckWarning(check)).to.equal(null)
+    expect(policySummary(check)).to.deep.equal(['Policy check: not_applicable', 'No active policies on this branch; nothing was evaluated.'])
+  })
+
   it('prints findings under their outcome, and nothing for missing feedback', () => {
     expect(policySummary()).to.deep.equal([])
     const summary = policySummary({blocking: true, findings: [{message: 'No auth', rule_id: 'R1'}], status: 'fail'}).join('\n')
-    expect(summary).to.contain('Policy check: fail (mandatory findings)').and.to.contain('No auth')
+    expect(summary).to.contain('Policy check: fail (blocking findings)').and.to.contain('No auth')
   })
 
   it('says what happened to each policy document when the push previewed it', () => {

@@ -8,22 +8,29 @@ import readline from 'node:readline'
 import {json, policyFixture} from '../../../helpers/policy-fixture.js'
 
 const finding = {id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}
-const statuses = ['disabled', 'not_applicable', 'forbidden', 'unavailable', 'error']
+const warned = ['disabled', 'forbidden', 'unavailable', 'error']
 
 describe('workspace push policy feedback', () => {
   const fixture = policyFixture()
   const push = (...extra: string[]) =>
     runCommand(['workspace', 'push', '-d', fixture.directory, '--force', '--no-guids', ...extra], fixture.config)
 
-  const cases: Array<[string, Record<string, unknown> | undefined, number, null | string]> = [
-    ['a pass', {blocking: false, results: [], status: 'pass'}, 0, null],
-    ['advisory findings', {blocking: false, findings: [finding], status: 'fail'}, 0, null],
-    ['blocking findings', {blocking: true, blocking_findings: [finding], findings: [finding], status: 'fail'}, 2, null],
-    ...statuses.map((status): [string, Record<string, unknown>, number, string] =>
-      [status, {blocking: false, message: `The server says ${status}.`, status}, 0, `Policy check ${status}: The server says ${status}.`]),
-    ['no feedback', undefined, 0, 'Policy check: no policy feedback returned.'],
+  // [label, policy_check, exit code, the one warning line, a line the summary prints]
+  const cases: Array<[string, Record<string, unknown> | undefined, number, null | string, null | string]> = [
+    ['a pass', {blocking: false, message: 'No policy findings.', results: [], status: 'pass'}, 0, null, 'Policy check: pass\nNo policy findings.'],
+    ['advisory findings', {blocking: false, findings: [finding], status: 'fail'}, 0, null, 'Policy check: advisory findings (not blocking)'],
+    ['blocking findings', {blocking: true, blocking_findings: [finding], findings: [finding], message: 'Active policies reported findings.', status: 'fail'}, 2, null,
+      'Policy check: fail (blocking findings)\nActive policies reported findings.'],
+    ['no active policy', {blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}, 0, null,
+      'Policy check: not_applicable\nNo active policies on this branch.'],
+    ...warned.map((status): [string, Record<string, unknown>, number, string, null] =>
+      [status, {blocking: false, message: `The server says ${status}.`, status}, 0, `Policy check ${status}: The server says ${status}.`, null]),
+    ['blocking findings beside an errored check', {blocking: true, blocking_findings: [finding], findings: [finding], message: 'A check could not run.', status: 'error'}, 2,
+      'Policy check error: A check could not run.', 'Blocking findings (1)'],
+    ['an unknown status', {blocking: false, message: 'Something new.', status: 'partial'}, 0, 'Policy check partial: Something new.', null],
+    ['no feedback', undefined, 0, 'Policy check: no policy feedback returned.', null],
   ]
-  for (const [label, check, code, warning] of cases) {
+  for (const [label, check, code, warning, printed] of cases) {
     it(`exits ${code} for ${label}${warning ? ', with one warning line' : ''}`, async () => {
       fixture.route(() => json({guid_map: [], ...(check ? {policy_check: check} : {})}))
       const result = await push()
@@ -32,7 +39,8 @@ describe('workspace push policy feedback', () => {
       const warnings = result.stderr.split('\n').filter((line) => line.includes('Policy check'))
       if (warning) expect(warnings).to.have.length(1).and.to.satisfy((lines: string[]) => lines[0].includes(warning))
       else expect(warnings).to.deep.equal([])
-      expect(`${result.stdout}${result.stderr}`).not.to.contain('usable status')
+      if (printed) expect(result.stdout).to.contain(printed)
+      if (warning) expect(result.stdout).not.to.contain('Policy check:')
     })
   }
 
@@ -47,11 +55,11 @@ describe('workspace push policy feedback', () => {
   })
 
   it('keeps stdout a single JSON document and still warns on stderr', async () => {
-    const check = {blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}
+    const check = {blocking: false, message: 'This credential cannot read policies.', status: 'forbidden'}
     fixture.route(() => json({guid_map: [], policy_check: check}))
     const result = await push('-o', 'json')
     expect(JSON.parse(result.stdout).policy_check).to.deep.equal(check)
-    expect(result.stderr).to.contain('Policy check not_applicable: No active policies on this branch.')
+    expect(result.stderr).to.contain('Policy check forbidden: This credential cannot read policies.')
     expect(process.exitCode ?? 0).to.equal(0)
   })
 

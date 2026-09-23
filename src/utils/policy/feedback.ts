@@ -2,23 +2,28 @@ import type {PolicyCheck, PolicySnapshotPolicy} from './types.js'
 
 import {findingLine, policyResultSummary, snapshotRules} from './findings.js'
 
-/** A completed evaluation that says whether its findings block. */
-function isSettled(check: PolicyCheck): boolean {
+/**
+ * Feedback printed as a headline: a pass or fail that says whether its findings block, or a branch
+ * with no active policy to evaluate. Everything else is reported by `policyCheckWarning`.
+ */
+function isHeadlined(check: PolicyCheck): boolean {
+  if (check.status === 'not_applicable') return true
   return ['fail', 'pass'].includes(check.status ?? '') && typeof check.blocking === 'boolean'
 }
 
-/** 2 when an active mandatory policy failed; every other outcome, including no feedback, is 0. */
+/** 2 whenever the platform says a finding blocks, whatever the status; every other outcome is 0. */
 export function policyExitCode(check?: PolicyCheck): number {
-  return check?.status === 'fail' && check.blocking === true ? 2 : 0
+  return check?.blocking === true ? 2 : 0
 }
 
 /**
- * The one warning line for feedback that is not a settled pass or fail: the server's own status
- * and message, or that none came back. `null` when the feedback is settled.
+ * The one warning line for feedback without a headline (`disabled`, `forbidden`, `unavailable`,
+ * `error`, an unknown status, or a pass or fail that does not say whether it blocks): the server's
+ * own status and message, or that none came back. `null` for headlined feedback.
  */
 export function policyCheckWarning(check?: PolicyCheck): null | string {
   if (!check) return 'Policy check: no policy feedback returned.'
-  if (isSettled(check)) return null
+  if (isHeadlined(check)) return null
   const status = typeof check.status === 'string' && check.status.trim() !== '' ? check.status.trim() : 'unknown'
   const message = typeof check.message === 'string' && check.message.trim() !== ''
     ? check.message.trim()
@@ -57,17 +62,17 @@ function blockingIds(check: PolicyCheck): Set<string> {
 }
 
 /**
- * The feedback on stdout: a headline for a settled pass or fail, then any findings, errors and
- * warnings. Unsettled feedback gets no headline; `policyCheckWarning` reports it instead.
+ * The feedback on stdout: a headline with the server's message, then any findings, errors and
+ * warnings. Feedback without a headline is reported by `policyCheckWarning` instead.
  * `snapshot` is the run's own `policies[]`, when the same payload carries it; it names unnamed rules.
  */
 export function policySummary(check?: PolicyCheck, snapshot: PolicySnapshotPolicy[] = []): string[] {
   if (!check) return []
   const lines: string[] = []
-  if (isSettled(check)) {
-    const outcome = check.status === 'pass'
-      ? 'pass'
-      : (check.blocking ? 'fail (mandatory findings)' : 'advisory findings (not blocking)')
+  if (isHeadlined(check)) {
+    const outcome = check.status === 'fail'
+      ? (check.blocking ? 'fail (blocking findings)' : 'advisory findings (not blocking)')
+      : check.status
     lines.push(`Policy check: ${outcome}`)
     if (check.message) lines.push(check.message)
   }

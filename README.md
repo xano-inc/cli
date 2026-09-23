@@ -210,9 +210,8 @@ live), `-o/--output summary|json` and the profile, config and verbose flags.
 
 **Exit codes.** `0` on success. `1` for an operational failure (credentials, transport, an HTTP error, a
 body that is not JSON, unreadable source); with `-o json` the failure is also written to stdout as
-`{"error": {"exit": 1, "message": "…"}}`. `2` for blocking findings: `evaluate` when `policy_check.status`
-is `fail` with blocking findings, and `status --fail-on-findings` for current findings on an active
-mandatory policy. `status --fail-on-findings` exits `1` for stale, missing or errored evidence, and prints
+`{"error": {"exit": 1, "message": "…"}}`. `2` for blocking findings: `evaluate` when `policy_check.blocking`
+is `true`, and `status --fail-on-findings` for current findings on an active mandatory policy. `status --fail-on-findings` exits `1` for stale, missing or errored evidence, and prints
 one line naming the policies.
 
 #### Policy permissions
@@ -236,11 +235,12 @@ suggests `xano workspace push -e "policies/*"`, `xano workspace pull` or `xano p
 
 After the import the CLI prints what happened to the policy documents (from the preview, or only how many
 were sent when `--force` skipped it) and then the server's `policy_check`. The exit code depends only on the
-import and on blocking policies: a failed import exits `1`, `status: "fail"` with blocking findings exits
-`2`, and everything else exits `0`. The import is never rolled back. Feedback that is not a pass or a fail
-(`disabled`, `not_applicable`, `forbidden`, `unavailable`, `error`), or no feedback at all, prints one warning
-line on stderr with the server's status and message. For CI, key on `policy_check.blocking` rather than
-`status`: advisory-only findings arrive as `status: "fail"` with `blocking: false`.
+import and on blocking policies: a failed import exits `1`, `policy_check.blocking: true` exits `2` whatever
+the status, and everything else exits `0`. The import is never rolled back. A pass, a fail and
+`not_applicable` (no active policy on the branch) print a headline with the server's message. `disabled`,
+`forbidden`, `unavailable` and `error`, or no feedback at all, print one warning line on stderr with the
+server's status and message. For CI, key on `policy_check.blocking` rather than `status`: advisory-only
+findings arrive as `status: "fail"` with `blocking: false`.
 
 With `-o json` stdout holds one document: `{"imported": false, "reason", "preview"}` when nothing was
 imported (`dry-run`, `no-changes`, `blocked` or `cancelled`), otherwise the import response with

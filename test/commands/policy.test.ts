@@ -80,9 +80,15 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls.filter((call) => ['POST', 'PUT'].includes(call.method) && !call.url.pathname.endsWith('/parse'))).to.deep.equal([])
   })
   for (const [check, code, warning] of [
+    [{blocking: false, status: 'pass'}, 0, null],
     [{blocking: true, status: 'fail'}, 2, null],
     [{blocking: false, status: 'fail'}, 0, null],
+    [{blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}, 0, null],
+    [{blocking: false, message: 'Policies are not enabled.', status: 'disabled'}, 0, 'Policy check disabled: Policies are not enabled.'],
+    [{blocking: false, message: 'This credential cannot read policies.', status: 'forbidden'}, 0, 'Policy check forbidden: This credential cannot read policies.'],
+    [{blocking: false, message: 'Evaluation is unavailable.', status: 'unavailable'}, 0, 'Policy check unavailable: Evaluation is unavailable.'],
     [{blocking: false, message: 'A check could not run.', status: 'error'}, 0, 'Policy check error: A check could not run.'],
+    [{blocking: true, message: 'A check could not run.', status: 'error'}, 2, 'Policy check error: A check could not run.'],
     [undefined, 0, 'Policy check: no policy feedback returned.'],
   ] as const) {
     it(`evaluate retains JSON and uses exit ${code} for ${JSON.stringify(check)}`, async () => {
@@ -95,6 +101,13 @@ describe('official policy commands and workspace carriage', () => {
       else expect(result.stderr).not.to.contain('Policy check')
     })
   }
+
+  it('evaluate prints the server message under the headline of a branch with nothing to evaluate', async () => {
+    fixture.route(() => json({id: 0, policy_check: {blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}}))
+    const result = await runCommand(['policy', 'evaluate'], fixture.config)
+    expect(result.stdout).to.contain('Policy check: not_applicable\nNo active policies on this branch.')
+    expect(result.stderr).not.to.contain('Policy check')
+  })
 
   it('pull writes exported policies to stable filenames', async () => {
     fixture.route((url) => (url.pathname.endsWith('/knowledge/sync') ? json([]) : new Response(source)))
