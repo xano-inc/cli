@@ -73,10 +73,11 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(asJson.stdout)).to.deep.equal(stored)
   })
 
-  it('does not save when native validation rejects source', async () => {
-    fixture.route((url) => url.pathname.endsWith('/parse') ? json({message: 'unknown check'}, 400) : json({items: []}))
+  it('does not save when native validation rejects source, and names the catalogue command', async () => {
+    const message = 'rule[0]: "query.removed" is not a policy check. GET workspace/{workspace_id}/policy/check lists every check id.'
+    fixture.route((url) => url.pathname.endsWith('/parse') ? json({code: 'ERROR_CODE_BAD_REQUEST', message}, 400) : json({items: []}))
     const result = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
-    expect(result.error?.message).to.contain('unknown check')
+    expect(result.error?.message).to.contain(`${message} Run \`xano policy catalogue\` for the list.`)
     expect(fixture.calls.filter((call) => ['POST', 'PUT'].includes(call.method) && !call.url.pathname.endsWith('/parse'))).to.deep.equal([])
   })
   for (const [check, code, warning] of [

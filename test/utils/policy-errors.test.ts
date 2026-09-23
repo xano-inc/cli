@@ -46,6 +46,12 @@ describe('policy route errors', () => {
     expect(describePolicyError('', 500, url)).to.equal('The server returned no message.')
   })
 
+  it('adds the CLI command for the catalogue to a refusal that points at its route', () => {
+    const message = 'rule[0]: "query.auth_requred" is not a policy check. Did you mean "query.auth_required"? GET workspace/{workspace_id}/policy/check lists every check id.'
+    expect(describePolicyError(JSON.stringify({message}), 400, url)).to.equal(`${message} Run \`xano policy catalogue\` for the list.`)
+    expect(describePolicyError(JSON.stringify({message: 'Invalid block: enforcement'}), 400, url)).not.to.contain('xano policy catalogue')
+  })
+
   it('hands back the refusal payload beside the message', () => {
     const payload = {code: 'policy_scope_required', level: 'read', permission: 'workspace:policy'}
     expect(describeError(JSON.stringify({message: 'Refused.', payload}), 403, url)).to.deep.equal({message: 'Refused.', payload})
