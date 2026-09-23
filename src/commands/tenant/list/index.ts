@@ -1,17 +1,18 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson} from '../../../utils/paging.js'
 
 interface Tenant {
   cluster?: {id?: number; name?: string}
   display?: string
-  type?: string
   id: number
   license?: string
   name: string
   platform?: {id?: number; name?: string}
   release?: string | {id?: number; name?: string}
   state?: string
+  type?: string
 }
 
 export default class TenantList extends BaseCommand {
@@ -90,9 +91,8 @@ Tenants in workspace 5:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(tenants, null, 2))
-      } else {
-        if (tenants.length === 0) {
+        this.log(JSON.stringify(buildPagingJson({items: tenants}, {tier: 'none'}), null, 2))
+      } else if (tenants.length === 0) {
           this.log('No tenants found')
         } else {
           this.log(`Tenants in workspace ${workspaceId}:`)
@@ -108,7 +108,6 @@ Tenants in workspace 5:
             if (tenant.platform?.name) this.log(`      Platform: ${tenant.platform.name}`)
           }
         }
-      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list tenants: ${error.message}`)

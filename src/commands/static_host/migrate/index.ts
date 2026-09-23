@@ -1,6 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
+import {normalizeListResponse} from '../../../utils/paging.js'
 
 export interface StaticHostEnv {
   canonical?: null | string
@@ -108,9 +109,12 @@ Would migrate 3 v1 host(s): newsite, marketing, legacy
   /** List all static hosts in the workspace (paginates until exhausted). */
   private async listHosts(profile: ProfileConfig, workspaceId: string, verbose: boolean): Promise<StaticHost[]> {
     const hosts: StaticHost[] = []
-    const perPage = 100
     for (let page = 1; ; page++) {
-      const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host?page=${page}&per_page=${perPage}`
+      // per_page is not an input on this endpoint — the server fixes the page
+      // size — so it is deliberately not sent. Termination uses the response's
+      // own itemsTotal rather than "the page came back full", which would skip
+      // hosts if the server page size ever differed from a hardcoded guess.
+      const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host?page=${page}`
 
       // eslint-disable-next-line no-await-in-loop
       const response = await this.verboseFetch(
@@ -131,15 +135,15 @@ Would migrate 3 v1 host(s): newsite, marketing, legacy
         this.error(`Failed to list static hosts: ${response.status} ${response.statusText}\n${errorText}`)
       }
 
-      const data = (await response.json()) as StaticHost[] | {items?: StaticHost[]} // eslint-disable-line no-await-in-loop
-      const pageHosts: StaticHost[] = Array.isArray(data)
-        ? data
-        : data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)
-          ? data.items
-          : []
+      const list = normalizeListResponse<StaticHost>(await response.json(), ['static_hosts']) // eslint-disable-line no-await-in-loop
 
-      hosts.push(...pageHosts)
-      if (pageHosts.length < perPage) break
+      hosts.push(...list.items)
+
+      // Stop on the server's own total when it gives us one. Fall back to an
+      // empty page otherwise — one extra request, but it cannot under-collect
+      // and silently migrate a subset.
+      if (list.items.length === 0) break
+      if (list.itemsTotal !== undefined && hosts.length >= list.itemsTotal) break
     }
 
     return hosts

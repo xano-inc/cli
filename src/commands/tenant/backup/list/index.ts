@@ -1,6 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {buildPagingJson} from '../../../../utils/paging.js'
 
 interface Backup {
   _release?: {name?: string}
@@ -96,9 +97,8 @@ Backups for tenant t1234-abcd-xyz1:
       }
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(backups, null, 2))
-      } else {
-        if (backups.length === 0) {
+        this.log(JSON.stringify(buildPagingJson({items: backups}, {tier: 'none'}), null, 2))
+      } else if (backups.length === 0) {
           this.log(`No backups found for tenant ${tenantName}`)
         } else {
           this.log(`Backups for tenant ${tenantName}:`)
@@ -108,11 +108,11 @@ Backups for tenant t1234-abcd-xyz1:
               const d = new Date(backup.created_at)
               date = Number.isNaN(d.getTime()) ? backup.created_at : d.toISOString().split('T')[0]
             }
+
             const desc = backup.description || 'No description'
             this.log(`  - #${backup.id} - ${desc} (${date})`)
           }
         }
-      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list backups: ${error.message}`)

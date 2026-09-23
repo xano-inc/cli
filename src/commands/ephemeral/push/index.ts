@@ -3,6 +3,11 @@ import * as fs from 'node:fs'
 import {resolve} from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
+import {
+  isAwaited,
+  type MicroserviceStatusEntry,
+  waitForMicroservices,
+} from '../../../utils/microservice-wait.js'
 import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
 
 export default class EphemeralPush extends BaseCommand {
@@ -92,6 +97,18 @@ Skip preview and push immediately
       description: '[CRITICAL] STOP and confirm with the user; this truncates live tables before importing.',
       required: false,
     }),
+    wait: Flags.boolean({
+      default: false,
+      description:
+        'After pushing, wait for auto-deployed microservices (tenant_deploy="auto") to become ready. Exits non-zero if any fails to deploy or the wait times out. Ignored with --dry-run.',
+      required: false,
+    }),
+    'wait-timeout': Flags.integer({
+      default: 300,
+      description: 'Seconds to wait for microservices to become ready when --wait is set (default 300).',
+      min: 1,
+      required: false,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (uses profile workspace if not provided)',
@@ -157,6 +174,90 @@ Skip preview and push immediately
       target,
       pushFlags,
     )
+
+    // --wait: after a real push, poll the tenant's live microservice status until
+    // every auto-deployed microservice (tenant_deploy="auto") is ready or the
+    // wait times out. Skipped on --dry-run (nothing was deployed).
+    if (flags.wait && !flags['dry-run']) {
+      await this.waitForDeploy(baseUrl, profile.access_token, tenantName, flags['wait-timeout'], flags.verbose)
+    }
   }
+
+  /**
+   * Poll GET .../tenant/{name}/microservice until auto microservices settle.
+   * Renders a one-line-per-microservice progress view that updates in place, then
+   * exits non-zero if any auto microservice failed or the wait timed out.
+   */
+  private async waitForDeploy(
+    baseUrl: string,
+    accessToken: string,
+    tenantName: string,
+    timeoutSeconds: number,
+    verbose: boolean,
+  ): Promise<void> {
+    this.log('')
+    this.log(`Waiting for microservices to deploy (timeout ${timeoutSeconds}s)…`)
+
+    const icon = (e: MicroserviceStatusEntry): string => {
+      if (!isAwaited(e)) return '➖'
+      switch (e.status) {
+        case 'error': {
+          return '❌'
+        }
+
+        case 'ok': {
+          return '✅'
+        }
+
+        default: {
+          return '⏳'
+        }
+      }
+    }
+
+    const line = (e: MicroserviceStatusEntry): string => {
+      const detail = isAwaited(e) ? e.detail || e.status : `skipped (${e.tenant_deploy ?? 'manual'})`
+      return `  ${icon(e)} ${e.name.padEnd(24)} ${detail}`
+    }
+
+    const result = await waitForMicroservices({
+      accessToken,
+      onPoll: (entries) => {
+        // Re-render the block: move the cursor up over the previous render (if any)
+        // and rewrite. Falls back to plain appends when not a TTY.
+        if (process.stdout.isTTY && this.lastRenderLines > 0) {
+          process.stdout.write(`[${this.lastRenderLines}A[0J`)
+        }
+
+        const lines = entries.map((e) => line(e))
+        for (const l of lines) this.log(l)
+        this.lastRenderLines = process.stdout.isTTY ? lines.length : 0
+      },
+      statusUrl: `${baseUrl}/microservice`,
+      timeoutMs: timeoutSeconds * 1000,
+      verbose,
+      verboseFetch: this.verboseFetch.bind(this),
+    })
+
+    const awaited = result.entries.filter((e) => isAwaited(e))
+    const ready = awaited.filter((e) => e.status === 'ok').length
+
+    if (result.timedOut) {
+      this.error(
+        `Timed out after ${timeoutSeconds}s waiting for microservices (${ready}/${awaited.length} ready). ` +
+          `Check status with the Xano dashboard or re-run with a larger --wait-timeout.`,
+      )
+    }
+
+    if (result.hadError) {
+      const failed = awaited.filter((e) => e.status === 'error').map((e) => `${e.name} (${e.detail || 'error'})`)
+      this.error(`Microservice deploy failed: ${failed.join(', ')}`)
+    }
+
+    this.log(`All microservices ready (${ready}/${awaited.length}).`)
+  }
+
+  /** Number of lines the last progress render wrote (for in-place TTY updates). */
+  private lastRenderLines = 0
 
 }

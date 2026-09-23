@@ -3,6 +3,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import BaseCommand from '../../../../base-command.js'
+import {normalizeListResponse} from '../../../../utils/paging.js'
 
 interface ProfileConfig {
   access_token: string
@@ -322,9 +323,13 @@ Pulled the compiled/served output instead of the original source
     }
 
     // 2. Page through builds to find the one matching the deployed canonical.
-    const perPage = 100
+    // per_page is not an input on this endpoint (the server fixes the page
+    // size), so it is not sent. Termination uses the response's own itemsTotal
+    // rather than "the page came back full", which would stop early and report
+    // a spurious not-found if the server page size ever differed.
+    let seen = 0
     for (let page = 1; ; page++) {
-      const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${staticHost}/build?page=${page}&per_page=${perPage}`
+      const listUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/static_host/${staticHost}/build?page=${page}`
 
       // eslint-disable-next-line no-await-in-loop
       const response = await this.verboseFetch(
@@ -347,19 +352,17 @@ Pulled the compiled/served output instead of the original source
       }
 
       // eslint-disable-next-line no-await-in-loop
-      const data = (await response.json()) as BuildSummary[] | {items?: BuildSummary[]}
-      const builds: BuildSummary[] = Array.isArray(data)
-        ? data
-        : data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)
-          ? data.items
-          : []
+      const list = normalizeListResponse<BuildSummary>(await response.json(), ['builds'])
+      const builds = list.items
 
       const match = findBuildByCanonical(builds, canonical)
       if (match) {
         return String(match.id)
       }
 
-      if (builds.length < perPage) {
+      seen += builds.length
+      const exhausted = builds.length === 0 || (list.itemsTotal !== undefined && seen >= list.itemsTotal)
+      if (exhausted) {
         // Reached the last page without a match.
         this.error(
           `Could not find the build deployed to '${env}' (canonical ${canonical}) in the build list for '${staticHost}'`,

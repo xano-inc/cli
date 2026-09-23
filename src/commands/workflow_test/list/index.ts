@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson, buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
 
 interface WorkflowTest {
   created_at?: string
@@ -35,6 +36,7 @@ Workflow tests in workspace 5:
       options: ['summary', 'json'],
       required: false,
     }),
+    ...pagingFlags('envelope', {maxPerPage: 10_000}),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (uses profile workspace if not provided)',
@@ -54,7 +56,8 @@ Workflow tests in workspace 5:
       )
     }
 
-    const params = new URLSearchParams({include_xanoscript: 'false'})
+    const params = new URLSearchParams(buildPagingParams(flags, 'envelope'))
+    params.set('include_xanoscript', 'false')
     if (flags.branch) {
       params.set('branch', flags.branch)
     }
@@ -82,19 +85,11 @@ Workflow tests in workspace 5:
         )
       }
 
-      const data = await response.json() as WorkflowTest[] | {items?: WorkflowTest[]}
-
-      let tests: WorkflowTest[]
-      if (Array.isArray(data)) {
-        tests = data
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        tests = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<WorkflowTest>(await response.json())
+      const tests = list.items
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(tests, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, perPage: flags.per_page, tier: 'envelope'}), null, 2))
       } else {
         if (tests.length === 0) {
           this.log('No workflow tests found')
@@ -105,6 +100,9 @@ Workflow tests in workspace 5:
             this.log(`  - ${test.name} (ID: ${test.id})${desc}`)
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'workflow test', page: flags.page, tier: 'envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {

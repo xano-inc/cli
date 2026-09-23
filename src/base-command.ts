@@ -56,12 +56,47 @@ function resolveRequestTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
 }
 
 /**
+ * Whether the built-in `fetch` on this runtime accepts a dispatcher built from
+ * our bundled userland `undici`. Node <= 24 accepts it; Node 26 rejects a
+ * foreign dispatcher with UND_ERR_INVALID_ARG, which `fetch` surfaces only as
+ * the generic "fetch failed" — breaking *every* command (DEV-7773).
+ *
+ * Starts optimistic (`true`); flipped to `false` the first time a request fails
+ * with UND_ERR_INVALID_ARG (see `verboseFetch`, which then retries without the
+ * dispatcher). Once flipped, every later request skips the dispatcher outright.
+ */
+let dispatcherSupported = true
+
+/**
+ * True when `error` is the "foreign dispatcher rejected by built-in fetch"
+ * failure (Node 26+). The real code lives on `error.cause.code`.
+ */
+export function isInvalidDispatcherError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const {cause} = error as {cause?: unknown}
+  const code =
+    cause && typeof cause === 'object' && 'code' in cause
+      ? (cause as {code?: unknown}).code
+      : (error as {code?: unknown}).code
+  return code === 'UND_ERR_INVALID_ARG'
+}
+
+/**
  * Lazily-built undici dispatcher whose header/body inactivity timeouts match our
  * request timeout, so undici's internal 300s default never fires first. Built
  * once and reused across requests. `timeout === 0` means "no bound".
+ *
+ * Returns `undefined` when this runtime has been found to reject a foreign
+ * dispatcher (Node 26+, DEV-7773). Dropping the dispatcher does NOT regress the
+ * large-push timeout: the per-request `AbortSignal.timeout(timeoutMs)` in
+ * `verboseFetch` already bounds the whole request (headers included) to the same
+ * 15-min ceiling the dispatcher enforced, so undici's hidden 300s
+ * `headersTimeout` is subsumed by it.
  */
 let sharedDispatcher: Dispatcher | undefined
 function getRequestDispatcher(timeoutMs: number): Dispatcher | undefined {
+  if (!dispatcherSupported) return undefined
+
   if (timeoutMs === 0) {
     sharedDispatcher ??= new Agent({bodyTimeout: 0, headersTimeout: 0})
     return sharedDispatcher
@@ -416,15 +451,20 @@ export default abstract class BaseCommand extends Command {
       ...(options.headers as Record<string, string>),
     }
     const timeoutMs = resolveRequestTimeoutMs()
-    const fetchOptions: RequestInit & {dispatcher?: Dispatcher} = {
+    // Build the fetch options fresh each attempt: a retry needs a new
+    // AbortSignal (the first attempt's may already be aborted/consumed) and,
+    // when the dispatcher is the culprit, no dispatcher at all.
+    const buildFetchOptions = (withDispatcher: boolean): RequestInit & {dispatcher?: Dispatcher} => ({
       ...options,
       // undici dispatcher: lifts the hidden 300s headers/body timeout to our bound
-      dispatcher: getRequestDispatcher(timeoutMs),
+      ...(withDispatcher ? {dispatcher: getRequestDispatcher(timeoutMs)} : {}),
       headers,
       // belt-and-suspenders hard ceiling that also covers DNS/connect stalls;
       // surfaces as a clean AbortError (see describeNetworkError). 0 = no bound.
+      // This alone bounds the whole request, so dropping the dispatcher (Node 26)
+      // does not lose the large-push timeout protection.
       ...(timeoutMs > 0 && !options.signal ? {signal: AbortSignal.timeout(timeoutMs)} : {}),
-    }
+    })
     const contentType = headers['Content-Type'] || 'application/json'
 
     if (verbose) {
@@ -444,7 +484,28 @@ export default abstract class BaseCommand extends Command {
     }
 
     const startTime = Date.now()
-    const response = await fetch(url, fetchOptions)
+    let response: Response
+    try {
+      response = await fetch(url, buildFetchOptions(dispatcherSupported))
+    } catch (error) {
+      // Node 26+ rejects our userland-undici dispatcher with UND_ERR_INVALID_ARG,
+      // surfaced only as "fetch failed" (DEV-7773). Disable it for the rest of the
+      // process and retry once without it; the AbortSignal.timeout ceiling above
+      // still bounds the request, so the large-push protection is preserved.
+      if (dispatcherSupported && isInvalidDispatcherError(error)) {
+        dispatcherSupported = false
+        if (verbose) {
+          this.log(
+            '  (this Node runtime rejected undici dispatcher; retrying without it — see DEV-7773)',
+          )
+        }
+
+        response = await fetch(url, buildFetchOptions(false))
+      } else {
+        throw error
+      }
+    }
+
     const elapsed = Date.now() - startTime
 
     if (verbose) {

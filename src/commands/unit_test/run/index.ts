@@ -89,24 +89,32 @@ Result: PASS
 
       const result = await response.json() as RunResult
 
+      // Anything other than 'ok' is a failure -- the API has been observed
+      // returning several distinct non-ok statuses, so never enumerate them.
+      const passed = result.status === 'ok'
+
       if (flags.output === 'json') {
         this.log(JSON.stringify(result, null, 2))
+      } else if (passed) {
+        this.log('Result: PASS')
       } else {
-        if (result.status === 'ok') {
-          this.log('Result: PASS')
-        } else {
-          this.log('Result: FAIL')
-          const failedExpects = result.results?.filter(r => r.status === 'fail') ?? []
-          for (const expect of failedExpects) {
-            if (expect.message) {
-              this.log(`  Error: ${expect.message}`)
-            }
+        this.log('Result: FAIL')
+        const failedExpects = result.results?.filter(r => r.status === 'fail') ?? []
+        for (const expect of failedExpects) {
+          if (expect.message) {
+            this.log(`  Error: ${expect.message}`)
           }
-
-          this.exit(1)
         }
       }
+
+      // Set the code rather than throwing via this.exit(): the exit must apply
+      // in both output modes, and process.exitCode cannot be swallowed by the
+      // surrounding catch. Mirrors what run_all already does.
+      if (!passed) {
+        process.exitCode = 1
+      }
     } catch (error) {
+      if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
         this.error(`Failed to run unit test: ${error.message}`)
       } else {

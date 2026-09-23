@@ -264,6 +264,46 @@ export function resolveDocumentPath(
     return {baseName: sanitize(doc.name), typeDir: join(outputDir, 'realtime', 'trigger')}
   }
 
+  if (doc.type === 'realtime_server_trigger') {
+    // Realtime v2. A realtime_server's connect/disconnect trigger. It references its
+    // owning server by name via `realtime_server = "..."`, so it nests under that
+    // server's folder as `<server>/trigger/`, mirroring how the server's own document
+    // and its channels already nest under realtime/server/<server>/ (DEV-7712). Keeping
+    // it there means every realtime document stays under realtime/ instead of landing at
+    // the output root. A server-less doc (a malformed/legacy export) falls back to a flat
+    // realtime/server_trigger/ under realtime/ rather than the repo root.
+    return {
+      baseName: sanitize(doc.name),
+      typeDir: doc.server
+        ? join(outputDir, 'realtime', 'server', sanitize(doc.server), 'trigger')
+        : join(outputDir, 'realtime', 'server_trigger'),
+    }
+  }
+
+  if (doc.type === 'channel_trigger') {
+    // Realtime v2. A channel's join/leave/deliver trigger. It references BOTH its owning
+    // server (`realtime_server = "..."`) and its channel (`channel = "..."`), so it nests
+    // beside that channel as `<server>/channel/<channel>/trigger/` — the same path the
+    // channel's own document and messages already use (DEV-7712). Falls back gracefully:
+    // channel but no resolvable server → the legacy flat channel/<path>/trigger/ layout;
+    // neither → realtime/channel_trigger/ under realtime/ (never the output root).
+    if (doc.server && doc.channel) {
+      return {
+        baseName: sanitize(doc.name),
+        typeDir: join(outputDir, 'realtime', 'server', sanitize(doc.server), 'channel', snakeCase(doc.channel), 'trigger'),
+      }
+    }
+
+    if (doc.channel) {
+      return {
+        baseName: sanitize(doc.name),
+        typeDir: join(outputDir, 'channel', ...channelPathSegments(doc.channel, snakeCase), 'trigger'),
+      }
+    }
+
+    return {baseName: sanitize(doc.name), typeDir: join(outputDir, 'realtime', 'channel_trigger')}
+  }
+
   if (doc.type === 'realtime_server') {
     // Realtime v2. The realtime_server is the top-level container that owns
     // channels (which own messages). Its own document is named after itself
@@ -398,4 +438,83 @@ export function buildApiGroupFolderResolver(
  */
 export function findFilesWithGuid(entries: Array<{content: string; filePath: string}>, guid: string): string[] {
   return entries.filter((e) => e.content.includes(guid)).map((e) => e.filePath)
+}
+
+/**
+ * Split a multi-document XanoScript blob (documents joined by `\n---\n`) into
+ * parsed documents, skipping empties and any fragment that fails to parse.
+ *
+ * This is the same split the pull commands apply to the server's multidoc
+ * response. A hand-authored bundle is one file of many `---`-separated
+ * documents; this turns it back into the per-document units every downstream
+ * step (placement, GUID writeback, partial-diff matching) assumes.
+ */
+export function splitMultidoc(blob: string): ParsedDocument[] {
+  const documents: ParsedDocument[] = []
+  for (const raw of blob.split('\n---\n')) {
+    const trimmed = raw.trim()
+    if (!trimmed) continue
+    const parsed = parseDocument(trimmed)
+    if (parsed) documents.push(parsed)
+  }
+
+  return documents
+}
+
+/** A document's resolved on-disk location relative to the output root, plus its content. */
+export interface PlacedDocument {
+  content: string
+  /** POSIX-style path relative to the output root, e.g. "api/pdf/documents_GET.xs". */
+  relPath: string
+}
+
+/**
+ * Compute where each document lands on disk — a PURE function (no filesystem)
+ * mirroring the split-and-place loop the pull commands run. It resolves each
+ * document via `resolveDocumentPath`, appends `.xs`, and disambiguates
+ * collisions within a directory with a `_N` suffix (the second file named
+ * `say.xs` in a dir becomes `say_2.xs`), exactly as the pull writer does.
+ *
+ * Kept filesystem-free so it can be unit-tested and reused by both the pull
+ * commands and `flatten` without duplicating the placement rules.
+ */
+export function placeDocuments(
+  documents: ParsedDocument[],
+  deps: {
+    join: (...parts: string[]) => string
+    relative: (from: string, to: string) => string
+    snakeCase: (s: string) => string
+  },
+): PlacedDocument[] {
+  const {join, relative, snakeCase} = deps
+  const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
+  const getChannelServer = buildChannelServerResolver(documents)
+
+  // Per-directory filename counters, so duplicate leaf names get a _N suffix.
+  const filenameCounters = new Map<string, Map<string, number>>()
+  const placed: PlacedDocument[] = []
+
+  for (const doc of documents) {
+    const {baseName, typeDir} = resolveDocumentPath(doc, '', {
+      getApiGroupFolder,
+      getChannelServer,
+      join,
+      snakeCase,
+    })
+
+    const dirKey = typeDir
+    if (!filenameCounters.has(dirKey)) filenameCounters.set(dirKey, new Map())
+    const typeCounters = filenameCounters.get(dirKey)!
+    const count = typeCounters.get(baseName) || 0
+    typeCounters.set(baseName, count + 1)
+
+    const filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
+    const abs = join(typeDir, filename)
+    // typeDir was built off an empty root, so `abs` is already root-relative;
+    // normalize any leading separator via relative() for a clean POSIX path.
+    const relPath = relative('', abs)
+    placed.push({content: doc.content, relPath})
+  }
+
+  return placed
 }

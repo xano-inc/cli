@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {buildPagingJson, buildPagingParams, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../../utils/paging.js'
 
 interface WorkflowTest {
   description?: string
@@ -31,14 +32,14 @@ Workflow tests:
       options: ['summary', 'json'],
       required: false,
     }),
+    ...pagingFlags('envelope', {maxPerPage: 10_000}),
   }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(SandboxWorkflowTestList)
     const {profile} = this.resolveProfile(flags)
 
-    const params = new URLSearchParams()
-    params.set('per_page', '10000')
+    const params = new URLSearchParams(buildPagingParams(flags, 'envelope'))
     if (flags.branch) params.set('branch', flags.branch)
 
     const apiUrl = `${profile.instance_origin}/api:meta/sandbox/workflow_test?${params}`
@@ -62,19 +63,11 @@ Workflow tests:
         this.error(message)
       }
 
-      const data = (await response.json()) as WorkflowTest[] | {items?: WorkflowTest[]}
-
-      let tests: WorkflowTest[]
-      if (Array.isArray(data)) {
-        tests = data
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        tests = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<WorkflowTest>(await response.json())
+      const tests = list.items
 
       if (flags.output === 'json') {
-        this.log(JSON.stringify(tests, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, perPage: flags.per_page, tier: 'envelope'}), null, 2))
       } else {
         if (tests.length === 0) {
           this.log('No workflow tests found')
@@ -84,6 +77,9 @@ Workflow tests:
             this.log(`  - ${test.name} (ID: ${test.id})`)
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'workflow test', page: flags.page, tier: 'envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error

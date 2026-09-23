@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {buildPagingJson, formatPagingFooter, normalizeListResponse, pagingFlags} from '../../../utils/paging.js'
 
 interface Function {
   created_at?: number
@@ -10,12 +11,6 @@ interface Function {
   type?: string
   updated_at?: number
   // Add other function properties as needed
-}
-
-interface FunctionListResponse {
-  functions?: Function[]
-  items?: Function[]
-  // Handle both array and object responses
 }
 
 export default class FunctionList extends BaseCommand {
@@ -34,20 +29,30 @@ Available functions:
   - another-function (ID: 2)
 `,
     `$ xano function:list -w 40 --output json
-[
-  {
-    "id": 1,
-    "name": "function-1"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "per_page": 50,
+  "next_page": 2,
+  "items": [
+    {
+      "id": 1,
+      "name": "function-1"
+    }
+  ]
+}
 `,
     `$ xano function:list -p staging -o json --include_draft
-[
-  {
-    "id": 1,
-    "name": "function-1"
-  }
-]
+{
+  "count": 1,
+  "page": 1,
+  "items": [
+    {
+      "id": 1,
+      "name": "function-1"
+    }
+  ]
+}
 `,
   ]
 static override flags = {
@@ -75,16 +80,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    page: Flags.integer({
-      default: 1,
-      description: 'Page number for pagination',
-      required: false,
-    }),
-    per_page: Flags.integer({
-      default: 50,
-      description: 'Number of results per page',
-      required: false,
-    }),
+    ...pagingFlags('envelope', {maxPerPage: 10_000}),
     sort: Flags.string({
       default: 'created_at',
       description: 'Sort field',
@@ -151,24 +147,12 @@ static override flags = {
         )
       }
 
-      const data = await response.json() as Function[] | FunctionListResponse
-
-      // Handle different response formats
-      let functions: Function[]
-
-      if (Array.isArray(data)) {
-        functions = data
-      } else if (data && typeof data === 'object' && 'functions' in data && Array.isArray(data.functions)) {
-        functions = data.functions
-      } else if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        functions = data.items
-      } else {
-        this.error('Unexpected API response format')
-      }
+      const list = normalizeListResponse<Function>(await response.json(), ['functions'])
+      const functions = list.items
 
       // Output results
       if (flags.output === 'json') {
-        this.log(JSON.stringify(functions, null, 2))
+        this.log(JSON.stringify(buildPagingJson(list, {page: flags.page, perPage: flags.per_page, tier: 'envelope'}), null, 2))
       } else {
         // summary format
         if (functions.length === 0) {
@@ -183,6 +167,9 @@ static override flags = {
             }
           }
         }
+
+        const footer = formatPagingFooter(list, {noun: 'function', page: flags.page, tier: 'envelope'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {

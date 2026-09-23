@@ -1,6 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../../base-command.js'
+import {formatPagingFooter} from '../../../../utils/paging.js'
 
 export default class TenantEnvList extends BaseCommand {
   static override args = {
@@ -81,6 +82,9 @@ Environment variables for tenant my-tenant:
             this.log(`  - ${envVar.name}`)
           }
         }
+
+        const footer = formatPagingFooter({items: envVars}, {noun: 'environment variable', tier: 'none'})
+        if (footer) this.log(footer)
       }
     } catch (error) {
       if (error instanceof Error) {
