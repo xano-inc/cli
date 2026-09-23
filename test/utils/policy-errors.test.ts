@@ -1,6 +1,6 @@
 import {expect} from 'chai'
 
-import {describePolicyError} from '../../src/utils/policy-errors.js'
+import {describePolicyError} from '../../src/utils/policy/errors.js'
 
 const url = 'https://instance.example/api:meta/workspace/9/policy?branch=ci%2Fnew'
 

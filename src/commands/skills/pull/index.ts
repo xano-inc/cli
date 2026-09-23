@@ -2,7 +2,8 @@ import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import PolicyCommand from '../../../policy-command.js'
+import BaseCommand from '../../../base-command.js'
+import {policyRequest, policyScope} from '../../../utils/policy/request.js'
 
 /** The one skill this command installs. The instance generates it from its check catalogue. */
 const SKILL = 'xano-policies'
@@ -36,7 +37,7 @@ export function buildSkillDocument(description: string, content: string): string
   return `---\nname: ${SKILL}\ndescription: ${JSON.stringify(description)}\n---\n\n${body}`
 }
 
-export default class SkillsPull extends PolicyCommand {
+export default class SkillsPull extends BaseCommand {
   static override description = `Install the ${SKILL} agent skill this instance generates`
   static override examples = [
     `$ xano skills pull
@@ -46,26 +47,34 @@ Wrote .claude/skills/${SKILL}/SKILL.md (${SKILL} skill for workspace 40, branch 
     '$ xano skills pull -b dev -o json',
   ]
   static override flags = {
-    ...PolicyCommand.policyFlags,
+    ...BaseCommand.baseFlags,
+    branch: Flags.string({char: 'b', description: "Branch label (defaults to profile branch or live; -b '' selects live)"}),
     directory: Flags.string({
       char: 'd',
       default: '.',
       description: 'Project directory that receives .claude/skills (defaults to current directory)',
       required: false,
     }),
+    output: Flags.string({char: 'o', default: 'summary', description: 'Output format', options: ['summary', 'json']}),
+    workspace: Flags.string({char: 'w', description: 'Workspace ID (defaults to profile workspace)'}),
+  }
+
+  protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    return this.catchAsOperational(error)
   }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(SkillsPull)
     const {profile} = this.resolveProfile(flags)
-    // A profile.yaml/credentials workspace arrives from YAML as a number; the id is a string here.
-    const workspace = String(flags.workspace || profile.workspace || '')
+    const {branch, workspace} = policyScope(flags, profile)
     if (!workspace) this.error('Workspace ID required. Use --workspace or set one in your profile.')
-    const branch = flags.branch ?? profile.branch ?? ''
 
     // The route lives beside /policy under the workspace and is gated by the same
-    // `workspace:policy` scope, so it answers failures the way the policy commands do.
-    const request = this.policyRequest(profile, workspace, branch, flags.verbose, {label: 'Agent skills', path: '/agent-skills'})
+    // `workspace:policy` permission, so it answers failures the way the policy commands do.
+    const request = policyRequest(
+      {error: (message) => this.error(message), logToStderr: (message) => this.logToStderr(message), verboseFetch: (...args) => this.verboseFetch(...args)},
+      {branch, label: 'Agent skills', path: '/agent-skills', profile, verbose: flags.verbose, workspace},
+    )
     // `surface=cli` asks for the terminal wording of the skill, not the Studio one.
     const payload = (await request('', 'GET', undefined, {surface: 'cli'})) as {knowledge?: AgentSkill[]}
 
