@@ -381,13 +381,23 @@ describe('policy carriage and feedback', () => {
       expect(statusExitCode(rows)).to.equal(2)
       expect(statusExitReason(rows)).to.equal(
         'The latest run has 3 blocking findings (AUTH-001, SEC-100); the merge gate evaluates the branch again before a merge.')
-      // Unreliable evidence outranks findings, exactly as the exit code does.
+      // Without a blocking finding, unreliable evidence exits 1.
       const unchecked = coverage({enforcement: null, included: false, run_id: 0, version: null})
       const stale = computeStatusRows([policy, second].map((each) => ({...each, latest_run: unchecked})))
       expect(statusExitCode(stale)).to.equal(1)
       expect(statusExitReason(stale)).to.equal(
         'Evaluation evidence is stale, missing or errored (AUTH-001 not evaluated, SEC-100 not evaluated); exit 1.')
       expect(statusExitReason([])).to.equal(null)
+    })
+
+    it('exits 2 for a blocking finding even beside stale evidence, as push and evaluate do', () => {
+      const stale = {...policy, id: 8, key: 'SEC-100', latest_run: coverage({stale: true, version: 0})}
+      const rows = computeStatusRows([policy, stale], run)
+      expect(rows.map((row) => row.status)).to.deep.equal(['fail', 'stale'])
+      expect(statusExitCode(rows)).to.equal(2)
+      expect(statusExitReason(rows)).to.equal(
+        'The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.'
+        + ' Evidence is also stale, missing or errored (SEC-100 outdated; evaluate again).')
     })
 
     it("words enforcement as Studio does, and calls findings blocking only as the run judged them", () => {
