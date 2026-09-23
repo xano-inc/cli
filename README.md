@@ -245,7 +245,8 @@ file it would overwrite, is left out with a warning; the rest of the workspace i
 files the export no longer carries are kept, with a warning. `workspace push` sends them in the same multidoc as the code. An unchanged policy file
 needs no policy permission. A changed one, without the permission, refuses the whole push, and the CLI
 suggests `xano workspace push -e "policies/*"`, `xano workspace pull` or `xano policy publish` instead.
-`-m/--message` labels the Version History entry of each policy the push changes.
+`-m/--message` labels the Version History entry of each policy the push changes; other objects get no
+message.
 
 After the import the CLI prints what happened to the policy documents (from the preview, or only how many
 were sent when `--force` skipped it) and then the server's `policy_check`. The exit code depends only on the
@@ -313,7 +314,7 @@ xano workspace push -i "function/*"                      # Push only matching fi
 xano workspace push -e "table/*"                         # Push all files except tables
 xano workspace push -i "function/*" -e "**/test*"        # Include functions, exclude tests
 xano workspace push -o json                              # One JSON document: the preview (with --dry-run) or the import result with policy_check
-xano workspace push -m "Tightened the auth policies"     # Label the Version History entry of each policy document this push changes
+xano workspace push -m "Tightened the auth policies"     # Label the Version History entry of each policy this push changes; other objects get no message
 
 # Pull from a git repository to local files (defaults to current directory)
 xano workspace git pull -r https://github.com/owner/repo
