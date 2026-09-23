@@ -55,7 +55,7 @@ describe('workspace push policy feedback', () => {
     expect(process.exitCode ?? 0).to.equal(0)
   })
 
-  it('no longer accepts --allow_missing_policy_check', async () => {
+  it('rejects --allow_missing_policy_check as an unknown flag', async () => {
     fixture.route(() => json({guid_map: []}))
     const result = await push('--allow_missing_policy_check')
     expect(result.error?.message).to.contain('Nonexistent flag')

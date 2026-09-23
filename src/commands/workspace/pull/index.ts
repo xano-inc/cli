@@ -220,8 +220,7 @@ Pulled 58 documents
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
-    // The policy files are rules for an agent to follow, and nothing in the tree says what they
-    // mean. The skill the instance generates does, so name it the moment policies land locally.
+    // Policy files state the rules; the skill the instance generates tells an agent how to follow them.
     if (documents.some((doc) => doc.type === 'policy')) {
       this.log('Run `xano skills pull` to install the policies skill for your coding agent.')
     }
