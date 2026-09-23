@@ -131,42 +131,85 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls[0].body).to.contain('policy AUTH-001')
     expect(fs.readFileSync(policyFile, 'utf8')).to.equal(source)
   })
-  const active = {enforcement: 'mandatory', id: 1, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], version: 1}
+  const covered = {enforcement: 'mandatory', included: true, run_id: 1674, stale: false, version: 1}
+  const active = {enforcement: 'mandatory', id: 1, key: 'AUTH-001', latest_run: covered, lifecycle: 'active', rules: [{id: 'R1'}], version: 1}
   for (const [results, expected] of [[[], 'not_evaluated'], [[{check_id: 'R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}], 'no_objects_checked']] as const) {
     it(`status reports ${expected} without presenting coverage`, async () => {
-      fixture.route(url => url.pathname.endsWith('/run') ? json({curPage: 1, items: [{results}], nextPage: null, prevPage: null}) : json({items: [active]}))
+      fixture.route(url => url.pathname.includes('/run/') ? json({id: 1674, results}) : json({curPage: 1, items: [active], nextPage: null, prevPage: null}))
       const result = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
       expect(result.error).to.equal(undefined)
       expect(JSON.parse(result.stdout).status[0].status).to.equal(expected)
       expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
-      expect(fixture.calls[1].url.searchParams.get('limit')).to.equal('1')
     })
   }
 
-  it('status treats an edit during evaluation as outdated', async () => {
-    fixture.route(url => url.pathname.endsWith('/run')
-      ? json({items: [{finished_at: 3000, results: [{check_id: 'R1', checked: 1, policy_key: 'AUTH-001', status: 'pass'}], started_at: 1000}]})
-      : json({items: [{...active, updated_at: 2000}]}))
-    const result = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
-    expect(result.error).to.equal(undefined)
-    expect(JSON.parse(result.stdout).status[0].status).to.equal('stale')
-  })
-
-  it('status trusts the version the run recorded over the policy timestamp', async () => {
+  it('status reads the run the served latest_run names, and no run when there is none', async () => {
     const results = [{check_id: 'R1', checked: 1, policy_key: 'AUTH-001', status: 'pass'}]
-    const policy = {...active, updated_at: 2000, version: 4}
-    // The policy row is newer than the run, but it is the same definition the run evaluated.
-    fixture.route(url => (url.pathname.endsWith('/run')
-      ? json({items: [{policies: [{key: 'AUTH-001', version: 4}], results, started_at: 1000}]})
-      : json({items: [policy]})))
+    fixture.route(url => url.pathname.includes('/run/') ? json({id: 1674, results}) : json({items: [active]}))
     const current = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
+    expect(fixture.calls.map(call => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/policy', '/api:meta/workspace/1/policy/run/1674'])
     expect(JSON.parse(current.stdout).status[0]).to.include({stale: false, status: 'pass'})
 
-    fixture.route(url => (url.pathname.endsWith('/run')
-      ? json({items: [{policies: [{key: 'AUTH-001', version: 3}], results, started_at: 1000}]})
-      : json({items: [policy]})))
-    const outdated = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
-    expect(JSON.parse(outdated.stdout).status[0]).to.include({stale: true, status: 'stale'})
+    fixture.calls.length = 0
+    fixture.route(() => json({items: [{...active, latest_run: {...covered, enforcement: null, included: false, run_id: 0, version: null}}]}))
+    const none = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
+    expect(fixture.calls).to.have.length(1)
+    expect(JSON.parse(none.stdout)).to.include({run: null})
+    expect(JSON.parse(none.stdout).status[0]).to.include({status: 'not_evaluated'})
+  })
+
+  it('status takes staleness from the platform, whatever the run recorded', async () => {
+    // The run recorded the same version the policy has, but the platform says the run is not evidence for it.
+    const results = [{check_id: 'R1', checked: 1, policy_key: 'AUTH-001', status: 'pass'}]
+    fixture.route(url => url.pathname.includes('/run/')
+      ? json({id: 1674, policies: [{key: 'AUTH-001', version: 1}], results})
+      : json({items: [{...active, latest_run: {...covered, stale: true, version: 0}}]}))
+    const result = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
+    expect(JSON.parse(result.stdout).status[0]).to.include({counted: false, stale: true, status: 'stale'})
+  })
+
+  describe('evaluate prints from the run it answers', () => {
+    const findings = [
+      {id: 'AUTH-001.R1:query:9', message: 'no auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'},
+      {id: 'SEC-100.R1:table:2', message: 'stale tag', object: {name: 'account', type: 'table'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'},
+    ]
+    const evaluation = (overrides: Record<string, unknown> = {}) => ({
+      findings,
+      id: 1675,
+      objects_checked: 4,
+      policies: [],
+      policy_check: {blocking: true, blocking_finding_ids: [findings[0].id], message: 'Active policies reported findings.', run_id: 1675, status: 'fail'},
+      results: [{check_id: 'AUTH-001.R1', checked: 4, policy_key: 'AUTH-001', status: 'fail'}],
+      status: 'fail',
+      stored: true,
+      ...overrides,
+    })
+
+    it('sends no body, and splits the findings by the ids the verdict names', async () => {
+      fixture.route(() => json(evaluation()))
+      const result = await runCommand(['policy', 'evaluate'], fixture.config)
+      expect(fixture.calls[0].method).to.equal('POST')
+      expect(fixture.calls[0].body).to.equal(undefined)
+      expect(result.stdout).to.contain('Policy check: fail (blocking findings)\nActive policies reported findings.')
+      expect(result.stdout).to.contain('Blocking findings (1) — these stop the merge:\n  AUTH-001.R1 (AUTH-001)  query GET /x: no auth')
+      expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:\n  SEC-100.R1 (SEC-100)  table account: stale tag')
+      expect(result.stdout).not.to.contain('Not stored')
+      expect(process.exitCode).to.equal(2)
+    })
+
+    it('says a run this credential could not record was not stored', async () => {
+      fixture.route(() => json(evaluation({id: 0, policies: [{key: 'AUTH-001', rules: [{id: 'AUTH-001.R1'}]}], stored: false, trigger: 'manual'})))
+      const result = await runCommand(['policy', 'evaluate', '--run-detail'], fixture.config)
+      expect(result.stdout).to.contain('Not stored: this credential can run checks but not record runs')
+      expect(result.stdout).to.contain('This evaluation, which was not stored (manual):').and.not.to.contain('Run 0')
+    })
+
+    it('says nothing about storage when there was nothing to evaluate', async () => {
+      fixture.route(() => json({findings: [], id: 0, policies: [], policy_check: {blocking: false, message: 'No active policies on this branch; nothing was evaluated.', run_id: 0, status: 'not_applicable'}, results: [], stored: false}))
+      const result = await runCommand(['policy', 'evaluate', '--run-detail'], fixture.config)
+      expect(result.stdout).to.contain('Policy check: not_applicable').and.to.contain('No policies were evaluated.')
+      expect(result.stdout).not.to.contain('Not stored').and.not.to.contain('Run 0')
+    })
   })
 
   it('delete resolves a key, confirms nothing with --force, and reports what it removed', async () => {
@@ -209,7 +252,8 @@ describe('official policy commands and workspace carriage', () => {
   }
 
   it('runs lists the retained runs newest first and says how to read one', async () => {
-    fixture.route(() => json({items: [run, {...run, findings: [], id: 1673, status: 'pass', trigger: 'manual'}]}))
+    const summary = {counts: {blocking: 1, errors: 0, findings: 1}, finished_at: run.finished_at, id: 1674, objects_checked: 23, started_at: run.started_at, status: 'fail', trigger: 'push'}
+    fixture.route(() => json({items: [summary, {...summary, counts: {blocking: 0, errors: 0, findings: 0}, id: 1673, status: 'pass', trigger: 'manual'}]}))
     const result = await runCommand(['policy', 'runs', '--limit', '5'], fixture.config)
     expect(result.error).to.equal(undefined)
     expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/policy/run')
@@ -217,6 +261,13 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.stdout).to.contain('1674  fail    1 findings    23 objects  push     2026-09-17T22:42:00.903Z')
     expect(result.stdout).to.contain('1673  pass    0 findings    23 objects  manual   2026-09-17T22:42:00.903Z')
     expect(result.stdout).to.contain('xano policy runs <id> --run-detail')
+  })
+
+  it('runs refuses a --limit beyond the twenty runs a branch retains, before any request', async () => {
+    fixture.route(() => json({items: []}))
+    const result = await runCommand(['policy', 'runs', '--limit', '21'], fixture.config)
+    expect(result.error?.message).to.contain('20')
+    expect(fixture.calls).to.have.length(0)
   })
 
   it('runs reads one older run by id, with its findings and what it recorded', async () => {

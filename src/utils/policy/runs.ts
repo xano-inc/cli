@@ -1,21 +1,21 @@
-import type {PolicyRun} from './types.js'
+import type {PolicyRun, PolicyRunSummary} from './types.js'
 
 import {findingLine, isUncheckedPass, policyResultSummary, policyRuleName, ruleKey, snapshotRules} from './findings.js'
 
 const RUN_COLUMNS = [6, 8, 14, 12, 9, 0]
 const runRow = (cells: string[]) => cells.map((cell, index) => cell.padEnd(RUN_COLUMNS[index])).join('').trimEnd()
 
-/** The retained runs as a table, header first. */
-export function policyRunTable(runs: PolicyRun[]): string[] {
+/** The retained runs, as the run list summarises them, in a table, header first. */
+export function policyRunTable(runs: PolicyRunSummary[]): string[] {
   return [
     runRow(['Run', 'Status', 'Findings', 'Checked', 'Trigger', 'Started']),
     ...runs.map((run) => runRow([
-      String(run.id ?? '?'),
-      run.status ?? 'unknown',
-      `${(run.findings ?? []).length} findings`,
-      typeof run.objects_checked === 'number' ? `${run.objects_checked} objects` : '— objects',
+      String(run.id),
+      run.status,
+      `${run.counts.findings} findings`,
+      `${run.objects_checked} objects`,
       run.trigger ?? '',
-      String(run.started_at ?? ''),
+      run.started_at ?? '',
     ])),
   ]
 }
@@ -79,5 +79,6 @@ export function policyRunDetail(run?: PolicyRun): string[] {
   })
   if (body.length === 0) return []
   const provenance = [run?.trigger, run?.started_at].filter(Boolean).join(', ')
-  return [`Run ${run?.id ?? '?'} as recorded${provenance ? ` (${provenance})` : ''}:`, ...body]
+  const heading = run?.id ? `Run ${run.id} as recorded` : 'This evaluation, which was not stored'
+  return [`${heading}${provenance ? ` (${provenance})` : ''}:`, ...body]
 }

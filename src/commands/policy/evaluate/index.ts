@@ -1,9 +1,15 @@
 import {Flags} from '@oclif/core'
 
-import type {PolicyCheck, PolicyRun} from '../../../utils/policy/types.js'
+import type {PolicyEvaluation} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
-import {policyCheckWarning, policyExitCode, policySummary} from '../../../utils/policy/feedback.js'
+import {
+  evaluationEvidence,
+  notStoredLine,
+  policyCheckWarning,
+  policyExitCode,
+  policySummary,
+} from '../../../utils/policy/feedback.js'
 
 export default class PolicyEvaluate extends PolicyCommand {
   static override description = 'Evaluate active branch policies and report mandatory findings'
@@ -19,11 +25,13 @@ export default class PolicyEvaluate extends PolicyCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(PolicyEvaluate)
     const {request} = this.policyTarget(flags)
-    // The evaluation answers with the stored run, so its own snapshot names any unnamed rule.
-    const result = (await request('/evaluate', 'POST', {trigger: 'manual'})) as PolicyRun & {policy_check?: PolicyCheck}
+    // The evaluation answers with its run, so the run's own snapshot names any unnamed rule.
+    const result = (await request('/evaluate', 'POST')) as PolicyEvaluation
     if (flags.output === 'json') this.log(JSON.stringify(result, null, 2))
     else {
-      for (const line of policySummary(result.policy_check, result.policies ?? [])) this.log(line)
+      for (const line of policySummary(result.policy_check, evaluationEvidence(result))) this.log(line)
+      const notStored = notStoredLine(result)
+      if (notStored) this.log(notStored)
       if (flags['run-detail']) this.logRunDetail(result)
     }
 

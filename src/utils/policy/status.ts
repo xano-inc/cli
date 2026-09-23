@@ -10,7 +10,7 @@ export type PolicyStatus = 'draft' | 'error' | 'fail' | 'no_checks' | 'no_object
 
 export interface PolicyStatusRow {
   checked: number
-  /** Whether `findings` and `checked` come from current evidence; draft and stale rows carry none. */
+  /** Whether `findings` and `checked` come from the latest run: only for an active policy it evaluated in its current version. */
   counted: boolean
   /** The policy's own enforcement (`mandatory` / `advisory`). */
   enforcement: string
@@ -18,10 +18,9 @@ export interface PolicyStatusRow {
   key: string
   /** The policy's own lifecycle (`active` / `draft`). */
   lifecycle: string
-  policy_updated_at: null | number | string
   /** Rules that passed without inspecting any object. */
   rules_unchecked: number
-  run_started_at: null | number | string
+  /** The platform's answer: the latest run evaluated a different version of this policy. */
   stale: boolean
   status: PolicyStatus
   title?: string
@@ -57,32 +56,6 @@ export function enforcementLabel(row: Pick<PolicyStatusRow, 'enforcement' | 'lif
   return row.enforcement.trim() || '—'
 }
 
-/** Native timestamps arrive as epoch numbers or ISO strings; absent values compare as NaN (never newer). */
-function timestamp(value?: number | string): number {
-  return typeof value === 'number' ? value : Date.parse(value ?? '')
-}
-
-/** The Version History index this run evaluated, when the run's snapshot includes this policy. */
-function evaluatedVersion(run: PolicyRun, key: string): number | undefined {
-  const snapshot = (run.policies ?? []).find((entry) => entry.key === key)
-  return typeof snapshot?.version === 'number' ? snapshot.version : undefined
-}
-
-/**
- * Whether the latest run has stopped being evidence for this policy. A draft is never evaluated, so it
- * is stale only when the run still carries results for it. An active policy is stale without a
- * run, or when the run evaluated another version; a policy the run's snapshot does not include is
- * judged by whether it was saved after the run started.
- */
-function isStale(policy: Policy, run: PolicyRun | undefined, results: PolicyRuleResult[]): boolean {
-  if (policy.lifecycle !== 'active') return results.some((result) => ['error', 'fail', 'pass'].includes(result.status ?? ''))
-  if (!run) return true
-  const evaluated = evaluatedVersion(run, policy.key)
-  return evaluated === undefined
-    ? timestamp(policy.updated_at) > timestamp(run.started_at)
-    : evaluated !== policy.version
-}
-
 function ruleStatus(results: PolicyRuleResult[], ruleCount: number, checked: number): PolicyStatus {
   if (results.some((result) => !['fail', 'pass'].includes(result.status ?? ''))) return 'error'
   if (results.some((result) => result.status === 'fail')) return 'fail'
@@ -90,20 +63,25 @@ function ruleStatus(results: PolicyRuleResult[], ruleCount: number, checked: num
   return checked === 0 ? 'no_objects_checked' : 'pass'
 }
 
-/** Combine current policies with the latest stored run; stale and draft rows carry no counts. */
+/**
+ * Combine the branch's policies with the latest stored run. Whether the run is still evidence for a
+ * policy is the platform's `latest_run` answer; only an active policy the run evaluated in its
+ * current version carries counts.
+ */
 export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicyStatusRow[] {
   return policies.map((policy) => {
     const ids = new Set((policy.rules ?? []).map((rule) => rule.id))
-    const results = (run?.results ?? []).filter(
-      (result) => result.policy_key === policy.key && ids.has(result.check_id ?? ''),
-    )
     const active = policy.lifecycle === 'active'
-    const stale = isStale(policy, run, results)
-    const counted = active && !stale
-    const checked = counted ? results.reduce((sum, result) => sum + (result.checked ?? 0), 0) : 0
-    let status: PolicyStatus = active ? (ids.size > 0 ? 'not_evaluated' : 'no_checks') : 'draft'
-    if (active && results.length > 0) status = ruleStatus(results, ids.size, checked)
-    if (active && run && stale) status = 'stale'
+    const stale = policy.latest_run?.stale === true
+    const counted = active && policy.latest_run?.included === true && !stale
+    const results = counted
+      ? (run?.results ?? []).filter((result) => result.policy_key === policy.key && ids.has(result.check_id ?? ''))
+      : []
+    const checked = results.reduce((sum, result) => sum + (result.checked ?? 0), 0)
+    let status: PolicyStatus = 'draft'
+    if (active && stale) status = 'stale'
+    else if (active && ids.size === 0) status = 'no_checks'
+    else if (active) status = results.length > 0 ? ruleStatus(results, ids.size, checked) : 'not_evaluated'
     return {
       checked,
       counted,
@@ -111,9 +89,7 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicySt
       findings: counted ? (run?.findings ?? []).filter((finding) => finding.policy_key === policy.key).length : 0,
       key: policy.key,
       lifecycle: policy.lifecycle,
-      policy_updated_at: policy.updated_at ?? null,
       rules_unchecked: status === 'pass' ? results.filter((result) => isUncheckedPass(result)).length : 0,
-      run_started_at: run?.started_at ?? null,
       stale,
       status,
       title: policy.title,
@@ -121,9 +97,9 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicySt
   })
 }
 
-/** The rows whose evidence cannot be relied on: stale, missing or errored. */
+/** The rows whose evidence cannot be relied on: stale, missing or errored. A draft is never evaluated. */
 function unreliableRows(rows: PolicyStatusRow[]): PolicyStatusRow[] {
-  return rows.filter((row) => row.stale || ['error', 'not_evaluated'].includes(row.status))
+  return rows.filter((row) => ['error', 'not_evaluated', 'stale'].includes(row.status))
 }
 
 /** The rows whose current findings stop a merge: active, mandatory, and failing. */
