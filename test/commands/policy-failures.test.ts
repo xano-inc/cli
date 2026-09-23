@@ -138,8 +138,9 @@ describe('policy failure contracts', () => {
   })
 
   function statusRoute(): void {
-    fixture.route(url => url.pathname.endsWith('/run') ? json({items: [{results}]})
-      : json({items: [{enforcement: 'mandatory', id: 7, key: 'AUTH-001', lifecycle: 'active', rules: results.map(result => ({id: result.check_id})), version: 1}]}))
+    const latest = {enforcement: 'mandatory', included: true, run_id: 5, stale: false, version: 1}
+    fixture.route(url => url.pathname.includes('/run/') ? json({id: 5, results})
+      : json({items: [{enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: latest, lifecycle: 'active', rules: results.map(result => ({id: result.check_id})), version: 1}]}))
   }
 
   it('status gives errors precedence over failed rules', async () => {
@@ -152,7 +153,9 @@ describe('policy failure contracts', () => {
   for (const action of ['evaluate', 'status', 'push']) {
     it(`${action} summary prints every rule error before zero-object coverage`, async () => {
       if (action === 'status') statusRoute()
-      else fixture.route(() => json({policy_check: {blocking: false, results, status: 'error'}}))
+      // A push carries the results in its verdict; an evaluation answers them in its run.
+      else if (action === 'push') fixture.route(() => json({policy_check: {blocking: false, results, status: 'error'}}))
+      else fixture.route(() => json({policy_check: {blocking: false, status: 'error'}, results}))
       const result = action === 'push'
         ? await runCommand(['workspace', 'push', '-d', fixture.directory, '--force', '--no-guids'], fixture.config)
         : await run(action)

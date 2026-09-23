@@ -2,12 +2,18 @@ import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import {resolve} from 'node:path'
 
-import type {PolicyCheck} from '../../../utils/policy/types.js'
+import type {PushPolicyCheck} from '../../../utils/policy/types.js'
 
 import BaseCommand from '../../../base-command.js'
 import {parseDocument} from '../../../utils/document-parser.js'
 import {executePush, type PushFlags, type PushResult, type PushTarget} from '../../../utils/multidoc-push.js'
-import {policyCheckWarning, policyDocumentSummary, policyExitCode, policySummary} from '../../../utils/policy/feedback.js'
+import {
+  policyCheckWarning,
+  policyDocumentSummary,
+  policyExitCode,
+  policySummary,
+  pushEvidence,
+} from '../../../utils/policy/feedback.js'
 import {policyFilePushGuidance} from '../../../utils/policy/permission.js'
 
 export default class Push extends BaseCommand {
@@ -267,11 +273,11 @@ Full sync including knowledge files; removes server objects not present locally
 
   /** What happened to the policy documents, then the policy check the import answered with. */
   private reportPolicyFeedback(result: PushResult, json: boolean): void {
-    const check = result.response?.policy_check as PolicyCheck | undefined
+    const check = result.response?.policy_check as PushPolicyCheck | undefined
     if (!json) {
       const sentPolicies = result.sent.filter((entry) => parseDocument(entry.content)?.type === 'policy').length
       for (const line of policyDocumentSummary(result.preview, sentPolicies)) this.log(line)
-      for (const line of policySummary(check)) this.log(line)
+      for (const line of policySummary(check, pushEvidence(check))) this.log(line)
     }
 
     const warning = policyCheckWarning(check)

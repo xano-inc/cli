@@ -1,6 +1,6 @@
 import {Args, Flags} from '@oclif/core'
 
-import type {PolicyRun} from '../../../utils/policy/types.js'
+import type {PolicyRun, PolicyRunSummary} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {listItems} from '../../../utils/policy/request.js'
@@ -24,7 +24,9 @@ export default class PolicyRuns extends PolicyCommand {
     ...PolicyCommand.policyFlags,
     limit: Flags.integer({
       default: 20,
-      description: 'How many runs to list, newest first',
+      description: 'How many runs to list, newest first (a branch retains at most 20)',
+      max: 20,
+      min: 1,
     }),
     'run-detail': Flags.boolean({
       default: false,
@@ -44,7 +46,7 @@ export default class PolicyRuns extends PolicyCommand {
         return
       }
 
-      const runs = listItems<PolicyRun>(result)
+      const runs = listItems<PolicyRunSummary>(result)
       if (runs.length === 0) {
         this.log('No policy runs retained on this branch.')
         return

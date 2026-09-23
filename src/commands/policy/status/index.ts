@@ -4,7 +4,7 @@ import type {Policy, PolicyRun} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {policyResultSummary} from '../../../utils/policy/findings.js'
-import {listItems} from '../../../utils/policy/request.js'
+import {listItems, type PolicyRequest} from '../../../utils/policy/request.js'
 import {
   computeStatusRows,
   enforcementLabel,
@@ -31,10 +31,8 @@ export default class PolicyStatus extends PolicyCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(PolicyStatus)
     const {request} = this.policyTarget(flags)
-    // Runs are newest-first; status only reads the latest one.
-    const [listed, runs] = await Promise.all([request(), request('/run', 'GET', undefined, {limit: '1'})])
-    const policies = listItems<Policy>(listed)
-    const run = listItems<PolicyRun>(runs)[0]
+    const policies = listItems<Policy>(await request())
+    const run = await this.latestRun(request, policies)
     const rows = computeStatusRows(policies, run)
     const failOnFindings = flags['fail-on-findings'] ? {exit: statusExitCode(rows), reason: statusExitReason(rows)} : undefined
     if (flags.output === 'json') {
@@ -52,5 +50,11 @@ export default class PolicyStatus extends PolicyCommand {
     }
 
     if (failOnFindings?.exit) process.exitCode = failOnFindings.exit
+  }
+
+  /** The run every policy's `latest_run` answer was decided against, or none when the branch has no run. */
+  private async latestRun(request: PolicyRequest, policies: Policy[]): Promise<PolicyRun | undefined> {
+    const runId = policies.map((policy) => policy.latest_run?.run_id).find(Boolean)
+    return runId ? (await request(`/run/${runId}`)) as PolicyRun : undefined
   }
 }

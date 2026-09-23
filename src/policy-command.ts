@@ -54,7 +54,7 @@ export default abstract class PolicyCommand extends BaseCommand {
   protected logRunDetail(run: PolicyRun): void {
     const detail = policyRunDetail(run)
     for (const line of detail) this.log(line)
-    if (detail.length === 0) this.log(`Run ${run.id ?? '?'} evaluated no policies.`)
+    if (detail.length === 0) this.log(run.id ? `Run ${run.id} evaluated no policies.` : 'No policies were evaluated.')
   }
 
   /** Ask the parse route for the policy and its canonical source; it must return both. */

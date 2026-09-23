@@ -2,7 +2,15 @@ import {expect} from 'chai'
 
 import {parseDocument, policyBaseName} from '../../src/utils/document-parser.js'
 import {filterChangedEntries} from '../../src/utils/multidoc-push.js'
-import {policyCheckWarning, policyDocumentSummary, policyExitCode, policySummary} from '../../src/utils/policy/feedback.js'
+import {
+  evaluationEvidence,
+  notStoredLine,
+  policyCheckWarning,
+  policyDocumentSummary,
+  policyExitCode,
+  pushEvidence,
+  policySummary as summarize,
+} from '../../src/utils/policy/feedback.js'
 import {policyResultSummary, policyRuleName} from '../../src/utils/policy/findings.js'
 import {policyRunDetail, policyRunSummary, policyRunTable, policySettings} from '../../src/utils/policy/runs.js'
 import {
@@ -14,6 +22,10 @@ import {
 } from '../../src/utils/policy/status.js'
 
 const result = (status: string, checked = 1) => ({check_id: 'R1', checked, policy_key: 'AUTH-001', status})
+/** A push's summary: its `policy_check` carries its own evidence. */
+const policySummary = (check?: Parameters<typeof pushEvidence>[0]) => summarize(check, pushEvidence(check))
+const coverage = (overrides: Record<string, unknown> = {}) =>
+  ({enforcement: 'mandatory', included: true, run_id: 5, stale: false, version: 1, ...overrides})
 
 describe('policy carriage and feedback', () => {
   it('preserves stable policy keys as safe filenames', () => {
@@ -148,12 +160,34 @@ describe('policy carriage and feedback', () => {
   })
 
   it('names an unnamed finding by the label the run snapshot recorded', () => {
-    const check = {findings: [{message: 'No auth', policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1', rule_title: ''}], status: 'fail'}
-    const snapshot = [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}]}]
-    expect(policySummary(check, snapshot).join('\n')).to.contain('Endpoints require authentication (AUTH-001)')
+    const finding = {message: 'No auth', policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1', rule_title: ''}
+    const policies = [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}]}]
+    const evaluation = {findings: [finding], policies, policy_check: {blocking: false, status: 'fail'}}
+    expect(summarize(evaluation.policy_check, evaluationEvidence(evaluation)).join('\n')).to.contain('Endpoints require authentication (AUTH-001)')
     // An author title on the finding wins, and without a snapshot the id still names the rule.
-    expect(policySummary({...check, findings: [{...check.findings[0], rule_title: 'Auth declared'}]}, snapshot).join('\n')).to.contain('Auth declared (AUTH-001)')
-    expect(policySummary(check).join('\n')).to.contain('AUTH-001.R1 (AUTH-001)')
+    const titled = {...evaluation, findings: [{...finding, rule_title: 'Auth declared'}]}
+    expect(summarize(titled.policy_check, evaluationEvidence(titled)).join('\n')).to.contain('Auth declared (AUTH-001)')
+    expect(policySummary({findings: [finding], status: 'fail'}).join('\n')).to.contain('AUTH-001.R1 (AUTH-001)')
+  })
+
+  it('reads an evaluation from its run, with the blocking findings named by id', () => {
+    const findings = [
+      {id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'},
+      {id: 'F2', message: 'Stale tag', object: {name: 'account', type: 'table'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'},
+    ]
+    const evaluation = {findings, id: 12, policy_check: {blocking: true, blocking_finding_ids: ['F1'], status: 'fail'}, results: [], stored: true}
+    const summary = summarize(evaluation.policy_check, evaluationEvidence(evaluation)).join('\n')
+    expect(summary).to.contain('Blocking findings (1) — these stop the merge:\n  AUTH-001.R1 (AUTH-001)  query GET /x: No auth')
+    expect(summary).to.contain('Advisory findings (1) — reported, not blocking:\n  SEC-100.R1 (SEC-100)  table account: Stale tag')
+  })
+
+  it('says an evaluation that ran was not stored, and nothing for one that was or that evaluated nothing', () => {
+    for (const status of ['pass', 'fail', 'error']) {
+      expect(notStoredLine({id: 0, policy_check: {blocking: false, status}, stored: false})).to.contain('Not stored:')
+    }
+
+    expect(notStoredLine({id: 12, policy_check: {blocking: false, status: 'pass'}, stored: true})).to.equal(null)
+    expect(notStoredLine({id: 0, policy_check: {blocking: false, status: 'not_applicable'}, stored: false})).to.equal(null)
   })
 
   it('separates blocking findings from advisory ones and leads each line with its rule id', () => {
@@ -197,11 +231,15 @@ describe('policy carriage and feedback', () => {
     // A stored run carries no `blocking`, so it never claims one way or the other.
     expect(summary).to.not.contain('Blocking')
     expect(policyRunSummary({findings: [], id: 9, status: 'pass'}).join('\n')).to.contain('No findings.')
-    // A run that does not say how many objects it checked shows a dash rather than a zero.
-    expect(policyRunTable([run, {findings: [], id: 402, started_at: '2026-09-14T22:18:47.148Z', status: 'fail', trigger: 'manual'}])).to.deep.equal([
+  })
+
+  it('tables the run list from its summaries', () => {
+    const pushed = {counts: {blocking: 0, errors: 0, findings: 1}, id: 1674, objects_checked: 23, started_at: '2026-09-17T22:42:00.903Z', status: 'fail', trigger: 'push'}
+    const manual = {counts: {blocking: 0, errors: 0, findings: 0}, id: 402, objects_checked: 0, started_at: '2026-09-14T22:18:47.148Z', status: 'fail', trigger: 'manual'}
+    expect(policyRunTable([pushed, manual])).to.deep.equal([
       'Run   Status  Findings      Checked     Trigger  Started',
       '1674  fail    1 findings    23 objects  push     2026-09-17T22:42:00.903Z',
-      '402   fail    0 findings    — objects   manual   2026-09-14T22:18:47.148Z',
+      '402   fail    0 findings    0 objects   manual   2026-09-14T22:18:47.148Z',
     ])
   })
 
@@ -235,6 +273,8 @@ describe('policy carriage and feedback', () => {
     ])
     expect(policyRunDetail({...run, policies: []})).to.deep.equal([])
     expect(policyRunDetail()).to.deep.equal([])
+    // An evaluation this credential could not record has no run to name.
+    expect(policyRunDetail({...run, id: 0})[0]).to.equal('This evaluation, which was not stored (manual, 2026-09-17T18:23:09.341Z):')
 
     // What each rule actually inspected comes from the results, not from the snapshot.
     expect(policyRunDetail({...run, results: [{check_id: 'AUTH-001.R1', checked: 23, policy_key: 'AUTH-001', status: 'pass'}]})[2])
@@ -250,28 +290,26 @@ describe('policy carriage and feedback', () => {
   })
 
   describe('computeStatusRows', () => {
-    const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: '2026-09-01T10:00:00.000Z', version: 1}
+    const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: coverage(), lifecycle: 'active', rules: [{id: 'R1'}], version: 1}
     const run = {
       findings: [{policy_key: 'AUTH-001'}],
+      id: 5,
       results: [{check_id: 'R1', checked: 10, policy_key: 'AUTH-001', status: 'fail'}],
-      started_at: '2026-09-02T10:00:00.500Z',
     }
 
-    it('compares ISO timestamps and reports a current failing run', () => {
+    it('reports a current failing run', () => {
       const [row] = computeStatusRows([policy], run)
       expect(row).to.deep.equal({
         checked: 10, counted: true, enforcement: 'mandatory', findings: 1, key: 'AUTH-001', lifecycle: 'active',
-        policy_updated_at: policy.updated_at, rules_unchecked: 0,
-        run_started_at: run.started_at, stale: false, status: 'fail', title: undefined,
+        rules_unchecked: 0, stale: false, status: 'fail', title: undefined,
       })
       expect(statusExitCode([row])).to.equal(2)
       expect(statusExitReason([row])).to.equal(
         'Merge blocked by policy: 1 blocking finding on mandatory policies (AUTH-001).')
     })
 
-    it('marks a policy edited after the run as outdated with ISO timestamps', () => {
-      const edited = {...policy, updated_at: '2026-09-03T00:00:00Z'}
-      const [row] = computeStatusRows([edited], run)
+    it('takes staleness from the platform and carries no counts for a stale policy', () => {
+      const [row] = computeStatusRows([{...policy, latest_run: coverage({stale: true, version: 0})}], run)
       expect(row).to.include({checked: 0, counted: false, findings: 0, stale: true, status: 'stale'})
       expect(statusLabel(row)).to.equal('outdated; evaluate again')
       expect(statusExitCode([row])).to.equal(1)
@@ -279,35 +317,21 @@ describe('policy carriage and feedback', () => {
         'Evaluation evidence is stale, missing or errored (AUTH-001 outdated; evaluate again); exit 1.')
     })
 
-    it('accepts epoch numbers and a missing run', () => {
-      const numeric = {...policy, updated_at: 1000}
-      expect(computeStatusRows([numeric], {...run, started_at: 2000})[0]).to.include({stale: false, status: 'fail'})
-      expect(computeStatusRows([numeric])[0]).to.include({run_started_at: null, stale: true, status: 'not_evaluated'})
-      expect(computeStatusRows([{...numeric, lifecycle: 'draft'}])[0]).to.include({stale: false, status: 'draft'})
+    it('calls a policy the run did not evaluate not evaluated, not stale', () => {
+      const [row] = computeStatusRows([{...policy, latest_run: coverage({enforcement: null, included: false, version: null})}], run)
+      expect(row).to.include({counted: false, findings: 0, stale: false, status: 'not_evaluated'})
+      expect(statusExitCode([row])).to.equal(1)
+      const [none] = computeStatusRows([{...policy, latest_run: coverage({enforcement: null, included: false, run_id: 0, version: null})}])
+      expect(none).to.include({counted: false, stale: false, status: 'not_evaluated'})
     })
 
-    it('does not call a draft stale for an edit made after the run, when the run has no results for it', () => {
-      const draft = {...policy, lifecycle: 'draft', updated_at: '2026-09-03T00:00:00Z'}
-      const [row] = computeStatusRows([draft], {...run, findings: [], results: []})
-      expect(row).to.include({counted: false, stale: false, status: 'draft'})
-      expect(statusExitCode([row])).to.equal(0)
-      expect(statusExitReason([row])).to.equal(null)
-      // A run that still carries results for it is stale evidence.
-      expect(computeStatusRows([draft], run)[0]).to.include({stale: true})
-    })
-
-    it('decides staleness on the version the run recorded, not on timestamps', () => {
-      // `version` moves only when the definition moves, so an equal one outranks a newer timestamp.
-      const versioned = {...policy, version: 4}
-      const snapshot = (version?: number) => ({...run, policies: [{key: 'AUTH-001', ...(version === undefined ? {} : {version})}]})
-      const later = {...versioned, updated_at: '2026-09-03T00:00:00Z'}
-      expect(computeStatusRows([later], snapshot(4))[0]).to.include({stale: false, status: 'fail'})
-      // A different version is stale even when the policy row looks older than the run.
-      expect(computeStatusRows([versioned], snapshot(3))[0]).to.include({stale: true, status: 'stale'})
-
-      // A policy the run's snapshot does not include is judged by when it was saved.
-      expect(computeStatusRows([later], {...run, policies: [{key: 'PII-001', version: 4}]})[0]).to.include({stale: true})
-      expect(computeStatusRows([versioned], {...run, policies: [{key: 'PII-001', version: 4}]})[0]).to.include({stale: false})
+    it('never counts a draft, and never lets its old evidence fail CI', () => {
+      for (const latest of [coverage({stale: true, version: 0}), coverage({enforcement: null, included: false, version: null})]) {
+        const [row] = computeStatusRows([{...policy, latest_run: latest, lifecycle: 'draft'}], run)
+        expect(row).to.include({checked: 0, counted: false, findings: 0, status: 'draft'})
+        expect(statusExitCode([row])).to.equal(0)
+        expect(statusExitReason([row])).to.equal(null)
+      }
     })
 
     it('distinguishes error, partial, empty-coverage and advisory outcomes', () => {
@@ -347,7 +371,8 @@ describe('policy carriage and feedback', () => {
       expect(statusExitReason(rows)).to.equal(
         'Merge blocked by policy: 3 blocking findings on mandatory policies (AUTH-001, SEC-100).')
       // Unreliable evidence outranks findings, exactly as the exit code does.
-      const stale = computeStatusRows([policy, second])
+      const unchecked = coverage({enforcement: null, included: false, run_id: 0, version: null})
+      const stale = computeStatusRows([policy, second].map((each) => ({...each, latest_run: unchecked})))
       expect(statusExitCode(stale)).to.equal(1)
       expect(statusExitReason(stale)).to.equal(
         'Evaluation evidence is stale, missing or errored (AUTH-001 not evaluated, SEC-100 not evaluated); exit 1.')

@@ -21,7 +21,12 @@ const backendError = {
   trace: ['file: /internal/Schema.php(444)', 'credential test-token'],
   traceId: 'private-trace-id',
 }
-const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: 1000, version: 1}
+const coverage = (overrides: Record<string, unknown> = {}) =>
+  ({enforcement: 'mandatory', included: true, run_id: 1129, stale: false, version: 1, ...overrides})
+const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: coverage(), lifecycle: 'active', rules: [{id: 'R1'}], version: 1}
+const staleCoverage = coverage({stale: true, version: 0})
+const notInRun = coverage({enforcement: null, included: false, version: null})
+const noRun = coverage({enforcement: null, included: false, run_id: 0, version: null})
 const snapshot = [{
   key: 'AUTH-001',
   rules: [{check: 'query.auth_required', id: 'R1', label: 'Endpoints require authentication', params: {api_groups: ['lab'], except_tags: ['public']}, title: ''}],
@@ -29,16 +34,18 @@ const snapshot = [{
 }]
 const run = {
   findings: [{policy_key: 'AUTH-001'}],
+  id: 1129,
   results: [{check_id: 'R1', checked: 10, message: '', policy_key: 'AUTH-001', status: 'fail'}],
   started_at: 2000,
 }
-const detailRun = {...run, id: 1129, policies: snapshot, trigger: 'manual'}
+const detailRun = {...run, policies: snapshot, trigger: 'manual'}
 
 describe('policy reporting', () => {
   const fixture = policyFixture({branch: 'profile-branch', source, workspace: '3'})
 
-  function statusRoute(current: Record<string, unknown> = policy, latest: null | Record<string, unknown> = run): void {
-    fixture.route((url) => url.pathname.endsWith('/run') ? json({items: latest ? [latest] : []}) : json({items: [current]}))
+  /** The list serves `current`; the run its `latest_run` names is `latest`. */
+  function statusRoute(current: Record<string, unknown> = policy, latest: Record<string, unknown> = run): void {
+    fixture.route((url) => url.pathname.includes('/run/') ? json(latest) : json({items: [current]}))
   }
 
   function command(action: string, flags: string[] = []) {
@@ -108,7 +115,7 @@ describe('policy reporting', () => {
   })
 
   it('runs JSON is the native body, like list', async () => {
-    const body = {curPage: 1, items: [detailRun], nextPage: null, prevPage: null}
+    const body = {curPage: 1, items: [{counts: {blocking: 1, errors: 0, findings: 1}, id: 1129, objects_checked: 10, started_at: 2000, status: 'fail', trigger: 'manual'}], nextPage: null, prevPage: null}
     fixture.route(() => json(body))
     expect(JSON.parse((await command('policy runs', ['-o', 'json'])).stdout)).to.deep.equal(body)
   })
@@ -190,7 +197,7 @@ describe('policy reporting', () => {
   })
 
   it('draft status hides historical counts and diagnostics, and never calls a draft blocking', async () => {
-    statusRoute({...policy, lifecycle: 'draft', updated_at: 3000}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
+    statusRoute({...policy, latest_run: staleCoverage, lifecycle: 'draft'}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
     const result = await command('policy status')
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('draft; not evaluated  Mandatory  — findings').and.not.to.contain('OLD ERROR')
@@ -217,7 +224,7 @@ describe('policy reporting', () => {
   })
 
   it('status --run-detail says so when the run evaluated no policy', async () => {
-    statusRoute(policy, {...detailRun, id: 1075, policies: []})
+    statusRoute({...policy, latest_run: coverage({included: false, run_id: 1075})}, {...detailRun, id: 1075, policies: []})
     const result = await command('policy status', ['--run-detail'])
     expect(result.stdout).to.contain('Run 1075 evaluated no policies.').and.not.to.contain('as recorded')
   })
@@ -241,7 +248,7 @@ describe('policy reporting', () => {
     expect(blocked.stdout).to.contain('Merge blocked by policy: 1 blocking finding on mandatory policies (AUTH-001).')
     expect(process.exitCode).to.equal(2)
 
-    statusRoute({...policy, updated_at: 3000}, run)
+    statusRoute({...policy, latest_run: staleCoverage}, run)
     const stale = await command('policy status', ['--fail-on-findings'])
     expect(stale.stdout).to.contain('Evaluation evidence is stale, missing or errored (AUTH-001 outdated; evaluate again); exit 1.')
     expect(process.exitCode).to.equal(1)
@@ -261,38 +268,38 @@ describe('policy reporting', () => {
   })
 
   it('evaluate names an unnamed rule by the label its own run snapshot recorded', async () => {
-    const check = {blocking: true, findings: [{message: 'No auth', object: {name: 'orders', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'R1', rule_title: ''}], status: 'fail'}
-    fixture.route(() => json({...detailRun, policy_check: check}))
+    const finding = {id: 'F1', message: 'No auth', object: {name: 'orders', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'R1', rule_title: ''}
+    fixture.route(() => json({...detailRun, findings: [finding], policy_check: {blocking: true, blocking_finding_ids: ['F1'], status: 'fail'}}))
     const result = await command('policy evaluate')
     expect(result.stdout).to.contain('Endpoints require authentication (AUTH-001)')
     expect(process.exitCode).to.equal(2)
   })
 
-  for (const [current, latest, stale, status] of [
-    [policy, run, false, 'fail'],
-    [{...policy, updated_at: 3000}, run, true, 'stale'],
-    [{...policy, lifecycle: 'draft', updated_at: 3000}, run, true, 'draft'],
-    [{...policy, lifecycle: 'draft', updated_at: 3000}, {...run, findings: [], results: []}, false, 'draft'],
-    [policy, null, true, 'not_evaluated'],
-    [{...policy, lifecycle: 'draft'}, null, false, 'draft'],
+  for (const [current, stale, status] of [
+    [policy, false, 'fail'],
+    [{...policy, latest_run: staleCoverage}, true, 'stale'],
+    [{...policy, latest_run: notInRun}, false, 'not_evaluated'],
+    [{...policy, latest_run: noRun}, false, 'not_evaluated'],
+    [{...policy, latest_run: staleCoverage, lifecycle: 'draft'}, true, 'draft'],
+    [{...policy, latest_run: noRun, lifecycle: 'draft'}, false, 'draft'],
   ] as const) {
-    it(`status JSON carries freshness for ${status} stale=${stale}`, async () => {
-      statusRoute(current, latest)
+    it(`status JSON carries the served freshness for ${status} stale=${stale}`, async () => {
+      statusRoute(current, run)
       const result = await command('policy status', ['-o', 'json'])
       const row = JSON.parse(result.stdout).status[0]
-      expect(row).to.include({policy_updated_at: current.updated_at, run_started_at: latest?.started_at ?? null, stale, status})
-      if (current.lifecycle === 'draft') expect(row).to.include({checked: 0, counted: false, findings: 0})
+      expect(row).to.include({stale, status})
+      if (status !== 'fail') expect(row).to.include({checked: 0, counted: false, findings: 0})
     })
   }
 
   for (const [current, latest, code] of [
     [policy, run, 2],
     [{...policy, enforcement: 'advisory'}, run, 0],
-    [{...policy, updated_at: 3000}, run, 1],
-    [policy, null, 1],
-    [{...policy, lifecycle: 'draft', updated_at: 3000}, run, 1],
-    [{...policy, lifecycle: 'draft', updated_at: 3000}, {...run, findings: [], results: []}, 0],
-    [{...policy, lifecycle: 'draft'}, null, 0],
+    [{...policy, latest_run: staleCoverage}, run, 1],
+    [{...policy, latest_run: notInRun}, run, 1],
+    [{...policy, latest_run: noRun}, run, 1],
+    [{...policy, latest_run: staleCoverage, lifecycle: 'draft'}, run, 0],
+    [{...policy, latest_run: noRun, lifecycle: 'draft'}, run, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'pass'}]}, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'error'}]}, 1],
     [policy, {...run, findings: [], results: []}, 1],

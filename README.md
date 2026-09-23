@@ -185,7 +185,7 @@ xano policy publish policies/AUTH-001.xs -m "Tightened the scope"   # Create or 
 cat policies/AUTH-001.xs | xano policy publish --stdin
 xano policy evaluate --run-detail                     # Evaluate now; also print what the run recorded
 xano policy status --fail-on-findings -o json         # Latest stored run, without evaluating (CI)
-xano policy runs                                      # The retained runs, newest first (--limit N)
+xano policy runs                                      # The retained runs, newest first (--limit 1-20)
 xano policy runs 1674 --run-detail                    # One run: its findings, descriptions and rule settings
 xano policy delete TMP-DX-001                         # Remove a policy from the branch (-f/--force skips the prompt)
 ```
@@ -199,9 +199,13 @@ live), `-o/--output summary|json` and the profile, config and verbose flags.
   the only way to remove a policy: `workspace push` is additive.
 - `status` rows read `KEY  STATUS  ENFORCEMENT  N findings  Title`. ENFORCEMENT is `Blocking` for an active
   mandatory policy (its findings stop a merge), `Mandatory` for a draft one and `Advisory` otherwise. A
-  draft or outdated row shows `— findings`. In JSON, `status[].status` is one of `pass`, `fail`, `error`,
-  `stale`, `not_evaluated`, `no_checks`, `no_objects_checked` or `draft`, beside `rules_unchecked`,
-  `counted`, `stale`, `enforcement`, `lifecycle`, `run_started_at` and `policy_updated_at`.
+  draft, outdated or not evaluated row shows `— findings`. Whether the latest run is still evidence for a
+  policy is the platform's answer (`latest_run` on each policy): `outdated; evaluate again` means the run
+  evaluated another version of it, and `not evaluated` that the run did not evaluate it. In JSON,
+  `status[].status` is one of `pass`, `fail`, `error`, `stale`, `not_evaluated`, `no_checks`,
+  `no_objects_checked` or `draft`, beside `rules_unchecked`, `counted`, `stale`, `enforcement` and `lifecycle`.
+- `evaluate` prints the findings of the run it answers. A credential that can read policies but not record
+  runs still gets them; the summary then says `Not stored`, and JSON carries `"stored": false`.
 - A rule that passed without inspecting any object is reported as `no objects checked`, never as coverage.
 
 **JSON output.** A command that reads one route prints that route's body unchanged (`catalogue`, `list`,
@@ -228,8 +232,7 @@ remedy for it:
 | `policy_scope_required` | The Metadata API token was created without the level | Create a token that has it: **Instance settings → Metadata API & MCP Server → Manage Access Tokens**. |
 
 A token created before Policies existed has no `workspace:policy` scope: `workspace pull` still works and
-omits the policies. `evaluate` needs only `read`; a caller that cannot record runs still gets the findings,
-with `"stored": false`.
+omits the policies. `evaluate` needs only `read`.
 
 #### Policies in workspace pull and push
 

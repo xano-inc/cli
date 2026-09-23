@@ -1,4 +1,11 @@
-import type {PolicyCheck, PolicySnapshotPolicy} from './types.js'
+import type {
+  PolicyEvaluation,
+  PolicyFinding,
+  PolicyRuleResult,
+  PolicySnapshotPolicy,
+  PolicyVerdict,
+  PushPolicyCheck,
+} from './types.js'
 
 import {findingLine, policyResultSummary, snapshotRules} from './findings.js'
 
@@ -6,13 +13,13 @@ import {findingLine, policyResultSummary, snapshotRules} from './findings.js'
  * Feedback printed as a headline: a pass or fail that says whether its findings block, or a branch
  * with no active policy to evaluate. Everything else is reported by `policyCheckWarning`.
  */
-function isHeadlined(check: PolicyCheck): boolean {
+function isHeadlined(check: PolicyVerdict): boolean {
   if (check.status === 'not_applicable') return true
   return ['fail', 'pass'].includes(check.status ?? '') && typeof check.blocking === 'boolean'
 }
 
 /** 2 whenever the platform says a finding blocks, whatever the status; every other outcome is 0. */
-export function policyExitCode(check?: PolicyCheck): number {
+export function policyExitCode(check?: PolicyVerdict): number {
   return check?.blocking === true ? 2 : 0
 }
 
@@ -21,7 +28,7 @@ export function policyExitCode(check?: PolicyCheck): number {
  * `error`, an unknown status, or a pass or fail that does not say whether it blocks): the server's
  * own status and message, or that none came back. `null` for headlined feedback.
  */
-export function policyCheckWarning(check?: PolicyCheck): null | string {
+export function policyCheckWarning(check?: PolicyVerdict): null | string {
   if (!check) return 'Policy check: no policy feedback returned.'
   if (isHeadlined(check)) return null
   const status = typeof check.status === 'string' && check.status.trim() !== '' ? check.status.trim() : 'unknown'
@@ -56,17 +63,42 @@ export function policyDocumentSummary(preview: null | {operations: Array<{action
   return parts.length > 0 ? [`Policy documents: ${parts.join(', ')}`] : []
 }
 
-/** The ids of the findings the platform lists in `blocking_findings[]`. */
-function blockingIds(check: PolicyCheck): Set<string> {
-  return new Set((check.blocking_findings ?? []).map(finding => finding.id ?? '').filter(Boolean))
+/** What a verdict is about: its findings, which of them block, and the rule results. */
+export interface PolicyEvidence {
+  /** The ids of the findings that block. */
+  blocking: Set<string>
+  /** In the platform's order: blocking first, then by severity. */
+  findings: PolicyFinding[]
+  results: PolicyRuleResult[]
+  /** The run's own `policies[]`, which names unnamed rules; a push answers none. */
+  snapshot: PolicySnapshotPolicy[]
+}
+
+/** A push answers no run, so its `policy_check` carries the findings and results itself. */
+export function pushEvidence(check?: PushPolicyCheck): PolicyEvidence {
+  return {
+    blocking: new Set((check?.blocking_findings ?? []).map(finding => finding.id ?? '').filter(Boolean)),
+    findings: check?.findings ?? [],
+    results: check?.results ?? [],
+    snapshot: [],
+  }
+}
+
+/** An evaluation answers the run, and its verdict names the blocking findings by id. */
+export function evaluationEvidence(evaluation: PolicyEvaluation): PolicyEvidence {
+  return {
+    blocking: new Set(evaluation.policy_check?.blocking_finding_ids ?? []),
+    findings: evaluation.findings ?? [],
+    results: evaluation.results ?? [],
+    snapshot: evaluation.policies ?? [],
+  }
 }
 
 /**
  * The feedback on stdout: a headline with the server's message, then any findings, errors and
  * warnings. Feedback without a headline is reported by `policyCheckWarning` instead.
- * `snapshot` is the run's own `policies[]`, when the same payload carries it; it names unnamed rules.
  */
-export function policySummary(check?: PolicyCheck, snapshot: PolicySnapshotPolicy[] = []): string[] {
+export function policySummary(check: PolicyVerdict | undefined, evidence: PolicyEvidence): string[] {
   if (!check) return []
   const lines: string[] = []
   if (isHeadlined(check)) {
@@ -77,9 +109,8 @@ export function policySummary(check?: PolicyCheck, snapshot: PolicySnapshotPolic
     if (check.message) lines.push(check.message)
   }
 
-  const rules = snapshotRules(snapshot)
-  const findings = check.findings ?? []
-  const blocking = blockingIds(check)
+  const rules = snapshotRules(evidence.snapshot)
+  const {blocking, findings} = evidence
   // The list splits only when some findings block and others do not.
   const separated = blocking.size > 0 && findings.some(finding => !blocking.has(finding.id ?? ''))
   if (separated) {
@@ -96,6 +127,15 @@ export function policySummary(check?: PolicyCheck, snapshot: PolicySnapshotPolic
     lines.push(...findings.map(finding => findingLine(finding, rules)))
   }
 
-  lines.push(...policyResultSummary(check.results))
+  lines.push(...policyResultSummary(evidence.results))
   return lines
+}
+
+/**
+ * The line for an evaluation that ran but was not recorded (the credential may read, not write), or
+ * `null`. A branch with nothing to evaluate stores nothing either, and its headline says so.
+ */
+export function notStoredLine(evaluation: PolicyEvaluation): null | string {
+  if (evaluation.stored !== false || !['error', 'fail', 'pass'].includes(evaluation.policy_check?.status ?? '')) return null
+  return 'Not stored: this credential can run checks but not record runs, so `xano policy status` and `xano policy runs` will not show this one.'
 }
