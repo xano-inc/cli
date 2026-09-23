@@ -2,23 +2,16 @@ import {expect} from 'chai'
 
 import {parseDocument, policyBaseName} from '../../src/utils/document-parser.js'
 import {filterChangedEntries} from '../../src/utils/multidoc-push.js'
+import {policyCheckWarning, policyDocumentSummary, policyExitCode, policySummary} from '../../src/utils/policy/feedback.js'
+import {policyResultSummary, policyRuleName} from '../../src/utils/policy/findings.js'
+import {policyRunDetail, policyRunSummary, policyRunTable, policySettings} from '../../src/utils/policy/runs.js'
 import {
   computeStatusRows,
   enforcementLabel,
-  policyCheckWarning,
-  policyDocumentSummary,
-  policyExitCode,
-  policyResultSummary,
-  policyRuleName,
-  policyRunDetail,
-  policyRunSummary,
-  policyRunTable,
-  policySettings,
-  policySummary,
   statusExitCode,
   statusExitReason,
   statusLabel,
-} from '../../src/utils/policy.js'
+} from '../../src/utils/policy/status.js'
 
 const result = (status: string, checked = 1) => ({check_id: 'R1', checked, policy_key: 'AUTH-001', status})
 

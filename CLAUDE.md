@@ -78,7 +78,7 @@ npm test         # Run Mocha tests + lint
 ```
 src/
 ├── base-command.ts              # Base class for all commands (profile flag)
-├── policy-command.ts            # Base class for `policy *` commands (policy routes, folded errors, exit codes)
+├── policy-command.ts            # Base class for `policy *` commands (shared flags, target, source, exit 1 on failure)
 ├── help.ts                      # Custom oclif help class
 ├── index.ts                     # Entry point (re-exports oclif run)
 ├── commands/
@@ -131,9 +131,7 @@ test/
 | `src/utils/multidoc-push.ts` | Shared push logic for both `sandbox push` and `workspace push` — file collection, glob filtering, dry-run preview, confirmation, partial push, GUID sync, validation rendering |
 | `src/utils/document-parser.ts` | XanoScript document parsing — type/name/verb/guid extraction, document key building |
 | `src/utils/reference-checker.ts` | Cross-reference validation and table index checking |
-| `src/utils/policy.ts` | Policy reporting — `policy_check` exit codes and summaries, `computeStatusRows`/`statusExitCode` for `policy status` |
-| `src/utils/policy-errors.ts` | `describePolicyError`: a failed policy-route response as code, message and 1-based source position; not used by other commands |
-| `src/utils/policy-permission.ts` | Guidance for a policy request the server refused (feature, permission, read-only session) |
+| `src/utils/policy/` | Policy commands' helpers: `request` (the `workspace:policy` route request, used by `skills pull` too), `feedback` (`policy_check` exit code and summary), `status`, `runs`, `findings`, `catalogue`, `errors`, `permission`, `types`; not used by other commands |
 
 ## Coding Conventions
 
@@ -177,7 +175,7 @@ export default class MyCommand extends BaseCommand {
 | Class | Location | Purpose |
 |-------|----------|---------|
 | `BaseCommand` | `src/base-command.ts` | All commands - provides `-p/--profile` flag, credential loading |
-| `PolicyCommand` | `src/policy-command.ts` | `policy *` commands - shared `-w/-b/-o` flags, `runPolicy(action, flags)`, operational errors exit 1 |
+| `PolicyCommand` | `src/policy-command.ts` | `policy *` commands - shared `-w/-b/-o` flags, `policyTarget(flags)` (workspace, branch, request), `readSource`; each command owns its `run()`; operational errors exit 1 |
 
 ### Credential & Profile Resolution
 

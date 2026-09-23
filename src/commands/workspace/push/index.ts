@@ -2,17 +2,13 @@ import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import {resolve} from 'node:path'
 
+import type {PolicyCheck} from '../../../utils/policy/types.js'
+
 import BaseCommand from '../../../base-command.js'
 import {parseDocument} from '../../../utils/document-parser.js'
 import {executePush, type PushFlags, type PushResult, type PushTarget} from '../../../utils/multidoc-push.js'
-import {isPolicyFileRefusal, policyFilePushGuidance} from '../../../utils/policy-permission.js'
-import {
-  type PolicyCheck,
-  policyCheckWarning,
-  policyDocumentSummary,
-  policyExitCode,
-  policySummary,
-} from '../../../utils/policy.js'
+import {policyCheckWarning, policyDocumentSummary, policyExitCode, policySummary} from '../../../utils/policy/feedback.js'
+import {isPolicyFileRefusal, policyFilePushGuidance} from '../../../utils/policy/permission.js'
 
 export default class Push extends BaseCommand {
   static override description =

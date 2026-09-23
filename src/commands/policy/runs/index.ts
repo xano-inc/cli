@@ -1,6 +1,10 @@
 import {Args, Flags} from '@oclif/core'
 
+import type {PolicyRun} from '../../../utils/policy/types.js'
+
 import PolicyCommand from '../../../policy-command.js'
+import {listItems} from '../../../utils/policy/request.js'
+import {policyRunSummary, policyRunTable} from '../../../utils/policy/runs.js'
 
 export default class PolicyRuns extends PolicyCommand {
   static override args = {
@@ -30,6 +34,36 @@ export default class PolicyRuns extends PolicyCommand {
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(PolicyRuns)
-    await this.runPolicy('runs', flags, args.run_id)
+    const {request} = this.policyTarget(flags)
+    const wanted = args.run_id?.trim() ?? ''
+    if (wanted === '') {
+      if (flags['run-detail']) this.error('--run-detail reads one run: `xano policy runs <id> --run-detail`.')
+      const result = await request('/run', 'GET', undefined, {limit: String(flags.limit)})
+      if (flags.output === 'json') {
+        this.log(JSON.stringify(result, null, 2))
+        return
+      }
+
+      const runs = listItems<PolicyRun>(result)
+      if (runs.length === 0) {
+        this.log('No policy runs retained on this branch.')
+        return
+      }
+
+      for (const line of policyRunTable(runs)) this.log(line)
+      this.log('Only the most recent runs are retained per branch. Read one with `xano policy runs <id> --run-detail`.')
+      return
+    }
+
+    // Runs older than the one `policy status` reads are reachable here by id.
+    if (!/^\d+$/.test(wanted)) this.error(`"${wanted}" is not a run ID. Run \`xano policy runs\` for the retained runs.`)
+    const run = (await request(`/run/${wanted}`)) as PolicyRun
+    if (flags.output === 'json') {
+      this.log(JSON.stringify(run, null, 2))
+      return
+    }
+
+    for (const line of policyRunSummary(run)) this.log(line)
+    if (flags['run-detail']) this.logRunDetail(run)
   }
 }

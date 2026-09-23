@@ -11,6 +11,8 @@ export default class PolicyParse extends PolicyCommand {
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(PolicyParse)
-    await this.runPolicy('parse', flags, args.file)
+    const {request} = this.policyTarget(flags)
+    const parsed = await this.parseSource(request, this.readSource(flags, args.file))
+    this.log(flags.output === 'json' ? JSON.stringify(parsed, null, 2) : parsed.source)
   }
 }

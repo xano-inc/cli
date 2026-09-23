@@ -1,6 +1,10 @@
 import {Flags} from '@oclif/core'
 
+import type {PolicyCatalogueEntry} from '../../../utils/policy/types.js'
+
 import PolicyCommand from '../../../policy-command.js'
+import {policyCatalogueSummary, selectCatalogueCheck} from '../../../utils/policy/catalogue.js'
+import {listItems} from '../../../utils/policy/request.js'
 
 export default class PolicyCatalogue extends PolicyCommand {
   static override description = 'List built-in policy checks and their parameter schemas'
@@ -12,6 +16,16 @@ export default class PolicyCatalogue extends PolicyCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(PolicyCatalogue)
-    await this.runPolicy('catalogue', flags)
+    const {request} = this.policyTarget(flags)
+    const result = await request('/check')
+    if (flags.check) {
+      // `--check` narrows both output modes, so `-o json` stays pipeable for one check too.
+      const selected = selectCatalogueCheck(listItems<PolicyCatalogueEntry>(result), flags.check)
+      this.log(flags.output === 'json' ? JSON.stringify(selected, null, 2) : policyCatalogueSummary(selected).join('\n'))
+    } else if (flags.output === 'json') {
+      this.log(JSON.stringify(result, null, 2))
+    } else {
+      for (const line of policyCatalogueSummary(listItems<PolicyCatalogueEntry>(result))) this.log(line)
+    }
   }
 }
