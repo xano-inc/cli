@@ -531,8 +531,10 @@ xano skills pull -b dev                                  # Read the skill from a
 xano skills pull -o json                                 # {path, name, source, workspace, branch, bytes}
 ```
 
-It writes one file, `<directory>/.claude/skills/xano-policies/SKILL.md`, replacing any earlier copy
-(including the stub the developer docs install) without a backup. The skill is generated from the
+It writes one file, `<directory>/.claude/skills/xano-policies/SKILL.md`, and replaces that file without a
+backup. That replaces the developer docs' stub only when the stub was installed into the same project for
+Claude Code (`-a claude-code` without `-g`). A copy anywhere else, such as a global
+`~/.claude/skills/xano-policies` or another agent's skills folder, is not touched; remove it. The skill is generated from the
 instance's check catalogue, so pull it again after an instance upgrade. The branch matters only when the
 workspace has its own `xano-policies` knowledge record, which then replaces the platform skill; the CLI
 says so when that is what it installed. The route needs the `workspace:policy` permission at the read

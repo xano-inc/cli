@@ -62,6 +62,21 @@ describe('skills pull', () => {
     expect(fs.readdirSync(path.dirname(skillFile()))).to.deep.equal(['SKILL.md'])
   })
 
+  it('replaces only the project file, never a copy installed elsewhere', async () => {
+    const home = fs.mkdtempSync(path.join(fixture.directory, 'home-'))
+    const global = path.join(home, '.claude', 'skills', 'xano-policies', 'SKILL.md')
+    fs.mkdirSync(path.dirname(global), {recursive: true})
+    fs.writeFileSync(global, 'stub')
+    fs.mkdirSync(path.dirname(skillFile()), {recursive: true})
+    fs.writeFileSync(skillFile(), 'project stub')
+    process.env.HOME = home
+    fixture.route(() => served([skill()]))
+    const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(fs.readFileSync(skillFile(), 'utf8')).to.contain(content)
+    expect(fs.readFileSync(global, 'utf8')).to.equal('stub')
+  })
+
   it('keeps the instance frontmatter instead of adding a second block', async () => {
     const own = '---\nname: xano-policies\ndescription: from the instance\n---\n\nBody\n'
     fixture.route(() => served([skill({content: own})]))
