@@ -186,7 +186,8 @@ describe('policy failure contracts', () => {
         expect(coverage).to.be.greaterThan(error)
       }
 
-      expect(process.exitCode ?? 0).to.equal(action === 'status' ? 0 : 1)
+      if (action !== 'status') expect(result.stderr).to.contain('Policy check error: no message returned.')
+      expect(process.exitCode ?? 0).to.equal(0)
     })
   }
 

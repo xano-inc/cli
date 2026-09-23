@@ -93,10 +93,11 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.error).to.exist
     expect(fixture.calls).to.have.length(1)
   })
-  for (const [check, code] of [
-    [{blocking: true, status: 'fail'}, 2],
-    [{blocking: false, status: 'fail'}, 0],
-    [undefined, 1],
+  for (const [check, code, warning] of [
+    [{blocking: true, status: 'fail'}, 2, null],
+    [{blocking: false, status: 'fail'}, 0, null],
+    [{blocking: false, message: 'A check could not run.', status: 'error'}, 0, 'Policy check error: A check could not run.'],
+    [undefined, 0, 'Policy check: no policy feedback returned.'],
   ] as const) {
     it(`evaluate retains JSON and uses exit ${code} for ${JSON.stringify(check)}`, async () => {
       fixture.route(() => json({findings: [], id: 12, policy_check: check}))
@@ -104,6 +105,8 @@ describe('official policy commands and workspace carriage', () => {
       expect(result.error).to.equal(undefined)
       expect(JSON.parse(result.stdout).id).to.equal(12)
       expect(process.exitCode ?? 0).to.equal(code)
+      if (warning) expect(result.stderr).to.contain(warning)
+      else expect(result.stderr).not.to.contain('Policy check')
     })
   }
 

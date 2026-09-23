@@ -11,6 +11,7 @@ import {
   type PolicyCatalogueEntry,
   policyCatalogueSummary,
   type PolicyCheck,
+  policyCheckWarning,
   policyExitCode,
   policyResultSummary,
   type PolicyRun,
@@ -263,6 +264,8 @@ export default abstract class PolicyCommand extends BaseCommand {
       }
     }
 
+    const warning = policyCheckWarning(result.policy_check)
+    if (warning) this.warn(warning)
     const code = policyExitCode(result.policy_check)
     if (code) process.exitCode = code
   }

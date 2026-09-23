@@ -16,13 +16,12 @@ import {
   toPushItems,
 } from './knowledge-sync.js'
 import {isPolicyFileRefusal, policyFilePushGuidance} from './policy-permission.js'
-import {type PolicyCheck, policyExitCode, policySummary} from './policy.js'
+import {type PolicyCheck, policyCheckWarning, policyExitCode, policySummary} from './policy.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
 export interface PushFlags {
-  allow_missing_policy_check?: boolean
   delete: boolean
   'dry-run': boolean
   env: boolean
@@ -1463,6 +1462,7 @@ export async function executePush(
 
   const startTime = Date.now()
   let pushedDocCount = 0
+  let multidocImported = false
 
   if (!knowledgeOnly && multidoc) {
     const message = target.supportsMessage ? (flags.message ?? '').trim() : ''
@@ -1567,6 +1567,7 @@ export async function executePush(
       }
 
       pushedDocCount = multidoc.split('\n---\n').length
+      multidocImported = true
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
@@ -1636,25 +1637,23 @@ export async function executePush(
 
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
   if (flags.output === 'json') command.log(JSON.stringify({...pushResponse, documents: pushedDocCount, imported: true, knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported}}, null, 2))
-  if (!knowledgeOnly && target.requiresPolicyCheck) {
+  // Policy feedback describes the multidoc import, so a push that sent none has none to report.
+  if (multidocImported && target.requiresPolicyCheck) {
     const check = pushResponse.policy_check as PolicyCheck | undefined
     if (flags.output !== 'json') {
-      // The push writes policy documents like any other, but they are the one document
-      // type whose effect the reader cannot see anywhere else in this output — so name
-      // them, and say what happened to each, before the findings they will produce.
       for (const line of policyDocumentSummary(dryRunPreview)) log(line)
       for (const line of policySummary(check)) log(line)
     }
 
-    const code = policyExitCode(check, flags.allow_missing_policy_check)
+    const warning = policyCheckWarning(check)
+    if (warning) command.warn(warning)
+    const code = policyExitCode(check)
     if (code) {
       process.exitCode = code
-      // "Requires attention" is not a next step. Name the command that shows the run.
       if (flags.output !== 'json') log('Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
-      command.warn('Workspace import completed. Policy feedback requires attention; imported changes were not rolled back.')
+      command.warn('Workspace import completed with blocking policy findings; the imported changes were not rolled back.')
     }
   }
-
 }
 
 /** The policy documents a multidoc carries, by key, in the order they were sent. */
