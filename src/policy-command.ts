@@ -82,14 +82,7 @@ export default abstract class PolicyCommand extends BaseCommand {
   }
 
   protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
-    // Only completed evaluations set exit 2. Include profile/init and flag errors
-    // in the operational exit contract, preserving intentional successful exits.
-    if (error.oclif?.exit === 0) return super.catch(error)
-    // `-o json` promised parseable stdout and delivered an empty one on every failure, so a
-    // caller piping to `jq` saw nothing at all. The envelope is the policy topic's convention;
-    // the message is the same folded, redacted text stderr carries.
-    if (this.isJsonOutput()) this.log(JSON.stringify({error: {exit: 1, message: error.message}}, null, 2))
-    this.error(error, {exit: 1})
+    return this.catchAsOperational(error)
   }
 
   /**

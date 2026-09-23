@@ -241,7 +241,7 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(asJson.stdout).id).to.equal(1674)
   })
 
-  it('push folds the policy count into the import line when no preview said what changed', async () => {
+  it('push reports the policy documents it sent without claiming which changed', async () => {
     const findings = [
       {id: 'F1', message: 'no auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'},
       {id: 'F2', message: 'stale tag', object: {name: 'account', type: 'table'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R2'},
@@ -253,10 +253,8 @@ describe('official policy commands and workspace carriage', () => {
       fixture.config,
     )
     expect(result.error).to.equal(undefined)
-    // `--force` skips the preview, and the import response reports an unchanged policy exactly
-    // as it reports a saved one — so the count rides the import line rather than a claim of its own.
-    expect(result.stdout).to.contain('1 documents (1 policy document) to')
-    expect(result.stdout).not.to.contain('Policy documents sent')
+    expect(result.stdout).to.contain('Pushed 1 documents to')
+    expect(result.stdout).to.contain('Policy documents: 1 sent without a preview, so which of them changed is not known')
     expect(result.stdout).to.contain('Blocking findings (1) — these stop the merge:')
     expect(result.stdout).to.contain('SEC-100.R1 (SEC-100)  query GET /x: no auth')
     expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:')

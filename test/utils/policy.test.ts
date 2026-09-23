@@ -1,13 +1,13 @@
 import {expect} from 'chai'
 
-import {parseDocument} from '../../src/utils/document-parser.js'
+import {parseDocument, policyBaseName} from '../../src/utils/document-parser.js'
 import {filterChangedEntries} from '../../src/utils/multidoc-push.js'
 import {
   computeStatusRows,
   enforcementLabel,
   policyCheckWarning,
+  policyDocumentSummary,
   policyExitCode,
-  policyFileName,
   policyResultSummary,
   policyRuleName,
   policyRunDetail,
@@ -23,8 +23,8 @@ const result = (status: string, checked = 1) => ({check_id: 'R1', checked, polic
 
 describe('policy carriage and feedback', () => {
   it('preserves stable policy keys as safe filenames', () => {
-    expect(policyFileName('AUTH-001')).to.equal('AUTH-001.xs')
-    expect(() => policyFileName('../escape')).to.throw('Invalid policy key')
+    expect(policyBaseName('AUTH-001')).to.equal('AUTH-001')
+    expect(() => policyBaseName('../escape')).to.throw('Invalid policy key')
   })
 
   const unsettled = ['disabled', 'not_applicable', 'forbidden', 'unavailable', 'error']
@@ -54,6 +54,21 @@ describe('policy carriage and feedback', () => {
     expect(policySummary()).to.deep.equal([])
     const summary = policySummary({blocking: true, findings: [{message: 'No auth', rule_id: 'R1'}], status: 'fail'}).join('\n')
     expect(summary).to.contain('Policy check: fail (mandatory findings)').and.to.contain('No auth')
+  })
+
+  it('says what happened to each policy document when the push previewed it', () => {
+    expect(policyDocumentSummary({operations: [
+      {action: 'create', name: 'AUTH-001', type: 'policy'},
+      {action: 'update', name: 'SEC-100', type: 'policy'},
+      {action: 'unchanged', name: 'POL-001', type: 'policy'},
+      {action: 'update', name: 'account', type: 'table'},
+    ]}, 2)).to.deep.equal(['Policy documents: 1 created (AUTH-001), 1 updated (SEC-100), 1 unchanged'])
+  })
+
+  it('claims no change for policy documents pushed without a preview', () => {
+    expect(policyDocumentSummary(null, 2)).to.deep.equal(['Policy documents: 2 sent without a preview, so which of them changed is not known'])
+    expect(policyDocumentSummary(null, 0)).to.deep.equal([])
+    expect(policyDocumentSummary({operations: [{action: 'update', name: 'account', type: 'table'}]}, 0)).to.deep.equal([])
   })
 
   it('prints a warning for a name the branch does not have, even when the rule passed', () => {

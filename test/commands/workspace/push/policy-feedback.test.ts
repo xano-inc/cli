@@ -89,6 +89,46 @@ describe('workspace push policy feedback', () => {
     expect(fixture.calls[0].url.searchParams.has('message')).to.equal(false)
   })
 
+  it('exits 1 for a failed import, with the failure as JSON under -o json', async () => {
+    fixture.route(() => json({message: 'Invalid block: enforcement', payload: {param: 'source'}}, 500))
+    const result = await push('-o', 'json')
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.equal('Push failed (500): Invalid block: enforcement\n  Parameter: source')
+    expect(JSON.parse(result.stdout)).to.deep.equal({error: {exit: 1, message: result.error?.message}})
+  })
+
+  it('exits 1 for a refused flag combination', async () => {
+    fixture.route(() => json({}))
+    const result = await push('--delete')
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.contain('Cannot use --delete without --sync')
+    expect(fixture.calls).to.have.length(0)
+  })
+
+  it('prints one JSON document for a dry-run, with the preview rendering on stderr', async () => {
+    const preview = {
+      operations: [{action: 'update', details: '', name: 'AUTH-001', type: 'policy'}],
+      summary: {policy: {created: 0, deleted: 0, truncated: 0, unchanged: 0, updated: 1}},
+    }
+    fixture.route(() => json(preview))
+    const result = await runCommand(['workspace', 'push', '-d', fixture.directory, '--dry-run', '-o', 'json'], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(JSON.parse(result.stdout)).to.deep.equal({imported: false, preview, reason: 'dry-run'})
+    expect(result.stderr).to.contain('AUTH-001')
+  })
+
+  it('prints one JSON document when the preview finds nothing to push', async () => {
+    const preview = {
+      operations: [{action: 'unchanged', details: '', name: 'AUTH-001', type: 'policy'}],
+      summary: {policy: {created: 0, deleted: 0, truncated: 0, unchanged: 1, updated: 0}},
+    }
+    fixture.route(() => json(preview))
+    const result = await runCommand(['workspace', 'push', '-d', fixture.directory, '-o', 'json'], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(JSON.parse(result.stdout)).to.deep.equal({imported: false, preview, reason: 'no-changes'})
+    expect(result.stderr).to.contain('No changes to push.')
+  })
+
   describe('a push that sends only knowledge', () => {
     const originalInterface = readline.createInterface
     const originalTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')

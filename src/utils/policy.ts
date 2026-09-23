@@ -156,11 +156,6 @@ export interface PolicyCheck {
   status?: string
 }
 
-export function policyFileName(key: string): string {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(key)) throw new Error(`Invalid policy key: ${key}`)
-  return `${key}.xs`
-}
-
 /** A completed evaluation that says whether its findings block. */
 function isSettled(check: PolicyCheck): boolean {
   return ['fail', 'pass'].includes(check.status ?? '') && typeof check.blocking === 'boolean'
@@ -183,6 +178,31 @@ export function policyCheckWarning(check?: PolicyCheck): null | string {
     ? check.message.trim()
     : (['fail', 'pass'].includes(status) ? 'the server did not say whether its findings block.' : 'no message returned.')
   return `Policy check ${status}: ${message}`
+}
+
+/**
+ * What happened to the policy documents a push carried. The preview says, per policy, whether it was
+ * created, updated or left unchanged. Without a preview only the number sent is known: the import
+ * response reports an unchanged policy exactly as it reports a saved one.
+ */
+export function policyDocumentSummary(preview: null | {operations: Array<{action: string; name: string; type: string}>}, sentPolicies: number): string[] {
+  const operations = (preview?.operations ?? []).filter((op) => op.type === 'policy')
+  if (operations.length === 0) {
+    return sentPolicies > 0
+      ? [`Policy documents: ${sentPolicies} sent without a preview, so which of them changed is not known`]
+      : []
+  }
+
+  const named = (action: string) => operations.filter((op) => op.action === action).map((op) => op.name).sort()
+  const created = named('create')
+  const updated = named('update')
+  const unchanged = named('unchanged')
+  const parts = [
+    created.length > 0 && `${created.length} created (${created.join(', ')})`,
+    updated.length > 0 && `${updated.length} updated (${updated.join(', ')})`,
+    unchanged.length > 0 && `${unchanged.length} unchanged`,
+  ].filter(Boolean)
+  return parts.length > 0 ? [`Policy documents: ${parts.join(', ')}`] : []
 }
 
 /** A finding names its rule the way the platform does, falling back to what the run recorded. */
