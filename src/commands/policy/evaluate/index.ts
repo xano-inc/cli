@@ -12,7 +12,7 @@ import {
 } from '../../../utils/policy/feedback.js'
 
 export default class PolicyEvaluate extends PolicyCommand {
-  static override description = 'Evaluate active branch policies and report mandatory findings'
+  static override description = 'Evaluate active branch policies and report their findings; blocking findings exit 2'
   static override examples = ['$ xano policy evaluate -o json', '$ xano policy evaluate --run-detail']
   static override flags = {
     ...PolicyCommand.policyFlags,

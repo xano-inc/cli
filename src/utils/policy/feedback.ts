@@ -7,7 +7,7 @@ import type {
   PushPolicyCheck,
 } from './types.js'
 
-import {findingLine, policyResultSummary, snapshotRules} from './findings.js'
+import {findingLine, isUncheckedPass, policyResultSummary, snapshotRules} from './findings.js'
 
 /**
  * Feedback printed as a headline: a pass or fail that says whether its findings block, or a branch
@@ -94,6 +94,17 @@ export function evaluationEvidence(evaluation: PolicyEvaluation): PolicyEvidence
   }
 }
 
+/** The headline's outcome. A pass whose rules inspected no object is never headlined as a plain pass. */
+function outcome(check: PolicyVerdict, results: PolicyRuleResult[]): string {
+  if (check.status === 'fail') return check.blocking ? 'fail (blocking findings)' : 'advisory findings (not blocking)'
+  if (check.status !== 'pass') return check.status ?? ''
+  const unchecked = results.filter((result) => isUncheckedPass(result)).length
+  if (unchecked === 0) return 'pass'
+  return unchecked === results.length
+    ? 'pass, but no objects were checked'
+    : `pass, but ${unchecked} rule${unchecked === 1 ? '' : 's'} checked no objects`
+}
+
 /**
  * The feedback on stdout: a headline with the server's message, then any findings, errors and
  * warnings. Feedback without a headline is reported by `policyCheckWarning` instead.
@@ -102,10 +113,7 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
   if (!check) return []
   const lines: string[] = []
   if (isHeadlined(check)) {
-    const outcome = check.status === 'fail'
-      ? (check.blocking ? 'fail (blocking findings)' : 'advisory findings (not blocking)')
-      : check.status
-    lines.push(`Policy check: ${outcome}`)
+    lines.push(`Policy check: ${outcome(check, evidence.results)}`)
     if (check.message) lines.push(check.message)
   }
 

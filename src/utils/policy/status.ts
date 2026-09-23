@@ -9,6 +9,11 @@ import {isUncheckedPass} from './findings.js'
 export type PolicyStatus = 'draft' | 'error' | 'fail' | 'no_checks' | 'no_objects_checked' | 'not_evaluated' | 'pass' | 'stale'
 
 export interface PolicyStatusRow {
+  /**
+   * Whether the latest run's findings on this policy block a merge: the run evaluated it, in its
+   * current version, as active and mandatory (the platform's `latest_run.enforcement`), and found something.
+   */
+  blocking: boolean
   checked: number
   /** Whether `findings` and `checked` come from the latest run: only for an active policy it evaluated in its current version. */
   counted: boolean
@@ -49,14 +54,23 @@ export function statusLabel(row: PolicyStatusRow): string {
   }
 }
 
-/** `Blocking` only where findings stop a merge: an active, mandatory policy. A draft never blocks. */
-export function enforcementLabel(row: Pick<PolicyStatusRow, 'enforcement' | 'lifecycle'>): string {
-  if (row.enforcement === 'mandatory') return row.lifecycle === 'active' ? 'Blocking' : 'Mandatory'
-  if (row.enforcement === 'advisory') return 'Advisory'
-  return row.enforcement.trim() || '—'
+/** The policy's own enforcement, in Studio's words. Whether its findings block is `findingsLabel`'s to say. */
+export function enforcementLabel(enforcement: string): string {
+  if (enforcement === 'mandatory') return 'Mandatory'
+  if (enforcement === 'advisory') return 'Advisory'
+  return enforcement.trim() || '—'
 }
 
+/** `3 findings`, marked blocking when they block; a dash where the row carries no current count. */
+export function findingsLabel(row: PolicyStatusRow): string {
+  if (!row.counted) return '— findings'
+  return `${row.findings} findings${row.blocking ? ' (blocking)' : ''}`
+}
+
+/** Where an active policy stands, given its rule results in a run that is still evidence for it. */
 function ruleStatus(results: PolicyRuleResult[], ruleCount: number, checked: number): PolicyStatus {
+  if (ruleCount === 0) return 'no_checks'
+  if (results.length === 0) return 'not_evaluated'
   if (results.some((result) => !['fail', 'pass'].includes(result.status ?? ''))) return 'error'
   if (results.some((result) => result.status === 'fail')) return 'fail'
   if (results.length < ruleCount) return 'not_evaluated'
@@ -78,15 +92,15 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicySt
       ? (run?.results ?? []).filter((result) => result.policy_key === policy.key && ids.has(result.check_id ?? ''))
       : []
     const checked = results.reduce((sum, result) => sum + (result.checked ?? 0), 0)
+    const findings = counted ? (run?.findings ?? []).filter((finding) => finding.policy_key === policy.key).length : 0
     let status: PolicyStatus = 'draft'
-    if (active && stale) status = 'stale'
-    else if (active && ids.size === 0) status = 'no_checks'
-    else if (active) status = results.length > 0 ? ruleStatus(results, ids.size, checked) : 'not_evaluated'
+    if (active) status = stale ? 'stale' : ruleStatus(results, ids.size, checked)
     return {
+      blocking: counted && policy.latest_run?.enforcement === 'mandatory' && findings > 0,
       checked,
       counted,
       enforcement: policy.enforcement,
-      findings: counted ? (run?.findings ?? []).filter((finding) => finding.policy_key === policy.key).length : 0,
+      findings,
       key: policy.key,
       lifecycle: policy.lifecycle,
       rules_unchecked: status === 'pass' ? results.filter((result) => isUncheckedPass(result)).length : 0,
@@ -102,16 +116,10 @@ function unreliableRows(rows: PolicyStatusRow[]): PolicyStatusRow[] {
   return rows.filter((row) => ['error', 'not_evaluated', 'stale'].includes(row.status))
 }
 
-/** The rows whose current findings stop a merge: active, mandatory, and failing. */
-function blockingRows(rows: PolicyStatusRow[]): PolicyStatusRow[] {
-  return rows.filter((row) => row.lifecycle === 'active' && row.enforcement === 'mandatory' &&
-    (row.findings > 0 || row.status === 'fail'))
-}
-
-/** `--fail-on-findings`: 1 for stale, missing or errored evidence, then 2 for current mandatory findings. */
+/** `--fail-on-findings`: 1 for stale, missing or errored evidence, then 2 for current blocking findings. */
 export function statusExitCode(rows: PolicyStatusRow[]): number {
   if (unreliableRows(rows).length > 0) return 1
-  return blockingRows(rows).length > 0 ? 2 : 0
+  return rows.some((row) => row.blocking) ? 2 : 0
 }
 
 /** Why `--fail-on-findings` failed, in one line naming the policies, or `null` when it did not. */
@@ -122,11 +130,10 @@ export function statusExitReason(rows: PolicyStatusRow[]): null | string {
       unreliable.map((row) => `${row.key} ${statusLabel(row)}`).join(', ')}); exit 1.`
   }
 
-  const blocking = blockingRows(rows)
+  const blocking = rows.filter((row) => row.blocking)
   if (blocking.length === 0) return null
-  const keys = blocking.map((row) => row.key).join(', ')
   const findings = blocking.reduce((sum, row) => sum + row.findings, 0)
-  return findings > 0
-    ? `Merge blocked by policy: ${findings} blocking finding${findings === 1 ? '' : 's'} on mandatory policies (${keys}).`
-    : `Merge blocked by policy: mandatory policies failed (${keys}).`
+  // A prediction, not a verdict: the merge gate evaluates the branch again.
+  return `The latest run has ${findings} blocking finding${findings === 1 ? '' : 's'} (${
+    blocking.map((row) => row.key).join(', ')}); the merge gate evaluates the branch again before a merge.`
 }

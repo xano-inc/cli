@@ -8,6 +8,7 @@ import {listItems, type PolicyRequest} from '../../../utils/policy/request.js'
 import {
   computeStatusRows,
   enforcementLabel,
+  findingsLabel,
   statusExitCode,
   statusExitReason,
   statusLabel,
@@ -20,7 +21,7 @@ export default class PolicyStatus extends PolicyCommand {
     ...PolicyCommand.policyFlags,
     'fail-on-findings': Flags.boolean({
       default: false,
-      description: 'Exit 1 for stale, missing or errored evaluation evidence; exit 2 for current mandatory findings',
+      description: 'Exit 1 for stale, missing or errored evaluation evidence; exit 2 for current blocking findings',
     }),
     'run-detail': Flags.boolean({
       default: false,
@@ -39,10 +40,8 @@ export default class PolicyStatus extends PolicyCommand {
       this.log(JSON.stringify({policies, run: run ?? null, status: rows, ...(failOnFindings ? {fail_on_findings: failOnFindings} : {})}, null, 2))
     } else if (rows.length === 0) this.log('No policies found.')
     else {
-      // A draft or stale row has no current count, and `0 findings` would read as "nothing wrong".
       for (const row of rows)
-        this.log(`${row.key}  ${statusLabel(row)}  ${enforcementLabel(row)}  ${
-          row.counted ? `${row.findings} findings` : '— findings'}  ${row.title ?? ''}`)
+        this.log(`${row.key}  ${statusLabel(row)}  ${enforcementLabel(row.enforcement)}  ${findingsLabel(row)}  ${row.title ?? ''}`)
       const counted = new Set(rows.filter((row) => row.counted).map((row) => row.key))
       for (const line of policyResultSummary(run?.results?.filter((result) => counted.has(result.policy_key ?? '')))) this.log(line)
       if (flags['run-detail'] && run) this.logRunDetail(run)
