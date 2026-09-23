@@ -13,10 +13,6 @@ export interface ParsedDocument {
 }
 
 /**
- * Parse a single XanoScript document to extract its type, name, and optional verb/api_group.
- * Skips leading comment lines (starting with //) to find the first meaningful line.
- */
-/**
  * The file name, without `.xs`, for a policy key. The pattern is the platform's own key pattern, so a
  * key from the server can never name a path outside `policies/`.
  */
@@ -25,6 +21,10 @@ export function policyBaseName(key: string): string {
   return key
 }
 
+/**
+ * Parse a single XanoScript document to extract its type, name, and optional verb/api_group.
+ * Skips leading comment lines (starting with //) to find the first meaningful line.
+ */
 export function parseDocument(content: string): null | ParsedDocument {
   const lines = content.split('\n')
 
