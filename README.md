@@ -577,11 +577,13 @@ xano tenant create "My Tenant"
 xano tenant create "My Tenant" -d "Description" --type tier2 --cluster_id 1 --platform_id 5
 xano tenant create "My Tenant" --type tier2 --cluster_id 1 --license ./license.yaml
 xano tenant create "Production" --required_reviewers 1 --allow_deploy_bypass
+xano tenant create "Staging" --required_reviewers 0 --allow_quick_deploy
 
 # Edit a tenant
 xano tenant edit <tenant_name> --display "New Name" -d "New description"
 xano tenant edit <tenant_name> --required_reviewers 1
 xano tenant edit <tenant_name> --required_reviewers 0
+xano tenant edit <tenant_name> --allow_quick_deploy
 
 # Delete a tenant (confirmation required)
 xano tenant delete <tenant_name>
@@ -633,15 +635,20 @@ xano tenant deploy_platform <tenant_name> --platform_id 5 --license ./license.ya
 ```
 
 If a tenant has `required_reviewers` set above 0, `tenant deploy_release` fails with an
-error naming the `tenant_deploy_request` command to run instead — see below.
+error naming the `tenant_deploy_request` command to run instead — see below. A tenant
+with `allow_quick_deploy` enabled skips the gate entirely, regardless of
+`required_reviewers`.
 
 #### Tenant Deploy Requests
 
-When a tenant has `required_reviewers` set above 0 (see `tenant create`/`tenant edit`
-above), a release may only be deployed to it through an **approved deploy request**,
-requiring that many distinct reviewer approvals. An author with no deploy permission
-opens a request; a named reviewer who does hold deploy permission on the tenant votes to
-approve it, and once enough reviewers have approved, it deploys as part of that action.
+When a tenant has `required_reviewers` set above 0 and `allow_quick_deploy` is off (see
+`tenant create`/`tenant edit` above), a release may only be deployed to it through an
+**approved deploy request**, requiring that many distinct reviewer approvals. An author
+with no deploy permission opens a request; a named reviewer who does hold deploy
+permission on the tenant votes to approve it, and once enough reviewers have approved,
+it deploys as part of that action. `allow_deploy_bypass` (set at `tenant create` time
+only) additionally allows an authorized user to skip a specific request's gate via
+`tenant_deploy_request bypass`, audited with a required reason.
 
 ```bash
 # List deploy requests in a workspace (results show the target tenant and release)
