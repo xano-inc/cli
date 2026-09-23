@@ -12,6 +12,8 @@ const results = [
   {check_id: 'R3', checked: 0, message: 'inventory unavailable', policy_key: 'AUTH-001', status: 'error'},
 ]
 const saved = {id: 7, key: 'AUTH-001', unchanged: false, version: 1}
+const refusal = (code: string, message: string, level?: string) =>
+  json({code: 'ERROR_CODE_ACCESS_DENIED', message, payload: {code, ...(level ? {level, permission: 'workspace:policy'} : {})}}, 403)
 
 describe('policy failure contracts', () => {
   const fixture = policyFixture()
@@ -43,38 +45,49 @@ describe('policy failure contracts', () => {
   })
 
   for (const status of [400, 401, 403, 500]) {
-    it(`HTTP ${status} exits 1, redacted, with guidance only where a permission answered`, async () => {
+    it(`HTTP ${status} without a refusal code exits 1, redacted, with guidance only for a rejected token`, async () => {
       fixture.route(() => json({message: 'Access Denied test-token'}, status))
       const result = await run('list')
       expectOperationalError(result)
       expect(result.error?.message).to.contain('[REDACTED]').and.not.to.contain('test-token')
-      if (status === 403) {
-        expect(result.error?.message).to.contain('`workspace:policy` permission')
-          .and.to.contain('Instance settings → Metadata API & MCP Server → Manage Access Tokens')
-      } else if (status === 401) {
-        expect(result.error?.message).to.contain('missing, expired or revoked')
-      } else {
-        expect(result.error?.message).not.to.contain('Reissue')
-      }
+      if (status === 401) expect(result.error?.message).to.contain('missing, expired or revoked')
+      else expect(result.error?.message).not.to.contain('workspace:policy').and.not.to.contain('Manage Access Tokens')
     })
   }
 
-  it('a refused policy change is not blamed on the token', async () => {
+  it('a role without the permission is not blamed on the token', async () => {
     fixture.route((url, method) => url.pathname.endsWith('/parse') ? json({policy: {key: 'AUTH-001'}, source})
-      : method === 'GET' ? json({items: []}) : json({message: 'Policy changes require the workspace:policy permission.'}, 403))
+      : method === 'GET' ? json({items: []}) : refusal('policy_permission_required', 'The workspace:policy create permission is required on this workspace.', 'create'))
     const result = await run('publish')
     expectOperationalError(result)
-    expect(result.error?.message).to.contain('Policy changes require the workspace:policy permission.')
+    expect(result.error?.message).to.contain('The workspace:policy create permission is required on this workspace.')
+      .and.to.contain('Your role on this workspace lacks the `workspace:policy` create permission.')
       .and.to.contain('reissuing it will not help')
+      .and.to.contain('Reading policies and running checks need only read.')
       .and.not.to.contain('Manage Access Tokens')
-      .and.not.to.contain('admin role')
+  })
+
+  it('a token created without the scope is sent to create one that has it', async () => {
+    fixture.route(() => refusal('policy_scope_required', 'This API token was not granted the workspace:policy read scope.', 'read'))
+    const result = await run('list')
+    expectOperationalError(result)
+    expect(result.error?.message).to.contain('This Metadata API token was created without the `workspace:policy` read scope.')
+      .and.to.contain('Manage Access Tokens')
+      .and.not.to.contain('instance admin')
   })
 
   it('the feature being off is not blamed on the token', async () => {
-    fixture.route(() => json({message: 'Policies are not enabled on this instance.'}, 403))
+    fixture.route(() => refusal('policy_feature_disabled', 'Policies are not enabled on this instance.'))
     const result = await run('list')
     expectOperationalError(result)
     expect(result.error?.message).to.contain('turned off for this instance').and.not.to.contain('Manage Access Tokens')
+  })
+
+  it('reads the gate from the refusal code, never from the sentence', async () => {
+    fixture.route(() => json({message: 'Policies are not enabled on this instance. Policy changes require the workspace:policy permission.'}, 403))
+    const result = await run('list')
+    expectOperationalError(result)
+    expect(result.error?.message).not.to.contain('turned off for this instance').and.not.to.contain('reissuing it will not help')
   })
 
   it('transport failures exit 1', async () => {
