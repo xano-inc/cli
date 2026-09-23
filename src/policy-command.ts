@@ -30,7 +30,7 @@ export default abstract class PolicyCommand extends BaseCommand {
     output: Flags.string({char: 'o', default: 'summary', description: 'Output format', options: ['summary', 'json']}),
     workspace: Flags.string({char: 'w', description: 'Workspace ID (defaults to profile workspace)'}),
   }
-  /** Only `publish` writes, so only `publish` can label a Version History entry. */
+  /** `publish -m`: the message on the Version History entry the save creates. */
   static publishFlags = {
     message: Flags.string({char: 'm', description: 'Message stored on the Version History entry this save creates'}),
   }

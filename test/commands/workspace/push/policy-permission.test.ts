@@ -34,7 +34,9 @@ describe('workspace push with policy files, without the workspace:policy permiss
     expect(result.error).to.equal(undefined)
     expect(fixture.calls).to.have.length(1)
     expect(fixture.calls[0].url.pathname).to.match(/\/multidoc\/dry-run$/)
-    expect(`${result.stdout}${result.stderr}`).not.to.contain('admin role')
+    // The preview lists the function it would change and no change to the policy.
+    expect(result.stdout).to.match(/UPDATE\s+function\s+helper/)
+    expect(result.stdout).not.to.match(/policy\s+AUTH-001/)
     expect(process.exitCode ?? 0).to.equal(0)
   })
 
