@@ -481,7 +481,7 @@ function evaluatedVersion(run: PolicyRun, key: string): number | undefined {
 }
 
 /**
- * Whether the latest run is no longer evidence for this policy. A draft is never evaluated, so it
+ * Whether the latest run has stopped being evidence for this policy. A draft is never evaluated, so it
  * is stale only when the run still carries results for it. An active policy is stale without a
  * run, or when the run evaluated another version; a policy the run's snapshot does not include is
  * judged by whether it was saved after the run started.
