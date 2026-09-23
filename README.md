@@ -211,7 +211,7 @@ Policies are versioned the way every other Xano object is: one Version History e
 
 `workspace push` imports policies inside the same native multidoc as the code. `-m/--message` labels the Version History entry of every policy document that push changes — one message for the push, not one per policy — and a push without it leaves those entries with an empty message, as before. `policy publish -m "…"` still labels the entry of a single policy. The message rides the import only: it is never sent with `--dry-run` or the preview, which write nothing, and `sandbox push` / `ephemeral push` share this code but their routes do not take it. An unchanged policy in a push is skipped entirely, exactly as an unchanged `policy publish` is, and gets no entry to label.
 
-Operational failures in policy commands (including missing credentials, transport errors, HTTP 4xx/5xx, invalid JSON, and unreadable source) exit **1**, as do failed `workspace push`/`sandbox push` previews and imports. Exit **2** is reserved for mandatory findings returned by a completed evaluation. A publish response without a saved policy ID and matching key is an indeterminate outcome and exits **1**; inspect the saved policies before retrying. A policy-route HTTP 403 is explained by which gate refused it — scope, role or the feature being off — see [Policy permissions](#policy-permissions). With `-o json`, a failing policy command also writes the failure to stdout as `{"error": {"message": "…", "exit": 1}}` — the same folded, redacted message stderr carries — so a caller piping to `jq` reads the reason instead of an empty stream. This envelope is the policy topic's convention; other topics print nothing on stdout when they fail.
+Operational failures in policy commands (including missing credentials, transport errors, HTTP 4xx/5xx, invalid JSON, and unreadable source) exit **1**, as does a failed `workspace push` preview or import. Exit **2** is reserved for mandatory findings returned by a completed evaluation. A publish response without a saved policy ID and matching key is an indeterminate outcome and exits **1**; inspect the saved policies before retrying. A policy-route HTTP 403 is explained by which gate refused it — scope, role or the feature being off — see [Policy permissions](#policy-permissions). With `-o json`, a failing policy command also writes the failure to stdout as `{"error": {"message": "…", "exit": 1}}` — the same folded, redacted message stderr carries — so a caller piping to `jq` reads the reason instead of an empty stream. This envelope is the policy topic's convention; other topics print nothing on stdout when they fail.
 
 #### Policy permissions
 
@@ -227,7 +227,7 @@ A token created before Policies existed carries no `workspace:policy` at all, so
 
 `policy evaluate` needs only `read`, so a reviewer or a CI token can run checks. A stored run is a write, though: from a read-only session, or an OAuth token without `workspace:write`, the evaluation still runs and returns its findings with `"stored": false` and run id `0`, and the branch's retained runs are left alone.
 
-`workspace push` and policy files: an **unchanged** policy file never needs a policy permission. A **changed** one from a non-author refuses the whole push (`Policy files require the admin role; nothing was imported: AUTH-001`) and the CLI prints what to do: leave the policy files out with `xano workspace push -e "policies/*"`, discard the local edit with `xano workspace pull`, or ask an admin to publish the policy. When the push preview itself is refused with a 401 or 403 the CLI stops there with that message; it does not offer to skip the preview and push anyway. Any other preview failure still warns and asks, as before.
+`workspace push` and policy files: an **unchanged** policy file never needs a policy permission. A **changed** one from a non-author refuses the whole push (`Policy files require the admin role; nothing was imported: AUTH-001`) and the CLI prints what to do: leave the policy files out with `xano workspace push -e "policies/*"`, discard the local edit with `xano workspace pull`, or ask an admin to publish the policy. When the push preview itself refuses changed policy files, the CLI stops there with the same guidance rather than offering to skip the preview.
 
 What a policy reader can see: findings name the objects they are about (type, name and id) anywhere on the branch, whatever else the reader's role can see.
 
@@ -320,19 +320,6 @@ xano workspace git pull -r https://github.com/owner/private-repo -t ghp_xxx
 xano workspace git pull -r https://github.com/owner/repo --path subdir
 ```
 
-`workspace push --dry-run` exits **1** without importing when the preview fails, is unavailable, is malformed, or reports critical errors, and when push is disabled for the workspace (enable **Allow Push** in Workspace Settings or use the sandbox flow). A failed import also exits **1**. After a successful import, blocking policy findings exit **2**; see [Policies](#policies).
-
-**Where `pull` puts an API group.** Each API group is written to `api/<folder>/`. The folder is
-the group's name lowercased, with word boundaries at runs of non-alphanumeric characters and at
-`camelCase` humps — never between a letter and a digit: `MyGroup` → `api/my_group/`,
-`E2E-LOCAL-public` → `api/e2e_local_public/`, `Lab API 2` → `api/lab_api_2/`, while `v1` and
-`pdf2text` keep their digits attached. Two groups whose names produce the same folder get a `_2`,
-`_3` suffix in the order the export lists them. A tree pulled by an older CLI keeps the folder it
-already has (`api/e_2_e_local_public/`), so a repeat pull updates those files instead of writing a
-second copy beside them; rename the folder yourself to adopt the new spelling. Either way `push` is
-unaffected — an object's identity lives in its document, not in its path — and `.xs` file names are
-unchanged.
-
 **One workspace document per tree.** A push directory must contain at most one
 `workspace/*.xs` document. The server applies the first workspace document it
 receives to the workspace being pushed into and silently discards the rest,
@@ -378,41 +365,34 @@ xano flatten ./dir-of-bundles --keep-source
 xano flatten ./bundle.xs --force
 ```
 
-### Knowledge files
+### Knowledge
 
-A workspace's knowledge — its `agents.md`, its docs and its skills — is not a separate command
-pair. It travels with the documents: `workspace pull` / `sandbox pull` write it, and
-`workspace push` / `sandbox push` send it back, under a `knowledge/` folder beside the `.xs` tree.
+Knowledge items are user-authored docs and skills (e.g. `CLAUDE.md`, `AGENTS.md`, runbooks)
+attached to a workspace. Each knowledge item's **name is a path** (e.g. `some/thing/CLAUDE.md`):
+`pull` writes its content to that path under the output directory, and `push` turns each local
+file into a knowledge item named by its relative path.
 
-```
-knowledge/agents.md                        # the workspace agents.md
-knowledge/docs/<name>.md                   # one file per doc
-knowledge/skills/<name>/SKILL.md           # one folder per skill
-knowledge/skills/<name>/references/...     # that skill's reference files
-```
-
-The folder is the type (`docs/` → doc, `skills/` → skill, `agents.md` → agents.md). Each primary
-`.md` file carries YAML frontmatter — `name`, `description`, `knowledge_type`, `inclusion`, `tags`,
-`guid` — with the markdown body below it. Identity travels in the `guid`, not the path, so two
-items may share a name; a push sends each file's GUID so the server updates the item it belongs to,
-and a file without one creates an item whose new GUID is written back into the frontmatter (unless
-`--no-guids`). Only changed knowledge files are sent, as for the rest of the tree.
+Push matches local files to remote items by name. Existing items are updated (content only —
+description, mode, tags, and other metadata are preserved); new files are created. The
+knowledge type for new items is inferred from the filename: `AGENTS.md` → `agents.md`,
+`SKILL.md` → `skill`, everything else → `doc`. Hidden files (dotfiles) and `node_modules`
+are skipped.
 
 ```bash
-xano workspace pull                                      # Writes knowledge/ beside the documents
-xano workspace push                                      # Sends changed knowledge files with the code
-xano workspace push -i "knowledge/**"                    # Push only the knowledge files
-xano workspace push -e "knowledge/**"                    # Push everything except them
-xano workspace push --sync --delete                      # Full sync; removes knowledge not present locally
+# Pull knowledge files to local paths (defaults to current directory)
+xano knowledge pull
+xano knowledge pull -d ./knowledge                       # Specify output directory
+xano knowledge pull -b dev                               # Specific branch
+
+# Push local files as knowledge (defaults to current directory, only changed files)
+xano knowledge push
+xano knowledge push -d ./knowledge                       # Push from a specific directory
+xano knowledge push --dry-run                            # Preview changes without pushing
+xano knowledge push --sync --delete                      # Full push + delete remote knowledge not included
+xano knowledge push --force                              # Skip preview and confirmation (for CI/CD)
+xano knowledge push -i "guides/*"                        # Push only matching files
+xano knowledge push -e "**/README.md"                    # Push all files except READMEs
 ```
-
-Two read-only commands read the live knowledge without a working tree — `xano knowledge list` and
-`xano knowledge get <name>`, documented under [Knowledge](#knowledge) below. There is no
-`knowledge pull` or `knowledge push`.
-
-The `xano-policies` skill is not part of this tree: the instance generates it from the branch's
-policies, so it is installed into `.claude/skills/` for your agent rather than pulled into
-`knowledge/` and pushed back. See [Agent skills](#agent-skills).
 
 ### Branches
 
@@ -993,8 +973,6 @@ xano sandbox impersonate
 xano sandbox reset
 xano sandbox reset --force
 ```
-
-`sandbox push --dry-run` exits **1** without importing when the preview fails, is unavailable, is malformed, or reports critical errors. A failed import also exits **1**.
 
 ### Static Hosts
 

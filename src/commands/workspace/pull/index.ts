@@ -119,7 +119,8 @@ Pulled 58 documents
       )
 
       if (!response.ok) {
-        this.error(await this.parseApiError(response, 'API request failed'))
+        const errorText = await response.text()
+        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
 
       responseText = await response.text()
@@ -162,8 +163,7 @@ Pulled 58 documents
 
     // Resolve api_group names to unique folder names, disambiguating collisions
     // where different names produce the same snakeCase (e.g., "Authentication" vs "authentication")
-    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase, (folder) =>
-      fs.existsSync(path.join(outputDir, 'api', folder)))
+    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
 
     // Resolve a realtime v2 channel path -> owning realtime_server name, so
     // messages can nest under their channel's server (see resolver docs).

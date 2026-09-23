@@ -123,23 +123,6 @@ interface DryRunResult {
   workspace_name?: string
 }
 
-function isDryRunResult(value: unknown): value is DryRunResult {
-  if (!value || typeof value !== 'object') return false
-  const {operations, summary} = value as DryRunResult
-  return Boolean(
-    summary && typeof summary === 'object' && !Array.isArray(summary) &&
-    Object.values(summary).every(counts =>
-      counts && ['created', 'deleted', 'truncated', 'unchanged', 'updated'].every(key =>
-        typeof counts[key as keyof DryRunSummary] === 'number' && Number.isFinite(counts[key as keyof DryRunSummary]),
-      ),
-    ) &&
-    Array.isArray(operations) && operations.every(op =>
-      op && typeof op === 'object' && typeof op.action === 'string' && typeof op.name === 'string' &&
-      typeof op.type === 'string' && (op.details === undefined || typeof op.details === 'string'),
-    ),
-  )
-}
-
 /**
  * Filter document entries down to the ones the dry-run preview reports as changed,
  * used to send only the changed documents during a partial (non-`--sync`) push.
@@ -1126,10 +1109,10 @@ export async function executePush(
 
       if (dryRunResponse.ok) {
         const dryRunText = await dryRunResponse.text()
-        const preview: unknown = JSON.parse(dryRunText)
+        const preview = JSON.parse(dryRunText) as DryRunResult
+        dryRunPreview = preview
 
-        if (isDryRunResult(preview)) {
-          dryRunPreview = preview
+        if (preview && preview.summary) {
           // ── Merge knowledge preview into the combined DryRunResult ──────
 
           if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
@@ -1234,7 +1217,13 @@ export async function executePush(
             }
 
             log('')
-            command.error(`Push blocked: ${criticalOps.length} critical error(s) found.`, {exit: 1})
+            log(ux.colorize('red', `Push blocked: ${criticalOps.length} critical error(s) found.`))
+
+            if (!flags.force) {
+              return
+            }
+
+            log(ux.colorize('yellow', 'Proceeding anyway due to --force flag.'))
           }
 
           // Check for actual changes (multidoc + knowledge combined)
@@ -1342,10 +1331,6 @@ export async function executePush(
           }
         } else {
           // Server returned unexpected response
-          if (flags['dry-run']) {
-            command.error('Invalid push preview response: expected summary counts and an operations array.', {exit: 1})
-          }
-
           log('')
           log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
           log('')
@@ -1356,19 +1341,15 @@ export async function executePush(
         // If we get here, the user confirmed to proceed without preview
       }
     } catch (error) {
-      // Preserve terminal failures, especially the dry-run boundary, before cancellation/fallback handling.
-      if (error instanceof Error && 'oclif' in error) {
-        throw error
-      }
-
-      if (flags['dry-run']) {
-        command.error(`Push preview failed: ${error instanceof Error ? error.message : String(error)}`, {exit: 1})
-      }
-
       // Ctrl+C or SIGINT
       if ((error as Error).name === 'AbortError' || (error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
         log('\nPush cancelled.')
         return
+      }
+
+      // Re-throw oclif errors
+      if (error instanceof Error && 'oclif' in error) {
+        throw error
       }
 
       // Dry-run failed unexpectedly — proceed without preview
@@ -1428,11 +1409,6 @@ export async function executePush(
     } else {
       command.error('Non-interactive environment detected. Use --force to skip confirmation.', {exit: 1})
     }
-  }
-
-  // Successful dry-runs return above. No unsupported or failed preview may reach either import.
-  if (flags['dry-run']) {
-    command.error('Push preview failed: preview is not available for this target.', {exit: 1})
   }
 
   // ── Show bad references in force mode (preview mode shows them inline) ─
@@ -1775,26 +1751,6 @@ function formatFailureDuration(elapsedMs?: number): string {
     : ` (failed after ${human})`
 }
 
-/** Guidance for the workspace 'Allow Push' setting; the backend raises this via a YAML assert (HTTP 500). */
-function pushDisabledGuidance(serverMessage: string): string {
-  return (
-    `${serverMessage}\n` +
-    'Direct push is disabled to protect your production workspace from unintended changes.\n' +
-    'Use your sandbox environment to test and review changes before applying them to your production workspace:\n' +
-    '  xano sandbox push    — push changes to your sandbox\n' +
-    '  xano sandbox review  — edit any logic, inspect the snapshot diff, and promote changes to the workspace\n' +
-    'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.\n' +
-    "Note: Free plan instances don't include sandbox environments, so direct push is always enabled."
-  )
-}
-
-/** A push (or its preview) the server refused for permission reasons that are not about policy files. */
-function permissionRefusalGuidance(status: number): string {
-  return status === 401
-    ? '\nThe access token was not accepted: it is missing, expired or revoked. Check the active profile (xano profile list).'
-    : '\nYour token or role does not allow this push. Nothing was imported. The message above names the permission that is missing.'
-}
-
 async function handleDryRunError(
   response: Response,
   command: Command,
@@ -1802,45 +1758,94 @@ async function handleDryRunError(
   target: PushTarget,
 ): Promise<void> {
   const log = command.log.bind(command)
-  const errorText = await response.text()
-  let serverMessage: string | undefined
-  try {
-    const errorJson = JSON.parse(errorText)
-    if (typeof errorJson?.message === 'string') serverMessage = errorJson.message
-  } catch {
-    // Keep the original body when the server does not return JSON.
-  }
 
-  // Match the message, not the status: the assert arrives as HTTP 500, not 403.
-  if (/push is disabled/i.test(serverMessage || errorText)) {
-    command.error(pushDisabledGuidance(serverMessage || errorText), {exit: 1})
-  }
+  // Changed policy files in a push the caller may not make: the import would be refused the same
+  // way, so say what to do instead of offering to skip the preview.
+  if (response.status === 403) {
+    const refusal = await response.clone().text()
+    if (isPolicyFileRefusal(refusal)) {
+      let message = refusal
+      try {
+        message = JSON.parse(refusal).message ?? refusal
+      } catch {
+        // Not JSON
+      }
 
-  // A permission refusal on the preview is the answer, not a missing preview: the push itself would be
-  // refused the same way, so never fall through to "Skipping preview" and a prompt to proceed.
-  if (response.status === 401 || response.status === 403) {
-    const refusal = serverMessage || errorText
-    command.error(
-      `Push refused (${response.status}): ${refusal}${
-        isPolicyFileRefusal(refusal) ? policyFilePushGuidance() : permissionRefusalGuidance(response.status)}`,
-      {exit: 1},
-    )
-  }
-
-  if (flags['dry-run']) {
-    command.error(`Push preview failed (${response.status}): ${serverMessage || errorText}`, {exit: 1})
+      command.error(`Push refused (403): ${message}${policyFilePushGuidance()}`, {exit: 1})
+    }
   }
 
   if (response.status === 404) {
-    if (serverMessage) command.error(serverMessage, {exit: 1})
+    const errorText = await response.text()
+
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.message) {
+        command.error(errorJson.message)
+      }
+    } catch {
+      // Not JSON
+    }
+
     if (target.supportsBranches) {
-      command.error('Workspace not found. Check the workspace ID and try again.', {exit: 1})
+      command.error('Workspace not found. Check the workspace ID and try again.')
     }
 
     log('')
     log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
     log('')
   } else {
+    const errorText = await response.text()
+
+    // Check if push is disabled
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.message?.includes('Push is disabled')) {
+        log('')
+        log(
+          ux.colorize(
+            'red',
+            ux.colorize(
+              'bold',
+              'Direct push is disabled to protect your production workspace from unintended changes.',
+            ),
+          ),
+        )
+        log(
+          ux.colorize(
+            'dim',
+            'Use your sandbox environment to test and review changes before applying them to your production workspace.',
+          ),
+        )
+        log('')
+        log(ux.colorize('dim', 'To apply changes to the workspace, use the sandbox review flow:'))
+        log(
+          `  ${ux.colorize('cyan', 'xano sandbox push')}    ${ux.colorize('dim', '— push changes to your sandbox')}`,
+        )
+        log(
+          `  ${ux.colorize('cyan', 'xano sandbox review')}  ${ux.colorize('dim', '— edit any logic, inspect the snapshot diff, and promote changes to the workspace')}`,
+        )
+        log('')
+        log(
+          ux.colorize(
+            'dim',
+            'To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.',
+          ),
+        )
+        log('')
+        log(
+          ux.colorize(
+            'dim',
+            "Note: Free plan instances don't include sandbox environments, so direct push is always enabled.",
+          ),
+        )
+        log('')
+        process.exit(0)
+      }
+    } catch {
+      // Not JSON, fall through
+    }
+
     command.warn(`Push preview failed (${response.status}). Skipping preview.`)
     if (flags.verbose) {
       log(ux.colorize('dim', errorText))
@@ -1861,7 +1866,7 @@ async function confirmOrAbort(
       command.exit(0)
     }
   } else {
-    command.error('Non-interactive environment detected. Use --force to skip confirmation.', {exit: 1})
+    command.error('Non-interactive environment detected. Use --force to skip confirmation.')
   }
 }
 
@@ -1873,33 +1878,38 @@ function handlePushError(
   command: Command,
 ): never {
   let errorMessage = `Push failed (${response.status})`
-  let serverMessage: string | undefined
 
   try {
     const errorJson = JSON.parse(errorText)
-    serverMessage = errorJson.message
     errorMessage += `: ${errorJson.message}`
     if (errorJson.payload?.param) {
       errorMessage += `\n  Parameter: ${errorJson.payload.param}`
+    }
+
+    // Provide guidance when push is disabled (workspace-specific)
+    if (errorJson.message?.includes('Push is disabled')) {
+      command.error(
+        `Direct push is disabled to protect your production workspace from unintended changes.\n` +
+          `Use your sandbox environment to test and review changes before applying them to your production workspace.\n\n` +
+          `Alternatively, use sandbox commands:\n` +
+          `  xano sandbox push <directory>\n` +
+          `  xano sandbox review\n\n` +
+          `To enable direct push, go to Workspace Settings → CLI → Allow Direct Workspace Push.\n\n` +
+          `Note: Free plan instances don't include sandbox environments, so direct push is always enabled.`,
+      )
     }
   } catch {
     errorMessage += `\n${errorText}`
   }
 
-  // Provide guidance when push is disabled (workspace-specific). This must sit outside the
-  // try block: command.error throws, and the catch above would swallow the guidance.
-  if (serverMessage?.includes('Push is disabled')) {
-    command.error(pushDisabledGuidance(serverMessage), {exit: 1})
-  }
-
-  // Changed policy files in a non-admin push: say what to do instead of only what was refused.
-  if (response.status === 403 && serverMessage && isPolicyFileRefusal(serverMessage)) {
+  // Changed policy files in a push the caller may not make: say what to do instead.
+  if (response.status === 403 && isPolicyFileRefusal(errorMessage)) {
     command.error(`${errorMessage}${policyFilePushGuidance()}`, {exit: 1})
   }
 
   // Provide guidance when sandbox access is denied (free plan restriction)
   if (response.status === 500 && errorMessage.includes('Access Denied')) {
-    command.error('Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.', {exit: 1})
+    command.error('Sandbox is not available on the Free plan. Upgrade your plan to use sandbox features.')
   }
 
   // Surface local files involved in duplicate GUID errors
@@ -1912,5 +1922,5 @@ function handlePushError(
     }
   }
 
-  command.error(errorMessage, {exit: 1})
+  command.error(errorMessage)
 }

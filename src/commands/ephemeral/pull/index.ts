@@ -157,8 +157,7 @@ Pulled 58 documents from tenant e4f2-9ab1-xyz1
     fs.mkdirSync(outputDir, {recursive: true})
 
     // Resolve api_group names to unique folder names, disambiguating collisions
-    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase, (folder) =>
-      fs.existsSync(path.join(outputDir, 'api', folder)))
+    const getApiGroupFolder = buildApiGroupFolderResolver(documents, snakeCase)
 
     // Resolve a realtime v2 channel path -> owning realtime_server name, so
     // messages can nest under their channel's server (see resolver docs).
