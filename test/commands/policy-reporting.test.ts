@@ -205,11 +205,14 @@ describe('policy reporting', () => {
     expect(process.exitCode ?? 0).to.equal(0)
   })
 
-  it('status labels only an active mandatory policy Blocking', async () => {
+  it('status words enforcement as Studio does, and marks only findings the run judged blocking', async () => {
     statusRoute(policy, run)
-    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Blocking  1 findings')
-    statusRoute({...policy, enforcement: 'advisory'}, run)
-    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Advisory  1 findings')
+    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Mandatory  1 findings (blocking)')
+    statusRoute({...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run)
+    const advisory = await command('policy status', ['-o', 'json'])
+    expect(JSON.parse(advisory.stdout).status[0]).to.include({blocking: false, findings: 1})
+    statusRoute({...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run)
+    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Advisory  1 findings  ').and.not.to.contain('(blocking)')
   })
 
   it('status --run-detail reports the description, settings and coverage the run recorded', async () => {
@@ -236,7 +239,7 @@ describe('policy reporting', () => {
     ]
     statusRoute({...policy, rules: [{id: 'R1'}, {id: 'R2'}]}, {...run, findings: [], results})
     const result = await command('policy status')
-    expect(result.stdout).to.contain('AUTH-001  pass; 1 rule no objects checked  Blocking  0 findings')
+    expect(result.stdout).to.contain('AUTH-001  pass; 1 rule no objects checked  Mandatory  0 findings')
     expect(result.stdout).to.contain('No objects checked (proves nothing about coverage):\n  AUTH-001 R2: no objects checked')
     const asJson = await command('policy status', ['-o', 'json'])
     expect(JSON.parse(asJson.stdout).status[0]).to.include({rules_unchecked: 1, status: 'pass'})
@@ -245,7 +248,7 @@ describe('policy reporting', () => {
   it('--fail-on-findings says in one line why it failed, and says it in JSON too', async () => {
     statusRoute(policy, run)
     const blocked = await command('policy status', ['--fail-on-findings'])
-    expect(blocked.stdout).to.contain('Merge blocked by policy: 1 blocking finding on mandatory policies (AUTH-001).')
+    expect(blocked.stdout).to.contain('The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.')
     expect(process.exitCode).to.equal(2)
 
     statusRoute({...policy, latest_run: staleCoverage}, run)
@@ -255,8 +258,8 @@ describe('policy reporting', () => {
 
     statusRoute(policy, run)
     const asJson = JSON.parse((await command('policy status', ['--fail-on-findings', '-o', 'json'])).stdout)
-    expect(asJson.status[0]).to.include({counted: true, enforcement: 'mandatory', lifecycle: 'active'})
-    expect(asJson.fail_on_findings).to.deep.equal({exit: 2, reason: 'Merge blocked by policy: 1 blocking finding on mandatory policies (AUTH-001).'})
+    expect(asJson.status[0]).to.include({blocking: true, counted: true, enforcement: 'mandatory', lifecycle: 'active'})
+    expect(asJson.fail_on_findings).to.deep.equal({exit: 2, reason: 'The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.'})
     expect(process.exitCode).to.equal(2)
   })
 
@@ -294,7 +297,7 @@ describe('policy reporting', () => {
 
   for (const [current, latest, code] of [
     [policy, run, 2],
-    [{...policy, enforcement: 'advisory'}, run, 0],
+    [{...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run, 0],
     [{...policy, latest_run: staleCoverage}, run, 1],
     [{...policy, latest_run: notInRun}, run, 1],
     [{...policy, latest_run: noRun}, run, 1],

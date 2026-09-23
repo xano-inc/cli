@@ -197,16 +197,18 @@ live), `-o/--output summary|json` and the profile, config and verbose flags.
   identical and nothing was written.
 - `delete` takes a key or an ID and asks before deleting. The policy's Version History is kept. Deleting is
   the only way to remove a policy: `workspace push` is additive.
-- `status` rows read `KEY  STATUS  ENFORCEMENT  N findings  Title`. ENFORCEMENT is `Blocking` for an active
-  mandatory policy (its findings stop a merge), `Mandatory` for a draft one and `Advisory` otherwise. A
-  draft, outdated or not evaluated row shows `— findings`. Whether the latest run is still evidence for a
+- `status` rows read `KEY  STATUS  ENFORCEMENT  N findings  Title`. ENFORCEMENT is the policy's own,
+  `Mandatory` or `Advisory`. Findings read `(blocking)` when the latest run evaluated the policy as active
+  and mandatory: those stop a merge. A draft, outdated or not evaluated row shows `— findings`. Whether the latest run is still evidence for a
   policy is the platform's answer (`latest_run` on each policy): `outdated; evaluate again` means the run
   evaluated another version of it, and `not evaluated` that the run did not evaluate it. In JSON,
   `status[].status` is one of `pass`, `fail`, `error`, `stale`, `not_evaluated`, `no_checks`,
-  `no_objects_checked` or `draft`, beside `rules_unchecked`, `counted`, `stale`, `enforcement` and `lifecycle`.
+  `no_objects_checked` or `draft`, beside `blocking`, `rules_unchecked`, `counted`, `stale`, `enforcement` and
+  `lifecycle`.
 - `evaluate` prints the findings of the run it answers. A credential that can read policies but not record
   runs still gets them; the summary then says `Not stored`, and JSON carries `"stored": false`.
-- A rule that passed without inspecting any object is reported as `no objects checked`, never as coverage.
+- A rule that passed without inspecting any object is reported as `no objects checked`, never as coverage,
+  and a pass that rests on one reads `Policy check: pass, but N rules checked no objects`.
 
 **JSON output.** A command that reads one route prints that route's body unchanged (`catalogue`, `list`,
 `runs`, `parse`, `publish`, `evaluate`). `status` prints `{policies, run, status}`, plus
@@ -215,7 +217,8 @@ live), `-o/--output summary|json` and the profile, config and verbose flags.
 **Exit codes.** `0` on success. `1` for an operational failure (credentials, transport, an HTTP error, a
 body that is not JSON, unreadable source); with `-o json` the failure is also written to stdout as
 `{"error": {"exit": 1, "message": "…"}}`. `2` for blocking findings: `evaluate` when `policy_check.blocking`
-is `true`, and `status --fail-on-findings` for current findings on an active mandatory policy. `status --fail-on-findings` exits `1` for stale, missing or errored evidence, and prints
+is `true`, and `status --fail-on-findings` for current blocking findings (the gate evaluates again before a
+merge). `status --fail-on-findings` exits `1` for stale, missing or errored evidence, and prints
 one line naming the policies.
 
 #### Policy permissions
