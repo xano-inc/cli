@@ -1,5 +1,3 @@
-import {policyFileName} from './policy.js'
-
 export interface ParsedDocument {
   apiGroup?: string
   canonical?: string
@@ -18,6 +16,15 @@ export interface ParsedDocument {
  * Parse a single XanoScript document to extract its type, name, and optional verb/api_group.
  * Skips leading comment lines (starting with //) to find the first meaningful line.
  */
+/**
+ * The file name, without `.xs`, for a policy key. The pattern is the platform's own key pattern, so a
+ * key from the server can never name a path outside `policies/`.
+ */
+export function policyBaseName(key: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(key)) throw new Error(`Invalid policy key: ${key}`)
+  return key
+}
+
 export function parseDocument(content: string): null | ParsedDocument {
   const lines = content.split('\n')
 
@@ -220,7 +227,7 @@ export function resolveDocumentPath(
 
   if (doc.type === 'policy') {
     // policy → policies/{key}.xs (the key is validated, never snake_cased)
-    return {baseName: policyFileName(doc.name).slice(0, -3), typeDir: join(outputDir, 'policies')}
+    return {baseName: policyBaseName(doc.name), typeDir: join(outputDir, 'policies')}
   }
 
   if (doc.type === 'workspace') {

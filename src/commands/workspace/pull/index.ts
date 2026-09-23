@@ -9,10 +9,10 @@ import {
   buildChannelServerResolver,
   type ParsedDocument,
   parseDocument,
+  policyBaseName,
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
-import {policyFileName} from '../../../utils/policy.js'
 
 export default class Pull extends BaseCommand {
   static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
@@ -233,7 +233,7 @@ Pulled 58 documents
   private checkPolicyFiles(documents: ParsedDocument[], outputDir: string): void {
     const targets = new Map<string, string>()
     for (const doc of documents.filter(doc => doc.type === 'policy')) {
-      const filename = policyFileName(doc.name)
+      const filename = `${policyBaseName(doc.name)}.xs`
       const normalized = filename.toLowerCase()
       const existing = targets.get(normalized)
       if (existing) {

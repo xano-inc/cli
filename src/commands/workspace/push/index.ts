@@ -3,7 +3,16 @@ import * as fs from 'node:fs'
 import {resolve} from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
-import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
+import {parseDocument} from '../../../utils/document-parser.js'
+import {executePush, type PushFlags, type PushResult, type PushTarget} from '../../../utils/multidoc-push.js'
+import {isPolicyFileRefusal, policyFilePushGuidance} from '../../../utils/policy-permission.js'
+import {
+  type PolicyCheck,
+  policyCheckWarning,
+  policyDocumentSummary,
+  policyExitCode,
+  policySummary,
+} from '../../../utils/policy.js'
 
 export default class Push extends BaseCommand {
   static override description =
@@ -122,8 +131,18 @@ Full sync including knowledge files; removes server objects not present locally
       multiple: true,
       required: false,
     }),
-    message: Flags.string({char: 'm', description: 'Message stored on the Version History entry of each policy document this push changes'}),
-    output: Flags.string({char: 'o', default: 'summary', description: 'Output format; JSON retains the complete import and policy feedback', options: ['summary', 'json']}),
+    message: Flags.string({
+      char: 'm',
+      description: 'Message stored on the Version History entry of each policy document this push changes',
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format; JSON retains the complete import and policy feedback',
+      options: ['summary', 'json'],
+      required: false,
+    }),
     records: Flags.boolean({
       default: false,
       description:
@@ -152,6 +171,10 @@ Full sync including knowledge files; removes server objects not present locally
       description: 'Workspace ID (optional if set in profile)',
       required: false,
     }),
+  }
+
+  protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    return this.catchAsOperational(error)
   }
 
   async run(): Promise<void> {
@@ -184,17 +207,23 @@ Full sync including knowledge files; removes server objects not present locally
 
     const branch = flags.branch || profile.branch || ''
     const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}`
+    const json = flags.output === 'json'
+    // Only the import writes Version History entries, so only the import carries the message.
+    const message = flags.message?.trim()
 
     const target: PushTarget = {
       buildDryRunUrl: (params) => `${baseUrl}/multidoc/dry-run?${params.toString()}`,
-      buildPushUrl: (params) => `${baseUrl}/multidoc?${params.toString()}`,
+      buildPushUrl(params) {
+        const query = new URLSearchParams(params)
+        if (message) query.set('message', message)
+        return `${baseUrl}/multidoc?${query.toString()}`
+      },
       cliVersion: this.config.version,
+      explainRefusal: (status, serverMessage) =>
+        status === 403 && isPolicyFileRefusal(serverMessage) ? policyFilePushGuidance() : undefined,
       instanceOrigin: profile.instance_origin,
       label: `workspace ${workspaceId}`,
-      requiresPolicyCheck: true,
       supportsBranches: true,
-      // The workspace multidoc route is the only push route that labels Version History entries.
-      supportsMessage: true,
       supportsPartial: true,
     }
 
@@ -206,8 +235,6 @@ Full sync including knowledge files; removes server objects not present locally
       force: flags.force,
       guids: flags.guids,
       include: flags.include,
-      message: flags.message,
-      output: flags.output,
       records: flags.records,
       sync: flags.sync,
       transaction: flags.transaction,
@@ -215,7 +242,7 @@ Full sync including knowledge files; removes server objects not present locally
       verbose: flags.verbose,
     }
 
-    await executePush(
+    const result = await executePush(
       {
         accessToken: profile.access_token,
         branch,
@@ -225,10 +252,40 @@ Full sync including knowledge files; removes server objects not present locally
           listUrl: () => `${baseUrl}/knowledge/sync`,
           rootDir: inputDir,
         },
+        // Under `-o json` stdout carries one JSON document, so progress goes to stderr.
+        log: json ? this.logToStderr.bind(this) : undefined,
         verboseFetch: this.verboseFetch.bind(this),
       },
       target,
       pushFlags,
     )
+
+    if (json) {
+      this.log(JSON.stringify(result.stopped
+        ? {imported: false, preview: result.preview, reason: result.stopped}
+        : {...result.response, documents: result.sent.length, imported: true, knowledge: result.knowledge}, null, 2))
+    }
+
+    // Policy feedback describes the multidoc import, so a push that imported none has none.
+    if (result.response) this.reportPolicyFeedback(result, json)
+  }
+
+  /** What happened to the policy documents, then the policy check the import answered with. */
+  private reportPolicyFeedback(result: PushResult, json: boolean): void {
+    const check = result.response?.policy_check as PolicyCheck | undefined
+    if (!json) {
+      const sentPolicies = result.sent.filter((entry) => parseDocument(entry.content)?.type === 'policy').length
+      for (const line of policyDocumentSummary(result.preview, sentPolicies)) this.log(line)
+      for (const line of policySummary(check)) this.log(line)
+    }
+
+    const warning = policyCheckWarning(check)
+    if (warning) this.warn(warning)
+    const code = policyExitCode(check)
+    if (code) {
+      process.exitCode = code
+      if (!json) this.log('Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
+      this.warn('Workspace import completed with blocking policy findings; the imported changes were not rolled back.')
+    }
   }
 }

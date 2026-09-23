@@ -15,8 +15,6 @@ import {
   syncGuidToFrontmatter,
   toPushItems,
 } from './knowledge-sync.js'
-import {isPolicyFileRefusal, policyFilePushGuidance} from './policy-permission.js'
-import {type PolicyCheck, policyCheckWarning, policyExitCode, policySummary} from './policy.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
@@ -29,8 +27,6 @@ export interface PushFlags {
   force: boolean
   guids: boolean
   include?: string[]
-  message?: string
-  output?: string
   records: boolean
   sync: boolean
   transaction: boolean
@@ -47,9 +43,13 @@ export interface PushTarget {
   cliVersion: string
   /** Instance origin URL (e.g., "https://x123-abcd-1234.xano.io") */
   instanceOrigin: string
+  /**
+   * Guidance for a refusal this target recognises, given the HTTP status and the server's message.
+   * A preview or import refused that way stops with the message and this guidance appended.
+   */
+  explainRefusal?: (status: number, message: string) => string | undefined
   /** Human-readable label for log messages (e.g., "sandbox environment", "workspace 40") */
   label: string
-  requiresPolicyCheck?: boolean
   /**
    * The id of the source workspace being pushed (from the active profile). Sent to the sandbox
    * so the backend can flag a mismatch when it differs from the workspace the sandbox last held.
@@ -57,12 +57,6 @@ export interface PushTarget {
   sourceWorkspaceId?: string
   /** Does this target support branches? */
   supportsBranches: boolean
-  /**
-   * Does this target's import route accept a `message` query parameter (the label for the Version
-   * History entry of each policy document the push writes)? Only the workspace multidoc route does;
-   * the sandbox, ephemeral and release routes share this code and would see an unknown parameter.
-   */
-  supportsMessage?: boolean
   /** Does this target support the partial query param? */
   supportsPartial: boolean
   /**
@@ -87,6 +81,8 @@ export interface PushContext {
   inputDir: string
   /** Optional knowledge sync config. Only workspace push sets this. */
   knowledge?: KnowledgeConfig
+  /** Where progress and diagnostics go; defaults to the command's stdout. */
+  log?: (message: string) => void
   verboseFetch: (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
 }
 
@@ -99,7 +95,7 @@ interface GuidMapEntry {
   verb?: string
 }
 
-interface DryRunSummary {
+export interface DryRunSummary {
   created: number
   deleted: number
   truncated: number
@@ -107,7 +103,7 @@ interface DryRunSummary {
   updated: number
 }
 
-interface DryRunOperation {
+export interface DryRunOperation {
   action: string
   details: string
   name: string
@@ -115,12 +111,24 @@ interface DryRunOperation {
   type: string
 }
 
-interface DryRunResult {
+export interface DryRunResult {
   operations: DryRunOperation[]
   /** True when the sandbox currently holds a different source workspace than the one being pushed. */
   source_workspace_mismatch?: boolean
   summary: Record<string, DryRunSummary>
   workspace_name?: string
+}
+
+/** What a push did, for the calling command to report. */
+export interface PushResult {
+  knowledge: {deleted: number; imported: number}
+  preview: DryRunResult | null
+  /** The multidoc import's response body; absent when no multidoc was imported. */
+  response?: Record<string, unknown>
+  /** The documents the multidoc import carried. */
+  sent: Array<{content: string; filePath: string}>
+  /** Why the push stopped before writing anything, when it did. */
+  stopped?: 'blocked' | 'cancelled' | 'dry-run' | 'no-changes'
 }
 
 /**
@@ -869,10 +877,12 @@ export async function executePush(
   ctx: PushContext,
   target: PushTarget,
   flags: PushFlags,
-): Promise<void> {
+): Promise<PushResult> {
   const {accessToken, command, inputDir, verboseFetch} = ctx
-  const log = flags.output === 'json' ? () => {} : command.log.bind(command)
-  let pushResponse: Record<string, unknown> = {}
+  const log = ctx.log ?? command.log.bind(command)
+  let dryRunPreview: DryRunResult | null = null
+  const stop = (stopped: NonNullable<PushResult['stopped']>): PushResult =>
+    ({knowledge: {deleted: 0, imported: 0}, preview: dryRunPreview, sent: [], stopped})
 
   // ── Collect knowledge entries (before file check so knowledge-only push works) ─
 
@@ -895,7 +905,6 @@ export async function executePush(
       flags.include || flags.exclude
         ? `No .xs files remain after ${[flags.include ? `include ${flags.include.join(', ')}` : '', flags.exclude ? `exclude ${flags.exclude.join(', ')}` : ''].filter(Boolean).join(' and ')} in ${inputDir}`
         : `No .xs files found in ${inputDir}`,
-      {exit: 1},
     )
   }
 
@@ -909,7 +918,7 @@ export async function executePush(
     documentEntries = readDocuments(files)
 
     if (documentEntries.length === 0) {
-      command.error(`All .xs files in ${inputDir} are empty`, {exit: 1})
+      command.error(`All .xs files in ${inputDir} are empty`)
     }
 
     // ── Handle multi-document files ───────────────────────────────────────
@@ -951,7 +960,7 @@ export async function executePush(
         const doFlatten = await confirm('Flatten these file(s) in place and continue the push?')
         if (!doFlatten) {
           log('Push cancelled. Run `xano flatten <file>` yourself, or re-run to be prompted again.')
-          return
+          return stop('cancelled')
         }
       } else {
         command.error(
@@ -1035,7 +1044,7 @@ export async function executePush(
   const isPartial = !flags.sync
 
   if (flags.delete && isPartial) {
-    command.error('Cannot use --delete without --sync', {exit: 1})
+    command.error('Cannot use --delete without --sync')
   }
 
   const shouldDelete = isPartial ? false : flags.delete
@@ -1085,7 +1094,6 @@ export async function executePush(
 
   // ── Dry-run / Preview ─────────────────────────────────────────────────
 
-  let dryRunPreview: DryRunResult | null = null
   const dryRunUrl = knowledgeOnly ? null : target.buildDryRunUrl(queryParams)
 
   if (dryRunUrl && (flags['dry-run'] || !flags.force)) {
@@ -1129,7 +1137,6 @@ export async function executePush(
           }
 
           renderPreview(preview, shouldDelete, target, flags.verbose, isPartial, log, filteredOutCount)
-          if (flags.output === 'json' && flags['dry-run']) command.log(JSON.stringify(preview, null, 2))
 
           // GUARD: --include/--exclude must never cost you the objects it
           // filtered out.
@@ -1220,7 +1227,7 @@ export async function executePush(
             log(ux.colorize('red', `Push blocked: ${criticalOps.length} critical error(s) found.`))
 
             if (!flags.force) {
-              return
+              return stop('blocked')
             }
 
             log(ux.colorize('yellow', 'Proceeding anyway due to --force flag.'))
@@ -1260,12 +1267,11 @@ export async function executePush(
           if (!hasChanges && !hasLocalRecords) {
             log('')
             log('No changes to push.')
-            if (flags.output === 'json' && !flags['dry-run']) command.log(JSON.stringify({imported: false, preview}, null, 2))
-            return
+            return stop('no-changes')
           }
 
           if (flags['dry-run']) {
-            return
+            return stop('dry-run')
           }
 
           // Warn when the sandbox currently holds a different source workspace than the one being
@@ -1294,14 +1300,13 @@ export async function executePush(
               const proceed = await confirm('Continue with push anyway?')
               if (!proceed) {
                 log('Push cancelled. Run `xano sandbox reset` then retry.')
-                return
+                return stop('cancelled')
               }
 
               mismatchConfirmed = true
             } else {
               command.error(
                 'Workspace mismatch detected in non-interactive mode. Run `xano sandbox reset` first to start clean.',
-                {exit: 1},
               )
             }
           }
@@ -1323,10 +1328,10 @@ export async function executePush(
               const confirmed = await confirm(message)
               if (!confirmed) {
                 log('Push cancelled.')
-                return
+                return stop('cancelled')
               }
             } else {
-              command.error('Non-interactive environment detected. Use --force to skip confirmation.', {exit: 1})
+              command.error('Non-interactive environment detected. Use --force to skip confirmation.')
             }
           }
         } else {
@@ -1337,14 +1342,14 @@ export async function executePush(
           await confirmOrAbort(command, log)
         }
       } else {
-        await handleDryRunError(dryRunResponse, command, flags, target)
+        await handleDryRunError(dryRunResponse, command, target, {log, verbose: flags.verbose})
         // If we get here, the user confirmed to proceed without preview
       }
     } catch (error) {
       // Ctrl+C or SIGINT
       if ((error as Error).name === 'AbortError' || (error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
         log('\nPush cancelled.')
-        return
+        return stop('cancelled')
       }
 
       // Re-throw oclif errors
@@ -1393,21 +1398,21 @@ export async function executePush(
     if (!hasChanges) {
       log('')
       log('No changes to push.')
-      return
+      return stop('no-changes')
     }
 
     if (flags['dry-run']) {
-      return
+      return stop('dry-run')
     }
 
     if (process.stdin.isTTY) {
       const confirmed = await confirm('Proceed with push?')
       if (!confirmed) {
         log('Push cancelled.')
-        return
+        return stop('cancelled')
       }
     } else {
-      command.error('Non-interactive environment detected. Use --force to skip confirmation.', {exit: 1})
+      command.error('Non-interactive environment detected. Use --force to skip confirmation.')
     }
   }
 
@@ -1423,28 +1428,26 @@ export async function executePush(
 
   // ── Partial push: filter to changed documents only ────────────────────
 
+  let sent = documentEntries
   if (!knowledgeOnly && isPartial && dryRunPreview) {
-    const filteredEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
+    sent = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
 
-    if (filteredEntries.length === 0 && knowledgeObjects.length === 0) {
+    if (sent.length === 0 && knowledgeObjects.length === 0) {
       log('No changes to push.')
-      return
+      return stop('no-changes')
     }
 
-    multidoc = filteredEntries.length > 0 ? filteredEntries.map((d) => d.content).join('\n---\n') : ''
+    multidoc = sent.map((d) => d.content).join('\n---\n')
   }
 
   // ── Execute the actual push ───────────────────────────────────────────
 
   const startTime = Date.now()
   let pushedDocCount = 0
-  let multidocImported = false
+  let pushResponse: Record<string, unknown> | undefined
 
   if (!knowledgeOnly && multidoc) {
-    const message = target.supportsMessage ? (flags.message ?? '').trim() : ''
-    const pushParams = message ? new URLSearchParams(queryParams) : queryParams
-    if (message) pushParams.set('message', message)
-    const apiUrl = target.buildPushUrl(pushParams)
+    const apiUrl = target.buildPushUrl(queryParams)
 
     try {
       const response = await verboseFetch(
@@ -1459,12 +1462,15 @@ export async function executePush(
       )
 
       if (!response.ok) {
-        handlePushError(response, await response.text(), documentEntries, inputDir, command)
+        const errorText = await response.text()
+        refuseIfExplained(command, target, response.status, errorText)
+        handlePushError(response, errorText, documentEntries, inputDir, command)
       }
 
       // Parse response for GUID map
       const responseText = await response.text()
       let guidMap: GuidMapEntry[] = []
+      pushResponse = {}
 
       if (responseText && responseText !== 'null') {
         try {
@@ -1543,11 +1549,10 @@ export async function executePush(
       }
 
       pushedDocCount = multidoc.split('\n---\n').length
-      multidocImported = true
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
-      command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`, {exit: 1})
+      command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`)
     }
   }
 
@@ -1590,21 +1595,13 @@ export async function executePush(
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
-      command.error(`Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`, {exit: 1})
+      command.error(`Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`)
     }
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   const parts: string[] = []
-  // Without a preview nothing can say which policies changed, so the count rides the import
-  // line rather than standing on its own claiming every policy in the tree was written.
-  const previewNamedPolicies = (dryRunPreview?.operations ?? []).some((op) => op.type === 'policy')
-  const unpreviewedPolicies = target.requiresPolicyCheck && !previewNamedPolicies
-    ? policyDocumentNames(multidoc).length
-    : 0
-  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents${unpreviewedPolicies > 0
-    ? ` (${unpreviewedPolicies} policy document${unpreviewedPolicies === 1 ? '' : 's'})`
-    : ''}`)
+  if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const kParts = [`${knowledgeImported} knowledge file${knowledgeImported === 1 ? '' : 's'}`]
     if (shouldDelete && knowledgeDeleted > 0) kParts.push(`${knowledgeDeleted} deleted`)
@@ -1612,58 +1609,12 @@ export async function executePush(
   }
 
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
-  if (flags.output === 'json') command.log(JSON.stringify({...pushResponse, documents: pushedDocCount, imported: true, knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported}}, null, 2))
-  // Policy feedback describes the multidoc import, so a push that sent none has none to report.
-  if (multidocImported && target.requiresPolicyCheck) {
-    const check = pushResponse.policy_check as PolicyCheck | undefined
-    if (flags.output !== 'json') {
-      for (const line of policyDocumentSummary(dryRunPreview)) log(line)
-      for (const line of policySummary(check)) log(line)
-    }
-
-    const warning = policyCheckWarning(check)
-    if (warning) command.warn(warning)
-    const code = policyExitCode(check)
-    if (code) {
-      process.exitCode = code
-      if (flags.output !== 'json') log('Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
-      command.warn('Workspace import completed with blocking policy findings; the imported changes were not rolled back.')
-    }
+  return {
+    knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported},
+    preview: dryRunPreview,
+    response: pushResponse,
+    sent: pushResponse ? sent : [],
   }
-}
-
-/** The policy documents a multidoc carries, by key, in the order they were sent. */
-export function policyDocumentNames(multidoc: string): string[] {
-  return multidoc
-    .split('\n---\n')
-    .map((block) => parseDocument(block))
-    .filter((parsed) => parsed?.type === 'policy')
-    .map((parsed) => parsed!.name)
-}
-
-/**
- * What happened to each policy document this push wrote. Only the dry-run preview knows:
- * it reports created/updated/unchanged per policy. A `--force` push skips the preview and
- * the import response never says either — its `guid_map` carries an unchanged policy and a
- * saved one identically — so naming what was *sent* claimed a change on every push of an
- * untouched tree. With no preview the count folds into the import line instead (see
- * `policyDocumentNames`), and this returns nothing.
- */
-export function policyDocumentSummary(preview: null | {operations: Array<{action: string; name: string; type: string}>}): string[] {
-  const operations = (preview?.operations ?? []).filter((op) => op.type === 'policy')
-  if (operations.length === 0) return []
-
-  const named = (action: string) =>
-    operations.filter((op) => op.action === action).map((op) => op.name).sort()
-  const created = named('create')
-  const updated = named('update')
-  const unchanged = named('unchanged')
-  const parts = [
-    created.length > 0 && `${created.length} created (${created.join(', ')})`,
-    updated.length > 0 && `${updated.length} updated (${updated.join(', ')})`,
-    unchanged.length > 0 && `${unchanged.length} unchanged`,
-  ].filter(Boolean)
-  return parts.length > 0 ? [`Policy documents: ${parts.join(', ')}`] : []
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────
@@ -1751,33 +1702,31 @@ function formatFailureDuration(elapsedMs?: number): string {
     : ` (failed after ${human})`
 }
 
+/** Stop with the target's own guidance when it recognises this refusal. */
+function refuseIfExplained(command: Command, target: PushTarget, status: number, body: string): void {
+  if (!target.explainRefusal) return
+  let message = body
+  try {
+    const parsed = JSON.parse(body)
+    if (typeof parsed?.message === 'string') message = parsed.message
+  } catch {
+    // Not JSON
+  }
+
+  const guidance = target.explainRefusal(status, message)
+  if (guidance) command.error(`Push refused (${status}): ${message}${guidance}`)
+}
+
 async function handleDryRunError(
   response: Response,
   command: Command,
-  flags: PushFlags,
   target: PushTarget,
+  {log, verbose}: {log: (msg: string) => void; verbose: boolean},
 ): Promise<void> {
-  const log = command.log.bind(command)
-
-  // Changed policy files in a push the caller may not make: the import would be refused the same
-  // way, so say what to do instead of offering to skip the preview.
-  if (response.status === 403) {
-    const refusal = await response.clone().text()
-    if (isPolicyFileRefusal(refusal)) {
-      let message = refusal
-      try {
-        message = JSON.parse(refusal).message ?? refusal
-      } catch {
-        // Not JSON
-      }
-
-      command.error(`Push refused (403): ${message}${policyFilePushGuidance()}`, {exit: 1})
-    }
-  }
+  const errorText = await response.text()
+  refuseIfExplained(command, target, response.status, errorText)
 
   if (response.status === 404) {
-    const errorText = await response.text()
-
     try {
       const errorJson = JSON.parse(errorText)
       if (errorJson.message) {
@@ -1795,8 +1744,6 @@ async function handleDryRunError(
     log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
     log('')
   } else {
-    const errorText = await response.text()
-
     // Check if push is disabled
     try {
       const errorJson = JSON.parse(errorText)
@@ -1847,7 +1794,7 @@ async function handleDryRunError(
     }
 
     command.warn(`Push preview failed (${response.status}). Skipping preview.`)
-    if (flags.verbose) {
+    if (verbose) {
       log(ux.colorize('dim', errorText))
     }
   }
@@ -1900,11 +1847,6 @@ function handlePushError(
     }
   } catch {
     errorMessage += `\n${errorText}`
-  }
-
-  // Changed policy files in a push the caller may not make: say what to do instead.
-  if (response.status === 403 && isPolicyFileRefusal(errorMessage)) {
-    command.error(`${errorMessage}${policyFilePushGuidance()}`, {exit: 1})
   }
 
   // Provide guidance when sandbox access is denied (free plan restriction)

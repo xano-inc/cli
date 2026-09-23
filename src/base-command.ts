@@ -285,6 +285,17 @@ export default abstract class BaseCommand extends Command {
     this.updateNotice = checkForUpdate(this.config.version, forceUpdateCheck)
   }
 
+  /**
+   * Report a failure as exit 1 for commands that reserve exit 2 for findings: operational errors,
+   * flag errors and oclif's own default exit 2 all become 1, and under `-o json` the failure is also
+   * written to stdout as `{"error": {"exit": 1, "message"}}`. A deliberate exit 0 passes through.
+   */
+  protected async catchAsOperational(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (error.oclif?.exit === 0) return super.catch(error)
+    if (this.isJsonOutput()) this.log(JSON.stringify({error: {exit: 1, message: error.message}}, null, 2))
+    this.error(error, {exit: 1})
+  }
+
   /** Raw-argv check: the parsed flags are not available yet when the banner prints. */
   protected isJsonOutput(): boolean {
     const args = this.argv
@@ -492,9 +503,7 @@ export default abstract class BaseCommand extends Command {
       if (dispatcherSupported && isInvalidDispatcherError(error)) {
         dispatcherSupported = false
         if (verbose) {
-          this.log(
-            '  (this Node runtime rejected undici dispatcher; retrying without it — see DEV-7773)',
-          )
+          logDiagnostic('  (this Node runtime rejected undici dispatcher; retrying without it — see DEV-7773)')
         }
 
         response = await fetch(url, buildFetchOptions(false))
