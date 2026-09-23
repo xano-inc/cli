@@ -16,7 +16,7 @@ const catalogue = {goals: [], items: checks}
 const backendError = {
   code: 'ERROR_CODE_SYNTAX_ERROR',
   message: 'Invalid block: enforcement',
-  payload: {col: 2, error_snippet: 'enforcement = "advisory"', line: 21, stack: ['/internal/nested.php']},
+  payload: {col: 3, error_snippet: 'enforcement = "advisory"', line: 22, stack: ['/internal/nested.php']},
   stack: '#0 /internal/Stack.php',
   trace: ['file: /internal/Schema.php(444)', 'credential test-token'],
   traceId: 'private-trace-id',
@@ -138,7 +138,7 @@ describe('policy reporting', () => {
 
   it('names a rule refused for its name with the platform sentence and where the name is', async () => {
     const message = 'rule[1]: A rule cannot be named. Write "rule {" — rules are identified by position (KEY.R1, KEY.R2…).'
-    fixture.route(() => json({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {char: 61, col: 7, error_line: '  rule foo {', error_snippet: 'foo {', line: 4}}, 400))
+    fixture.route(() => json({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {char: 61, col: 8, error_line: '  rule foo {', error_snippet: 'foo {', line: 5}}, 400))
     const result = await command('policy parse')
     expect(result.error?.message).to.contain(message).and.to.contain('at line 5, col 8:   rule foo {')
   })

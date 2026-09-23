@@ -6,11 +6,11 @@ const url = 'https://instance.example/api:meta/workspace/9/policy?branch=ci%2Fne
 const describePolicyError = (text: string, status: number, requestUrl: string) => describeError(text, status, requestUrl).message
 
 describe('policy route errors', () => {
-  it('keeps the code and message, drops internals, and locates a parse error 1-based', () => {
+  it('keeps the code and message, drops internals, and prints the served 1-based position as it is', () => {
     const body = JSON.stringify({
       code: 'SYNTAX_ERROR',
       message: 'Invalid assignment',
-      payload: {col: 0, error_line: 'title =', error_snippet: 'title =', line: 0, trace: ['internal']},
+      payload: {col: 1, error_line: 'title =', error_snippet: 'title =', line: 1, trace: ['internal']},
       stack: [{file: '/private/server.php'}],
       traceId: 'trace-id',
     })
@@ -19,14 +19,14 @@ describe('policy route errors', () => {
 
   it('never prints two numbers for one place', () => {
     // The platform's own sentence already says `line 3` (1-based): show the text, not a second number.
-    const comment = JSON.stringify({message: 'line 3: policy files cannot contain "//" comments.', payload: {col: 2, error_line: '  // why', line: 2}})
+    const comment = JSON.stringify({message: 'line 3: policy files cannot contain "//" comments.', payload: {col: 3, error_line: '  // why', line: 3}})
     expect(describePolicyError(comment, 400, url)).to.equal('line 3: policy files cannot contain "//" comments.\n  at:   // why')
   })
 
   it('falls back to the snippet, then to the position alone, and prints nothing without either', () => {
-    const snippet = JSON.stringify({message: 'Invalid block: enforcement', payload: {col: 2, error_snippet: 'enforcement = "advisory"', line: 21}})
+    const snippet = JSON.stringify({message: 'Invalid block: enforcement', payload: {col: 3, error_snippet: 'enforcement = "advisory"', line: 22}})
     expect(describePolicyError(snippet, 400, url)).to.equal('Invalid block: enforcement\n  at line 22, col 3: enforcement = "advisory"')
-    expect(describePolicyError(JSON.stringify({message: 'Bad', payload: {line: 4}}), 400, url)).to.equal('Bad\n  at line 5')
+    expect(describePolicyError(JSON.stringify({message: 'Bad', payload: {line: 5}}), 400, url)).to.equal('Bad\n  at line 5')
     expect(describePolicyError(JSON.stringify({message: 'Bad', payload: {param: 'source'}}), 400, url)).to.equal('Bad')
   })
 
