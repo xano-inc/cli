@@ -6,7 +6,13 @@ import type {PushPolicyCheck} from '../../../utils/policy/types.js'
 
 import BaseCommand from '../../../base-command.js'
 import {parseDocument} from '../../../utils/document-parser.js'
-import {executePush, type PushFlags, type PushResult, type PushTarget} from '../../../utils/multidoc-push.js'
+import {
+  executePush,
+  FailedAfterImportError,
+  type PushFlags,
+  type PushResult,
+  type PushTarget,
+} from '../../../utils/multidoc-push.js'
 import {
   policyCheckWarning,
   policyDocumentSummary,
@@ -15,6 +21,16 @@ import {
   pushEvidence,
 } from '../../../utils/policy/feedback.js'
 import {policyFilePushGuidance} from '../../../utils/policy/permission.js'
+
+/** The `-o json` document for a push whose import ran: the import response and what was sent. */
+function importDocument(result: PushResult): Record<string, unknown> {
+  return {...result.response, documents: result.sent.length, imported: true, knowledge: result.knowledge}
+}
+
+/** The policy check the import answered with, if any. */
+function policyCheck(result: PushResult): PushPolicyCheck | undefined {
+  return result.response?.policy_check as PushPolicyCheck | undefined
+}
 
 export default class Push extends BaseCommand {
   static override description =
@@ -176,6 +192,7 @@ Full sync including knowledge files; removes server objects not present locally
   }
 
   protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (error instanceof FailedAfterImportError) return this.catchAfterImport(error)
     return this.catchAsOperational(error)
   }
 
@@ -264,16 +281,29 @@ Full sync including knowledge files; removes server objects not present locally
     if (json) {
       this.log(JSON.stringify(result.stopped
         ? {imported: false, preview: result.preview, reason: result.stopped}
-        : {...result.response, documents: result.sent.length, imported: true, knowledge: result.knowledge}, null, 2))
+        : importDocument(result), null, 2))
     }
 
     // Policy feedback describes the multidoc import, so a push that imported none has none.
     if (result.response) this.reportPolicyFeedback(result, json)
   }
 
+  /**
+   * A failure after the import landed. The import stands, so its policy feedback is reported as for
+   * any push and a blocking finding still exits 2; otherwise the failure exits 1. Under `-o json`
+   * stdout holds the import's document with the failure as `error`.
+   */
+  private catchAfterImport(error: FailedAfterImportError): never {
+    const json = this.isJsonOutput()
+    const exit = policyExitCode(policyCheck(error.imported)) || 1
+    if (json) this.log(JSON.stringify({...importDocument(error.imported), error: {exit, message: error.message}}, null, 2))
+    this.reportPolicyFeedback(error.imported, json)
+    this.error(error, {exit})
+  }
+
   /** What happened to the policy documents, then the policy check the import answered with. */
   private reportPolicyFeedback(result: PushResult, json: boolean): void {
-    const check = result.response?.policy_check as PushPolicyCheck | undefined
+    const check = policyCheck(result)
     if (!json) {
       const sentPolicies = result.sent.filter((entry) => parseDocument(entry.content)?.type === 'policy').length
       for (const line of policyDocumentSummary(result.preview, sentPolicies)) this.log(line)
