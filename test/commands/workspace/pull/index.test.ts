@@ -14,16 +14,25 @@ describe('workspace pull policy files', () => {
   let source: string
   let warnings: string[]
   let logs: string[]
+  /** What the policy list route answers this credential. */
+  let listing: () => Response
+  let requested: URL[]
 
   beforeEach(() => {
     directory = fs.mkdtempSync(path.join(tmpdir(), 'xano-pull-policy-'))
     warnings = []
     logs = []
+    listing = () => new Response(JSON.stringify({items: []}))
+    requested = []
     command = Object.assign(new Pull([], {} as Config), {
       log: (message: string) => logs.push(message),
       parse: async () => ({flags: {directory, draft: false, env: false, records: false}}),
       resolveProfile: () => ({profile: {access_token: 'test', instance_origin: 'https://test.example', workspace: '1'}}),
-      verboseFetch: async (url: string) => new Response(url.endsWith('/knowledge/sync') ? '[]' : source),
+      async verboseFetch(url: string) {
+        requested.push(new URL(url))
+        if (url.endsWith('/knowledge/sync')) return new Response('[]')
+        return new URL(url).pathname.endsWith('/policy') ? listing() : new Response(source)
+      },
       warn: (message: string) => warnings.push(message),
     })
   })
@@ -98,6 +107,22 @@ describe('workspace pull policy files', () => {
       else expect(warnings.join('\n')).to.contain('policies/KEEP.xs')
       expect(fs.readFileSync(path.join(directory, 'policies', 'OLD.xs'), 'utf8')).to.equal(policy('OLD'))
       expect(fs.readFileSync(path.join(directory, 'policies', 'KEEP.xs'), 'utf8')).to.equal(policy('KEEP'))
+      // An export that carries a policy already shows that this credential reads them.
+      expect(requested.some(url => url.pathname.endsWith('/policy'))).to.equal(remaining.length !== 2)
     })
   }
+
+  it('calls no local policy file stale when this credential cannot read policies, and keeps them all', async () => {
+    source = [policy('OLD'), policy('KEEP')].join('\n---\n')
+    await command.run()
+    listing = () => new Response(JSON.stringify({message: 'No scope.', payload: {code: 'policy_scope_required', level: 'read'}}), {status: 403})
+    source = 'function first {\n}'
+    await command.run()
+    expect(warnings).to.deep.equal([])
+    expect(logs.filter(line => line.includes('policy files'))).to.deep.equal([
+      "Local policy files were kept: this credential cannot list this workspace's policies, and the export carries none.",
+    ])
+    expect(fs.readdirSync(path.join(directory, 'policies'))).to.deep.equal(['KEEP.xs', 'OLD.xs'])
+    expect(fs.existsSync(path.join(directory, 'function', 'first.xs'))).to.equal(true)
+  })
 })
