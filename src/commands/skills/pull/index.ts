@@ -38,7 +38,9 @@ export function buildSkillDocument(description: string, content: string): string
 }
 
 export default class SkillsPull extends BaseCommand {
-  static override description = `Install the ${SKILL} agent skill this instance generates`
+  static override description = `Install the ${SKILL} agent skill this instance generates
+
+Writes <directory>/.claude/skills/${SKILL}/SKILL.md, the project skill folder Claude Code reads, and replaces that file without a backup. A copy installed anywhere else, such as a global ~/.claude/skills/${SKILL} or another agent's skills folder, is not touched: remove it, so the agent does not load it instead.`
   static override examples = [
     `$ xano skills pull
 Wrote .claude/skills/${SKILL}/SKILL.md (${SKILL} skill for workspace 40, branch live)
@@ -52,7 +54,7 @@ Wrote .claude/skills/${SKILL}/SKILL.md (${SKILL} skill for workspace 40, branch 
     directory: Flags.string({
       char: 'd',
       default: '.',
-      description: 'Project directory that receives .claude/skills (defaults to current directory)',
+      description: `Project directory whose .claude/skills/${SKILL}/SKILL.md is written (defaults to current directory)`,
       required: false,
     }),
     output: Flags.string({char: 'o', default: 'summary', description: 'Output format', options: ['summary', 'json']}),
