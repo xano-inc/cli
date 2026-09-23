@@ -240,7 +240,9 @@ omits the policies. `evaluate` needs only `read`.
 #### Policies in workspace pull and push
 
 `workspace pull` writes each policy to `policies/<KEY>.xs` and, when it wrote any, suggests
-`xano skills pull`. `workspace push` sends them in the same multidoc as the code. An unchanged policy file
+`xano skills pull`. A policy whose file name differs only in case from another policy's, or from a local
+file it would overwrite, is left out with a warning; the rest of the workspace is written. Local policy
+files the export no longer carries are kept, with a warning. `workspace push` sends them in the same multidoc as the code. An unchanged policy file
 needs no policy permission. A changed one, without the permission, refuses the whole push, and the CLI
 suggests `xano workspace push -e "policies/*"`, `xano workspace pull` or `xano policy publish` instead.
 `-m/--message` labels the Version History entry of each policy the push changes.

@@ -151,7 +151,7 @@ Pulled 58 documents
 
     // Resolve the output directory
     const outputDir = path.resolve(flags.directory)
-    this.checkPolicyFiles(documents, outputDir)
+    const clashing = this.policyClashes(documents, outputDir)
 
     if (documents.length === 0) {
       this.log('No documents found in response')
@@ -173,7 +173,7 @@ Pulled 58 documents
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
     let writtenCount = 0
-    for (const doc of documents) {
+    for (const doc of documents.filter((document) => !clashing.has(document))) {
       const {baseName, typeDir} = resolveDocumentPath(doc, outputDir, {
         getApiGroupFolder,
         getChannelServer,
@@ -227,42 +227,44 @@ Pulled 58 documents
   }
 
   /**
-   * Refuse portable filename collisions before writing, and retain stale local policies with a warning.
+   * Policy keys are case-sensitive on the server, but file names are not on every checkout. The
+   * policies whose file name differs only in case from another exported policy, or from a local file
+   * it would overwrite, are left out with a warning; everything else is written. Local policy files
+   * the export no longer carries are kept, with a warning.
    */
-  private checkPolicyFiles(documents: ParsedDocument[], outputDir: string): void {
-    const targets = new Map<string, string>()
+  private policyClashes(documents: ParsedDocument[], outputDir: string): Set<ParsedDocument> {
+    const exported = new Map<string, string[]>()
     for (const doc of documents.filter(doc => doc.type === 'policy')) {
       const filename = `${policyBaseName(doc.name)}.xs`
-      const normalized = filename.toLowerCase()
-      const existing = targets.get(normalized)
-      if (existing) {
-        this.error(
-          `Policy filename collision: policies/${existing} and policies/${filename} target the same case-insensitive filename. No files were written.`,
-          {exit: 1},
-        )
-      }
+      exported.set(filename.toLowerCase(), [...(exported.get(filename.toLowerCase()) ?? []), filename])
+    }
 
-      targets.set(normalized, filename)
+    const clashes = new Map<string, string>()
+    for (const [normalized, names] of exported) {
+      if (names.length > 1) clashes.set(normalized, names.map(name => `policies/${name}`).join(' and '))
     }
 
     const policyDir = path.join(outputDir, 'policies')
-    if (!fs.existsSync(policyDir)) return
-
-    const localFiles = fs.readdirSync(policyDir, {withFileTypes: true})
-      .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.xs'))
-      .map(entry => entry.name)
-      .sort()
+    const localFiles = fs.existsSync(policyDir)
+      ? fs.readdirSync(policyDir, {withFileTypes: true})
+        .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.xs'))
+        .map(entry => entry.name)
+        .sort()
+      : []
     const stale: string[] = []
     for (const filename of localFiles) {
-      const target = targets.get(filename.toLowerCase())
-      if (target && target !== filename) {
-        this.error(
-          `Policy filename collision: local policies/${filename} and exported policies/${target} target the same case-insensitive filename. No files were written.`,
-          {exit: 1},
-        )
+      const names = exported.get(filename.toLowerCase())
+      if (!names) stale.push(`policies/${filename}`)
+      else if (!names.includes(filename) && !clashes.has(filename.toLowerCase())) {
+        clashes.set(filename.toLowerCase(), `policies/${names[0]} (local policies/${filename})`)
       }
+    }
 
-      if (!target) stale.push(`policies/${filename}`)
+    if (clashes.size > 0) {
+      this.warn(
+        `Policy files that differ only in case are left out of this pull; everything else is written:\n  ${[...clashes.values()].join('\n  ')}\n` +
+          'Rename one of the policies, or move the local file aside, then pull again.',
+      )
     }
 
     if (stale.length > 0) {
@@ -270,5 +272,7 @@ Pulled 58 documents
         `Stale local policy files are absent from this export and were kept:\n  ${stale.join('\n  ')}\nReview them before pushing; a push can publish these policies again.`,
       )
     }
+
+    return new Set(documents.filter(doc => doc.type === 'policy' && clashes.has(`${doc.name}.xs`.toLowerCase())))
   }
 }

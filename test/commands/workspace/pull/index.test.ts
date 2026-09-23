@@ -30,35 +30,26 @@ describe('workspace pull policy files', () => {
 
   afterEach(() => fs.rmSync(directory, {force: true, recursive: true}))
 
-  it('rejects case-colliding targets before writing any documents', async () => {
-    source = ['function first {\n}', policy('AUTH-001'), policy('auth-001')].join('\n---\n')
-    let error: Error | undefined
-    try {
-      await command.run()
-    } catch (error_) {
-      error = error_ as Error
-    }
-
-    expect(error?.message).to.contain('Policy filename collision')
-    expect(error?.message).to.contain('AUTH-001.xs')
-    expect(error?.message).to.contain('auth-001.xs')
-    expect(fs.readdirSync(directory)).to.deep.equal([])
+  it('leaves out policies whose keys differ only in case, and writes everything else', async () => {
+    source = ['function first {\n}', policy('AUTH-001'), policy('auth-001'), policy('SEC-100')].join('\n---\n')
+    await command.run()
+    expect(warnings.join('\n')).to.contain('Policy files that differ only in case are left out of this pull')
+      .and.to.contain('policies/AUTH-001.xs and policies/auth-001.xs')
+    expect(fs.readdirSync(path.join(directory, 'policies'))).to.deep.equal(['SEC-100.xs'])
+    expect(fs.readFileSync(path.join(directory, 'function', 'first.xs'), 'utf8')).to.equal('function first {\n}')
+    expect(logs.join('\n')).to.contain('Pulled 2 documents')
   })
 
-  it('preserves an existing local policy when an export changes only the key case', async () => {
+  it('keeps an existing local policy when an export changes only the key case, and pulls the rest', async () => {
     source = policy('AUTH-001')
     await command.run()
-    source = policy('auth-001')
-    let error: Error | undefined
-    try {
-      await command.run()
-    } catch (error_) {
-      error = error_ as Error
-    }
-
-    expect(error?.message).to.contain('Policy filename collision')
+    source = [policy('auth-001'), 'function first {\n}'].join('\n---\n')
+    await command.run()
+    expect(warnings.join('\n')).to.contain('policies/auth-001.xs (local policies/AUTH-001.xs)')
+    expect(warnings.join('\n')).not.to.contain('Stale local policy files')
     expect(fs.readdirSync(path.join(directory, 'policies'))).to.deep.equal(['AUTH-001.xs'])
     expect(fs.readFileSync(path.join(directory, 'policies', 'AUTH-001.xs'), 'utf8')).to.equal(policy('AUTH-001'))
+    expect(fs.existsSync(path.join(directory, 'function', 'first.xs'))).to.equal(true)
   })
 
   it('writes policy source verbatim, exactly like every other document type', async () => {
