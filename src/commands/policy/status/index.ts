@@ -21,7 +21,7 @@ export default class PolicyStatus extends PolicyCommand {
     ...PolicyCommand.policyFlags,
     'fail-on-findings': Flags.boolean({
       default: false,
-      description: 'Exit 1 for stale, missing or errored evaluation evidence; exit 2 for current blocking findings',
+      description: 'Exit 2 for current blocking findings, whatever else is true; otherwise exit 1 for stale, missing or errored evaluation evidence',
     }),
     'run-detail': Flags.boolean({
       default: false,

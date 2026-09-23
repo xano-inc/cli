@@ -263,6 +263,16 @@ describe('policy reporting', () => {
     expect(process.exitCode).to.equal(2)
   })
 
+  it('--fail-on-findings exits 2 for a blocking finding beside a stale policy', async () => {
+    const stale = {...policy, id: 8, key: 'SEC-100', latest_run: staleCoverage}
+    fixture.route((url) => url.pathname.includes('/run/') ? json(run) : json({items: [policy, stale]}))
+    const result = await command('policy status', ['--fail-on-findings', '-o', 'json'])
+    expect(JSON.parse(result.stdout).fail_on_findings.exit).to.equal(2)
+    expect(JSON.parse(result.stdout).fail_on_findings.reason).to.contain('1 blocking finding (AUTH-001)')
+      .and.to.contain('Evidence is also stale, missing or errored (SEC-100 outdated; evaluate again).')
+    expect(process.exitCode).to.equal(2)
+  })
+
   it('status JSON stays a passthrough of the native run and omits the exit block without the flag', async () => {
     statusRoute(policy, detailRun)
     const result = JSON.parse((await command('policy status', ['--run-detail', '-o', 'json'])).stdout)

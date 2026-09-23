@@ -218,8 +218,9 @@ live), `-o/--output summary|json` and the profile, config and verbose flags.
 body that is not JSON, unreadable source); with `-o json` the failure is also written to stdout as
 `{"error": {"exit": 1, "message": "…"}}`. `2` for blocking findings: `evaluate` when `policy_check.blocking`
 is `true`, and `status --fail-on-findings` for current blocking findings (the gate evaluates again before a
-merge). `status --fail-on-findings` exits `1` for stale, missing or errored evidence, and prints
-one line naming the policies.
+merge), whatever else is true, exactly as push and evaluate do. Without a blocking finding,
+`status --fail-on-findings` exits `1` for stale, missing or errored evidence. Either way it prints one line
+naming the policies.
 
 #### Policy permissions
 

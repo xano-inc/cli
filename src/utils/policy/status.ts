@@ -116,24 +116,27 @@ function unreliableRows(rows: PolicyStatusRow[]): PolicyStatusRow[] {
   return rows.filter((row) => ['error', 'not_evaluated', 'stale'].includes(row.status))
 }
 
-/** `--fail-on-findings`: 1 for stale, missing or errored evidence, then 2 for current blocking findings. */
+/**
+ * `--fail-on-findings`: 2 for a current blocking finding, whatever else is true, as push and evaluate
+ * exit; otherwise 1 for stale, missing or errored evidence.
+ */
 export function statusExitCode(rows: PolicyStatusRow[]): number {
-  if (unreliableRows(rows).length > 0) return 1
-  return rows.some((row) => row.blocking) ? 2 : 0
+  if (rows.some((row) => row.blocking)) return 2
+  return unreliableRows(rows).length > 0 ? 1 : 0
 }
 
 /** Why `--fail-on-findings` failed, in one line naming the policies, or `null` when it did not. */
 export function statusExitReason(rows: PolicyStatusRow[]): null | string {
   const unreliable = unreliableRows(rows)
-  if (unreliable.length > 0) {
-    return `Evaluation evidence is stale, missing or errored (${
-      unreliable.map((row) => `${row.key} ${statusLabel(row)}`).join(', ')}); exit 1.`
+  const evidence = unreliable.map((row) => `${row.key} ${statusLabel(row)}`).join(', ')
+  const blocking = rows.filter((row) => row.blocking)
+  if (blocking.length === 0) {
+    return unreliable.length > 0 ? `Evaluation evidence is stale, missing or errored (${evidence}); exit 1.` : null
   }
 
-  const blocking = rows.filter((row) => row.blocking)
-  if (blocking.length === 0) return null
   const findings = blocking.reduce((sum, row) => sum + row.findings, 0)
   // A prediction, not a verdict: the merge gate evaluates the branch again.
   return `The latest run has ${findings} blocking finding${findings === 1 ? '' : 's'} (${
-    blocking.map((row) => row.key).join(', ')}); the merge gate evaluates the branch again before a merge.`
+    blocking.map((row) => row.key).join(', ')}); the merge gate evaluates the branch again before a merge.${
+    unreliable.length > 0 ? ` Evidence is also stale, missing or errored (${evidence}).` : ''}`
 }
