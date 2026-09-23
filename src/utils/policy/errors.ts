@@ -7,8 +7,8 @@ function withoutStack(text: string): string {
 const OWN_LINE = /\bline\s+\d+/i
 
 /**
- * Where a parse error is, the way a person counts: the first line is line 1. The platform's payload
- * counts `line` and `col` from 0. When its own sentence already says `line N`, only the offending
+ * Where a parse error is. The platform's payload counts `line` and `col` from 1, as its sentence
+ * does, so they are printed as served. When the sentence already says `line N`, only the offending
  * text is shown, so one place never gets two numbers.
  */
 function positionLine(message: string, payload: Record<string, unknown>): string {
@@ -16,7 +16,7 @@ function positionLine(message: string, payload: Record<string, unknown>): string
     .find(value => typeof value === 'string' && value.trim() !== '') as string | undefined
   const located = typeof payload.line === 'number' && Number.isFinite(payload.line) && !OWN_LINE.test(message)
   const where = located
-    ? `line ${(payload.line as number) + 1}${typeof payload.col === 'number' && Number.isFinite(payload.col) ? `, col ${payload.col + 1}` : ''}`
+    ? `line ${payload.line}${typeof payload.col === 'number' && Number.isFinite(payload.col) ? `, col ${payload.col}` : ''}`
     : ''
   if (!where && text === undefined) return ''
   return `\n  ${where ? `at ${where}` : 'at'}${text === undefined ? '' : `: ${text}`}`
