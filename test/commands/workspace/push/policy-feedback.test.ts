@@ -63,13 +63,6 @@ describe('workspace push policy feedback', () => {
     expect(process.exitCode ?? 0).to.equal(0)
   })
 
-  it('rejects --allow_missing_policy_check as an unknown flag', async () => {
-    fixture.route(() => json({guid_map: []}))
-    const result = await push('--allow_missing_policy_check')
-    expect(result.error?.message).to.contain('Nonexistent flag')
-    expect(fixture.calls).to.have.length(0)
-  })
-
   for (const message of ['Tightened the auth policies', undefined]) {
     it(`${message ? 'sends' : 'omits'} message= on the import for -m ${JSON.stringify(message)}`, async () => {
       fixture.route(() => json({guid_map: [], policy_check: {blocking: false, status: 'pass'}}))

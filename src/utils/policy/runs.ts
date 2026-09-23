@@ -21,9 +21,8 @@ export function policyRunTable(runs: PolicyRunSummary[]): string[] {
 }
 
 /**
- * One stored run in full. A run row is not a `policy_check`: it records `status`,
- * `findings` and `results` but never `blocking`, because whether a finding blocks is a
- * property of the policy's enforcement at gate time, not of the stored evidence.
+ * One stored run in full. A run records its findings, results and the enforcement each policy
+ * had; `policy_check.blocking` is the gate's verdict at the time and is not stored.
  */
 export function policyRunSummary(run: PolicyRun): string[] {
   const when = [run.started_at, run.finished_at].filter(Boolean).join(' → ')

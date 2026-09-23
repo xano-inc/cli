@@ -172,101 +172,32 @@ xano profile delete myprofile --force
 
 ### Policies
 
-Policies combine a description with deterministic check rules. The platform parses, validates and
-formats policy XanoScript; the CLI sends the source and prints the results. The policy language is
-documented in the `policies` topic of the Xano developer docs.
+Policies combine a description with deterministic check rules; the platform parses, validates and evaluates
+them. `xano policy <command> --help` gives each command's flags and output, and the Xano developer MCP documents
+the rest: the `policies` topic of `xano_xanoscript_docs` (the language) and the `policy` topic of `xano_cli_docs`.
 
 ```bash
-xano policy catalogue                                 # Checks: label, description, object kinds, required params, fix hint
-xano policy catalogue --check query.auth_required     # One check (an unknown id names the closest matches)
-xano policy list -o json                              # Policies on the selected branch
-xano policy parse policies/AUTH-001.xs                # Validate and print canonical XanoScript (or --file, or --stdin)
-xano policy publish policies/AUTH-001.xs -m "Tightened the scope"   # Create or update by key; -m labels the Version History entry
-cat policies/AUTH-001.xs | xano policy publish --stdin
-xano policy evaluate --run-detail                     # Evaluate now; also print what the run recorded
-xano policy status --fail-on-findings -o json         # Latest stored run, without evaluating (CI)
-xano policy runs                                      # The retained runs, newest first (--limit 1-20)
-xano policy runs 1674 --run-detail                    # One run: its findings, descriptions and rule settings
-xano policy delete TMP-DX-001                         # Remove a policy from the branch (-f/--force skips the prompt)
+xano policy catalogue --check query.auth_required    # The checks a rule can use (all of them without --check)
+xano policy list                                     # Policies on the branch
+xano policy parse policies/AUTH-001.xs               # Validate and print canonical XanoScript (or --file, --stdin)
+xano policy publish policies/AUTH-001.xs -m "Why"    # Create or update by key; -m labels the Version History entry
+xano policy evaluate                                 # Evaluate the branch now
+xano policy status --fail-on-findings                # The latest run, without evaluating (CI)
+xano policy runs 1674 --run-detail                   # One run in full; without an id, the retained runs
+xano policy delete TMP-001                           # Remove a policy; its Version History is kept
 ```
 
-Every policy command takes `-w/--workspace`, `-b/--branch` (default: the profile's branch; `-b ''` selects
-live), `-o/--output summary|json` and the profile, config and verbose flags.
+Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
+and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
 
-- `publish` prints `Published KEY (Version N)`, or `No changes to KEY (Version N)` when the definition is
-  identical and nothing was written.
-- `delete` takes a key or an ID and asks before deleting. The policy's Version History is kept. Deleting is
-  the only way to remove a policy: `workspace push` is additive.
-- `status` rows read `KEY  STATUS  ENFORCEMENT  N findings  Title`. ENFORCEMENT is the policy's own,
-  `Mandatory` or `Advisory`. Findings read `(blocking)` when the latest run evaluated the policy as active
-  and mandatory: those stop a merge. A draft, outdated or not evaluated row shows `— findings`. Whether the latest run is still evidence for a
-  policy is the platform's answer (`latest_run` on each policy): `outdated; evaluate again` means the run
-  evaluated another version of it, and `not evaluated` that the run did not evaluate it. In JSON,
-  `status[].status` is one of `pass`, `fail`, `error`, `stale`, `not_evaluated`, `no_checks`,
-  `no_objects_checked` or `draft`, beside `blocking`, `rules_unchecked`, `counted`, `stale`, `enforcement` and
-  `lifecycle`.
-- `evaluate` prints the findings of the run it answers. A credential that can read policies but not record
-  runs still gets them; the summary then says `Not stored`, and JSON carries `"stored": false`.
-- A rule that passed without inspecting any object is reported as `no objects checked`, never as coverage,
-  and a pass that rests on one reads `Policy check: pass, but N rules checked no objects`.
+**Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
+blocks (an active, mandatory policy failed), whatever else happened; `1` when a request or the import failed, or
+when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`.
 
-**JSON output.** A command that reads one route prints that route's body unchanged (`catalogue`, `list`,
-`runs`, `parse`, `publish`, `evaluate`). `status` prints `{policies, run, status}`, plus
-`fail_on_findings: {exit, reason}` with that flag. `catalogue --check` prints the matching checks.
-
-**Exit codes.** `0` on success. `1` for an operational failure (credentials, transport, an HTTP error, a
-body that is not JSON, unreadable source); with `-o json` the failure is also written to stdout as
-`{"error": {"exit": 1, "message": "…"}}`. `2` for blocking findings: `evaluate` when `policy_check.blocking`
-is `true`, and `status --fail-on-findings` for current blocking findings (the gate evaluates again before a
-merge), whatever else is true, exactly as push and evaluate do. Without a blocking finding,
-`status --fail-on-findings` exits `1` for stale, missing or errored evidence. Either way it prints one line
-naming the policies.
-
-#### Policy permissions
-
-Every route needs the `workspace:policy` permission at the level of the request: `read` lists, parses,
-reads runs and evaluates (and lets `workspace pull` include policies); `create`/`update` publishes and pushes
-changed policy files; `delete` deletes. A refusal names its gate in `payload.code`, and the CLI prints the
-remedy for it:
-
-| `payload.code` | Gate | Remedy |
-| --- | --- | --- |
-| `policy_feature_disabled` | The instance's `policies` feature is off | Have Policies enabled; no token or permission helps. |
-| `policy_permission_required` | Your role on the workspace lacks the level (`payload.level`) | Ask an instance admin to grant the Workspace Policies permission. Reissuing the token does not help. |
-| `policy_scope_required` | The Metadata API token was created without the level | Create a token that has it: **Instance settings → Metadata API & MCP Server → Manage Access Tokens**. |
-
-A token created before Policies existed has no `workspace:policy` scope: `workspace pull` still works and
-omits the policies. `evaluate` needs only `read`.
-
-#### Policies in workspace pull and push
-
-`workspace pull` writes each policy to `policies/<KEY>.xs` and, when it wrote any, suggests
-`xano skills pull`. A policy whose file name differs only in case from another policy's, or from a local
-file it would overwrite, is left out with a warning; the rest of the workspace is written. Local policy
-files the export no longer carries are kept, with a warning. `workspace push` sends them in the same multidoc as the code. An unchanged policy file
-needs no policy permission. A changed one, without the permission, refuses the whole push, and the CLI
-suggests `xano workspace push -e "policies/*"`, `xano workspace pull` or `xano policy publish` instead.
-`-m/--message` labels the Version History entry of each policy the push changes; other objects get no
-message.
-
-After the import the CLI prints what happened to the policy documents (from the preview, or only how many
-were sent when `--force` skipped it) and then the server's `policy_check`. The exit code depends only on the
-import and on blocking policies: a failed import exits `1`, `policy_check.blocking: true` exits `2` whatever
-the status, and everything else exits `0`. The import is never rolled back. A pass, a fail and
-`not_applicable` (no active policy on the branch) print a headline with the server's message. `disabled`,
-`forbidden`, `unavailable` and `error`, or no feedback at all, print one warning line on stderr with the
-server's status and message. For CI, key on `policy_check.blocking` rather than `status`: advisory-only
-findings arrive as `status: "fail"` with `blocking: false`.
-
-With `-o json` stdout holds one document: `{"imported": false, "reason", "preview"}` when nothing was
-imported (`dry-run`, `no-changes`, `blocked` or `cancelled`), otherwise the import response with
-`documents`, `imported: true` and `knowledge`. Progress goes to stderr.
-
-```bash
-xano workspace push --dry-run -o json
-xano workspace push --force -o json                   # CI: skip the preview
-xano workspace push -m "Tightened the auth policies"
-```
+Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
+gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
+`policy_permission_required` (an instance admin grants your role the level) or `policy_scope_required` (create a
+Metadata API token that has the scope).
 
 ### Workspaces
 
@@ -523,24 +454,16 @@ xano knowledge get "deploy-runbook" -w 40 --file checklist.md
 
 ### Agent skills
 
-`xano skills pull` installs the `xano-policies` skill your instance generates, so a coding agent knows how
-to write policies and fix policy findings in the project it is editing.
-
 ```bash
 xano skills pull                                         # Writes ./.claude/skills/xano-policies/SKILL.md
 xano skills pull -d ./my-project                         # Install into another project directory
-xano skills pull -b dev                                  # Read the skill from another branch
-xano skills pull -o json                                 # {path, name, source, workspace, branch, bytes}
+xano skills pull -b dev -o json                          # Another branch; print the result as JSON
 ```
 
-It writes one file, `<directory>/.claude/skills/xano-policies/SKILL.md`, and replaces that file without a
-backup. That replaces the developer docs' stub only when the stub was installed into the same project for
-Claude Code (`-a claude-code` without `-g`). A copy anywhere else, such as a global
-`~/.claude/skills/xano-policies` or another agent's skills folder, is not touched; remove it. The skill is generated from the
-instance's check catalogue, so pull it again after an instance upgrade. The branch matters only when the
-workspace has its own `xano-policies` knowledge record, which then replaces the platform skill; the CLI
-says so when that is what it installed. The route needs the `workspace:policy` permission at the read
-level (see [Policy permissions](#policy-permissions)), and failures exit `1`.
+`xano skills pull` writes the `xano-policies` skill the instance generates from its check catalogue to
+`<directory>/.claude/skills/xano-policies/SKILL.md`, replacing that file without a backup; pull it again after an
+instance upgrade. A copy installed anywhere else is not touched, so remove it. The route needs the
+`workspace:policy` read permission.
 
 ### Releases
 
