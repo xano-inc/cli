@@ -6,6 +6,9 @@ function withoutStack(text: string): string {
 /** A 1-based `line N` the platform already put in its own sentence. */
 const OWN_LINE = /\bline\s+\d+/i
 
+/** An unknown-check refusal names the catalogue route; the CLI adds its own command for it. */
+const CATALOGUE_ROUTE = /\/policy\/check\b/
+
 /**
  * Where a parse error is. The platform's payload counts `line` and `col` from 1, as its sentence
  * does, so they are printed as served. When the sentence already says `line N`, only the offending
@@ -53,6 +56,7 @@ export function describePolicyError(text: string, status: number, requestUrl: st
   let message = typeof raw === 'string' ? withoutStack(raw) : ''
   if (status === 404 && !message.trim()) message = missingBranch(requestUrl)
   const headline = [typeof code === 'string' ? code : '', message].filter(Boolean).join(': ')
+  const catalogue = CATALOGUE_ROUTE.test(message) ? ' Run `xano policy catalogue` for the list.' : ''
   const position = payload && typeof payload === 'object' ? positionLine(message, payload as Record<string, unknown>) : ''
-  return {message: `${headline}${position}` || 'The server returned no message.', payload}
+  return {message: `${headline}${catalogue}${position}` || 'The server returned no message.', payload}
 }
