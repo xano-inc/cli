@@ -17,10 +17,9 @@ describe('policy route errors', () => {
     expect(describePolicyError(body, 400, url)).to.equal('SYNTAX_ERROR: Invalid assignment\n  at line 1, col 1: title =')
   })
 
-  it('never prints two numbers for one place', () => {
-    // The platform's own sentence already says `line 3` (1-based): show the text, not a second number.
+  it('prints the served position whatever the sentence says', () => {
     const comment = JSON.stringify({message: 'line 3: policy files cannot contain "//" comments.', payload: {col: 3, error_line: '  // why', line: 3}})
-    expect(describePolicyError(comment, 400, url)).to.equal('line 3: policy files cannot contain "//" comments.\n  at:   // why')
+    expect(describePolicyError(comment, 400, url)).to.equal('line 3: policy files cannot contain "//" comments.\n  at line 3, col 3:   // why')
   })
 
   it('falls back to the snippet, then to the position alone, and prints nothing without either', () => {
@@ -44,12 +43,6 @@ describe('policy route errors', () => {
 
   it('says so when the server sent no message at all', () => {
     expect(describePolicyError('', 500, url)).to.equal('The server returned no message.')
-  })
-
-  it('adds the CLI command for the catalogue to a refusal that points at its route', () => {
-    const message = 'rule[0]: "query.auth_requred" is not a policy check. Did you mean "query.auth_required"? GET workspace/{workspace_id}/policy/check lists every check id.'
-    expect(describePolicyError(JSON.stringify({message}), 400, url)).to.equal(`${message} Run \`xano policy catalogue\` for the list.`)
-    expect(describePolicyError(JSON.stringify({message: 'Invalid block: enforcement'}), 400, url)).not.to.contain('xano policy catalogue')
   })
 
   it('hands back the refusal payload beside the message', () => {

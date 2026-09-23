@@ -3,22 +3,11 @@ function withoutStack(text: string): string {
   return text.split(/\n\s*(?:Stack trace:|#\d+\s|at\s|file:\s*\/)/i, 1)[0]
 }
 
-/** A 1-based `line N` the platform already put in its own sentence. */
-const OWN_LINE = /\bline\s+\d+/i
-
-/** An unknown-check refusal names the catalogue route; the CLI adds its own command for it. */
-const CATALOGUE_ROUTE = /\/policy\/check\b/
-
-/**
- * Where a parse error is. The platform's payload counts `line` and `col` from 1, as its sentence
- * does, so they are printed as served. When the sentence already says `line N`, only the offending
- * text is shown, so one place never gets two numbers.
- */
-function positionLine(message: string, payload: Record<string, unknown>): string {
+/** Where a parse error is: the payload's 1-based `line` and `col`, printed as served, and the offending text. */
+function positionLine(payload: Record<string, unknown>): string {
   const text = [payload.error_line, payload.error_snippet, payload.snippet]
     .find(value => typeof value === 'string' && value.trim() !== '') as string | undefined
-  const located = typeof payload.line === 'number' && Number.isFinite(payload.line) && !OWN_LINE.test(message)
-  const where = located
+  const where = typeof payload.line === 'number' && Number.isFinite(payload.line)
     ? `line ${payload.line}${typeof payload.col === 'number' && Number.isFinite(payload.col) ? `, col ${payload.col}` : ''}`
     : ''
   if (!where && text === undefined) return ''
@@ -56,7 +45,6 @@ export function describePolicyError(text: string, status: number, requestUrl: st
   let message = typeof raw === 'string' ? withoutStack(raw) : ''
   if (status === 404 && !message.trim()) message = missingBranch(requestUrl)
   const headline = [typeof code === 'string' ? code : '', message].filter(Boolean).join(': ')
-  const catalogue = CATALOGUE_ROUTE.test(message) ? ' Run `xano policy catalogue` for the list.' : ''
-  const position = payload && typeof payload === 'object' ? positionLine(message, payload as Record<string, unknown>) : ''
-  return {message: `${headline}${catalogue}${position}` || 'The server returned no message.', payload}
+  const position = payload && typeof payload === 'object' ? positionLine(payload as Record<string, unknown>) : ''
+  return {message: `${headline}${position}` || 'The server returned no message.', payload}
 }
