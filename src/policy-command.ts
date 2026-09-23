@@ -4,7 +4,7 @@ import * as fs from 'node:fs'
 import type {Policy, PolicyRun} from './utils/policy/types.js'
 
 import BaseCommand from './base-command.js'
-import {type PolicyRequest, policyRequest, policyScope} from './utils/policy/request.js'
+import {POLICY_ROUTE, type PolicyRequest, policyRequest, policyScope} from './utils/policy/request.js'
 import {policyRunDetail} from './utils/policy/runs.js'
 
 /** The workspace and branch a policy command acts on, and requests bound to them. */
@@ -22,7 +22,7 @@ interface TargetFlags {
   workspace?: string
 }
 
-/** Shared flags, request helper and output for the `policy *` commands. */
+/** Shared flags, request helper and output for the `policy *` commands and `skills pull`. */
 export default abstract class PolicyCommand extends BaseCommand {
   static policyFlags = {
     ...BaseCommand.baseFlags,
@@ -65,14 +65,17 @@ export default abstract class PolicyCommand extends BaseCommand {
     return answer as {policy: Policy; source: string}
   }
 
-  /** The workspace and branch from the flags or the profile, and a request helper bound to them. */
-  protected policyTarget(flags: TargetFlags): PolicyTarget {
+  /**
+   * The workspace and branch from the flags or the profile, and a request helper bound to them for
+   * a route gated by `workspace:policy`: `/policy` unless another is named.
+   */
+  protected policyTarget(flags: TargetFlags, route = POLICY_ROUTE): PolicyTarget {
     const {profile} = this.resolveProfile(flags)
     const {branch, workspace} = policyScope(flags, profile)
     if (!workspace) this.error('Workspace ID required. Use --workspace or set one in your profile.')
     const request = policyRequest(
       {error: (message) => this.error(message), logToStderr: (message) => this.logToStderr(message), verboseFetch: (...args) => this.verboseFetch(...args)},
-      {branch, label: 'Policy', path: '/policy', profile, verbose: flags.verbose, workspace},
+      {...route, branch, profile, verbose: flags.verbose, workspace},
     )
     return {branch, request, workspace}
   }
