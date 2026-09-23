@@ -20,7 +20,7 @@ export default class PolicyRuns extends PolicyCommand {
     ...PolicyCommand.policyFlags,
     limit: Flags.integer({
       default: 20,
-      description: 'How many runs to list, newest first; at most the twenty retained per branch exist',
+      description: 'How many runs to list, newest first',
     }),
     'run-detail': Flags.boolean({
       default: false,

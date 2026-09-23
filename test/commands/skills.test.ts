@@ -3,7 +3,7 @@ import {expect} from 'chai'
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import {json, policyFixture} from '../helpers/policy_fixture.js'
+import {json, policyFixture} from '../helpers/policy-fixture.js'
 
 const content = '# Xano policies\n\nFollow the branch policies before pushing.\n'
 const description = 'Policies: how this workspace expects XanoScript to be written'
@@ -12,6 +12,7 @@ const served = (items: unknown[]) => json({knowledge: items})
 const skill = (overrides: Record<string, unknown> = {}) => ({
   content,
   description,
+  id: -101,
   knowledge_type: 'skill',
   name: 'xano-policies',
   ...overrides,
@@ -68,13 +69,22 @@ describe('skills pull', () => {
     expect(fs.readFileSync(skillFile(), 'utf8')).to.equal(own)
   })
 
-  it('exits 1 naming why the skill is absent, writing nothing', async () => {
-    fixture.route(() => served([{content: 'other', knowledge_type: 'skill', name: 'deploy-runbook'}]))
+  it('exits 1 when the instance returns no such skill, writing nothing', async () => {
+    fixture.route(() => served([{content: 'other', id: 12, knowledge_type: 'skill', name: 'deploy-runbook'}]))
     const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
     expect(result.error).to.have.nested.property('oclif.exit', 1)
-    expect(result.error?.message).to.contain('The instance did not serve the xano-policies skill')
-    expect(result.error?.message).to.contain('policies feature off')
+    expect(result.error?.message).to.equal('The instance returned no xano-policies skill for workspace 1, branch feature.')
     expect(fs.existsSync(path.join(project, '.claude'))).to.equal(false)
+  })
+
+  it("says when it installed the workspace's own record instead of the platform skill", async () => {
+    fixture.route(() => served([skill({id: 42})]))
+    const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(result.stdout).to.contain("This is the workspace's own xano-policies knowledge record")
+    fixture.route(() => served([skill({id: 42})]))
+    const asJson = await runCommand(['skills', 'pull', '-d', project, '-o', 'json'], fixture.config)
+    expect(JSON.parse(asJson.stdout)).to.include({source: 'workspace'})
   })
 
   it('explains a 403 with the policy permission guidance and exits 1', async () => {
@@ -96,6 +106,7 @@ describe('skills pull', () => {
       bytes: written.length,
       name: 'xano-policies',
       path: skillFile(),
+      source: 'platform',
       workspace: '1',
     })
 

@@ -9,10 +9,10 @@ export default class PolicyDelete extends PolicyCommand {
       required: true,
     }),
   }
-  static override description = 'Delete a policy and its Version History from a branch'
+  static override description = 'Delete a policy from a branch; its Version History is kept'
   static override examples = [
     `$ xano policy delete TMP-DX-001
-Delete policy TMP-DX-001 (ID: 922, Version 2) from workspace 3? Its Version History goes with it. (y/N) y
+Delete policy TMP-DX-001 (ID: 922, Version 2) from workspace 3? Its Version History is kept. (y/N) y
 Deleted policy TMP-DX-001 (ID: 922) from workspace 3.
 `,
     '$ xano policy delete 922 --force',
@@ -21,7 +21,6 @@ Deleted policy TMP-DX-001 (ID: 922) from workspace 3.
   static override flags = {
     ...PolicyCommand.policyFlags,
     force: Flags.boolean({
-      aliases: ['yes'],
       char: 'f',
       default: false,
       description: '[IMPORTANT] NEVER run without explicit user confirmation. Skips the confirmation prompt.',

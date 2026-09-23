@@ -3,7 +3,7 @@ import {expect} from 'chai'
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import {json, policyFixture} from '../../../helpers/policy_fixture.js'
+import {json, policyFixture} from '../../../helpers/policy-fixture.js'
 
 /**
  * `workspace pull` hands every policy reader the policy files. A developer who then pushes their
@@ -39,9 +39,10 @@ describe('workspace push with policy files, as a non-admin', () => {
   })
 
   it('pushes the rest of the work when the policy file is unchanged', async () => {
-    fixture.route(() => json({guid_map: [{guid: 'g-1', name: 'AUTH-001', type: 'policy'}]}))
+    fixture.route(() => json({guid_map: [{guid: 'g-1', name: 'AUTH-001', type: 'policy'}], policy_check: {blocking: false, status: 'pass'}}))
     const result = await push('--force')
     expect(result.error).to.equal(undefined)
+    expect(process.exitCode ?? 0).to.equal(0)
     expect(fixture.calls.at(-1)?.method).to.equal('POST')
     // The policy file still travels: the server, not the CLI, decides that it is unchanged.
     expect(fixture.calls.at(-1)?.body).to.contain('policy AUTH-001')
@@ -54,6 +55,7 @@ describe('workspace push with policy files, as a non-admin', () => {
     expect(result.error?.message).to.contain('Policy files require the admin role; nothing was imported: AUTH-001')
     expect(result.error?.message).to.contain('-e "policies/*"')
     expect(result.error?.message).to.contain('unchanged never cause this')
+    expect(result.error?.message).to.contain('changing policies requires the `workspace:policy` permission')
     expect(result.error?.message).not.to.contain('Reissue')
   })
 
