@@ -42,10 +42,10 @@ export interface PushTarget {
   /** CLI version string */
   cliVersion: string
   /**
-   * Guidance for a refusal this target recognises, given the HTTP status and the server's message.
+   * Guidance for a refusal this target recognises, given the HTTP status and the server's payload.
    * A preview or import refused that way stops with the message and this guidance appended.
    */
-  explainRefusal?: (status: number, message: string) => string | undefined
+  explainRefusal?: (status: number, payload: unknown) => string | undefined
   /** Instance origin URL (e.g., "https://x123-abcd-1234.xano.io") */
   instanceOrigin: string
   /** Human-readable label for log messages (e.g., "sandbox environment", "workspace 40") */
@@ -1706,14 +1706,16 @@ function formatFailureDuration(elapsedMs?: number): string {
 function refuseIfExplained(command: Command, target: PushTarget, status: number, body: string): void {
   if (!target.explainRefusal) return
   let message = body
+  let payload: unknown
   try {
     const parsed = JSON.parse(body)
     if (typeof parsed?.message === 'string') message = parsed.message
+    payload = parsed?.payload
   } catch {
     // Not JSON
   }
 
-  const guidance = target.explainRefusal(status, message)
+  const guidance = target.explainRefusal(status, payload)
   if (guidance) command.error(`Push refused (${status}): ${message}${guidance}`)
 }
 

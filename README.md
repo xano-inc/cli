@@ -216,10 +216,16 @@ one line naming the policies.
 
 #### Policy permissions
 
-| Gate | What it checks | The 403 says | Remedy |
-| --- | --- | --- | --- |
-| Feature | The instance's `policies` feature | `Policies are not enabled on this instance.` | Have Policies enabled; no token or permission helps. |
-| Permission | The `workspace:policy` permission, on the Metadata API token's scope and on your access to the workspace. `read` lists, parses, reads runs and evaluates (and lets `workspace pull` include policies); `create`/`update` publishes and pushes changed policy files; `delete` deletes. An OAuth token needs `workspace:read` to read and `workspace:write` to write. | `Access Denied.`, `insufficient_scope: …` or `Policy changes require …` | Reissue the token with the level the command needs (**Instance settings → Metadata API & MCP Server → Manage Access Tokens**), or ask an instance admin to grant the permission. |
+Every route needs the `workspace:policy` permission at the level of the request: `read` lists, parses,
+reads runs and evaluates (and lets `workspace pull` include policies); `create`/`update` publishes and pushes
+changed policy files; `delete` deletes. A refusal names its gate in `payload.code`, and the CLI prints the
+remedy for it:
+
+| `payload.code` | Gate | Remedy |
+| --- | --- | --- |
+| `policy_feature_disabled` | The instance's `policies` feature is off | Have Policies enabled; no token or permission helps. |
+| `policy_permission_required` | Your role on the workspace lacks the level (`payload.level`) | Ask an instance admin to grant the Workspace Policies permission. Reissuing the token does not help. |
+| `policy_scope_required` | The Metadata API token was created without the level | Create a token that has it: **Instance settings → Metadata API & MCP Server → Manage Access Tokens**. |
 
 A token created before Policies existed has no `workspace:policy` scope: `workspace pull` still works and
 omits the policies. `evaluate` needs only `read`; a caller that cannot record runs still gets the findings,

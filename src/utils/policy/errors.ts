@@ -30,23 +30,29 @@ function missingBranch(requestUrl: string): string {
   return workspace && branch ? `Branch "${branch}" was not found in workspace ${decodeURIComponent(workspace)}.` : ''
 }
 
+/** A failed policy-route response: one message to print, and the refusal's payload. */
+export interface PolicyError {
+  message: string
+  payload?: unknown
+}
+
 /**
  * A failed policy-route response as one message: the platform's code and message, and where a parse
  * error is. Traces are dropped, and an empty 404 names the branch the request selected.
  */
-export function describePolicyError(text: string, status: number, requestUrl: string): string {
+export function describePolicyError(text: string, status: number, requestUrl: string): PolicyError {
   let data: unknown
   try {
     data = JSON.parse(text.trim() || '{}')
   } catch {
-    return withoutStack(text)
+    return {message: withoutStack(text)}
   }
 
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return withoutStack(text)
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {message: withoutStack(text)}
   const {code, message: raw, payload} = data as {code?: unknown; message?: unknown; payload?: unknown}
   let message = typeof raw === 'string' ? withoutStack(raw) : ''
   if (status === 404 && !message.trim()) message = missingBranch(requestUrl)
   const headline = [typeof code === 'string' ? code : '', message].filter(Boolean).join(': ')
   const position = payload && typeof payload === 'object' ? positionLine(message, payload as Record<string, unknown>) : ''
-  return `${headline}${position}` || 'The server returned no message.'
+  return {message: `${headline}${position}` || 'The server returned no message.', payload}
 }

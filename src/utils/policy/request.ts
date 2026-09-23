@@ -56,8 +56,8 @@ export function policyRequest(host: PolicyRequestHost, route: PolicyRequestRoute
     if (!response.ok) {
       const text = (await response.text()).replaceAll(profile.access_token, '[REDACTED]')
       if (verbose && text) host.logToStderr(text)
-      const detail = describePolicyError(text, response.status, url)
-      host.error(`${label} request failed (${response.status}): ${detail}${policyPermissionGuidance(response.status, detail)}`)
+      const {message, payload} = describePolicyError(text, response.status, url)
+      host.error(`${label} request failed (${response.status}): ${message}${policyPermissionGuidance(response.status, payload)}`)
     }
 
     // The DELETE route can answer with no body at all; every other route sends JSON.

@@ -8,7 +8,7 @@ import BaseCommand from '../../../base-command.js'
 import {parseDocument} from '../../../utils/document-parser.js'
 import {executePush, type PushFlags, type PushResult, type PushTarget} from '../../../utils/multidoc-push.js'
 import {policyCheckWarning, policyDocumentSummary, policyExitCode, policySummary} from '../../../utils/policy/feedback.js'
-import {isPolicyFileRefusal, policyFilePushGuidance} from '../../../utils/policy/permission.js'
+import {policyFilePushGuidance} from '../../../utils/policy/permission.js'
 
 export default class Push extends BaseCommand {
   static override description =
@@ -215,8 +215,7 @@ Full sync including knowledge files; removes server objects not present locally
         return `${baseUrl}/multidoc?${query.toString()}`
       },
       cliVersion: this.config.version,
-      explainRefusal: (status, serverMessage) =>
-        status === 403 && isPolicyFileRefusal(serverMessage) ? policyFilePushGuidance() : undefined,
+      explainRefusal: (status, payload) => (status === 403 ? policyFilePushGuidance(payload) : undefined),
       instanceOrigin: profile.instance_origin,
       label: `workspace ${workspaceId}`,
       supportsBranches: true,

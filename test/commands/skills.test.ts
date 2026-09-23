@@ -87,13 +87,22 @@ describe('skills pull', () => {
     expect(JSON.parse(asJson.stdout)).to.include({source: 'workspace'})
   })
 
-  it('explains a 403 with the policy permission guidance and exits 1', async () => {
-    fixture.route(() => json({message: 'Access Denied test-token'}, 403))
+  it("prints the route's own refusal with the permission guidance for its code, and exits 1", async () => {
+    const message = 'This API token was not granted the workspace:policy read scope. test-token'
+    fixture.route(() => json({message, payload: {code: 'policy_scope_required', level: 'read', permission: 'workspace:policy'}}, 403))
     const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
     expect(result.error).to.have.nested.property('oclif.exit', 1)
-    expect(result.error?.message).to.contain('workspace:policy')
-    expect(result.error?.message).to.contain('[REDACTED]')
+    expect(result.error?.message).to.contain('Agent skills request failed (403): This API token was not granted the workspace:policy read scope. [REDACTED]')
+    expect(result.error?.message).to.contain('created without the `workspace:policy` read scope')
     expect(result.error?.message).not.to.contain('test-token')
+    expect(fs.existsSync(path.join(project, '.claude'))).to.equal(false)
+  })
+
+  it("prints the route's own refusal when the feature is off", async () => {
+    fixture.route(() => json({message: 'Policies are not enabled on this instance.', payload: {code: 'policy_feature_disabled'}}, 403))
+    const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
+    expect(result.error?.message).to.contain('Agent skills request failed (403): Policies are not enabled on this instance.')
+      .and.to.contain('turned off for this instance')
   })
 
   it('prints the written file as JSON with -o json, failures included', async () => {

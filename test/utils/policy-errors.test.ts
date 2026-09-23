@@ -1,8 +1,9 @@
 import {expect} from 'chai'
 
-import {describePolicyError} from '../../src/utils/policy/errors.js'
+import {describePolicyError as describeError} from '../../src/utils/policy/errors.js'
 
 const url = 'https://instance.example/api:meta/workspace/9/policy?branch=ci%2Fnew'
+const describePolicyError = (text: string, status: number, requestUrl: string) => describeError(text, status, requestUrl).message
 
 describe('policy route errors', () => {
   it('keeps the code and message, drops internals, and locates a parse error 1-based', () => {
@@ -43,6 +44,12 @@ describe('policy route errors', () => {
 
   it('says so when the server sent no message at all', () => {
     expect(describePolicyError('', 500, url)).to.equal('The server returned no message.')
+  })
+
+  it('hands back the refusal payload beside the message', () => {
+    const payload = {code: 'policy_scope_required', level: 'read', permission: 'workspace:policy'}
+    expect(describeError(JSON.stringify({message: 'Refused.', payload}), 403, url)).to.deep.equal({message: 'Refused.', payload})
+    expect(describeError('<html>', 502, url)).to.deep.equal({message: '<html>'})
   })
 
   for (const trace of ['\nStack trace:\n#0 /internal/a.php', '\n#0 /internal/a.php', '\n    at internal (/server/file.js:1:2)']) {
