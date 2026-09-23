@@ -24,6 +24,9 @@ export interface PolicyRequestRoute {
   workspace: string
 }
 
+/** The route the `policy *` commands request. */
+export const POLICY_ROUTE: Pick<PolicyRequestRoute, 'label' | 'path'> = {label: 'Policy', path: '/policy'}
+
 /** The workspace and branch a command targets: its flags first, then the profile. `-b ''` selects live. */
 export function policyScope(flags: {branch?: string; workspace?: string}, profile: ProfileConfig): {branch: string; workspace: string} {
   // A workspace from profile.yaml or the credentials file can arrive from YAML as a number.

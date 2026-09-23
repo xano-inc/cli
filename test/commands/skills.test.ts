@@ -102,6 +102,18 @@ describe('skills pull', () => {
     expect(JSON.parse(asJson.stdout)).to.include({source: 'workspace'})
   })
 
+  for (const id of [undefined, -7, 0]) {
+    it(`installs a skill served ${id === undefined ? 'without an id' : `with id ${id}`} as the platform's, not a workspace record`, async () => {
+      fixture.route(() => served([skill({id})]))
+      const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(result.stdout).not.to.contain("workspace's own")
+      fixture.route(() => served([skill({id})]))
+      const asJson = await runCommand(['skills', 'pull', '-d', project, '-o', 'json'], fixture.config)
+      expect(JSON.parse(asJson.stdout)).to.include({source: 'platform'})
+    })
+  }
+
   it("prints the route's own refusal with the permission guidance for its code, and exits 1", async () => {
     const message = 'This API token was not granted the workspace:policy read scope. test-token'
     fixture.route(() => json({message, payload: {code: 'policy_scope_required', level: 'read', permission: 'workspace:policy'}}, 403))

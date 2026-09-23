@@ -2,13 +2,10 @@ import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import BaseCommand from '../../../base-command.js'
-import {policyRequest, policyScope} from '../../../utils/policy/request.js'
+import PolicyCommand from '../../../policy-command.js'
 
 /** The one skill this command installs. The instance generates it from its check catalogue. */
 const SKILL = 'xano-policies'
-/** The id the platform gives its own generated skill; a workspace record of the same name has its own. */
-const PLATFORM_SKILL_ID = -101
 
 interface AgentSkill {
   content?: string
@@ -37,7 +34,16 @@ export function buildSkillDocument(description: string, content: string): string
   return `---\nname: ${SKILL}\ndescription: ${JSON.stringify(description)}\n---\n\n${body}`
 }
 
-export default class SkillsPull extends BaseCommand {
+/**
+ * Whether the served skill is the workspace's own knowledge record. A stored record has a positive
+ * id; the skill the platform generates has none of its own (cloud-client serves it under the
+ * negative sentinel `AgentSkill::ID`), so an item without a positive id is the platform's.
+ */
+function isWorkspaceRecord(skill: AgentSkill): boolean {
+  return typeof skill.id === 'number' && Number.isInteger(skill.id) && skill.id > 0
+}
+
+export default class SkillsPull extends PolicyCommand {
   static override description = `Install the ${SKILL} agent skill this instance generates
 
 Writes <directory>/.claude/skills/${SKILL}/SKILL.md, the project skill folder Claude Code reads, and replaces that file without a backup. A copy installed anywhere else, such as a global ~/.claude/skills/${SKILL} or another agent's skills folder, is not touched: remove it, so the agent does not load it instead.`
@@ -49,34 +55,25 @@ Wrote .claude/skills/${SKILL}/SKILL.md (${SKILL} skill for workspace 40, branch 
     '$ xano skills pull -b dev -o json',
   ]
   static override flags = {
-    ...BaseCommand.baseFlags,
-    branch: Flags.string({char: 'b', description: "Branch label (defaults to profile branch or live; -b '' selects live)"}),
+    ...PolicyCommand.policyFlags,
     directory: Flags.string({
       char: 'd',
       default: '.',
       description: `Project directory whose .claude/skills/${SKILL}/SKILL.md is written (defaults to current directory)`,
       required: false,
     }),
-    output: Flags.string({char: 'o', default: 'summary', description: 'Output format', options: ['summary', 'json']}),
-    workspace: Flags.string({char: 'w', description: 'Workspace ID (defaults to profile workspace)'}),
   }
 
+  /** Any failure exits 1 with its own message: this is not a `policy *` command to name. */
   protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
     return this.catchAsOperational(error)
   }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(SkillsPull)
-    const {profile} = this.resolveProfile(flags)
-    const {branch, workspace} = policyScope(flags, profile)
-    if (!workspace) this.error('Workspace ID required. Use --workspace or set one in your profile.')
-
     // The route lives beside /policy under the workspace and is gated by the same
     // `workspace:policy` permission, so it answers failures the way the policy commands do.
-    const request = policyRequest(
-      {error: (message) => this.error(message), logToStderr: (message) => this.logToStderr(message), verboseFetch: (...args) => this.verboseFetch(...args)},
-      {branch, label: 'Agent skills', path: '/agent-skills', profile, verbose: flags.verbose, workspace},
-    )
+    const {branch, request, workspace} = this.policyTarget(flags, {label: 'Agent skills', path: '/agent-skills'})
     // `surface=cli` asks for the terminal wording of the skill, not the Studio one.
     const payload = (await request('', 'GET', undefined, {surface: 'cli'})) as {knowledge?: AgentSkill[]}
 
@@ -91,7 +88,7 @@ Wrote .claude/skills/${SKILL}/SKILL.md (${SKILL} skill for workspace 40, branch 
     fs.mkdirSync(path.dirname(filePath), {recursive: true})
     // The file is regenerated on every pull and no backup is kept.
     fs.writeFileSync(filePath, document, 'utf8')
-    const own = skill.id !== PLATFORM_SKILL_ID
+    const own = isWorkspaceRecord(skill)
 
     if (flags.output === 'json') {
       this.log(JSON.stringify({
