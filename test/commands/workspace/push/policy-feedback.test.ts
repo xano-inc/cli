@@ -137,6 +137,48 @@ describe('workspace push policy feedback', () => {
     expect(result.stderr).to.contain('No changes to push.')
   })
 
+  describe('a knowledge sync that fails after the import', () => {
+    const blocking = {blocking: true, blocking_findings: [finding], findings: [finding], message: 'Active policies reported findings.', status: 'fail'}
+    let tree: string
+
+    beforeEach(() => {
+      tree = fs.mkdtempSync(path.join(fixture.directory, 'imported-'))
+      fs.writeFileSync(path.join(tree, 'AUTH-001.xs'), 'policy AUTH-001 {\n title = "Auth"\n}')
+      fs.mkdirSync(path.join(tree, 'knowledge', 'docs'), {recursive: true})
+      fs.writeFileSync(path.join(tree, 'knowledge', 'docs', 'notes.md'), '---\nname: notes\n---\n\nChanged notes.\n')
+    })
+
+    const pushTree = (check: Record<string, unknown>, ...extra: string[]) => {
+      fixture.route((url) => url.pathname.endsWith('/knowledge/sync')
+        ? json({message: 'Knowledge store unavailable'}, 500)
+        : json({guid_map: [], policy_check: check}))
+      return runCommand(['workspace', 'push', '-d', tree, '--force', '--no-guids', ...extra], fixture.config)
+    }
+
+    it('still prints a blocking finding, then the failure, and exits 2', async () => {
+      const result = await pushTree(blocking)
+      expect(fixture.calls.map((call) => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/multidoc', '/api:meta/workspace/1/knowledge/sync'])
+      expect(result.stdout).to.contain('Policy check: fail (blocking findings)').and.to.contain('AUTH-001')
+      expect(result.error?.message).to.contain('Failed to push knowledge').and.to.contain('Knowledge store unavailable')
+      expect(result.error).to.have.nested.property('oclif.exit', 2)
+    })
+
+    it('prints the policy check and exits 1 when nothing blocks', async () => {
+      const result = await pushTree({blocking: false, message: 'No policy findings.', results: [], status: 'pass'})
+      expect(result.stdout).to.contain('Policy check: pass\nNo policy findings.')
+      expect(result.error?.message).to.contain('Failed to push knowledge')
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+    })
+
+    it('keeps the policy check in the one JSON document, beside the failure', async () => {
+      const result = await pushTree(blocking, '-o', 'json')
+      const document = JSON.parse(result.stdout)
+      expect(document).to.deep.include({imported: true, policy_check: blocking})
+      expect(document.error).to.deep.equal({exit: 2, message: result.error?.message})
+      expect(result.error).to.have.nested.property('oclif.exit', 2)
+    })
+  })
+
   describe('a push that sends only knowledge', () => {
     const originalInterface = readline.createInterface
     const originalTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')

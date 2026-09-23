@@ -1,4 +1,4 @@
-import {Command, ux} from '@oclif/core'
+import {Command, Errors, ux} from '@oclif/core'
 import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
@@ -129,6 +129,16 @@ export interface PushResult {
   sent: Array<{content: string; filePath: string}>
   /** Why the push stopped before writing anything, when it did. */
   stopped?: 'blocked' | 'cancelled' | 'dry-run' | 'no-changes'
+}
+
+/**
+ * A push that failed after its multidoc import landed. The import is not rolled back, so the error
+ * carries what it did for the calling command to report beside the failure.
+ */
+export class FailedAfterImportError extends Errors.CLIError {
+  constructor(message: string, readonly imported: PushResult) {
+    super(message)
+  }
 }
 
 /**
@@ -1560,6 +1570,12 @@ export async function executePush(
 
   let knowledgeImported = 0
   let knowledgeDeleted = 0
+  const pushed = (): PushResult => ({
+    knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported},
+    preview: dryRunPreview,
+    response: pushResponse,
+    sent: pushResponse ? sent : [],
+  })
 
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const listUrl = ctx.knowledge.listUrl()
@@ -1595,7 +1611,9 @@ export async function executePush(
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
-      command.error(`Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`)
+      const message = `Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`
+      if (pushResponse) throw new FailedAfterImportError(message, pushed())
+      command.error(message)
     }
   }
 
@@ -1609,12 +1627,7 @@ export async function executePush(
   }
 
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
-  return {
-    knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported},
-    preview: dryRunPreview,
-    response: pushResponse,
-    sent: pushResponse ? sent : [],
-  }
+  return pushed()
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────
