@@ -11,12 +11,13 @@ import {
   policyResultSummary,
   policyRuleName,
   policyRunDetail,
-  policyRunRow,
   policyRunSummary,
+  policyRunTable,
   policySettings,
   policySummary,
   statusExitCode,
   statusExitReason,
+  statusLabel,
 } from '../../src/utils/policy.js'
 
 const result = (status: string, checked = 1) => ({check_id: 'R1', checked, policy_key: 'AUTH-001', status})
@@ -170,7 +171,6 @@ describe('policy carriage and feedback', () => {
 
   it('prints one ungrouped list when the platform did not distinguish the two groups', () => {
     const findings = [{id: 'F1', message: 'No auth', policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}]
-    // An instance that sends no blocking_findings[] gets exactly the output it had before.
     const advisory = policySummary({blocking: false, findings, status: 'fail'}).join('\n')
     expect(advisory).to.not.contain('Blocking findings')
     expect(advisory).to.not.contain('Advisory findings')
@@ -198,23 +198,24 @@ describe('policy carriage and feedback', () => {
     // A stored run carries no `blocking`, so it never claims one way or the other.
     expect(summary).to.not.contain('Blocking')
     expect(policyRunSummary({findings: [], id: 9, status: 'pass'}).join('\n')).to.contain('No findings.')
-    expect(policyRunRow(run)).to.equal('1674  fail    1 findings    23 objects  push     2026-09-17T22:42:00.903Z')
-    // A run stored before objects_checked was recorded says so rather than showing a zero.
-    expect(policyRunRow({findings: [], id: 402, started_at: '2026-09-14T22:18:47.148Z', status: 'fail', trigger: 'manual'}))
-      .to.equal('402   fail    0 findings    — objects   manual   2026-09-14T22:18:47.148Z')
+    // A run that does not say how many objects it checked shows a dash rather than a zero.
+    expect(policyRunTable([run, {findings: [], id: 402, started_at: '2026-09-14T22:18:47.148Z', status: 'fail', trigger: 'manual'}])).to.deep.equal([
+      'Run   Status  Findings      Checked     Trigger  Started',
+      '1674  fail    1 findings    23 objects  push     2026-09-17T22:42:00.903Z',
+      '402   fail    0 findings    — objects   manual   2026-09-14T22:18:47.148Z',
+    ])
   })
 
   it('renders resolved settings compactly and treats an empty map as none', () => {
-    // Settings are sorted by name: the platform's own key order varies between runs, so
-    // printing it verbatim made two identical rules diff against each other.
+    // Sorted by name, whatever order the platform sent them in.
     expect(policySettings(JSON.parse('{"except_tags":["public"],"api_groups":["lab","incidents"]}'))).to.equal('settings: api_groups=[lab, incidents], except_tags=[public]')
     expect(policySettings(JSON.parse('{"api_groups":["lab","incidents"],"except_tags":["public"]}'))).to.equal('settings: api_groups=[lab, incidents], except_tags=[public]')
     expect(policySettings({follow_addons: false, table_selector: {has_field: 'employee_id'}})).to.equal('settings: follow_addons=false, table_selector={"has_field":"employee_id"}')
-    // PHP spells an empty map `[]`, and an absent map is an older run.
+    // PHP spells an empty map `[]`.
     for (const empty of [{}, [], undefined, null]) expect(policySettings(empty)).to.equal('')
   })
 
-  it('reports what a run recorded and stays silent about a run that recorded nothing', () => {
+  it('reports what a run recorded, and nothing for a run that evaluated no policy', () => {
     const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}
     const run = {
       id: 1129,
@@ -227,13 +228,12 @@ describe('policy carriage and feedback', () => {
       '  AUTH-001  Every endpoint requires authentication unless it is tagged public.',
       '    AUTH-001.R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]',
     ])
-    // A rule with nothing configured still ran; an old run carries neither statement nor params.
+    // A rule with nothing configured still ran.
     expect(policyRunDetail({...run, policies: [{key: 'AUTH-001', rules: [{...rule, params: []}], statement: ''}]})).to.deep.equal([
       'Run 1129 as recorded (manual, 2026-09-17T18:23:09.341Z):',
       '  AUTH-001',
       '    AUTH-001.R1  Endpoints require authentication  settings: none',
     ])
-    expect(policyRunDetail({...run, policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', title: ''}]}]})).to.deep.equal([])
     expect(policyRunDetail({...run, policies: []})).to.deep.equal([])
     expect(policyRunDetail()).to.deep.equal([])
 
@@ -251,7 +251,7 @@ describe('policy carriage and feedback', () => {
   })
 
   describe('computeStatusRows', () => {
-    const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: '2026-09-01T10:00:00.000Z'}
+    const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: '2026-09-01T10:00:00.000Z', version: 1}
     const run = {
       findings: [{policy_key: 'AUTH-001'}],
       results: [{check_id: 'R1', checked: 10, policy_key: 'AUTH-001', status: 'fail'}],
@@ -260,10 +260,9 @@ describe('policy carriage and feedback', () => {
 
     it('compares ISO timestamps and reports a current failing run', () => {
       const [row] = computeStatusRows([policy], run)
-      // The row carries the policy's own enforcement and lifecycle, so nothing joins by index.
       expect(row).to.deep.equal({
-        checked: 10, enforcement: 'mandatory', findings: 1, key: 'AUTH-001', lifecycle: 'active',
-        policy_updated_at: policy.updated_at,
+        checked: 10, counted: true, enforcement: 'mandatory', findings: 1, key: 'AUTH-001', lifecycle: 'active',
+        policy_updated_at: policy.updated_at, rules_unchecked: 0,
         run_started_at: run.started_at, stale: false, status: 'fail', title: undefined,
       })
       expect(statusExitCode([row])).to.equal(2)
@@ -274,7 +273,8 @@ describe('policy carriage and feedback', () => {
     it('marks a policy edited after the run as outdated with ISO timestamps', () => {
       const edited = {...policy, updated_at: '2026-09-03T00:00:00Z'}
       const [row] = computeStatusRows([edited], run)
-      expect(row).to.include({checked: 0, findings: 0, stale: true, status: 'outdated; evaluate again'})
+      expect(row).to.include({checked: 0, counted: false, findings: 0, stale: true, status: 'stale'})
+      expect(statusLabel(row)).to.equal('outdated; evaluate again')
       expect(statusExitCode([row])).to.equal(1)
       expect(statusExitReason([row])).to.equal(
         'Evaluation evidence is stale, missing or errored (AUTH-001 outdated; evaluate again); exit 1.')
@@ -283,8 +283,18 @@ describe('policy carriage and feedback', () => {
     it('accepts epoch numbers and a missing run', () => {
       const numeric = {...policy, updated_at: 1000}
       expect(computeStatusRows([numeric], {...run, started_at: 2000})[0]).to.include({stale: false, status: 'fail'})
-      expect(computeStatusRows([numeric])[0]).to.include({run_started_at: null, stale: true, status: 'not evaluated'})
-      expect(computeStatusRows([{...numeric, lifecycle: 'draft'}])[0]).to.include({stale: false, status: 'draft; not evaluated'})
+      expect(computeStatusRows([numeric])[0]).to.include({run_started_at: null, stale: true, status: 'not_evaluated'})
+      expect(computeStatusRows([{...numeric, lifecycle: 'draft'}])[0]).to.include({stale: false, status: 'draft'})
+    })
+
+    it('does not call a draft stale for an edit made after the run, when the run has no results for it', () => {
+      const draft = {...policy, lifecycle: 'draft', updated_at: '2026-09-03T00:00:00Z'}
+      const [row] = computeStatusRows([draft], {...run, findings: [], results: []})
+      expect(row).to.include({counted: false, stale: false, status: 'draft'})
+      expect(statusExitCode([row])).to.equal(0)
+      expect(statusExitReason([row])).to.equal(null)
+      // A run that still carries results for it is stale evidence.
+      expect(computeStatusRows([draft], run)[0]).to.include({stale: true})
     })
 
     it('decides staleness on the version the run recorded, not on timestamps', () => {
@@ -294,24 +304,21 @@ describe('policy carriage and feedback', () => {
       const later = {...versioned, updated_at: '2026-09-03T00:00:00Z'}
       expect(computeStatusRows([later], snapshot(4))[0]).to.include({stale: false, status: 'fail'})
       // A different version is stale even when the policy row looks older than the run.
-      expect(computeStatusRows([versioned], snapshot(3))[0]).to.include({stale: true, status: 'outdated; evaluate again'})
+      expect(computeStatusRows([versioned], snapshot(3))[0]).to.include({stale: true, status: 'stale'})
 
-      // Fallbacks, all three of them: a run stored before snapshots, a run whose snapshot never saw
-      // this policy, and an instance whose policy rows carry no version.
-      expect(computeStatusRows([later], run)[0]).to.include({stale: true})
-      expect(computeStatusRows([later], snapshot())[0]).to.include({stale: true})
+      // A policy the run's snapshot does not include is judged by when it was saved.
       expect(computeStatusRows([later], {...run, policies: [{key: 'PII-001', version: 4}]})[0]).to.include({stale: true})
-      expect(computeStatusRows([policy], snapshot(4))[0]).to.include({stale: false})
+      expect(computeStatusRows([versioned], {...run, policies: [{key: 'PII-001', version: 4}]})[0]).to.include({stale: false})
     })
 
     it('distinguishes error, partial, empty-coverage and advisory outcomes', () => {
       const rules = [{id: 'R1'}, {id: 'R2'}]
       const rows = (results: Array<ReturnType<typeof result>>) => computeStatusRows([{...policy, rules}], {...run, findings: [], results})
       expect(rows([result('error')])[0].status).to.equal('error')
-      expect(rows([result('pass')])[0].status).to.equal('not evaluated')
-      expect(rows([result('pass', 0), {...result('pass', 0), check_id: 'R2'}])[0].status).to.equal('no objects checked')
+      expect(rows([result('pass')])[0].status).to.equal('not_evaluated')
+      expect(rows([result('pass', 0), {...result('pass', 0), check_id: 'R2'}])[0].status).to.equal('no_objects_checked')
       expect(rows([result('pass'), {...result('pass'), check_id: 'R2'}])[0].status).to.equal('pass')
-      expect(computeStatusRows([{...policy, rules: []}], {...run, results: []})[0].status).to.equal('no checks')
+      expect(computeStatusRows([{...policy, rules: []}], {...run, results: []})[0].status).to.equal('no_checks')
       const advisory = {...policy, enforcement: 'advisory'}
       expect(statusExitCode(computeStatusRows([advisory], run))).to.equal(0)
       expect(statusExitReason(computeStatusRows([advisory], run))).to.equal(null)
@@ -321,12 +328,13 @@ describe('policy carriage and feedback', () => {
       const rules = [{id: 'R1'}, {id: 'R2'}]
       const results = [result('pass', 7), {...result('pass', 0), check_id: 'R2'}]
       const [row] = computeStatusRows([{...policy, rules}], {...run, findings: [], results})
-      // The nonzero total hides the rule that reached nothing; the row says so instead.
-      expect(row.status).to.equal('pass; 1 rule no objects checked')
+      // The nonzero total hides the rule that reached nothing; the row counts it separately.
+      expect(row).to.include({rules_unchecked: 1, status: 'pass'})
+      expect(statusLabel(row)).to.equal('pass; 1 rule no objects checked')
       expect(statusExitCode([row])).to.equal(0)
       const both = [{...result('pass', 0)}, {...result('pass', 0), check_id: 'R2'}]
-      expect(computeStatusRows([{...policy, rules}], {...run, findings: [], results: both})[0].status)
-        .to.equal('no objects checked')
+      expect(computeStatusRows([{...policy, rules}], {...run, findings: [], results: both})[0])
+        .to.include({rules_unchecked: 0, status: 'no_objects_checked'})
     })
 
     it('names every policy behind a CI failure, and the blocking finding count', () => {
@@ -347,13 +355,12 @@ describe('policy carriage and feedback', () => {
       expect(statusExitReason([])).to.equal(null)
     })
 
-    it('speaks the language Studio speaks for enforcement', () => {
-      expect(enforcementLabel('mandatory')).to.equal('Blocking')
-      expect(enforcementLabel('advisory')).to.equal('Advisory')
-      // An instance sending something else says it verbatim rather than guessing.
-      expect(enforcementLabel('')).to.equal('—')
-      expect(enforcementLabel()).to.equal('—')
-      expect(enforcementLabel('conditional')).to.equal('conditional')
+    it('calls only an active mandatory policy blocking', () => {
+      expect(enforcementLabel({enforcement: 'mandatory', lifecycle: 'active'})).to.equal('Blocking')
+      expect(enforcementLabel({enforcement: 'mandatory', lifecycle: 'draft'})).to.equal('Mandatory')
+      expect(enforcementLabel({enforcement: 'advisory', lifecycle: 'active'})).to.equal('Advisory')
+      expect(enforcementLabel({enforcement: '', lifecycle: 'active'})).to.equal('—')
+      expect(enforcementLabel({enforcement: 'conditional', lifecycle: 'active'})).to.equal('conditional')
     })
   })
 })

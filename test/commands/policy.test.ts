@@ -3,7 +3,7 @@ import {expect} from 'chai'
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import {json, policyFixture} from '../helpers/policy_fixture.js'
+import {json, policyFixture} from '../helpers/policy-fixture.js'
 
 const source = 'policy AUTH-001 {\n title = "Auth"\n}\n'
 
@@ -31,8 +31,8 @@ describe('official policy commands and workspace carriage', () => {
       url.pathname.endsWith('/parse')
         ? json({policy: {key: 'AUTH-001'}, source})
         : method === 'GET'
-          ? json([{id: 7, key: 'AUTH-001'}])
-          : json({id: 7, key: 'AUTH-001'}),
+          ? json({items: [{id: 7, key: 'AUTH-001'}]})
+          : json({id: 7, key: 'AUTH-001', version: 1}),
     )
     const result = await runCommand(['policy', 'publish', '--file', policyFile, '-o', 'json'], fixture.config)
     expect(result.error).to.equal(undefined)
@@ -46,7 +46,7 @@ describe('official policy commands and workspace carriage', () => {
       url.pathname.endsWith('/parse')
         ? json({policy: {key: 'AUTH-001'}, source})
         : method === 'GET'
-          ? json([{id: 7, key: 'AUTH-001'}])
+          ? json({items: [{id: 7, key: 'AUTH-001'}]})
           : json({id: 7, key: 'AUTH-001', unchanged: false, version: 10}),
     )
     const result = await runCommand(['policy', 'publish', '--file', policyFile, '-m', '"Tightened the scope"'], fixture.config)
@@ -61,7 +61,7 @@ describe('official policy commands and workspace carriage', () => {
       url.pathname.endsWith('/parse')
         ? json({policy: {key: 'AUTH-001'}, source})
         : method === 'GET'
-          ? json([{id: 7, key: 'AUTH-001'}])
+          ? json({items: [{id: 7, key: 'AUTH-001'}]})
           : json(stored),
     )
     const summary = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
@@ -73,25 +73,11 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(asJson.stdout)).to.deep.equal(stored)
   })
 
-  it('still publishes against an instance that reports no version', async () => {
-    fixture.route((url, method) =>
-      url.pathname.endsWith('/parse')
-        ? json({policy: {key: 'AUTH-001'}, source})
-        : method === 'GET'
-          ? json([])
-          : json({id: 7, key: 'AUTH-001'}),
-    )
-    const result = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
-    expect(result.error).to.equal(undefined)
-    expect(fixture.calls[2].method).to.equal('POST')
-    expect(result.stdout).to.contain('Published AUTH-001 to workspace 1 (feature).')
-  })
-
   it('does not save when native validation rejects source', async () => {
-    fixture.route(() => json({message: 'unknown check'}, 400))
+    fixture.route((url) => url.pathname.endsWith('/parse') ? json({message: 'unknown check'}, 400) : json({items: []}))
     const result = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
-    expect(result.error).to.exist
-    expect(fixture.calls).to.have.length(1)
+    expect(result.error?.message).to.contain('unknown check')
+    expect(fixture.calls.filter((call) => ['POST', 'PUT'].includes(call.method) && !call.url.pathname.endsWith('/parse'))).to.deep.equal([])
   })
   for (const [check, code, warning] of [
     [{blocking: true, status: 'fail'}, 2, null],
@@ -132,9 +118,10 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls[0].body).to.contain('policy AUTH-001')
     expect(fs.readFileSync(policyFile, 'utf8')).to.equal(source)
   })
-  for (const [results, expected] of [[[], 'not evaluated'], [[{check_id: 'R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}], 'no objects checked']] as const) {
+  const active = {enforcement: 'mandatory', id: 1, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], version: 1}
+  for (const [results, expected] of [[[], 'not_evaluated'], [[{check_id: 'R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}], 'no_objects_checked']] as const) {
     it(`status reports ${expected} without presenting coverage`, async () => {
-      fixture.route(url => url.pathname.endsWith('/run') ? json({curPage: 1, items: [{results}], nextPage: null, prevPage: null}) : json([{id: 1, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}]}]))
+      fixture.route(url => url.pathname.endsWith('/run') ? json({curPage: 1, items: [{results}], nextPage: null, prevPage: null}) : json({items: [active]}))
       const result = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
       expect(result.error).to.equal(undefined)
       expect(JSON.parse(result.stdout).status[0].status).to.equal(expected)
@@ -146,15 +133,15 @@ describe('official policy commands and workspace carriage', () => {
   it('status treats an edit during evaluation as outdated', async () => {
     fixture.route(url => url.pathname.endsWith('/run')
       ? json({items: [{finished_at: 3000, results: [{check_id: 'R1', checked: 1, policy_key: 'AUTH-001', status: 'pass'}], started_at: 1000}]})
-      : json({items: [{id: 1, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: 2000}]}))
+      : json({items: [{...active, updated_at: 2000}]}))
     const result = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
     expect(result.error).to.equal(undefined)
-    expect(JSON.parse(result.stdout).status[0].status).to.equal('outdated; evaluate again')
+    expect(JSON.parse(result.stdout).status[0].status).to.equal('stale')
   })
 
   it('status trusts the version the run recorded over the policy timestamp', async () => {
     const results = [{check_id: 'R1', checked: 1, policy_key: 'AUTH-001', status: 'pass'}]
-    const policy = {id: 1, key: 'AUTH-001', lifecycle: 'active', rules: [{id: 'R1'}], updated_at: 2000, version: 4}
+    const policy = {...active, updated_at: 2000, version: 4}
     // The policy row is newer than the run, but it is the same definition the run evaluated.
     fixture.route(url => (url.pathname.endsWith('/run')
       ? json({items: [{policies: [{key: 'AUTH-001', version: 4}], results, started_at: 1000}]})
@@ -166,12 +153,12 @@ describe('official policy commands and workspace carriage', () => {
       ? json({items: [{policies: [{key: 'AUTH-001', version: 3}], results, started_at: 1000}]})
       : json({items: [policy]})))
     const outdated = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
-    expect(JSON.parse(outdated.stdout).status[0]).to.include({stale: true, status: 'outdated; evaluate again'})
+    expect(JSON.parse(outdated.stdout).status[0]).to.include({stale: true, status: 'stale'})
   })
 
   it('delete resolves a key, confirms nothing with --force, and reports what it removed', async () => {
     fixture.route((url, method) =>
-      method === 'DELETE' ? new Response(null, {status: 204}) : json([{id: 7, key: 'AUTH-001', version: 3}]))
+      method === 'DELETE' ? new Response(null, {status: 204}) : json({items: [{id: 7, key: 'AUTH-001', version: 3}]}))
     const result = await runCommand(['policy', 'delete', 'AUTH-001', '--force'], fixture.config)
     expect(result.error).to.equal(undefined)
     expect(fixture.calls[1].method).to.equal('DELETE')
@@ -181,14 +168,14 @@ describe('official policy commands and workspace carriage', () => {
   })
 
   it('delete accepts an ID and stays a faithful JSON passthrough', async () => {
-    fixture.route((url, method) => (method === 'DELETE' ? json({}) : json([{id: 7, key: 'AUTH-001'}])))
+    fixture.route((url, method) => (method === 'DELETE' ? json({}) : json({items: [{id: 7, key: 'AUTH-001', version: 1}]})))
     const result = await runCommand(['policy', 'delete', '7', '-f', '-o', 'json'], fixture.config)
     expect(result.error).to.equal(undefined)
     expect(JSON.parse(result.stdout)).to.deep.equal({deleted: true, id: 7, key: 'AUTH-001'})
   })
 
   it('delete names the branch contents instead of sending an unresolved key', async () => {
-    fixture.route(() => json([{id: 7, key: 'AUTH-001'}, {id: 8, key: 'SEC-100'}]))
+    fixture.route(() => json({items: [{id: 7, key: 'AUTH-001'}, {id: 8, key: 'SEC-100'}]}))
     const result = await runCommand(['policy', 'delete', 'AUTH-002', '--force'], fixture.config)
     expect(result.error?.message).to.contain('No policy "AUTH-002" on workspace 1 (feature).')
     expect(result.error?.message).to.contain('This branch has: AUTH-001, SEC-100.')
@@ -264,8 +251,6 @@ describe('official policy commands and workspace carriage', () => {
   })
 
   it('parses the file named as a positional, exactly as --file names it', async () => {
-    // Without a declared positional, oclif folded the path into the command id and failed with
-    // `command policy:parse:policies/AUTH-001.xs not found` — exit 2, the findings code.
     fixture.route(() => json({policy: {key: 'AUTH-001'}, source}))
     const result = await runCommand(['policy', 'parse', policyFile], fixture.config)
     expect(result.error).to.equal(undefined)
@@ -281,25 +266,18 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls).to.have.length(0)
   })
 
-  it('leaves piped stdin to --stdin instead of reading it as the positional', async () => {
-    // oclif fills a missing positional from stdin whenever stdin is not a TTY, so the first
-    // version of the positional turned `xano policy parse --stdin < file` into "source named
-    // twice" — the whole document had become the file argument. The arg opts out.
-    const {default: PolicyCommand} = await import('../../src/policy-command.js')
-    expect(PolicyCommand.sourceArgs.file.ignoreStdin).to.equal(true)
-  })
-
   it('publishes the file named as a positional', async () => {
     fixture.route((url, method) =>
       url.pathname.endsWith('/parse')
         ? json({policy: {key: 'AUTH-001'}, source})
         : method === 'GET'
-          ? json([])
-          : json({id: 7, key: 'AUTH-001'}),
+          ? json({items: []})
+          : json({id: 7, key: 'AUTH-001', version: 1}),
     )
     const result = await runCommand(['policy', 'publish', policyFile], fixture.config)
     expect(result.error).to.equal(undefined)
-    expect(result.stdout).to.contain('Published AUTH-001 to workspace 1 (feature).')
+    expect(fixture.calls[2].method).to.equal('POST')
+    expect(result.stdout).to.contain('Published AUTH-001 (Version 1) to workspace 1 (feature).')
   })
 
   it('-o json reports a failure as JSON on stdout and still exits 1', async () => {

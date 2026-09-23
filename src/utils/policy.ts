@@ -1,19 +1,19 @@
-/** Reporting and file transport only. Policy grammar belongs to the platform. */
+/** Reporting only. Policy grammar belongs to the platform. */
 export interface PolicyCatalogueEntry {
   description?: string
   fix_hint?: string
   id: string
-  /** The check's human name, as the platform publishes it; older instances send none. */
-  label?: string
+  /** The check's human name. */
+  label: string
   object_kinds?: string[]
   params?: Record<string, {required?: boolean; type?: string}>
-  title?: string
+  /** Params of which a rule must set at least one. */
+  requires_one_of?: string[]
 }
 
 /**
- * The catalogue holds 28 checks and prints ~180 lines, so `--check` narrows it to one. An id that
- * is not in the catalogue names the closest matches rather than reprinting the whole list: the
- * usual mistake is a typo one character from a real id.
+ * `--check` narrows the catalogue to one check. An id that is not in it names the closest matches
+ * instead of reprinting the whole list: the usual mistake is a typo one character from a real id.
  */
 export function selectCatalogueCheck(checks: PolicyCatalogueEntry[], id: string): PolicyCatalogueEntry[] {
   const wanted = id.trim().toLowerCase()
@@ -53,11 +53,9 @@ export function policyCatalogueSummary(checks: PolicyCatalogueEntry[]): string[]
     ['Check ID', 'Label / Description', 'Object kinds', 'Required params'],
     ...checks.map(check => [
       check.id,
-      // The label names the check beside its id; the description and any fix hint follow it.
-      [checkLabel(check), check.description, check.fix_hint && `Fix hint: ${check.fix_hint}`].filter(Boolean).join('\n'),
+      [check.label.trim(), check.description, check.fix_hint && `Fix hint: ${check.fix_hint}`].filter(Boolean).join('\n'),
       (check.object_kinds ?? []).join(', ') || '—',
-      Object.entries(check.params ?? {}).filter(([, schema]) => schema.required)
-        .map(([name, schema]) => `${name}: ${schema.type ?? 'any'}`).join(', ') || 'none',
+      requiredParams(check),
     ]),
   ]
   const widths = rows[0].map((_, column) => Math.min([36, 46, 24, 32][column], Math.max(...rows.map(row => row[column].length))))
@@ -77,9 +75,13 @@ export function policyCatalogueSummary(checks: PolicyCatalogueEntry[]): string[]
   })
 }
 
-/** A catalogue entry's own name: `label` as the platform publishes it, `title` on older instances. */
-function checkLabel(check: PolicyCatalogueEntry): string {
-  return check.label?.trim() || check.title?.trim() || ''
+/** The params a rule must set: each required one, and any "one of" group. */
+function requiredParams(check: PolicyCatalogueEntry): string {
+  const required = Object.entries(check.params ?? {}).filter(([, schema]) => schema.required)
+    .map(([name, schema]) => `${name}: ${schema.type ?? 'any'}`)
+  const oneOf = check.requires_one_of ?? []
+  if (oneOf.length > 0) required.push(`one of: ${oneOf.join(' | ')}`)
+  return required.join(', ') || 'none'
 }
 
 /** One rule as a run snapshot records it: the settings the check ran with, plus the check's label. */
@@ -87,9 +89,8 @@ export interface PolicySnapshotRule {
   check?: string
   id?: string
   label?: string
-  /** Resolved settings; absent on runs stored before the platform recorded them, and `[]` for none. */
+  /** The resolved settings; PHP sends an empty map as `[]`. */
   params?: unknown
-  severity?: string
   title?: string
 }
 
@@ -97,10 +98,10 @@ export interface PolicySnapshotRule {
 export interface PolicySnapshotPolicy {
   key?: string
   rules?: PolicySnapshotRule[]
-  /** The policy description as written at run time; absent on runs stored before it was recorded. */
+  /** The policy description as written at run time. */
   statement?: string
   title?: string
-  /** The Version History index this run evaluated; absent on runs stored before snapshots. */
+  /** The Version History index this run evaluated. */
   version?: number
 }
 
@@ -230,11 +231,7 @@ function findingLine(finding: PolicyFinding, rules: Map<string, PolicySnapshotRu
     finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${finding.message ?? ''}`
 }
 
-/**
- * Which findings block. The platform sends `blocking_findings[]` beside `findings[]`;
- * flattening both into one list left the reader unable to tell a merge-stopping finding
- * from an advisory one, which is the only distinction that changes what they do next.
- */
+/** The ids of the findings the platform lists in `blocking_findings[]`. */
 function blockingIds(check: PolicyCheck): Set<string> {
   return new Set((check.blocking_findings ?? []).map(finding => finding.id ?? '').filter(Boolean))
 }
@@ -258,8 +255,7 @@ export function policySummary(check?: PolicyCheck, snapshot: PolicySnapshotPolic
   const rules = snapshotRules(snapshot)
   const findings = check.findings ?? []
   const blocking = blockingIds(check)
-  // Only split the list when the platform actually distinguished the two groups: with no
-  // `blocking_findings[]` every finding prints once, under no heading, exactly as before.
+  // The list splits only when some findings block and others do not.
   const separated = blocking.size > 0 && findings.some(finding => !blocking.has(finding.id ?? ''))
   if (separated) {
     const blocked = findings.filter(finding => blocking.has(finding.id ?? ''))
@@ -279,12 +275,22 @@ export function policySummary(check?: PolicyCheck, snapshot: PolicySnapshotPolic
   return lines
 }
 
-/** One stored run as a row in `policy runs`. */
-export function policyRunRow(run: PolicyRun): string {
-  const findings = (run.findings ?? []).length
-  const checked = typeof run.objects_checked === 'number' ? `${run.objects_checked} objects` : '— objects'
-  return `${String(run.id ?? '?').padEnd(6)}${(run.status ?? 'unknown').padEnd(8)}${
-    `${findings} findings`.padEnd(14)}${checked.padEnd(12)}${(run.trigger ?? '').padEnd(9)}${run.started_at ?? ''}`.trimEnd()
+const RUN_COLUMNS = [6, 8, 14, 12, 9, 0]
+const runRow = (cells: string[]) => cells.map((cell, index) => cell.padEnd(RUN_COLUMNS[index])).join('').trimEnd()
+
+/** The retained runs as a table, header first. */
+export function policyRunTable(runs: PolicyRun[]): string[] {
+  return [
+    runRow(['Run', 'Status', 'Findings', 'Checked', 'Trigger', 'Started']),
+    ...runs.map((run) => runRow([
+      String(run.id ?? '?'),
+      run.status ?? 'unknown',
+      `${(run.findings ?? []).length} findings`,
+      typeof run.objects_checked === 'number' ? `${run.objects_checked} objects` : '— objects',
+      run.trigger ?? '',
+      String(run.started_at ?? ''),
+    ])),
+  ]
 }
 
 /**
@@ -309,33 +315,31 @@ export function policyRunSummary(run: PolicyRun): string[] {
   return lines
 }
 
+/** A rule that passed without inspecting any object, which proves nothing about coverage. */
+export function isUncheckedPass(result: PolicyRuleResult): boolean {
+  return result.status === 'pass' && (result.checked ?? 0) === 0
+}
+
 /**
- * Errors and warnings mean different things — "this rule could not run" against "part of your
- * scope selected nothing" — so they are grouped under their own headings rather than interleaved
- * at the same indent as the findings printed above them.
- *
- * A rule that inspected nothing is reported too. The platform sends it as `status: "pass"` with
- * `checked: 0` and has no field that says otherwise, so a rule whose scope selected no object
- * printed as a pass — proving nothing about coverage while reading as proof of it.
+ * Rule errors ("this rule could not run") and scope warnings ("part of your scope selected
+ * nothing") under their own headings, then the rules that passed without inspecting anything.
  */
 export function policyResultSummary(results: PolicyRuleResult[] = []): string[] {
   const where = (result: PolicyRuleResult) => `${result.policy_key ?? 'policy'} ${result.check_id ?? 'rule'}`
   const errors = results.filter(result => result.status === 'error')
     .map(result => `  ${where(result)}: ${result.message ?? 'No diagnostic returned.'}`)
-  // A rule can pass on the names that exist while part of its scope selects nothing.
   const warnings = results.flatMap(result => (result.warnings ?? []).map(warning => `  ${where(result)}: ${warning}`))
   const lines: string[] = []
   if (errors.length > 0) lines.push('Errors:', ...errors)
   if (warnings.length > 0) lines.push('Warnings:', ...warnings)
   const checked = results.reduce((sum, result) => sum + (result.checked ?? 0), 0)
-  // Every rule checking nothing is one sentence about the whole run; naming each rule as well
-  // would repeat the same fact per line, so the aggregate notice stands alone.
+  // When no rule checked anything, one sentence about the run says it all.
   if (results.length > 0 && checked === 0) {
     lines.push('No objects checked; this run does not demonstrate coverage.')
     return lines
   }
 
-  const empty = results.filter(result => result.status === 'pass' && (result.checked ?? 0) === 0)
+  const empty = results.filter(result => isUncheckedPass(result))
   if (empty.length > 0) {
     lines.push('No objects checked (proves nothing about coverage):',
       ...empty.map(result => `  ${where(result)}: no objects checked`))
@@ -345,22 +349,22 @@ export function policyResultSummary(results: PolicyRuleResult[] = []): string[] 
 }
 
 export interface Policy {
-  enforcement?: string
+  enforcement: string
   id: number
   key: string
-  lifecycle?: string
+  lifecycle: string
   rules?: Array<{id: string}>
   title?: string
   updated_at?: number | string
   /** The index of the policy's newest Version History entry; it moves only when the definition changes. */
-  version?: number
+  version: number
 }
 
 export interface PolicyRun {
   findings?: PolicyFinding[]
   finished_at?: number | string
   id?: number
-  /** How many workspace objects the run inspected; runs stored before it was recorded have none. */
+  /** How many workspace objects the run inspected. */
   objects_checked?: number
   /** The snapshot of the policies as they were when the run went out. */
   policies?: PolicySnapshotPolicy[]
@@ -377,13 +381,8 @@ function settingValue(value: unknown): string {
 }
 
 /**
- * The resolved settings a check ran with, as `settings: name=value, …`. Values that resolved to
- * nothing are already omitted by the platform, and an empty map arrives as `[]` from PHP.
- *
- * Sorted by name. The platform's own key order is not stable between runs — two runs of the same
- * unchanged rule came back as `patterns=…, locations=…` and `hosts=…, kinds=…` — so printing it
- * verbatim made `--run-detail` diffs show changes nobody made. The order carries no meaning the
- * reader can use; the names do.
+ * The resolved settings a check ran with, as `settings: name=value, …`, sorted by name so output
+ * is stable. Values that resolved to nothing are already omitted by the platform.
  */
 export function policySettings(params: unknown): string {
   if (!params || typeof params !== 'object' || Array.isArray(params)) return ''
@@ -392,53 +391,82 @@ export function policySettings(params: unknown): string {
 }
 
 /**
- * What a stored run recorded about the policies it checked: each policy's description as written
- * then, each rule's name and settings, and how many objects that rule actually inspected. Runs
- * stored before the platform recorded these fields carry none of them and print nothing at all.
+ * What a stored run recorded about the policies it evaluated: each policy's description as written
+ * then, and each rule's name, settings and how many objects it inspected. Empty for a run that
+ * evaluated no policy.
  */
 export function policyRunDetail(run?: PolicyRun): string[] {
-  const body: string[] = []
-  // The snapshot records what a rule was configured to do; only the results say what it reached.
-  const coverage = new Map((run?.results ?? []).map(result => [ruleKey(result.policy_key, result.check_id), result.checked]))
-  for (const policy of run?.policies ?? []) {
-    const statement = typeof policy.statement === 'string' ? policy.statement.trim() : undefined
-    const rules = (policy.rules ?? []).filter(rule => rule.params !== undefined).map(rule => {
+  const results = new Map((run?.results ?? []).map(result => [ruleKey(result.policy_key, result.check_id), result]))
+  const body = (run?.policies ?? []).flatMap(policy => {
+    const statement = policy.statement?.trim()
+    const rules = (policy.rules ?? []).map(rule => {
       // The name falls back to the id, which the line already carries.
       const name = policyRuleName(rule)
-      const checked = coverage.get(ruleKey(policy.key, rule.id))
-      const inspected = checked === undefined ? '' : (checked === 0 ? 'no objects checked' : `checked ${checked}`)
+      const result = results.get(ruleKey(policy.key, rule.id))
+      const inspected = result?.checked === undefined ? '' : (isUncheckedPass(result) ? 'no objects checked' : `checked ${result.checked}`)
       return `    ${[rule.id, name === rule.id ? '' : name, policySettings(rule.params) || 'settings: none', inspected]
         .filter(Boolean).join('  ')}`
     })
-    if (statement === undefined && rules.length === 0) continue
-    body.push(`  ${policy.key ?? 'policy'}${statement ? `  ${statement}` : ''}`, ...rules)
-  }
-
+    return [`  ${policy.key ?? 'policy'}${statement ? `  ${statement}` : ''}`, ...rules]
+  })
   if (body.length === 0) return []
   const provenance = [run?.trigger, run?.started_at].filter(Boolean).join(', ')
   return [`Run ${run?.id ?? '?'} as recorded${provenance ? ` (${provenance})` : ''}:`, ...body]
 }
 
+/**
+ * Where a policy stands against the latest run. `stale` means the run evaluated a different
+ * version; `not_evaluated` that it has no result for every rule.
+ */
+export type PolicyStatus = 'draft' | 'error' | 'fail' | 'no_checks' | 'no_objects_checked' | 'not_evaluated' | 'pass' | 'stale'
+
 export interface PolicyStatusRow {
   checked: number
-  /** The policy's own enforcement (`mandatory` / `advisory`), copied so no caller joins by index. */
+  /** Whether `findings` and `checked` come from current evidence; draft and stale rows carry none. */
+  counted: boolean
+  /** The policy's own enforcement (`mandatory` / `advisory`). */
   enforcement: string
   findings: number
   key: string
-  /** The policy's own lifecycle (`active` / `draft`), copied for the same reason. */
+  /** The policy's own lifecycle (`active` / `draft`). */
   lifecycle: string
   policy_updated_at: null | number | string
+  /** Rules that passed without inspecting any object. */
+  rules_unchecked: number
   run_started_at: null | number | string
   stale: boolean
-  status: string
+  status: PolicyStatus
   title?: string
 }
 
-/** Studio's words for what an enforcement does, so a terminal and a browser agree. */
-export function enforcementLabel(enforcement?: string): string {
-  if (enforcement === 'mandatory') return 'Blocking'
-  if (enforcement === 'advisory') return 'Advisory'
-  return enforcement?.trim() || '—'
+/** How a row's status reads in the summary table. */
+export function statusLabel(row: PolicyStatusRow): string {
+  switch (row.status) {
+    case 'draft': {
+      return 'draft; not evaluated'
+    }
+
+    case 'pass': {
+      return row.rules_unchecked > 0
+        ? `pass; ${row.rules_unchecked} rule${row.rules_unchecked === 1 ? '' : 's'} no objects checked`
+        : 'pass'
+    }
+
+    case 'stale': {
+      return 'outdated; evaluate again'
+    }
+
+    default: {
+      return row.status.replaceAll('_', ' ')
+    }
+  }
+}
+
+/** `Blocking` only where findings stop a merge: an active, mandatory policy. A draft never blocks. */
+export function enforcementLabel(row: Pick<PolicyStatusRow, 'enforcement' | 'lifecycle'>): string {
+  if (row.enforcement === 'mandatory') return row.lifecycle === 'active' ? 'Blocking' : 'Mandatory'
+  if (row.enforcement === 'advisory') return 'Advisory'
+  return row.enforcement.trim() || '—'
 }
 
 /** Native timestamps arrive as epoch numbers or ISO strings; absent values compare as NaN (never newer). */
@@ -446,48 +474,35 @@ function timestamp(value?: number | string): number {
   return typeof value === 'number' ? value : Date.parse(value ?? '')
 }
 
-/** The Version History index this run evaluated, when the run recorded one for this policy. */
-function evaluatedVersion(run: PolicyRun | undefined, key: string): number | undefined {
-  const snapshot = (run?.policies ?? []).find((entry) => entry.key === key)
+/** The Version History index this run evaluated, when the run's snapshot includes this policy. */
+function evaluatedVersion(run: PolicyRun, key: string): number | undefined {
+  const snapshot = (run.policies ?? []).find((entry) => entry.key === key)
   return typeof snapshot?.version === 'number' ? snapshot.version : undefined
 }
 
 /**
- * A run is stale when the policy has changed since it went out, is missing for an active policy,
- * or carries results for a non-active policy.
- *
- * "Changed" is the snapshot's `version` against the policy's: the platform moves that number only
- * when the definition really changes, so a no-op save no longer invalidates the evidence and a run
- * that is merely older than the last save is not called stale. Timestamps stay as the fallback for
- * runs stored before snapshots, and for a policy the snapshot never saw.
+ * Whether the latest run is no longer evidence for this policy. A draft is never evaluated, so it
+ * is stale only when the run still carries results for it. An active policy is stale without a
+ * run, or when the run evaluated another version; a policy the run's snapshot does not include is
+ * judged by whether it was saved after the run started.
  */
 function isStale(policy: Policy, run: PolicyRun | undefined, results: PolicyRuleResult[]): boolean {
-  const active = policy.lifecycle === 'active'
-  if (active && !run) return true
+  if (policy.lifecycle !== 'active') return results.some((result) => ['error', 'fail', 'pass'].includes(result.status ?? ''))
+  if (!run) return true
   const evaluated = evaluatedVersion(run, policy.key)
-  if (evaluated === undefined || typeof policy.version !== 'number') {
-    if (timestamp(policy.updated_at) > timestamp(run?.started_at)) return true
-  } else if (evaluated !== policy.version) return true
-
-  return !active && results.some((result) => ['error', 'fail', 'pass'].includes(result.status ?? ''))
+  return evaluated === undefined
+    ? timestamp(policy.updated_at) > timestamp(run.started_at)
+    : evaluated !== policy.version
 }
 
-function ruleStatus(results: PolicyRuleResult[], ruleCount: number, checked: number): string {
+function ruleStatus(results: PolicyRuleResult[], ruleCount: number, checked: number): PolicyStatus {
   if (results.some((result) => !['fail', 'pass'].includes(result.status ?? ''))) return 'error'
   if (results.some((result) => result.status === 'fail')) return 'fail'
-  if (results.length < ruleCount) return 'not evaluated'
-  if (checked === 0) return 'no objects checked'
-  // Some rules reaching nothing is invisible in a total that other rules made nonzero, and a
-  // bare `pass` would claim coverage the run never demonstrated for those rules.
-  const empty = results.filter((result) => result.status === 'pass' && (result.checked ?? 0) === 0).length
-  return empty > 0 ? `pass; ${empty} rule${empty === 1 ? '' : 's'} no objects checked` : 'pass'
+  if (results.length < ruleCount) return 'not_evaluated'
+  return checked === 0 ? 'no_objects_checked' : 'pass'
 }
 
-/** What the policy itself says about enforcement and lifecycle, defaulted as `policy list` prints them. */
-const enforcementOf = (policy: Policy): string => policy.enforcement ?? ''
-const lifecycleOf = (policy: Policy): string => policy.lifecycle ?? 'draft'
-
-/** Combine current policies with the latest stored run; stale or draft rows carry no historical counts. */
+/** Combine current policies with the latest stored run; stale and draft rows carry no counts. */
 export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicyStatusRow[] {
   return policies.map((policy) => {
     const ids = new Set((policy.rules ?? []).map((rule) => rule.id))
@@ -496,18 +511,20 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicySt
     )
     const active = policy.lifecycle === 'active'
     const stale = isStale(policy, run, results)
-    const current = active && !stale
-    const checked = current ? results.reduce((sum, result) => sum + (result.checked ?? 0), 0) : 0
-    let status = active ? (ids.size > 0 ? 'not evaluated' : 'no checks') : 'draft; not evaluated'
+    const counted = active && !stale
+    const checked = counted ? results.reduce((sum, result) => sum + (result.checked ?? 0), 0) : 0
+    let status: PolicyStatus = active ? (ids.size > 0 ? 'not_evaluated' : 'no_checks') : 'draft'
     if (active && results.length > 0) status = ruleStatus(results, ids.size, checked)
-    if (active && run && stale) status = 'outdated; evaluate again'
+    if (active && run && stale) status = 'stale'
     return {
       checked,
-      enforcement: enforcementOf(policy),
-      findings: current ? (run?.findings ?? []).filter((finding) => finding.policy_key === policy.key).length : 0,
+      counted,
+      enforcement: policy.enforcement,
+      findings: counted ? (run?.findings ?? []).filter((finding) => finding.policy_key === policy.key).length : 0,
       key: policy.key,
-      lifecycle: lifecycleOf(policy),
+      lifecycle: policy.lifecycle,
       policy_updated_at: policy.updated_at ?? null,
+      rules_unchecked: status === 'pass' ? results.filter((result) => isUncheckedPass(result)).length : 0,
       run_started_at: run?.started_at ?? null,
       stale,
       status,
@@ -518,7 +535,7 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicySt
 
 /** The rows whose evidence cannot be relied on: stale, missing or errored. */
 function unreliableRows(rows: PolicyStatusRow[]): PolicyStatusRow[] {
-  return rows.filter((row) => row.stale || ['error', 'not evaluated'].includes(row.status))
+  return rows.filter((row) => row.stale || ['error', 'not_evaluated'].includes(row.status))
 }
 
 /** The rows whose current findings stop a merge: active, mandatory, and failing. */
@@ -527,26 +544,18 @@ function blockingRows(rows: PolicyStatusRow[]): PolicyStatusRow[] {
     (row.findings > 0 || row.status === 'fail'))
 }
 
-/**
- * `--fail-on-findings`: 1 for stale, missing or errored evidence, then 2 for current mandatory
- * findings. Each row carries its own enforcement and lifecycle, so nothing is joined by index.
- */
+/** `--fail-on-findings`: 1 for stale, missing or errored evidence, then 2 for current mandatory findings. */
 export function statusExitCode(rows: PolicyStatusRow[]): number {
   if (unreliableRows(rows).length > 0) return 1
   return blockingRows(rows).length > 0 ? 2 : 0
 }
 
-/**
- * Why `--fail-on-findings` failed, in one line, or `null` when it did not. A nonzero exit with
- * no explanation left the reader to diff the table against the exit code themselves.
- */
+/** Why `--fail-on-findings` failed, in one line naming the policies, or `null` when it did not. */
 export function statusExitReason(rows: PolicyStatusRow[]): null | string {
   const unreliable = unreliableRows(rows)
   if (unreliable.length > 0) {
-    // Each row's own status already says which of the three it is (`outdated; evaluate again`,
-    // `not evaluated`, `error`), so the line names the policy and repeats it rather than guessing.
     return `Evaluation evidence is stale, missing or errored (${
-      unreliable.map((row) => `${row.key} ${row.status}`).join(', ')}); exit 1.`
+      unreliable.map((row) => `${row.key} ${statusLabel(row)}`).join(', ')}); exit 1.`
   }
 
   const blocking = blockingRows(rows)

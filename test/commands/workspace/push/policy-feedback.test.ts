@@ -5,7 +5,7 @@ import {syncBuiltinESMExports} from 'node:module'
 import path from 'node:path'
 import readline from 'node:readline'
 
-import {json, policyFixture} from '../../../helpers/policy_fixture.js'
+import {json, policyFixture} from '../../../helpers/policy-fixture.js'
 
 const finding = {id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}
 const statuses = ['disabled', 'not_applicable', 'forbidden', 'unavailable', 'error']

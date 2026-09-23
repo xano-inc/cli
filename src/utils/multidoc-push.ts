@@ -41,13 +41,13 @@ export interface PushTarget {
   buildPushUrl: (queryParams: URLSearchParams) => string
   /** CLI version string */
   cliVersion: string
-  /** Instance origin URL (e.g., "https://x123-abcd-1234.xano.io") */
-  instanceOrigin: string
   /**
    * Guidance for a refusal this target recognises, given the HTTP status and the server's message.
    * A preview or import refused that way stops with the message and this guidance appended.
    */
   explainRefusal?: (status: number, message: string) => string | undefined
+  /** Instance origin URL (e.g., "https://x123-abcd-1234.xano.io") */
+  instanceOrigin: string
   /** Human-readable label for log messages (e.g., "sandbox environment", "workspace 40") */
   label: string
   /**
