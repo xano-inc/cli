@@ -230,7 +230,7 @@ Pulled 58 documents
    * Policy keys are case-sensitive on the server, but file names are not on every checkout. The
    * policies whose file name differs only in case from another exported policy, or from a local file
    * it would overwrite, are left out with a warning; everything else is written. Local policy files
-   * the export no longer carries are kept, with a warning.
+   * absent from the export are kept, with a warning.
    */
   private policyClashes(documents: ParsedDocument[], outputDir: string): Set<ParsedDocument> {
     const exported = new Map<string, string[]>()
