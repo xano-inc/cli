@@ -3,6 +3,11 @@ import {Args, Flags} from '@oclif/core'
 import BaseCommand from '../../../base-command.js'
 
 interface Tenant {
+  deploy_settings?: {
+    allow_deploy_bypass?: boolean
+    allow_quick_deploy?: boolean
+    required_reviewers?: number
+  }
   description?: string
   display?: string
   domain?: string
@@ -28,9 +33,16 @@ export default class TenantEdit extends BaseCommand {
 Updated tenant: New Name (my-tenant) - ID: 42
 `,
     `$ xano tenant edit t1234-abcd-xyz1 --no-tasks --no-ingress -o json`,
+    `$ xano tenant edit t1234-abcd-xyz1 --required_reviewers 1`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    allow_quick_deploy: Flags.boolean({
+      allowNo: true,
+      description:
+        'Allow this tenant to skip the deploy approval gate entirely for quick deploys, regardless of --required_reviewers.',
+      required: false,
+    }),
     description: Flags.string({
       char: 'd',
       description: 'New description',
@@ -67,6 +79,11 @@ Updated tenant: New Name (my-tenant) - ID: 42
         '[CRITICAL] NEVER disable RBAC without explicit user confirmation; this removes role-based access controls on the tenant. Enables/disables RBAC.',
       required: false,
     }),
+    required_reviewers: Flags.integer({
+      description:
+        'When greater than 0, that many distinct reviewers must approve a tenant_deploy_request before a release may be deployed to this tenant. 0 means not gated.',
+      required: false,
+    }),
     tasks: Flags.boolean({
       allowNo: true,
       description:
@@ -101,9 +118,18 @@ Updated tenant: New Name (my-tenant) - ID: 42
     }
 
     try {
-      // Fetch current tenant state (PUT requires all fields)
+      // Fetch current tenant state (PUT requires all fields). Deliberately uses
+      // `tenant list` rather than `tenant get`: the single-tenant GET route's
+      // output whitelist (tenant-detail.yaml) omits `deploy_settings` (which
+      // holds `required_reviewers`, `allow_deploy_bypass`, and
+      // `allow_quick_deploy`) even though the list route's output includes it
+      // — confirmed live against a running instance. Using GET here would
+      // silently reset those fields to their defaults on every edit that doesn't
+      // explicitly pass them. Filed as a backend bug; this is the workaround
+      // until it's fixed. See TENANT_DEPLOY_REQUEST_TEST.md.
+      const listParams = new URLSearchParams({per_page: '100'})
       const getResponse = await this.verboseFetch(
-        baseUrl,
+        `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant?${listParams}`,
         {
           headers: {
             'accept': 'application/json',
@@ -122,10 +148,28 @@ Updated tenant: New Name (my-tenant) - ID: 42
         )
       }
 
-      const current = await getResponse.json() as Tenant
+      const listData = (await getResponse.json()) as Tenant[] | {items?: Tenant[]}
+      const listItems = Array.isArray(listData) ? listData : (listData.items ?? [])
+      const current = listItems.find((item) => item.name === tenantName)
+      if (!current) {
+        this.error(`Tenant "${tenantName}" not found`)
+      }
 
-      // Merge in user-provided values
+      // Merge in user-provided values. allow_deploy_bypass has no edit flag (it's
+      // fixed at `tenant create` time), but the PUT still requires the full body,
+      // so its current value is preserved here rather than reset.
       const body: Record<string, unknown> = {
+        deploy_settings: {
+          allow_deploy_bypass: current.deploy_settings?.allow_deploy_bypass ?? false,
+          allow_quick_deploy:
+            flags.allow_quick_deploy !== undefined
+              ? flags.allow_quick_deploy
+              : (current.deploy_settings?.allow_quick_deploy ?? false),
+          required_reviewers:
+            flags.required_reviewers !== undefined
+              ? flags.required_reviewers
+              : (current.deploy_settings?.required_reviewers ?? 0),
+        },
         description: flags.description !== undefined ? flags.description : (current.description ?? ''),
         display: flags.display !== undefined ? flags.display : (current.display ?? current.name),
         domain: flags.domain !== undefined ? flags.domain : (current.domain ?? ''),

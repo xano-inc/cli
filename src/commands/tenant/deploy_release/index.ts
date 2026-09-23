@@ -1,8 +1,17 @@
 import {Args, Flags} from '@oclif/core'
 
-import BaseCommand from '../../../base-command.js'
+import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
+
+interface ApprovalRequest {
+  _release?: {id?: number; name?: string}
+  status: string
+}
 
 interface Tenant {
+  deploy_settings?: {
+    allow_quick_deploy?: boolean
+    required_reviewers?: number
+  }
   display?: string
   id: number
   name: string
@@ -58,6 +67,31 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
 
     const releaseName = flags.release
     const tenantName = args.tenant_name
+
+    // Pre-flight: the "approval required" error must always be shown before any
+    // permission/RBAC error. The backend's own deploy route checks RBAC first
+    // and the approval gate second (inside mvp:tenant_deploy_release), so a
+    // caller who lacks deploy permission would otherwise never learn a request
+    // is what's actually needed. Checking here first, with an endpoint that
+    // only needs read scope, guarantees the right error is shown regardless of
+    // whether the caller can deploy at all.
+    const requiresApproval = await this.tenantRequiresApproval(profile, workspaceId, tenantName, flags.verbose)
+    if (requiresApproval) {
+      const hasApprovedRequest = await this.hasApprovedDeployRequest({
+        profile,
+        releaseName,
+        tenantName,
+        verbose: flags.verbose,
+        workspaceId,
+      })
+      if (!hasApprovedRequest) {
+        this.error(
+          `Tenant "${tenantName}" requires an approved deploy request before "${releaseName}" can be deployed.\n` +
+            `Run: xano tenant_deploy_request create "Deploy ${releaseName} to ${tenantName}" --tenant ${tenantName} --release ${releaseName} --reviewers <id,id,...>`,
+        )
+      }
+    }
+
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant/${tenantName}/deploy`
 
     this.warn('This may take a few minutes. Please be patient.')
@@ -81,8 +115,18 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       )
 
       if (!response.ok) {
-        const errorText = await response.text()
-        this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
+        let message = await this.parseApiError(response, 'API request failed')
+        // Only reached once the pre-flight above has already confirmed the
+        // approval gate is satisfied or not applicable — so a permission error
+        // here is genuinely about RBAC, not about a missing approval. If the
+        // tenant supports deploy requests, mention that path as an alternative
+        // to direct deploy, since opening a request doesn't require deploy
+        // permission.
+        if ((response.status === 401 || response.status === 403) && requiresApproval) {
+          message += `\n\nYou don't have permission to deploy to this tenant directly, but it supports deploy requests: xano tenant_deploy_request create "Deploy ${releaseName} to ${tenantName}" --tenant ${tenantName} --release ${releaseName} --reviewers <id,id,...>`
+        }
+
+        this.error(message)
       }
 
       const tenant = (await response.json()) as Tenant
@@ -105,4 +149,96 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
     }
   }
 
+  /**
+   * Does an approved tenant_deploy_request already exist for this (tenant, release)
+   * pair? The list endpoint has no release filter, so this fetches approved
+   * requests for the tenant and filters client-side by the resolved release name.
+   */
+  private async hasApprovedDeployRequest(opts: {
+    profile: ProfileConfig
+    releaseName: string
+    tenantName: string
+    verbose: boolean
+    workspaceId: string
+  }): Promise<boolean> {
+    const {profile, releaseName, tenantName, verbose, workspaceId} = opts
+    const params = new URLSearchParams({per_page: '100', status: 'approved', tenant_name: tenantName})
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/approval_request?${params}`
+
+    const response = await this.verboseFetch(
+      apiUrl,
+      {
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      profile.access_token,
+    )
+
+    if (!response.ok) {
+      // A read-scope failure here means something is more broadly wrong (e.g.
+      // no workspace access at all) — surface it rather than silently treating
+      // it as "no approval found", which would misreport as approval-required.
+      const message = await this.parseApiError(response, 'Failed to check for an approved deploy request')
+      this.error(message)
+    }
+
+    const data = (await response.json()) as ApprovalRequest[] | {items?: ApprovalRequest[]}
+    const items = Array.isArray(data) ? data : (data.items ?? [])
+
+    return items.some((item) => item.status === 'approved' && item._release?.name === releaseName)
+  }
+
+  /**
+   * Does this tenant have the deploy approval gate enabled?
+   *
+   * Returns false if the tenant has `allow_quick_deploy` set — that flag lets a
+   * tenant skip the approval gate entirely for quick deploys, regardless of
+   * `required_reviewers`.
+   *
+   * Deliberately uses `tenant list` rather than `tenant get`: the single-tenant
+   * GET route's output whitelist (tenant-detail.yaml) omits `deploy_settings`
+   * (which holds `required_reviewers`, `allow_deploy_bypass`, and
+   * `allow_quick_deploy`) even though the list route's output includes it
+   * — confirmed live against a running instance. Filed as a backend bug; this
+   * is the workaround until it's fixed. See TENANT_DEPLOY_REQUEST_TEST.md.
+   */
+  private async tenantRequiresApproval(
+    profile: ProfileConfig,
+    workspaceId: string,
+    tenantName: string,
+    verbose: boolean,
+  ): Promise<boolean> {
+    const params = new URLSearchParams({per_page: '100'})
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/tenant?${params}`
+
+    const response = await this.verboseFetch(
+      apiUrl,
+      {
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
+        },
+        method: 'GET',
+      },
+      verbose,
+      profile.access_token,
+    )
+
+    if (!response.ok) {
+      const message = await this.parseApiError(response, 'Failed to look up tenant')
+      this.error(message)
+    }
+
+    const data = (await response.json()) as Tenant[] | {items?: Tenant[]}
+    const items = Array.isArray(data) ? data : (data.items ?? [])
+    const tenant = items.find((item) => item.name === tenantName)
+
+    if (tenant?.deploy_settings?.allow_quick_deploy) return false
+
+    return (tenant?.deploy_settings?.required_reviewers ?? 0) > 0
+  }
 }
