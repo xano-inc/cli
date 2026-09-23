@@ -202,7 +202,7 @@ describe('policy reporting regressions', () => {
   it('does not fold, redact or synthesize errors for non-policy commands', async () => {
     globalThis.fetch = async () => json({code: 'ERROR_CODE_NOT_FOUND', message: ''}, 404)
     const result = await command('workspace pull', ['-b', 'missing', '-v'])
-    expect(result.error?.message).to.contain('API request failed (404)').and.not.to.contain('Branch "')
+    expect(result.error?.message).to.contain('API request failed with status 404').and.not.to.contain('Branch "')
     expect(result.stderr).not.to.contain('ERROR_CODE_NOT_FOUND')
   })
 

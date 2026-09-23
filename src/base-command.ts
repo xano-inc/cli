@@ -291,8 +291,7 @@ export default abstract class BaseCommand extends Command {
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--output' && args[i + 1] === 'json') return true
       if (args[i] === '-o' && args[i + 1] === 'json') return true
-      // oclif accepts a short flag's value attached to it, with or without the `=`.
-      if (args[i] === '--output=json' || args[i] === '-o=json' || args[i] === '-ojson') return true
+      if (args[i] === '--output=json' || args[i] === '-o=json') return true
     }
 
     return false
@@ -655,9 +654,7 @@ export default abstract class BaseCommand extends Command {
     const {config, path: filePath} = this.localProfile
     const profileName = config.profile ?? this.getDefaultProfile()
     const relativePath = path.relative(process.cwd(), filePath) || path.basename(filePath)
-    // Stderr: the banner is about the session, not the command's answer, and on stdout it sat
-    // above output meant to be read or piped whole (the canonical source `policy parse` prints).
-    this.logToStderr(formatLocalProfileBanner(profileName, config.workspace, relativePath))
+    this.log(formatLocalProfileBanner(profileName, config.workspace, relativePath))
   }
 }
 

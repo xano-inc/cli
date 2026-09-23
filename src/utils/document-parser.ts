@@ -402,63 +402,26 @@ export function buildDocumentKey(type: string, name: string, verb?: string, apiG
 }
 
 /**
- * Folder name for an api_group, as a reader would write it.
- *
- * lodash `snakeCase` splits a letter/digit run — `E2E-LOCAL-public` became `e_2_e_local_public`
- * and `v1` became `v_1` — which is right for an identifier and wrong for a folder named after
- * something a person typed. Word boundaries here are runs of non-alphanumerics and lower→Upper
- * camelCase transitions ONLY, never between a letter and a digit:
- *
- *   `MyGroup` → `my_group`, `E2E-LOCAL-public` → `e2e_local_public`, `v1` → `v1`,
- *   `pdf2text` → `pdf2text`, `Lab API 2` → `lab_api_2`
- *
- * Only api_group folders use this. File names stay on lodash `snakeCase`, so no pulled file is
- * renamed by it.
- */
-export function apiGroupFolderSlug(name: string): string {
-  return name
-    .replaceAll(/([a-z])([A-Z])/g, '$1_$2')
-    .replaceAll(/[^A-Za-z0-9]+/g, '_')
-    .toLowerCase()
-    .replaceAll(/_+/g, '_')
-    .replaceAll(/^_|_$/g, '')
-}
-
-/**
  * Build a map of api_group name → unique folder name for a set of documents.
  *
- * When two api_groups produce the same folder (e.g., "Authentication" and "authentication"
- * both → "authentication"), the first group keeps the base name and subsequent groups get a
- * numeric suffix (authentication_2, authentication_3, etc.).
- *
- * `existsFn` keeps an already-pulled tree where it is: a group whose OLD lodash folder is on
- * disk and whose new folder is not keeps the old one, so a repeat pull updates the files it
- * wrote last time instead of writing a second copy beside them. Push is folder-agnostic
- * (identity lives in the document), so both layouts push the same either way.
+ * When two api_groups produce the same snakeCase folder (e.g., "Authentication" and
+ * "authentication" both → "authentication"), the first group keeps the base name
+ * and subsequent groups get a numeric suffix (authentication_2, authentication_3, etc.).
  *
  * @param documents - Parsed documents (only api_group type docs are considered)
- * @param snakeCaseFn - lodash snakeCase, used only to recognise a previously pulled folder
- * @param existsFn - Optional: does this folder already exist under `api/`?
+ * @param snakeCaseFn - The snakeCase function to use for folder name generation
  * @returns A function that resolves an api_group name to its unique folder name
  */
 export function buildApiGroupFolderResolver(
   documents: ParsedDocument[],
   snakeCaseFn: (s: string) => string,
-  existsFn?: (folderName: string) => boolean,
 ): (groupName: string) => string {
   const apiGroupFolderMap = new Map<string, string>()
   const folderClaims = new Map<string, string[]>()
 
-  const folderFor = (name: string): string => {
-    const slug = apiGroupFolderSlug(name) || snakeCaseFn(name)
-    const legacy = snakeCaseFn(name)
-    if (existsFn && legacy !== slug && existsFn(legacy) && !existsFn(slug)) return legacy
-    return slug
-  }
-
   for (const doc of documents) {
     if (doc.type !== 'api_group') continue
-    const folder = folderFor(doc.name)
+    const folder = snakeCaseFn(doc.name)
     const names = folderClaims.get(folder) ?? []
     if (!names.includes(doc.name)) {
       names.push(doc.name)
@@ -474,7 +437,7 @@ export function buildApiGroupFolderResolver(
     }
   }
 
-  return (groupName: string): string => apiGroupFolderMap.get(groupName) ?? folderFor(groupName)
+  return (groupName: string): string => apiGroupFolderMap.get(groupName) ?? snakeCaseFn(groupName)
 }
 
 /**

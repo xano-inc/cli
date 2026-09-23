@@ -36,6 +36,12 @@ Pushed 58 documents
     `$ xano workspace push -b dev
 Pushed 42 documents
 `,
+    `$ xano workspace push --no-records
+Push schema only, skip importing table records
+`,
+    `$ xano workspace push --no-env
+Push without overwriting environment variables
+`,
     `$ xano workspace push --truncate
 Truncate all table records before importing
 `,

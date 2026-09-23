@@ -62,6 +62,33 @@ describe('workspace push policy feedback', () => {
     expect(fixture.calls).to.have.length(0)
   })
 
+  for (const message of ['Tightened the auth policies', undefined]) {
+    it(`${message ? 'sends' : 'omits'} message= on the import for -m ${JSON.stringify(message)}`, async () => {
+      fixture.route(() => json({guid_map: [], policy_check: {blocking: false, status: 'pass'}}))
+      await push(...(message ? ['-m', `"${message}"`] : []))
+      expect(fixture.calls).to.have.length(1)
+      expect(fixture.calls[0].url.pathname).to.match(/\/multidoc$/)
+      expect(fixture.calls[0].url.searchParams.get('message')).to.equal(message ?? null)
+    })
+  }
+
+  it('sends no message= for an -m that is only whitespace', async () => {
+    fixture.route(() => json({guid_map: [], policy_check: {blocking: false, status: 'pass'}}))
+    await push('-m', '"   "')
+    expect(fixture.calls[0].url.searchParams.has('message')).to.equal(false)
+  })
+
+  it('never sends -m with the preview', async () => {
+    fixture.route(() => json({
+      operations: [{action: 'update', details: '', name: 'AUTH-001', type: 'policy'}],
+      summary: {policy: {created: 0, deleted: 0, truncated: 0, unchanged: 0, updated: 1}},
+    }))
+    const result = await runCommand(['workspace', 'push', '-d', fixture.directory, '--dry-run', '-m', 'Label'], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(fixture.calls.map((call) => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/multidoc/dry-run'])
+    expect(fixture.calls[0].url.searchParams.has('message')).to.equal(false)
+  })
+
   describe('a push that sends only knowledge', () => {
     const originalInterface = readline.createInterface
     const originalTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
