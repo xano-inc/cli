@@ -13,6 +13,7 @@ import {
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
+import {canListPolicies} from '../../../utils/policy/request.js'
 
 export default class Pull extends BaseCommand {
   static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
@@ -151,7 +152,10 @@ Pulled 58 documents
 
     // Resolve the output directory
     const outputDir = path.resolve(flags.directory)
-    const clashing = this.policyClashes(documents, outputDir)
+    const clashing = await this.policyClashes(documents, outputDir, () => canListPolicies(
+      {logToStderr: (message) => this.logToStderr(message), verboseFetch: (...args) => this.verboseFetch(...args)},
+      {branch, profile, verbose: flags.verbose, workspace: workspaceId},
+    ))
 
     if (documents.length === 0) {
       this.log('No documents found in response')
@@ -230,9 +234,14 @@ Pulled 58 documents
    * Policy keys are case-sensitive on the server, but file names are not on every checkout. The
    * policies whose file name differs only in case from another exported policy, or from a local file
    * it would overwrite, are left out with a warning; everything else is written. Local policy files
-   * absent from the export are kept, with a warning.
+   * absent from the export are kept. They are reported as stale only when this credential reads the
+   * branch's policies, because an export leaves out the policies its credential cannot read.
    */
-  private policyClashes(documents: ParsedDocument[], outputDir: string): Set<ParsedDocument> {
+  private async policyClashes(
+    documents: ParsedDocument[],
+    outputDir: string,
+    readsPolicies: () => Promise<boolean>,
+  ): Promise<Set<ParsedDocument>> {
     const exported = new Map<string, string[]>()
     for (const doc of documents.filter(doc => doc.type === 'policy')) {
       const filename = `${policyBaseName(doc.name)}.xs`
@@ -268,9 +277,14 @@ Pulled 58 documents
     }
 
     if (stale.length > 0) {
-      this.warn(
-        `Stale local policy files are absent from this export and were kept:\n  ${stale.join('\n  ')}\nReview them before pushing; a push can publish these policies again.`,
-      )
+      // An export that carries a policy was made by a credential that reads them.
+      if (exported.size > 0 || await readsPolicies()) {
+        this.warn(
+          `Stale local policy files are absent from this export and were kept:\n  ${stale.join('\n  ')}\nReview them before pushing; a push can publish these policies again.`,
+        )
+      } else {
+        this.log(`Local policy files were kept: this credential cannot list this workspace's policies, and the export carries none.`)
+      }
     }
 
     return new Set(documents.filter(doc => doc.type === 'policy' && clashes.has(`${doc.name}.xs`.toLowerCase())))

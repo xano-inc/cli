@@ -74,6 +74,24 @@ export function policyRequest(host: PolicyRequestHost, route: PolicyRequestRoute
   }
 }
 
+/** A request host's `error` for a caller that asks rather than fails: it throws instead of exiting. */
+function fail(message: string): never {
+  throw new Error(message)
+}
+
+/**
+ * Whether this credential can list the branch's policies. An export leaves out the policies its
+ * credential cannot read, without refusing, so this tells an export without policies from one that
+ * withheld them. Any failure answers `false`.
+ */
+export async function canListPolicies(
+  host: Omit<PolicyRequestHost, 'error'>,
+  route: Omit<PolicyRequestRoute, 'label' | 'path'>,
+): Promise<boolean> {
+  const list = policyRequest({...host, error: fail}, {...route, ...POLICY_ROUTE})
+  return list().then(() => true, () => false)
+}
+
 /** The `items` of a list envelope, as every policy list route answers. */
 export function listItems<T>(data: unknown): T[] {
   if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) return data.items
