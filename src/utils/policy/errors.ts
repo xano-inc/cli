@@ -22,6 +22,25 @@ function missingBranch(requestUrl: string): string {
   return workspace && branch ? `Branch "${branch}" was not found in workspace ${decodeURIComponent(workspace)}.` : ''
 }
 
+/**
+ * What to do about a refusal of the request itself, keyed on the platform's `payload.code`:
+ *
+ *   policy_unknown_check   a rule names a check id this instance does not have
+ *   policy_stale           the policy changed after the command read it
+ *
+ * Permission refusals are explained by `policyPermissionGuidance`.
+ */
+const CODE_GUIDANCE: Record<string, string> = {
+  policy_stale: '\nThe policy changed after this command read it, so nothing was changed. Run the command again to act on its current version.',
+  policy_unknown_check: '\nRun `xano policy catalogue` to list every check id this instance has.',
+}
+
+/** Guidance appended to a refusal whose `payload.code` the CLI has advice for, or `''`. */
+export function policyCodeGuidance(payload: unknown): string {
+  const code = payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as {code?: unknown}).code : undefined
+  return typeof code === 'string' && Object.hasOwn(CODE_GUIDANCE, code) ? CODE_GUIDANCE[code] : ''
+}
+
 /** A failed policy-route response: one message to print, and the refusal's payload. */
 export interface PolicyError {
   message: string

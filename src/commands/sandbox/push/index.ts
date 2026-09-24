@@ -5,6 +5,7 @@ import open from 'open'
 
 import BaseCommand from '../../../base-command.js'
 import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
+import {policiesSkippedNotice} from '../../../utils/policy/feedback.js'
 
 export default class SandboxPush extends BaseCommand {
   static override description =
@@ -138,7 +139,7 @@ Push and open sandbox review in the browser
       verbose: flags.verbose,
     }
 
-    await executePush(
+    const result = await executePush(
       {
         accessToken: profile.access_token,
         branch: '',
@@ -153,6 +154,9 @@ Push and open sandbox review in the browser
       target,
       pushFlags,
     )
+    // A sandbox carries no policies: the platform leaves policy files out and says so once.
+    const skipped = policiesSkippedNotice(result.response ?? result.preview)
+    if (skipped) this.warn(skipped)
 
     if (flags.review) {
       await this.openReview(profile.instance_origin, profile.access_token, flags.verbose)

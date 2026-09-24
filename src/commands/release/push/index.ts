@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {findFilesWithGuid} from '../../../utils/document-parser.js'
+import {withoutPolicyDocuments} from '../../../utils/policy/feedback.js'
 
 interface Release {
   branch?: string
@@ -122,16 +123,20 @@ Output release details as JSON
     }
 
     // Read each file and track file path alongside content
-    const documentEntries: Array<{content: string; filePath: string}> = []
+    const entries: Array<{content: string; filePath: string}> = []
     for (const filePath of files) {
       const content = fs.readFileSync(filePath, 'utf8').trim()
       if (content) {
-        documentEntries.push({content, filePath})
+        entries.push({content, filePath})
       }
     }
 
+    // A release carries no policies: they stay in their workspace.
+    const {documents: documentEntries, notice} = withoutPolicyDocuments(entries)
+    if (notice) this.warn(notice)
+
     if (documentEntries.length === 0) {
-      this.error(`All .xs files in ${flags.directory} are empty`)
+      this.error(notice ? `No documents other than policies in ${flags.directory}` : `All .xs files in ${flags.directory} are empty`)
     }
 
     const multidoc = documentEntries.map((d) => d.content).join('\n---\n')

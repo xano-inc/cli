@@ -189,6 +189,7 @@ xano policy delete TMP-001                           # Remove a policy; its Vers
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
+Sandbox, ephemeral tenant and release pushes carry none: policy files are left out, and the push says which.
 
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
 blocks (an active, mandatory policy failed), whatever else happened; `1` when a request or the import failed, or
@@ -197,7 +198,9 @@ when `status --fail-on-findings` finds stale, missing or errored evidence; other
 Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
 `policy_permission_required` (an instance admin grants your role the level) or `policy_scope_required` (create a
-Metadata API token that has the scope).
+Metadata API token that has the scope). A rule naming a check the instance does not have (`policy_unknown_check`)
+points at `xano policy catalogue`. `policy delete` sends the `updated_at` it listed, so a policy changed since is
+refused (`policy_stale`) rather than deleted.
 
 ### Workspaces
 

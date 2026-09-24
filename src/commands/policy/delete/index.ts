@@ -56,7 +56,9 @@ Deleted policy TMP-DX-001 (ID: 922) from workspace 3.
       }
     }
 
-    await target.request(`/${matched.id}`, 'DELETE')
+    // The policy as listed is what the prompt named: a delete of a policy changed since is refused (`policy_stale`).
+    const staleCheck: Record<string, string> = matched.updated_at ? {last_updated_at: String(matched.updated_at)} : {}
+    await target.request(`/${matched.id}`, 'DELETE', undefined, staleCheck)
     if (flags.output === 'json') this.log(JSON.stringify({deleted: true, id: matched.id, key: matched.key}, null, 2))
     else this.log(`Deleted policy ${matched.key} (ID: ${matched.id}) from ${this.where(target)}.`)
   }

@@ -1,6 +1,6 @@
 import type {ProfileConfig} from '../../base-command.js'
 
-import {describePolicyError} from './errors.js'
+import {describePolicyError, policyCodeGuidance} from './errors.js'
 import {policyPermissionGuidance} from './permission.js'
 
 /** One request against a policy-family route: a path under it, a method, a JSON body and query params. */
@@ -35,7 +35,7 @@ export function policyScope(flags: {branch?: string; workspace?: string}, profil
 
 /**
  * A request against a route gated by `workspace:policy`: failures are folded to the platform's code,
- * message and position, the token is redacted, and a refusal says which permission gate answered.
+ * message and position, the token is redacted, and a coded refusal says what to do about it.
  */
 export function policyRequest(host: PolicyRequestHost, route: PolicyRequestRoute): PolicyRequest {
   const {branch, label, profile, verbose, workspace} = route
@@ -60,7 +60,8 @@ export function policyRequest(host: PolicyRequestHost, route: PolicyRequestRoute
       const text = (await response.text()).replaceAll(profile.access_token, '[REDACTED]')
       if (verbose && text) host.logToStderr(text)
       const {message, payload} = describePolicyError(text, response.status, url)
-      host.error(`${label} request failed (${response.status}): ${message}${policyPermissionGuidance(response.status, payload)}`)
+      const guidance = `${policyPermissionGuidance(response.status, payload)}${policyCodeGuidance(payload)}`
+      host.error(`${label} request failed (${response.status}): ${message}${guidance}`)
     }
 
     // The DELETE route can answer with no body at all; every other route sends JSON.

@@ -7,6 +7,7 @@ import type {
   PushPolicyCheck,
 } from './types.js'
 
+import {parseDocument} from '../document-parser.js'
 import {findingLine, isUncheckedPass, policyResultSummary, snapshotRules} from './findings.js'
 
 /**
@@ -137,6 +138,36 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
 
   lines.push(...policyResultSummary(evidence.results))
   return lines
+}
+
+/**
+ * The documents for a transport that carries no policies, with the policy documents left out, and
+ * the one line saying which were, in the platform's own words, or `null` when none were.
+ */
+export function withoutPolicyDocuments<T extends {content: string}>(entries: T[]): {documents: T[]; notice: null | string} {
+  const documents: T[] = []
+  const policyKeys: string[] = []
+  for (const entry of entries) {
+    const document = parseDocument(entry.content)
+    if (document?.type === 'policy') policyKeys.push(document.name)
+    else documents.push(entry)
+  }
+
+  policyKeys.sort()
+  const notice = policyKeys.length === 0
+    ? null
+    : `${policyKeys.length} policy file${policyKeys.length === 1 ? ' was' : 's were'} left out (${policyKeys.join(', ')}): policies stay in their workspace, and tenants, sandboxes and releases carry none.`
+  return {documents, notice}
+}
+
+/**
+ * The platform's one notice that a tenant or sandbox push, or its dry run, left policy files out
+ * (`policies_skipped.message`): policies stay in their workspace. `null` when it left none out.
+ */
+export function policiesSkippedNotice(answer: unknown): null | string {
+  const skipped = answer && typeof answer === 'object' ? (answer as {policies_skipped?: unknown}).policies_skipped : undefined
+  const message = skipped && typeof skipped === 'object' ? (skipped as {message?: unknown}).message : undefined
+  return typeof message === 'string' && message.trim() !== '' ? message.trim() : null
 }
 
 /**
