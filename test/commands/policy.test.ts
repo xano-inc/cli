@@ -82,13 +82,13 @@ describe('official policy commands and workspace carriage', () => {
   })
 
   describe('an unknown check id', () => {
-    const message = 'rule[0] ("AUTH-001.R1"): "query.auth_requred" is not a policy check. Did you mean "query.auth_required"? '
+    const message = 'rule[0] ("AUTH-001.R1"): "object.auth_requred" is not a policy check. Did you mean "object.auth_required"? '
       + 'GET workspace/{workspace_id}/policy/check lists every check id.'
     const refusal = (payload?: unknown) => json({code: 'ERROR_CODE_BAD_REQUEST', message, ...(payload ? {payload} : {})}, 400)
     const pointer = 'Run `xano policy catalogue` to list every check id this instance has.'
 
     it('refused by parse points at xano policy catalogue, keyed on the payload code', async () => {
-      fixture.route(() => refusal({check: 'query.auth_requred', code: 'policy_unknown_check'}))
+      fixture.route(() => refusal({check: 'object.auth_requred', code: 'policy_unknown_check'}))
       const result = await runCommand(['policy', 'parse', '--file', policyFile], fixture.config)
       expect(result.error).to.have.nested.property('oclif.exit', 1)
       expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${message}\n${pointer}`)
@@ -96,7 +96,7 @@ describe('official policy commands and workspace carriage', () => {
 
     it('refused by the save points at xano policy catalogue too', async () => {
       fixture.route((url, method) => url.pathname.endsWith('/parse') ? json({policy: {key: 'AUTH-001'}, source})
-        : method === 'GET' ? json({items: [{id: 7, key: 'AUTH-001'}]}) : refusal({check: 'query.auth_requred', code: 'policy_unknown_check'}))
+        : method === 'GET' ? json({items: [{id: 7, key: 'AUTH-001'}]}) : refusal({check: 'object.auth_requred', code: 'policy_unknown_check'}))
       const result = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
       expect(result.error).to.have.nested.property('oclif.exit', 1)
       expect(result.error?.message).to.contain(message).and.to.contain(pointer)
@@ -109,7 +109,7 @@ describe('official policy commands and workspace carriage', () => {
       expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${message}`)
     })
 
-    const pushRefusal = () => json({code: 'ERROR_CODE_BAD_REQUEST', message: `Multidoc dry run failed: ${message}`, payload: {check: 'query.auth_requred', code: 'policy_unknown_check'}}, 400)
+    const pushRefusal = () => json({code: 'ERROR_CODE_BAD_REQUEST', message: `Multidoc dry run failed: ${message}`, payload: {check: 'object.auth_requred', code: 'policy_unknown_check'}}, 400)
 
     it('refused by the push preview stops there, pointing at xano policy catalogue', async () => {
       fixture.route(() => pushRefusal())
@@ -121,7 +121,7 @@ describe('official policy commands and workspace carriage', () => {
     })
 
     it('refused by the push import points at xano policy catalogue', async () => {
-      fixture.route(() => refusal({check: 'query.auth_requred', code: 'policy_unknown_check'}))
+      fixture.route(() => refusal({check: 'object.auth_requred', code: 'policy_unknown_check'}))
       const result = await runCommand(['workspace', 'push', '-d', path.join(fixture.directory, 'policies'), '--force', '--no-guids'], fixture.config)
       expect(result.error).to.have.nested.property('oclif.exit', 1)
       expect(result.error?.message).to.contain(`Push refused (400): ${message}`).and.to.contain(pointer)
@@ -353,7 +353,7 @@ describe('official policy commands and workspace carriage', () => {
     finished_at: '2026-09-17T22:42:00.980Z',
     id: 1674,
     objects_checked: 23,
-    policies: [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication', params: {except_tags: ['public']}}], statement: 'Every endpoint declares auth.'}],
+    policies: [{key: 'AUTH-001', rules: [{check: 'object.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication', params: {except_tags: ['public']}}], statement: 'Every endpoint declares auth.'}],
     results: [{check_id: 'AUTH-001.R1', checked: 23, policy_key: 'AUTH-001', status: 'fail'}],
     started_at: '2026-09-17T22:42:00.903Z',
     status: 'fail',

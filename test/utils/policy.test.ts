@@ -162,17 +162,17 @@ describe('policy carriage and feedback', () => {
   })
 
   it('names a rule by its author, then its check label, then its id', () => {
-    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication'}
+    const rule = {check: 'object.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication'}
     expect(policyRuleName({...rule, title: 'Endpoints declare auth'})).to.equal('Endpoints declare auth')
     expect(policyRuleName({...rule, title: '  '})).to.equal('Endpoints require authentication')
     expect(policyRuleName(rule)).to.equal('Endpoints require authentication')
-    expect(policyRuleName({check: 'query.auth_required', id: 'AUTH-001.R1'})).to.equal('AUTH-001.R1')
+    expect(policyRuleName({check: 'object.auth_required', id: 'AUTH-001.R1'})).to.equal('AUTH-001.R1')
     expect(policyRuleName({})).to.equal('')
   })
 
   it('names an unnamed finding by the label the run snapshot recorded', () => {
     const finding = {message: 'No auth', policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1', rule_title: ''}
-    const policies = [{key: 'AUTH-001', rules: [{check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}]}]
+    const policies = [{key: 'AUTH-001', rules: [{check: 'object.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}]}]
     const evaluation = {findings: [finding], policies, policy_check: {blocking: false, status: 'fail'}}
     expect(summarize(evaluation.policy_check, evaluationEvidence(evaluation)).join('\n')).to.contain('Endpoints require authentication (AUTH-001)')
     // An author title on the finding wins, and without a snapshot the id still names the rule.
@@ -258,13 +258,13 @@ describe('policy carriage and feedback', () => {
     // Sorted by name, whatever order the platform sent them in.
     expect(policySettings(JSON.parse('{"except_tags":["public"],"api_groups":["lab","incidents"]}'))).to.equal('settings: api_groups=[lab, incidents], except_tags=[public]')
     expect(policySettings(JSON.parse('{"api_groups":["lab","incidents"],"except_tags":["public"]}'))).to.equal('settings: api_groups=[lab, incidents], except_tags=[public]')
-    expect(policySettings({follow_addons: false, table_selector: {has_field: 'employee_id'}})).to.equal('settings: follow_addons=false, table_selector={"has_field":"employee_id"}')
+    expect(policySettings({include_sensitive: false, table_selector: {has_field: 'employee_id'}})).to.equal('settings: include_sensitive=false, table_selector={"has_field":"employee_id"}')
     // PHP spells an empty map `[]`.
     for (const empty of [{}, [], undefined, null]) expect(policySettings(empty)).to.equal('')
   })
 
   it('reports what a run recorded, and nothing for a run that evaluated no policy', () => {
-    const rule = {check: 'query.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}
+    const rule = {check: 'object.auth_required', id: 'AUTH-001.R1', label: 'Endpoints require authentication', title: ''}
     const run = {
       id: 1129,
       policies: [{key: 'AUTH-001', rules: [{...rule, params: {api_groups: ['lab'], except_tags: ['public']}}], statement: 'Every endpoint requires authentication unless it is tagged public.'}],
