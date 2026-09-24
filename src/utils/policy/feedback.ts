@@ -133,6 +133,8 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
     )
   } else {
     if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${findings.length}) — these stop the merge:`)
+    // Without a headline (an `error` status, say) nothing else says what these findings are.
+    else if (findings.length > 0 && !isHeadlined(check)) lines.push(`Advisory findings (${findings.length}) — reported, not blocking:`)
     lines.push(...findings.map(finding => findingLine(finding, rules)))
   }
 

@@ -69,6 +69,15 @@ describe('policy carriage and feedback', () => {
     expect(summary).to.contain('Policy check: fail (blocking findings)').and.to.contain('No auth')
   })
 
+  it('heads advisory findings when no headline says what they are', () => {
+    const findings = [{id: 'f1', message: 'No auth', rule_id: 'R1'}, {id: 'f2', message: 'No rate limit', rule_id: 'R2'}]
+    const summary = policySummary({blocking: false, findings, message: 'A check could not run.', status: 'error'})
+    expect(summary[0]).to.equal('Advisory findings (2) — reported, not blocking:')
+    expect(summary.join('\n')).to.contain('No auth').and.to.contain('No rate limit')
+    // A headline already names advisory findings, so they are not headed twice.
+    expect(policySummary({blocking: false, findings, status: 'fail'}).join('\n')).not.to.contain('Advisory findings (')
+  })
+
   it('says what happened to each policy document when the push previewed it', () => {
     expect(policyDocumentSummary({operations: [
       {action: 'create', name: 'AUTH-001', type: 'policy'},
