@@ -13,6 +13,7 @@ import {
   type PushResult,
   type PushTarget,
 } from '../../../utils/multidoc-push.js'
+import {policyCodeGuidance} from '../../../utils/policy/errors.js'
 import {
   policyCheckWarning,
   policyDocumentSummary,
@@ -238,7 +239,7 @@ Full sync including knowledge files; removes server objects not present locally
         return `${baseUrl}/multidoc?${query.toString()}`
       },
       cliVersion: this.config.version,
-      explainRefusal: (status, payload) => (status === 403 ? policyFilePushGuidance(payload) : undefined),
+      explainRefusal: (status, payload) => (status === 403 ? policyFilePushGuidance(payload) : policyCodeGuidance(payload) || undefined),
       instanceOrigin: profile.instance_origin,
       label: `workspace ${workspaceId}`,
       supportsBranches: true,

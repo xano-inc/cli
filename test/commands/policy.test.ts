@@ -80,6 +80,54 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${message}`)
     expect(fixture.calls.filter((call) => ['POST', 'PUT'].includes(call.method) && !call.url.pathname.endsWith('/parse'))).to.deep.equal([])
   })
+
+  describe('an unknown check id', () => {
+    const message = 'rule[0] ("AUTH-001.R1"): "query.auth_requred" is not a policy check. Did you mean "query.auth_required"? '
+      + 'GET workspace/{workspace_id}/policy/check lists every check id.'
+    const refusal = (payload?: unknown) => json({code: 'ERROR_CODE_BAD_REQUEST', message, ...(payload ? {payload} : {})}, 400)
+    const pointer = 'Run `xano policy catalogue` to list every check id this instance has.'
+
+    it('refused by parse points at xano policy catalogue, keyed on the payload code', async () => {
+      fixture.route(() => refusal({check: 'query.auth_requred', code: 'policy_unknown_check'}))
+      const result = await runCommand(['policy', 'parse', '--file', policyFile], fixture.config)
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+      expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${message}\n${pointer}`)
+    })
+
+    it('refused by the save points at xano policy catalogue too', async () => {
+      fixture.route((url, method) => url.pathname.endsWith('/parse') ? json({policy: {key: 'AUTH-001'}, source})
+        : method === 'GET' ? json({items: [{id: 7, key: 'AUTH-001'}]}) : refusal({check: 'query.auth_requred', code: 'policy_unknown_check'}))
+      const result = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+      expect(result.error?.message).to.contain(message).and.to.contain(pointer)
+      expect(result.stdout).not.to.contain('Published')
+    })
+
+    it('gets no pointer from the wording alone', async () => {
+      fixture.route(() => refusal())
+      const result = await runCommand(['policy', 'parse', '--file', policyFile], fixture.config)
+      expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${message}`)
+    })
+
+    const pushRefusal = () => json({code: 'ERROR_CODE_BAD_REQUEST', message: `Multidoc dry run failed: ${message}`, payload: {check: 'query.auth_requred', code: 'policy_unknown_check'}}, 400)
+
+    it('refused by the push preview stops there, pointing at xano policy catalogue', async () => {
+      fixture.route(() => pushRefusal())
+      const result = await runCommand(['workspace', 'push', '-d', path.join(fixture.directory, 'policies'), '--no-guids'], fixture.config)
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+      expect(result.error?.message).to.contain(`Push refused (400): Multidoc dry run failed: ${message}`).and.to.contain(pointer)
+      expect(fixture.calls).to.have.length(1)
+      expect(fixture.calls[0].url.pathname).to.match(/\/multidoc\/dry-run$/)
+    })
+
+    it('refused by the push import points at xano policy catalogue', async () => {
+      fixture.route(() => refusal({check: 'query.auth_requred', code: 'policy_unknown_check'}))
+      const result = await runCommand(['workspace', 'push', '-d', path.join(fixture.directory, 'policies'), '--force', '--no-guids'], fixture.config)
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+      expect(result.error?.message).to.contain(`Push refused (400): ${message}`).and.to.contain(pointer)
+    })
+  })
+
   for (const [check, code, warning] of [
     [{blocking: false, status: 'pass'}, 0, null],
     [{blocking: true, status: 'fail'}, 2, null],
@@ -205,11 +253,40 @@ describe('official policy commands and workspace carriage', () => {
       expect(result.stdout).to.contain('This evaluation, which was not stored (manual):').and.not.to.contain('Run 0')
     })
 
-    it('says nothing about storage when there was nothing to evaluate', async () => {
-      fixture.route(() => json({findings: [], id: 0, policies: [], policy_check: {blocking: false, message: 'No active policies on this branch; nothing was evaluated.', run_id: 0, status: 'not_applicable'}, results: [], stored: false}))
+    /** The platform's answer for a branch with no active policy: no run was made or stored. */
+    const nothingEvaluated = {
+      actor: {id: 1, kind: 'user', name: 'Robert'},
+      branch: {id: 0},
+      created_at: null,
+      findings: [],
+      finished_at: '2026-09-24T01:11:59.623Z',
+      id: 0,
+      objects_checked: 0,
+      policies: [],
+      policy_check: {blocking: false, blocking_finding_ids: [], message: 'No active policies on this branch; nothing was evaluated.', run_id: 0, status: 'not_applicable'},
+      results: [],
+      started_at: '2026-09-24T01:11:59.623Z',
+      status: 'not_applicable',
+      stored: false,
+      trigger: 'manual',
+      updated_at: null,
+    }
+
+    it('says nothing about storage or a run when there was nothing to evaluate', async () => {
+      fixture.route(() => json(nothingEvaluated))
       const result = await runCommand(['policy', 'evaluate', '--run-detail'], fixture.config)
-      expect(result.stdout).to.contain('Policy check: not_applicable').and.to.contain('No policies were evaluated.')
-      expect(result.stdout).not.to.contain('Not stored').and.not.to.contain('Run 0')
+      expect(result.error).to.equal(undefined)
+      expect(result.stdout).to.equal('Policy check: not_applicable\nNo active policies on this branch; nothing was evaluated.\nNo policies were evaluated.\n')
+      expect(result.stderr).not.to.contain('Policy check')
+      expect(process.exitCode ?? 0).to.equal(0)
+    })
+
+    it('passes the answer for nothing to evaluate through -o json unchanged, exiting 0', async () => {
+      fixture.route(() => json(nothingEvaluated))
+      const result = await runCommand(['policy', 'evaluate', '-o', 'json'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(JSON.parse(result.stdout)).to.deep.equal(nothingEvaluated)
+      expect(process.exitCode ?? 0).to.equal(0)
     })
   })
 
@@ -222,6 +299,37 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls[1].url.pathname).to.equal('/api:meta/workspace/1/policy/7')
     expect(fixture.calls[1].url.searchParams.get('branch')).to.equal('feature')
     expect(result.stdout).to.contain('Deleted policy AUTH-001 (ID: 7) from workspace 1 (feature).')
+  })
+
+  it('delete sends the updated_at it listed, so a policy changed since is not deleted', async () => {
+    for (const updated of ['2026-09-17 12:00:00+0000', 1_758_110_400_000]) {
+      fixture.calls.length = 0
+      fixture.route((url, method) => method === 'DELETE' ? json({}) : json({items: [{id: 7, key: 'AUTH-001', updated_at: updated, version: 3}]}))
+      // eslint-disable-next-line no-await-in-loop -- one command at a time against one stubbed fetch
+      const result = await runCommand(['policy', 'delete', 'AUTH-001', '--force'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(fixture.calls[1].method).to.equal('DELETE')
+      expect(Object.fromEntries(fixture.calls[1].url.searchParams)).to.deep.equal({branch: 'feature', last_updated_at: String(updated)})
+      expect(fixture.calls[1].body).to.equal(undefined)
+    }
+  })
+
+  it('delete sends no staleness check when the list served no updated_at', async () => {
+    fixture.route((url, method) => method === 'DELETE' ? json({}) : json({items: [{id: 7, key: 'AUTH-001', version: 3}]}))
+    expect((await runCommand(['policy', 'delete', 'AUTH-001', '--force'], fixture.config)).error).to.equal(undefined)
+    expect(fixture.calls[1].url.searchParams.has('last_updated_at')).to.equal(false)
+  })
+
+  it('delete refused as stale exits 1, says nothing was changed, and does not claim a deletion', async () => {
+    const stale = 'A previous update was performed before your request. Please reload your data and try again.'
+    fixture.route((url, method) => method === 'DELETE'
+      ? json({code: 'ERROR_CODE_BAD_REQUEST', message: stale, payload: {code: 'policy_stale'}}, 400)
+      : json({items: [{id: 7, key: 'AUTH-001', updated_at: '2026-09-17 12:00:00+0000', version: 3}]}))
+    const result = await runCommand(['policy', 'delete', 'AUTH-001', '--force'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${stale}\n`
+      + 'The policy changed after this command read it, so nothing was changed. Run the command again to act on its current version.')
+    expect(result.stdout).not.to.contain('Deleted policy')
   })
 
   it('delete accepts an ID and stays a faithful JSON passthrough', async () => {

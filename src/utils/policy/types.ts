@@ -95,6 +95,8 @@ export interface Policy {
   lifecycle: string
   rules?: Array<{id: string}>
   title?: string
+  /** When the policy was last written, as served; sent back as `last_updated_at` to refuse acting on a stale read. */
+  updated_at?: number | string
   /** The index of the policy's newest Version History entry; it moves only when the definition changes. */
   version: number
 }
@@ -126,7 +128,10 @@ export interface PolicyRun {
   trigger?: string
 }
 
-/** What `policy evaluate` answers: the run as `GET run/{id}` serves it, whether it was stored, and the verdict. */
+/**
+ * What `policy evaluate` answers: the run as `GET run/{id}` serves it, whether it was stored, and the verdict.
+ * With no active policy on the branch it is no run at all: `id` 0, `status` `not_applicable`, nothing evaluated.
+ */
 export interface PolicyEvaluation extends PolicyRun {
   policy_check?: PolicyVerdict & {blocking_finding_ids?: string[]}
   stored?: boolean

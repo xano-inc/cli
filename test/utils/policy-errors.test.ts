@@ -1,6 +1,6 @@
 import {expect} from 'chai'
 
-import {describePolicyError as describeError} from '../../src/utils/policy/errors.js'
+import {describePolicyError as describeError, policyCodeGuidance} from '../../src/utils/policy/errors.js'
 
 const url = 'https://instance.example/api:meta/workspace/9/policy?branch=ci%2Fnew'
 const describePolicyError = (text: string, status: number, requestUrl: string) => describeError(text, status, requestUrl).message
@@ -49,6 +49,14 @@ describe('policy route errors', () => {
     const payload = {code: 'policy_scope_required', level: 'read', permission: 'workspace:policy'}
     expect(describeError(JSON.stringify({message: 'Refused.', payload}), 403, url)).to.deep.equal({message: 'Refused.', payload})
     expect(describeError('<html>', 502, url)).to.deep.equal({message: '<html>'})
+  })
+
+  it('advises on the refusal codes it knows, and on nothing else', () => {
+    expect(policyCodeGuidance({check: 'query.auth_requred', code: 'policy_unknown_check'})).to.contain('xano policy catalogue')
+    expect(policyCodeGuidance({code: 'policy_stale'})).to.contain('nothing was changed')
+    for (const payload of [undefined, null, [], 'policy_stale', {}, {code: 'policy_gate'}, {code: 'toString'}]) {
+      expect(policyCodeGuidance(payload)).to.equal('')
+    }
   })
 
   for (const trace of ['\nStack trace:\n#0 /internal/a.php', '\n#0 /internal/a.php', '\n    at internal (/server/file.js:1:2)']) {

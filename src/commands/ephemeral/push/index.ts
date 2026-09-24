@@ -9,6 +9,7 @@ import {
   waitForMicroservices,
 } from '../../../utils/microservice-wait.js'
 import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
+import {policiesSkippedNotice} from '../../../utils/policy/feedback.js'
 
 /** Status glyph for one microservice row in the `--wait` progress block. */
 const icon = (e: MicroserviceStatusEntry): string => {
@@ -189,7 +190,7 @@ Skip preview and push immediately
       verbose: flags.verbose,
     }
 
-    await executePush(
+    const result = await executePush(
       {
         accessToken: profile.access_token,
         branch: '',
@@ -200,6 +201,9 @@ Skip preview and push immediately
       target,
       pushFlags,
     )
+    // A tenant carries no policies: the platform leaves policy files out and says so once.
+    const skipped = policiesSkippedNotice(result.response ?? result.preview)
+    if (skipped) this.warn(skipped)
 
     // --wait: after a real push, poll the tenant's live microservice status until
     // every auto-deployed microservice (tenant_deploy="auto") is ready or the
