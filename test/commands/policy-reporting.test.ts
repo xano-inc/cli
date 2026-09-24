@@ -10,7 +10,7 @@ const checks = [{
   id: 'stack.statement_forbidden',
   label: 'Stacks exclude listed statements',
   object_kinds: ['query', 'function'],
-  params: {scope: {required: false, type: 'object'}, statements: {required: true, type: 'string[]'}},
+  params: {object_kinds: {required: false, type: 'string[]'}, statements: {required: true, type: 'string[]'}},
 }, {description: 'Check authentication tables.', fix_hint: 'Enable auth.', id: 'table.auth_table_rules', label: 'Endpoints use the single auth table', object_kinds: ['table'], params: []}]
 const catalogue = {goals: [], items: checks}
 const backendError = {
@@ -29,7 +29,7 @@ const notInRun = coverage({enforcement: null, included: false, version: null})
 const noRun = coverage({enforcement: null, included: false, run_id: 0, version: null})
 const snapshot = [{
   key: 'AUTH-001',
-  rules: [{check: 'query.auth_required', id: 'R1', label: 'Endpoints require authentication', params: {api_groups: ['lab'], except_tags: ['public']}, title: ''}],
+  rules: [{check: 'object.auth_required', id: 'R1', label: 'Endpoints require authentication', params: {api_groups: ['lab'], except_tags: ['public']}, title: ''}],
   statement: 'Every endpoint requires authentication unless it is tagged public.',
 }]
 const run = {
@@ -63,7 +63,7 @@ describe('policy reporting', () => {
     for (const text of ['Check ID', 'Label / Description', 'Object kinds', 'Required params', 'query, function', 'statements: string[]', 'Check authentication tables.', 'Fix hint: Enable auth.'])
       expect(result.stdout).to.contain(text)
     for (const check of checks) expect(result.stdout.split('\n').find(line => line.startsWith(check.id))).to.contain(check.label)
-    expect(result.stdout).not.to.contain('"required":').and.not.to.contain('scope: object')
+    expect(result.stdout).not.to.contain('"required":').and.not.to.contain('object_kinds: string[]')
   })
 
   it('catalogue names the params a rule must set one of', async () => {

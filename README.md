@@ -177,7 +177,7 @@ them. `xano policy <command> --help` gives each command's flags and output, and 
 the rest: the `policies` topic of `xano_xanoscript_docs` (the language) and the `policy` topic of `xano_cli_docs`.
 
 ```bash
-xano policy catalogue --check query.auth_required    # The checks a rule can use (all of them without --check)
+xano policy catalogue --check object.auth_required    # The checks a rule can use (all of them without --check)
 xano policy list                                     # Policies on the branch
 xano policy parse policies/AUTH-001.xs               # Validate and print canonical XanoScript (or --file, --stdin)
 xano policy publish policies/AUTH-001.xs -m "Why"    # Create or update by key; -m labels the Version History entry
