@@ -15,6 +15,7 @@ import {
 } from '../../../utils/multidoc-push.js'
 import {policyCodeGuidance} from '../../../utils/policy/errors.js'
 import {
+  policiesSkippedNotice,
   policyCheckWarning,
   policyDocumentSummary,
   policyExitCode,
@@ -31,6 +32,14 @@ function importDocument(result: PushResult): Record<string, unknown> {
 /** The policy check the import answered with, if any. */
 function policyCheck(result: PushResult): PushPolicyCheck | undefined {
   return result.response?.policy_check as PushPolicyCheck | undefined
+}
+
+/**
+ * The platform's one notice that it left the push's policy files out (the Policies feature is off):
+ * the import's, else its preview's, since a partial push may not send the files the preview named.
+ */
+function policiesSkipped(result: PushResult): null | string {
+  return policiesSkippedNotice(result.response) ?? policiesSkippedNotice(result.preview)
 }
 
 export default class Push extends BaseCommand {
@@ -285,8 +294,14 @@ Full sync including knowledge files; removes server objects not present locally
         : importDocument(result), null, 2))
     }
 
-    // Policy feedback describes the multidoc import, so a push that imported none has none.
-    if (result.response) this.reportPolicyFeedback(result, json)
+    // Policy feedback describes the multidoc import, so a push that imported none has none. Its
+    // preview may still say that the policy files are left out.
+    if (result.response) {
+      this.reportPolicyFeedback(result, json)
+    } else {
+      const skipped = policiesSkipped(result)
+      if (skipped) this.warn(skipped)
+    }
   }
 
   /**
@@ -302,12 +317,20 @@ Full sync including knowledge files; removes server objects not present locally
     this.error(error, {exit})
   }
 
-  /** What happened to the policy documents, then the policy check the import answered with. */
+  /**
+   * What happened to the policy documents, then the policy check the import answered with. When the
+   * platform left the policy files out, its notice says so instead of a count of what was sent.
+   */
   private reportPolicyFeedback(result: PushResult, json: boolean): void {
     const check = policyCheck(result)
+    const skipped = policiesSkipped(result)
+    if (skipped) this.warn(skipped)
     if (!json) {
-      const sentPolicies = result.sent.filter((entry) => parseDocument(entry.content)?.type === 'policy').length
-      for (const line of policyDocumentSummary(result.preview, sentPolicies)) this.log(line)
+      if (!skipped) {
+        const sentPolicies = result.sent.filter((entry) => parseDocument(entry.content)?.type === 'policy').length
+        for (const line of policyDocumentSummary(result.preview, sentPolicies)) this.log(line)
+      }
+
       for (const line of policySummary(check, pushEvidence(check))) this.log(line)
     }
 

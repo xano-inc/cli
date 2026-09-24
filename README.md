@@ -190,6 +190,8 @@ xano policy delete TMP-001                           # Remove a policy; its Vers
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
 Sandbox, ephemeral tenant and release pushes carry none: policy files are left out, and the push says which.
+While the instance's Policies feature is off, `workspace pull` exports no policy (and keeps local policy files)
+and `workspace push` leaves its policy files out, printing the platform's notice instead of a policy count.
 
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
 blocks (an active, mandatory policy failed), whatever else happened; `1` when a request or the import failed, or

@@ -163,8 +163,9 @@ export function withoutPolicyDocuments<T extends {content: string}>(entries: T[]
 }
 
 /**
- * The platform's one notice that a tenant or sandbox push, or its dry run, left policy files out
- * (`policies_skipped.message`): policies stay in their workspace. `null` when it left none out.
+ * The platform's one notice that a push or its dry run left policy files out
+ * (`policies_skipped.message`): a tenant or sandbox push always does, and a workspace push does while
+ * the instance's Policies feature is off. `null` when it left none out.
  */
 export function policiesSkippedNotice(answer: unknown): null | string {
   const skipped = answer && typeof answer === 'object' ? (answer as {policies_skipped?: unknown}).policies_skipped : undefined
