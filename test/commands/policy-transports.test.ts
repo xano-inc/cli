@@ -88,4 +88,58 @@ describe('pushes that carry no policies', () => {
     expect(result.error?.message).to.contain('No documents other than policies in')
     expect(fixture.calls).to.have.length(0)
   })
+
+  /**
+   * A workspace push sends its policy files; an instance with the Policies feature off leaves them out
+   * and says so once in `policies_skipped`, which replaces the count of what was sent.
+   */
+  describe('workspace push while the Policies feature is off', () => {
+    const featureOff = {
+      keys: ['AUTH-001'],
+      message: '1 policy file was left out (AUTH-001): Policies are not enabled on this instance, so imports leave policies out and keep the workspace\'s own policies as they are.',
+    }
+    const disabled = {blocking: false, message: 'Policies are not enabled on this instance; nothing was evaluated.', status: 'disabled'}
+
+    it('prints the platform\'s notice instead of the policy documents it sent', async () => {
+      answer({guid_map: [], policies_skipped: featureOff, policy_check: disabled})
+      const result = await runCommand(['workspace', 'push', '-d', tree, '--force', '--no-guids'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(fixture.calls.find(call => call.url.pathname.endsWith('/multidoc'))?.body).to.contain('policy "AUTH-001"')
+      expect(warned(result.stderr)).to.contain(featureOff.message)
+      expect(result.stdout).not.to.contain('Policy documents')
+      expect(warned(result.stderr)).to.contain(`Policy check disabled: ${disabled.message}`)
+    })
+
+    it('still counts the policy documents it sent when the platform left none out', async () => {
+      answer({guid_map: [], policy_check: disabled})
+      const result = await runCommand(['workspace', 'push', '-d', tree, '--force', '--no-guids'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(result.stdout).to.contain('Policy documents: 1 sent without a preview')
+      expect(result.stderr).not.to.contain('policy file')
+    })
+
+    it('prints the preview\'s notice for a dry run', async () => {
+      answer(preview({policies_skipped: featureOff}))
+      const result = await runCommand(['workspace', 'push', '-d', tree, '--dry-run'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(fixture.calls.every(call => !call.url.pathname.endsWith('/multidoc'))).to.equal(true)
+      expect(warned(result.stderr)).to.contain(featureOff.message)
+    })
+
+    it('prints the preview\'s notice when only policy files changed and nothing is pushed', async () => {
+      answer({operations: [], policies_skipped: featureOff, summary: {}})
+      const result = await runCommand(['workspace', 'push', '-d', tree], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(result.stdout).to.contain('No changes to push.')
+      expect(warned(result.stderr)).to.contain(featureOff.message)
+    })
+
+    it('keeps the notice in the one JSON document', async () => {
+      answer({guid_map: [], policies_skipped: featureOff, policy_check: disabled})
+      const result = await runCommand(['workspace', 'push', '-d', tree, '--force', '--no-guids', '-o', 'json'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(JSON.parse(result.stdout).policies_skipped).to.deep.equal(featureOff)
+      expect(warned(result.stderr)).to.contain(featureOff.message)
+    })
+  })
 })
