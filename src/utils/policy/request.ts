@@ -80,17 +80,37 @@ function fail(message: string): never {
   throw new Error(message)
 }
 
+/** What the policy list route answers this credential: it lists, the Policies feature is off, or it may not. */
+export type PolicyListing = 'feature_off' | 'listed' | 'refused'
+
 /**
  * Whether this credential can list the branch's policies. An export leaves out the policies its
- * credential cannot read, without refusing, so this tells an export without policies from one that
- * withheld them. Any failure answers `false`.
+ * credential cannot read, and every policy while the Policies feature is off, without refusing, so
+ * this tells an export without policies from one that withheld them, and names the feature when
+ * the platform's refusal does (`policy_feature_disabled`). Any other failure answers `refused`.
  */
-export async function canListPolicies(
+export async function policyListing(
   host: Omit<PolicyRequestHost, 'error'>,
   route: Omit<PolicyRequestRoute, 'label' | 'path'>,
-): Promise<boolean> {
-  const list = policyRequest({...host, error: fail}, {...route, ...POLICY_ROUTE})
-  return list().then(() => true, () => false)
+): Promise<PolicyListing> {
+  let refusal: unknown
+  const verboseFetch: PolicyRequestHost['verboseFetch'] = async (...args) => {
+    const response = await host.verboseFetch(...args)
+    if (!response.ok) refusal = await response.clone().json().catch(() => null)
+    return response
+  }
+
+  const list = policyRequest({...host, error: fail, verboseFetch}, {...route, ...POLICY_ROUTE})
+  return list().then(
+    (): PolicyListing => 'listed',
+    (): PolicyListing => refusalCode(refusal) === 'policy_feature_disabled' ? 'feature_off' : 'refused',
+  )
+}
+
+/** The `payload.code` of a refusal body, if it carries one. */
+function refusalCode(body: unknown): unknown {
+  const payload = body && typeof body === 'object' ? (body as {payload?: unknown}).payload : undefined
+  return payload && typeof payload === 'object' ? (payload as {code?: unknown}).code : undefined
 }
 
 /** The `items` of a list envelope, as every policy list route answers. */

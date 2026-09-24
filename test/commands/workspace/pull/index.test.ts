@@ -125,4 +125,21 @@ describe('workspace pull policy files', () => {
     expect(fs.readdirSync(path.join(directory, 'policies'))).to.deep.equal(['KEEP.xs', 'OLD.xs'])
     expect(fs.existsSync(path.join(directory, 'function', 'first.xs'))).to.equal(true)
   })
+
+  it('names the switched-off Policies feature, keeps local policy files and prints no skill hint', async () => {
+    source = policy('OLD')
+    await command.run()
+    logs.length = 0
+    listing = () => new Response(JSON.stringify({
+      code: 'ERROR_CODE_ACCESS_DENIED', message: 'Policies are not enabled on this instance.', payload: {code: 'policy_feature_disabled'},
+    }), {status: 403})
+    source = 'function first {\n}'
+    await command.run()
+    expect(warnings).to.deep.equal([])
+    expect(logs.filter(line => line.includes('policy files'))).to.deep.equal([
+      'Local policy files were kept: Policies are not enabled on this instance, so the export carries none.',
+    ])
+    expect(logs.join('\n')).not.to.contain('xano skills pull')
+    expect(fs.readFileSync(path.join(directory, 'policies', 'OLD.xs'), 'utf8')).to.equal(policy('OLD'))
+  })
 })

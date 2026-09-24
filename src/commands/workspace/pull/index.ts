@@ -13,7 +13,7 @@ import {
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
-import {canListPolicies} from '../../../utils/policy/request.js'
+import {type PolicyListing, policyListing} from '../../../utils/policy/request.js'
 
 export default class Pull extends BaseCommand {
   static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
@@ -152,7 +152,7 @@ Pulled 58 documents
 
     // Resolve the output directory
     const outputDir = path.resolve(flags.directory)
-    const clashing = await this.policyClashes(documents, outputDir, () => canListPolicies(
+    const clashing = await this.policyClashes(documents, outputDir, () => policyListing(
       {logToStderr: (message) => this.logToStderr(message), verboseFetch: (...args) => this.verboseFetch(...args)},
       {branch, profile, verbose: flags.verbose, workspace: workspaceId},
     ))
@@ -225,6 +225,8 @@ Pulled 58 documents
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
     // Policy files state the rules; the skill the instance generates tells an agent how to follow them.
+    // Only a pull that carried policy files says so: an instance with the Policies feature off exports
+    // none, and its skill route answers 403.
     if (documents.some((doc) => doc.type === 'policy')) {
       this.log('Run `xano skills pull` to install the policies skill for your coding agent.')
     }
@@ -235,12 +237,13 @@ Pulled 58 documents
    * policies whose file name differs only in case from another exported policy, or from a local file
    * it would overwrite, are left out with a warning; everything else is written. Local policy files
    * absent from the export are kept. They are reported as stale only when this credential reads the
-   * branch's policies, because an export leaves out the policies its credential cannot read.
+   * branch's policies, because an export leaves out the policies its credential cannot read, and
+   * every policy while the Policies feature is off.
    */
   private async policyClashes(
     documents: ParsedDocument[],
     outputDir: string,
-    readsPolicies: () => Promise<boolean>,
+    readsPolicies: () => Promise<PolicyListing>,
   ): Promise<Set<ParsedDocument>> {
     const exported = new Map<string, string[]>()
     for (const doc of documents.filter(doc => doc.type === 'policy')) {
@@ -278,10 +281,13 @@ Pulled 58 documents
 
     if (stale.length > 0) {
       // An export that carries a policy was made by a credential that reads them.
-      if (exported.size > 0 || await readsPolicies()) {
+      const listing = exported.size > 0 ? 'listed' : await readsPolicies()
+      if (listing === 'listed') {
         this.warn(
           `Stale local policy files are absent from this export and were kept:\n  ${stale.join('\n  ')}\nReview them before pushing; a push can publish these policies again.`,
         )
+      } else if (listing === 'feature_off') {
+        this.log('Local policy files were kept: Policies are not enabled on this instance, so the export carries none.')
       } else {
         this.log(`Local policy files were kept: this credential cannot list this workspace's policies, and the export carries none.`)
       }
