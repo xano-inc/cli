@@ -67,12 +67,31 @@ export interface PolicyVerdict {
   status?: string
 }
 
-/** A push's `policy_check`: the verdict with its findings and results, since a push answers no run. */
+/** A run's finding counts: every finding, the blocking ones, and the rules that could not run. */
+export interface PolicyCounts {
+  /** The findings that do not block; the run summary serves it, a push's feedback does not. */
+  advisory?: number
+  blocking: number
+  errors: number
+  findings: number
+}
+
+/**
+ * A push's `policy_check`: the verdict with its findings and results, since a push answers no run.
+ * The lists hold the first 100 each, in the platform's order; the stored run (`run_id`) has them all.
+ */
 export interface PushPolicyCheck extends PolicyVerdict {
-  /** The subset of `findings` that blocks. */
+  /** The first blocking findings. */
   blocking_findings?: PolicyFinding[]
+  /** What the lists are out of. */
+  counts?: PolicyCounts
+  /** The first findings, blocking first. */
   findings?: PolicyFinding[]
   results?: PolicyRuleResult[]
+  /** Every finding, listed or not. */
+  total?: number
+  /** Whether either list was cut. */
+  truncated?: boolean
 }
 
 /** A policy's place in its branch's newest run, as the platform serves it on every policy. */
@@ -133,6 +152,28 @@ export interface PolicyRun {
  * With no active policy on the branch it is no run at all: `id` 0, `status` `not_applicable`, nothing evaluated.
  */
 export interface PolicyEvaluation extends PolicyRun {
-  policy_check?: PolicyVerdict & {blocking_finding_ids?: string[]}
+  /** The summary answer's counts (`--summary`). */
+  counts?: PolicyCounts
+  /** `blocking_total`: every blocking finding, beside the summary answer's listed ones. */
+  policy_check?: PolicyVerdict & {blocking_finding_ids?: string[]; blocking_total?: number}
   stored?: boolean
+  /** The summary answer: every finding, and whether `findings` lists only the first. */
+  total?: number
+  truncated?: boolean
+}
+
+/** One run without its findings, as `GET run/{id}/summary` serves it. */
+export interface PolicyRunHead extends PolicyRun {
+  counts?: PolicyCounts
+  /** The snapshot, each policy with its verdict in this run. */
+  policies?: Array<PolicySnapshotPolicy & {blocking?: boolean; findings?: number; objects_checked?: number; status?: string}>
+}
+
+/** One page of a run's findings, as `GET run/{id}/findings` serves it. */
+export interface PolicyFindingsPage {
+  items: PolicyFinding[]
+  limit: number
+  offset: number
+  /** The findings that match the filters, listed or not. */
+  total: number
 }

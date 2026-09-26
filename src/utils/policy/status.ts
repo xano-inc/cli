@@ -1,4 +1,4 @@
-import type {Policy, PolicyRuleResult, PolicyRun} from './types.js'
+import type {Policy, PolicyRuleResult, PolicyRunHead} from './types.js'
 
 import {isUncheckedPass} from './findings.js'
 
@@ -78,11 +78,21 @@ function ruleStatus(results: PolicyRuleResult[], ruleCount: number, checked: num
 }
 
 /**
+ * A policy's finding count in a run: its verdict in the run summary, which counts them all without
+ * listing them, or, from a whole run, its findings counted.
+ */
+function findingCount(run: PolicyRunHead | undefined, key: string): number {
+  const verdict = (run?.policies ?? []).find((policy) => policy.key === key)
+  if (typeof verdict?.findings === 'number') return verdict.findings
+  return (run?.findings ?? []).filter((finding) => finding.policy_key === key).length
+}
+
+/**
  * Combine the branch's policies with the latest stored run. Whether the run is still evidence for a
  * policy is the platform's `latest_run` answer; only an active policy the run evaluated in its
  * current version carries counts.
  */
-export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicyStatusRow[] {
+export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): PolicyStatusRow[] {
   return policies.map((policy) => {
     const ids = new Set((policy.rules ?? []).map((rule) => rule.id))
     const active = policy.lifecycle === 'active'
@@ -92,7 +102,7 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRun): PolicySt
       ? (run?.results ?? []).filter((result) => result.policy_key === policy.key && ids.has(result.check_id ?? ''))
       : []
     const checked = results.reduce((sum, result) => sum + (result.checked ?? 0), 0)
-    const findings = counted ? (run?.findings ?? []).filter((finding) => finding.policy_key === policy.key).length : 0
+    const findings = counted ? findingCount(run, policy.key) : 0
     let status: PolicyStatus = 'draft'
     if (active) status = stale ? 'stale' : ruleStatus(results, ids.size, checked)
     return {

@@ -1,6 +1,6 @@
 import {Flags} from '@oclif/core'
 
-import type {Policy, PolicyRun} from '../../../utils/policy/types.js'
+import type {Policy, PolicyRunHead} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {policyResultSummary} from '../../../utils/policy/findings.js'
@@ -51,9 +51,12 @@ export default class PolicyStatus extends PolicyCommand {
     if (failOnFindings?.exit) process.exitCode = failOnFindings.exit
   }
 
-  /** The run every policy's `latest_run` answer was decided against, or none when the branch has no run. */
-  private async latestRun(request: PolicyRequest, policies: Policy[]): Promise<PolicyRun | undefined> {
+  /**
+   * The run every policy's `latest_run` answer was decided against, or none when the branch has no
+   * run: its summary, which counts each policy's findings without listing them.
+   */
+  private async latestRun(request: PolicyRequest, policies: Policy[]): Promise<PolicyRunHead | undefined> {
     const runId = policies.map((policy) => policy.latest_run?.run_id).find(Boolean)
-    return runId ? (await request(`/run/${runId}`)) as PolicyRun : undefined
+    return runId ? (await request(`/run/${runId}/summary`)) as PolicyRunHead : undefined
   }
 }

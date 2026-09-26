@@ -9,6 +9,13 @@ import {json, policyFixture} from '../../../helpers/policy-fixture.js'
 
 const finding = {id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}
 const warned = ['disabled', 'forbidden', 'unavailable', 'error']
+const blocked = (n: number) => ({...finding, id: `B${n}`, object: {name: `GET /b${n}`, type: 'query'}})
+const advisory = (n: number) => ({...finding, id: `A${n}`, object: {name: `GET /a${n}`, type: 'query'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'})
+/** A push's `policy_check` as the platform caps it: the first findings, and the counts they are out of. */
+const capped = (blocking: unknown[], findings: unknown[], counts: {blocking: number; errors: number; findings: number}) => ({
+  blocking: counts.blocking > 0, blocking_findings: blocking, counts, findings, message: 'Active policies reported findings.',
+  results: [], run_id: 88, status: 'fail', total: counts.findings, truncated: counts.findings > findings.length,
+})
 
 describe('workspace push policy feedback', () => {
   const fixture = policyFixture()
@@ -52,6 +59,41 @@ describe('workspace push policy feedback', () => {
     expect(result.stdout).to.contain('Errors:\n  AUTH-001 AUTH-001.R1: unknown check query.removed')
     expect(result.stdout).not.to.contain('Policy check:')
     expect(process.exitCode ?? 0).to.equal(0)
+  })
+
+  describe('a capped policy_check', () => {
+    it('says what the first 100 are out of, and which run has them all', async () => {
+      const first = Array.from({length: 100}, (_, n) => blocked(n))
+      fixture.route(() => json({guid_map: [], policy_check: capped(first, first, {blocking: 150, errors: 0, findings: 400})}))
+      const result = await push()
+      expect(result.stdout).to.contain('Active policies reported findings.\nFindings: 400 (150 blocking, 250 advisory)\nBlocking findings (first 100 of 150) — these stop the merge:')
+      expect(result.stdout).to.contain('Listed: the first 100 of 400; `xano policy runs 88` has them all.')
+      expect(result.stdout.split('\n').filter(line => line.includes('GET /b'))).to.have.length(100)
+      expect(process.exitCode).to.equal(2)
+    })
+
+    it('splits a cut list, each heading out of its own count', async () => {
+      const first = [...Array.from({length: 30}, (_, n) => blocked(n)), ...Array.from({length: 70}, (_, n) => advisory(n))]
+      fixture.route(() => json({guid_map: [], policy_check: capped(first.slice(0, 30), first, {blocking: 30, errors: 0, findings: 400})}))
+      const result = await push()
+      expect(result.stdout).to.contain('Blocking findings (30) — these stop the merge:')
+      expect(result.stdout).to.contain('Advisory findings (first 70 of 370) — reported, not blocking:')
+    })
+
+    it('says nothing about a cut when the lists hold every finding', async () => {
+      const all = [blocked(0), advisory(0)]
+      fixture.route(() => json({guid_map: [], policy_check: capped([all[0]], all, {blocking: 1, errors: 0, findings: 2})}))
+      const result = await push()
+      expect(result.stdout).to.contain('Blocking findings (1) — these stop the merge:')
+      expect(result.stdout).not.to.contain('Findings: 2').and.not.to.contain('Listed:')
+    })
+
+    it('keeps -o json the platform document', async () => {
+      const first = Array.from({length: 100}, (_, n) => blocked(n))
+      const check = capped(first, first, {blocking: 150, errors: 0, findings: 400})
+      fixture.route(() => json({guid_map: [], policy_check: check}))
+      expect(JSON.parse((await push('-o', 'json')).stdout).policy_check).to.deep.equal(check)
+    })
   })
 
   it('keeps stdout a single JSON document and still warns on stderr', async () => {

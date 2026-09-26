@@ -192,11 +192,12 @@ describe('official policy commands and workspace carriage', () => {
     })
   }
 
-  it('status reads the run the served latest_run names, and no run when there is none', async () => {
+  it('status reads the summary of the run the served latest_run names, and no run when there is none', async () => {
     const results = [{check_id: 'R1', checked: 1, policy_key: 'AUTH-001', status: 'pass'}]
     fixture.route(url => url.pathname.includes('/run/') ? json({id: 1674, results}) : json({items: [active]}))
     const current = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
-    expect(fixture.calls.map(call => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/policy', '/api:meta/workspace/1/policy/run/1674'])
+    // The summary, never the whole run, which can hold tens of thousands of findings.
+    expect(fixture.calls.map(call => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/policy', '/api:meta/workspace/1/policy/run/1674/summary'])
     expect(JSON.parse(current.stdout).status[0]).to.include({stale: false, status: 'pass'})
 
     fixture.calls.length = 0
@@ -205,6 +206,24 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls).to.have.length(1)
     expect(JSON.parse(none.stdout)).to.include({run: null})
     expect(JSON.parse(none.stdout).status[0]).to.include({status: 'not_evaluated'})
+  })
+
+  it('status counts findings from the run summary exactly as it counted them from the whole run', async () => {
+    const second = {...active, id: 2, key: 'SEC-100', latest_run: {...covered, enforcement: 'advisory'}}
+    const results = [{check_id: 'R1', checked: 4, policy_key: 'AUTH-001', status: 'fail'}, {check_id: 'R1', checked: 4, policy_key: 'SEC-100', status: 'fail'}]
+    const whole = {findings: ['AUTH-001', 'AUTH-001', 'SEC-100'].map(key => ({message: 'found', object: {name: 'GET /x', type: 'query'}, policy_key: key, rule_id: 'R1'})), id: 1674, results}
+    // The summary lists no finding: each policy's verdict counts its findings.
+    const summary = {counts: {advisory: 1, blocking: 2, errors: 0, findings: 3}, id: 1674, policies: [{findings: 2, key: 'AUTH-001'}, {findings: 1, key: 'SEC-100'}], results}
+    const outputs = []
+    for (const run of [whole, summary]) {
+      fixture.route(url => url.pathname.includes('/run/') ? json(run) : json({items: [active, second]}))
+      // eslint-disable-next-line no-await-in-loop -- one command at a time against one stubbed fetch
+      outputs.push(await runCommand(['policy', 'status', '--fail-on-findings'], fixture.config))
+    }
+
+    expect(outputs[1].stdout).to.equal(outputs[0].stdout)
+    expect(outputs[1].stdout).to.contain('AUTH-001  fail  Mandatory  2 findings (blocking)').and.to.contain('SEC-100  fail  Mandatory  1 findings')
+    expect(outputs[1].stdout).to.contain('The latest run has 2 blocking findings (AUTH-001)')
   })
 
   it('status takes staleness from the platform, whatever the run recorded', async () => {
@@ -379,26 +398,108 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls).to.have.length(0)
   })
 
-  it('runs reads one older run by id, with its findings and what it recorded', async () => {
-    fixture.route(() => json(run))
+  /** The run's summary and one page of its findings, each from its own route, as the platform serves them. */
+  function runRoute(page?: Record<string, unknown>): void {
+    const head: Record<string, unknown> = {...run, counts: {advisory: 0, blocking: 1, errors: 0, findings: 1}}
+    delete head.findings
+    fixture.route(url => url.pathname.endsWith('/findings') ? json(page ?? {items: run.findings, limit: 100, offset: 0, total: 1}) : json(head))
+  }
+
+  it('runs reads one older run by id, from its summary and a page of its findings, with what it recorded', async () => {
+    runRoute()
     const result = await runCommand(['policy', 'runs', '1674', '--run-detail'], fixture.config)
     expect(result.error).to.equal(undefined)
-    expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/policy/run/1674')
+    // Never the whole run, which can hold tens of thousands of findings.
+    expect(fixture.calls.map(call => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/policy/run/1674/summary', '/api:meta/workspace/1/policy/run/1674/findings'])
+    expect(Object.fromEntries(fixture.calls[1].url.searchParams)).to.deep.equal({branch: 'feature', limit: '100', offset: '0'})
     expect(result.stdout).to.contain('Run 1674  fail  push  2026-09-17T22:42:00.903Z → 2026-09-17T22:42:00.980Z  23 objects checked')
+    expect(result.stdout).to.contain('Findings: 1 (1 blocking, 0 advisory)\nFindings 1-1 of 1:')
     // The rule id leads the finding line, because a check label is shared by every rule using it.
     expect(result.stdout).to.contain('AUTH-001.R1  Endpoints declare authentication [high] (Auth)  query GET /x: no auth')
+    expect(result.stdout).not.to.contain('Next page')
     expect(result.stdout).to.contain('Run 1674 as recorded')
     expect(result.stdout).to.contain('settings: except_tags=[public]')
   })
 
-  it('runs refuses a non-numeric run id and keeps JSON faithful', async () => {
+  it('runs pages the findings of a run with --offset and --limit, and narrows them with the filter flags', async () => {
+    runRoute({items: run.findings, limit: 1, offset: 200, total: 250})
+    const result = await runCommand([
+      'policy', 'runs', '1674', '--offset', '200', '--limit', '1', '--blocking', '--policy', 'AUTH-001', '--policy', 'SEC-100',
+      '--rule', 'AUTH-001.R1', '--severity', 'high', '--kind', 'query', '--object', 'query:18', '--tag', 'soc2', '--search', '"no auth"',
+    ], fixture.config)
+    expect(result.error).to.equal(undefined)
+    // A list filter repeats its key the way PHP reads a list.
+    expect(Object.fromEntries(fixture.calls[1].url.searchParams)).to.deep.equal({
+      blocking: 'true', branch: 'feature', 'kind[0]': 'query', limit: '1', 'object[0]': 'query:18', offset: '200', 'policy[0]': 'AUTH-001',
+      'policy[1]': 'SEC-100', q: 'no auth', 'rule[0]': 'AUTH-001.R1', 'severity[0]': 'high', 'tag[0]': 'soc2',
+    })
+    expect(result.stdout).to.contain('Findings 201-201 of 250 matching (one page):')
+    expect(result.stdout).to.contain('Next page: `xano policy runs 1674 --offset 201`, or --all for all 250, with the same filters.')
+
+    runRoute({items: [], limit: 100, offset: 0, total: 0})
+    const advisory = await runCommand(['policy', 'runs', '1674', '--advisory'], fixture.config)
+    expect(fixture.calls.at(-1)?.url.searchParams.get('blocking')).to.equal('false')
+    expect(advisory.stdout).to.contain('No findings match.')
+
+    runRoute({items: [], limit: 100, offset: 300, total: 250})
+    const past = await runCommand(['policy', 'runs', '1674', '--offset', '300'], fixture.config)
+    expect(past.stdout).to.contain('No findings from offset 300: 250 in all.')
+  })
+
+  it('runs refuses finding flags without a run id, and a page beyond 500, before any request', async () => {
+    fixture.route(() => json({items: []}))
+    for (const flags of [['--offset', '5'], ['--all'], ['--blocking'], ['--policy', 'AUTH-001'], ['--search', 'auth']]) {
+      // eslint-disable-next-line no-await-in-loop -- one command at a time against one stubbed fetch
+      const result = await runCommand(['policy', 'runs', ...flags], fixture.config)
+      expect(result.error?.message).to.contain(`${flags[0]} pages one run's findings`)
+    }
+
+    const tooMany = await runCommand(['policy', 'runs', '1674', '--limit', '501'], fixture.config)
+    expect(tooMany.error?.message).to.contain('at most 500 findings')
+    const both = await runCommand(['policy', 'runs', '1674', '--blocking', '--advisory'], fixture.config)
+    expect(both.error?.message).to.contain('cannot also be provided')
+    const pagedAll = await runCommand(['policy', 'runs', '1674', '--all', '--offset', '100'], fixture.config)
+    expect(pagedAll.error?.message).to.contain('cannot also be provided')
+    expect(fixture.calls).to.have.length(0)
+  })
+
+  it('runs refuses a non-numeric run id, and its JSON is the summary with the findings page beside it', async () => {
     fixture.route(() => json(run))
     const bad = await runCommand(['policy', 'runs', 'latest'], fixture.config)
     expect(bad.error?.message).to.contain('"latest" is not a run ID')
     expect(fixture.calls).to.have.length(0)
-    fixture.route(() => json(run))
-    const asJson = await runCommand(['policy', 'runs', '1674', '-o', 'json'], fixture.config)
-    expect(JSON.parse(asJson.stdout).id).to.equal(1674)
+    runRoute({items: run.findings, limit: 100, offset: 0, total: 150})
+    const asJson = JSON.parse((await runCommand(['policy', 'runs', '1674', '-o', 'json'], fixture.config)).stdout)
+    expect(asJson.id).to.equal(1674)
+    expect(asJson.counts).to.deep.equal({advisory: 0, blocking: 1, errors: 0, findings: 1})
+    // findings stays an array, as scripts read it; the paging is beside it.
+    expect(asJson.findings).to.deep.equal(run.findings)
+    expect(asJson.findings_page).to.deep.equal({limit: 100, next_offset: 1, offset: 0, total: 150})
+  })
+
+  it('runs --all reads every page and returns every finding as one array, saying on stderr what it reads', async () => {
+    const all = Array.from({length: 1200}, (_, n) => ({...run.findings[0], id: `F${n}`, object: {name: `GET /x${n}`, type: 'query'}}))
+    const head: Record<string, unknown> = {...run}
+    delete head.findings
+    fixture.route((url) => {
+      if (!url.pathname.endsWith('/findings')) return json(head)
+      const offset = Number(url.searchParams.get('offset'))
+      const limit = Number(url.searchParams.get('limit'))
+      return json({items: all.slice(offset, offset + limit), limit, offset, total: all.length})
+    })
+    const result = await runCommand(['policy', 'runs', '1674', '--all', '--blocking', '-o', 'json'], fixture.config)
+    expect(result.error).to.equal(undefined)
+    const pages = fixture.calls.slice(1).map(call => [call.url.searchParams.get('offset'), call.url.searchParams.get('limit'), call.url.searchParams.get('blocking')])
+    expect(pages).to.deep.equal([['0', '500', 'true'], ['500', '500', 'true'], ['1000', '500', 'true']])
+    expect(result.stderr).to.contain('Reading 1200 findings of run 1674, 500 a request (3 requests)')
+    const asJson = JSON.parse(result.stdout)
+    expect(asJson.findings).to.have.length(1200)
+    expect(asJson.findings.at(-1).id).to.equal('F1199')
+    expect(asJson.findings_page).to.deep.equal({limit: 1200, next_offset: null, offset: 0, total: 1200})
+
+    const printed = await runCommand(['policy', 'runs', '1674', '--all'], fixture.config)
+    expect(printed.stdout).to.contain('Findings 1-1200 of 1200:').and.not.to.contain('Next page')
+    expect(printed.stdout.split('\n').filter(line => line.includes('GET /x'))).to.have.length(1200)
   })
 
   it('push reports the policy documents it sent without claiming which changed', async () => {

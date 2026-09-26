@@ -68,6 +68,11 @@ export function policyDocumentSummary(preview: null | {operations: Array<{action
 export interface PolicyEvidence {
   /** The ids of the findings that block. */
   blocking: Set<string>
+  /**
+   * When the answer lists only the first findings: how many there are in all, and how many block.
+   * The stored run (`runId`, 0 when nothing was stored) has them all.
+   */
+  cut?: {blocking: number; findings: number; runId: number}
   /** In the platform's order: blocking first, then by severity. */
   findings: PolicyFinding[]
   results: PolicyRuleResult[]
@@ -75,24 +80,42 @@ export interface PolicyEvidence {
   snapshot: PolicySnapshotPolicy[]
 }
 
-/** A push answers no run, so its `policy_check` carries the findings and results itself. */
+/**
+ * A push answers no run, so its `policy_check` carries the findings and results itself: the first
+ * 100 of each list, with `counts` and `total` saying what they are out of.
+ */
 export function pushEvidence(check?: PushPolicyCheck): PolicyEvidence {
   return {
     blocking: new Set((check?.blocking_findings ?? []).map(finding => finding.id ?? '').filter(Boolean)),
+    ...(check?.truncated && check.counts
+      ? {cut: {blocking: check.counts.blocking, findings: check.total ?? check.counts.findings, runId: check.run_id ?? 0}}
+      : {}),
     findings: check?.findings ?? [],
     results: check?.results ?? [],
     snapshot: [],
   }
 }
 
-/** An evaluation answers the run, and its verdict names the blocking findings by id. */
+/**
+ * An evaluation answers the run, and its verdict names the blocking findings by id. Its summary
+ * answer (`--summary`) lists the first findings, and its counts say what they are out of.
+ */
 export function evaluationEvidence(evaluation: PolicyEvaluation): PolicyEvidence {
+  const {counts} = evaluation
   return {
     blocking: new Set(evaluation.policy_check?.blocking_finding_ids ?? []),
+    ...(evaluation.truncated && counts
+      ? {cut: {blocking: counts.blocking, findings: evaluation.total ?? counts.findings, runId: evaluation.stored === false ? 0 : (evaluation.id ?? 0)}}
+      : {}),
     findings: evaluation.findings ?? [],
     results: evaluation.results ?? [],
     snapshot: evaluation.policies ?? [],
   }
+}
+
+/** A list's count, or `first N of M` when the answer lists only the first of them. */
+function listed(count: number, all?: number): string {
+  return all !== undefined && all > count ? `first ${count} of ${all}` : String(count)
 }
 
 /** The headline's outcome. A pass whose rules inspected no object is never headlined as a plain pass. */
@@ -119,23 +142,33 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
   }
 
   const rules = snapshotRules(evidence.snapshot)
-  const {blocking, findings} = evidence
+  const {blocking, cut, findings} = evidence
+  // A cut list is out of the counts; the ones the answer lists come first, blocking first.
+  const allBlocking = cut?.blocking
+  const allAdvisory = cut ? cut.findings - cut.blocking : undefined
+  if (cut) lines.push(`Findings: ${cut.findings} (${cut.blocking} blocking, ${allAdvisory} advisory)`)
   // The list splits only when some findings block and others do not.
   const separated = blocking.size > 0 && findings.some(finding => !blocking.has(finding.id ?? ''))
   if (separated) {
     const blocked = findings.filter(finding => blocking.has(finding.id ?? ''))
     const advisory = findings.filter(finding => !blocking.has(finding.id ?? ''))
     lines.push(
-      `Blocking findings (${blocked.length}) — these stop the merge:`,
+      `Blocking findings (${listed(blocked.length, allBlocking)}) — these stop the merge:`,
       ...blocked.map(finding => findingLine(finding, rules)),
-      `Advisory findings (${advisory.length}) — reported, not blocking:`,
+      `Advisory findings (${listed(advisory.length, allAdvisory)}) — reported, not blocking:`,
       ...advisory.map(finding => findingLine(finding, rules)),
     )
   } else {
-    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${findings.length}) — these stop the merge:`)
+    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${listed(findings.length, allBlocking)}) — these stop the merge:`)
     // Without a headline (an `error` status, say) nothing else says what these findings are.
-    else if (findings.length > 0 && !isHeadlined(check)) lines.push(`Advisory findings (${findings.length}) — reported, not blocking:`)
+    else if (findings.length > 0 && !isHeadlined(check)) lines.push(`Advisory findings (${listed(findings.length, allAdvisory)}) — reported, not blocking:`)
     lines.push(...findings.map(finding => findingLine(finding, rules)))
+  }
+
+  if (cut) {
+    lines.push(`Listed: the first ${findings.length} of ${cut.findings}; ${cut.runId > 0
+      ? `\`xano policy runs ${cut.runId}\` has them all.`
+      : 'this evaluation was not stored, so the rest cannot be listed.'}`)
   }
 
   lines.push(...policyResultSummary(evidence.results))

@@ -182,8 +182,13 @@ xano policy list                                     # Policies on the branch
 xano policy parse policies/AUTH-001.xs               # Validate and print canonical XanoScript (or --file, --stdin)
 xano policy publish policies/AUTH-001.xs -m "Why"    # Create or update by key; -m labels the Version History entry
 xano policy evaluate                                 # Evaluate the branch now
+xano policy evaluate --summary                       # The same, answering the run summary and its first 50 findings
 xano policy status --fail-on-findings                # The latest run, without evaluating (CI)
-xano policy runs 1674 --run-detail                   # One run in full; without an id, the retained runs
+xano policy runs 1674 --run-detail                   # One run and its first 100 findings; without an id, the retained runs
+xano policy runs 1674 --offset 100 --limit 100       # The next page of that run's findings (at most 500 a page)
+xano policy runs 1674 --all -o json                  # Every finding, read page by page
+xano policy runs 1674 --blocking --policy AUTH-001   # Only some findings: --blocking/--advisory, --policy, --rule,
+                                                     #   --severity, --kind, --object type:id, --tag (repeatable), --search
 xano policy delete TMP-001                           # Remove a policy; its Version History is kept
 ```
 
@@ -192,6 +197,16 @@ and `-o/--output summary|json`. `workspace pull` and `workspace push` carry poli
 Sandbox, ephemeral tenant and release pushes carry none: policy files are left out, and the push says which.
 While the instance's Policies feature is off, `workspace pull` exports no policy (and keeps local policy files)
 and `workspace push` leaves its policy files out, printing the platform's notice instead of a policy count.
+
+A run can hold tens of thousands of findings, so the CLI reads them a page at a time. `policy runs <id>` reads
+the run's summary and one page of its findings; a page that is not every finding says `(one page)` and how to read
+the next. `-o json` is the summary with `findings`, the page's findings as an array, and
+`findings_page: {total, offset, limit, next_offset}`. `--all` reads every page (500 a request, saying so on stderr
+when there are more) and returns every matching finding in `findings`. `policy status` reads the latest run's
+summary, so its `-o json` `run` carries each policy's finding count rather than the findings. The `policy_check` a
+`workspace push` prints lists the first 100 findings; when there are more it prints their counts and
+`Listed: the first 100 of N; \`xano policy runs <run_id>\` has them all.` `policy evaluate --summary` does the same
+with the first 50, and `policy evaluate` without it still answers the whole run.
 
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
 blocks (an active, mandatory policy failed), whatever else happened; `1` when a request or the import failed, or

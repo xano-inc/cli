@@ -3,8 +3,11 @@ import type {ProfileConfig} from '../../base-command.js'
 import {describePolicyError, policyCodeGuidance} from './errors.js'
 import {policyPermissionGuidance} from './permission.js'
 
+/** Query params; a list is sent as PHP reads one (`policy[0]=A&policy[1]=B`). */
+export type PolicyQuery = Record<string, string | string[]>
+
 /** One request against a policy-family route: a path under it, a method, a JSON body and query params. */
-export type PolicyRequest = (path?: string, method?: string, body?: unknown, query?: Record<string, string>) => Promise<unknown>
+export type PolicyRequest = (path?: string, method?: string, body?: unknown, query?: PolicyQuery) => Promise<unknown>
 
 /** What a request needs from the command that makes it. */
 export interface PolicyRequestHost {
@@ -40,8 +43,8 @@ export function policyScope(flags: {branch?: string; workspace?: string}, profil
 export function policyRequest(host: PolicyRequestHost, route: PolicyRequestRoute): PolicyRequest {
   const {branch, label, profile, verbose, workspace} = route
   const base = `${profile.instance_origin}/api:meta/workspace/${workspace}${route.path}`
-  return async (path = '', method = 'GET', body?: unknown, query: Record<string, string> = {}) => {
-    const url = `${base}${path}?${new URLSearchParams({branch, ...query})}`
+  return async (path = '', method = 'GET', body?: unknown, query: PolicyQuery = {}) => {
+    const url = `${base}${path}?${queryString({branch, ...query})}`
     const response = await host.verboseFetch(
       url,
       {
@@ -73,6 +76,16 @@ export function policyRequest(host: PolicyRequestHost, route: PolicyRequestRoute
       return host.error(`${label} request to ${path || '/'} returned a ${response.status} that is not JSON.`)
     }
   }
+}
+
+function queryString(query: PolicyQuery): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [name, value] of Object.entries(query)) {
+    if (Array.isArray(value)) for (const [index, item] of value.entries()) params.append(`${name}[${index}]`, item)
+    else params.append(name, value)
+  }
+
+  return params
 }
 
 /** A request host's `error` for a caller that asks rather than fails: it throws instead of exiting. */

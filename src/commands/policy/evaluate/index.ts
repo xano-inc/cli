@@ -13,20 +13,25 @@ import {
 
 export default class PolicyEvaluate extends PolicyCommand {
   static override description = 'Evaluate active branch policies and report their findings; blocking findings exit 2'
-  static override examples = ['$ xano policy evaluate -o json', '$ xano policy evaluate --run-detail']
+  static override examples = ['$ xano policy evaluate -o json', '$ xano policy evaluate --run-detail', '$ xano policy evaluate --summary -o json']
   static override flags = {
     ...PolicyCommand.policyFlags,
     'run-detail': Flags.boolean({
       default: false,
       description: 'Also print what this run recorded: each policy description and the settings each rule ran with',
     }),
+    summary: Flags.boolean({
+      default: false,
+      description: 'Answer the run summary and its first 50 findings instead of the whole run; `xano policy runs <id>` pages through the rest',
+    }),
   }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(PolicyEvaluate)
     const {request} = this.policyTarget(flags)
-    // The evaluation answers with its run, so the run's own snapshot names any unnamed rule.
-    const result = (await request('/evaluate', 'POST')) as PolicyEvaluation
+    // The evaluation answers with its run, so the run's own snapshot names any unnamed rule. The
+    // summary answer carries the same snapshot and results, and only the first findings.
+    const result = (await request('/evaluate', 'POST', flags.summary ? {answer: 'summary'} : undefined)) as PolicyEvaluation
     if (flags.output === 'json') this.log(JSON.stringify(result, null, 2))
     else {
       for (const line of policySummary(result.policy_check, evaluationEvidence(result))) this.log(line)

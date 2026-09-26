@@ -136,6 +136,33 @@ describe('policy reporting', () => {
     expect(plain.stdout).not.to.contain('as recorded').and.not.to.contain('settings:')
   })
 
+  it('evaluate --summary asks for the summary answer and says which run has the findings it leaves out', async () => {
+    const findings = Array.from({length: 50}, (_, n) => ({id: `F${n}`, message: 'No auth', object: {name: `GET /x${n}`, type: 'query'}, policy_key: 'AUTH-001', rule_id: 'R1'}))
+    const answer = {
+      ...detailRun, counts: {advisory: 70, blocking: 0, errors: 0, findings: 70}, findings,
+      policy_check: {blocking: false, blocking_finding_ids: [], blocking_total: 0, message: 'Active policies reported findings.', run_id: 1129, status: 'fail'},
+      stored: true, total: 70, truncated: true,
+    }
+    fixture.route(() => json(answer))
+    const result = await command('policy evaluate', ['--summary', '--run-detail'])
+    expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({answer: 'summary'})
+    expect(result.stdout).to.contain('Policy check: advisory findings (not blocking)\nActive policies reported findings.\nFindings: 70 (0 blocking, 70 advisory)')
+    expect(result.stdout).to.contain('Listed: the first 50 of 70; `xano policy runs 1129` has them all.')
+    // The summary carries the snapshot, so --run-detail still reports what the run recorded.
+    expect(result.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
+    expect(JSON.parse((await command('policy evaluate', ['--summary', '-o', 'json'])).stdout)).to.deep.equal(answer)
+
+    // A credential that may read but not write: nothing was stored to read the rest from.
+    fixture.route(() => json({...answer, id: 0, policy_check: {...answer.policy_check, run_id: 0}, stored: false}))
+    const unstored = await command('policy evaluate', ['--summary'])
+    expect(unstored.stdout).to.contain('Listed: the first 50 of 70; this evaluation was not stored, so the rest cannot be listed.')
+
+    // Without the flag an evaluation sends no body and answers the whole run, as before.
+    fixture.route(() => json({...detailRun, policy_check: {blocking: false, status: 'pass'}}))
+    await command('policy evaluate')
+    expect(fixture.calls.at(-1)?.body).to.equal(undefined)
+  })
+
   it('names a rule refused for its name with the platform sentence and where the name is', async () => {
     const message = 'rule[1]: A rule cannot be named. Write "rule {" — rules are identified by position (KEY.R1, KEY.R2…).'
     fixture.route(() => json({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {char: 61, col: 8, error_line: '  rule foo {', error_snippet: 'foo {', line: 5}}, 400))
