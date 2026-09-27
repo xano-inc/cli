@@ -1732,6 +1732,9 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
 
   const refusal = payload as Record<string, unknown> | undefined
   if (status === 403 && refusal?.code === 'policy_gate') throw new PushPolicyGateError(refusal)
+  // The plan's policy cap: the platform's message names the plan, its cap and the remedy, and the
+  // push itself would be refused the same way, so the preview stops here rather than skipping.
+  if (status === 403 && refusal?.code === 'policy_plan_limit') command.error(`Push refused (${status}): ${message}`)
   if (refusal?.code === 'policy_gate_transaction_required') {
     command.error('Push refused: the live branch policy gate requires a transaction. Remove --no-transaction and retry. Nothing was imported.')
   }
@@ -1816,7 +1819,15 @@ async function handleDryRunError(
       // Not JSON, fall through
     }
 
-    command.warn(`Push preview failed (${response.status}). Skipping preview.`)
+    let reason = ''
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (typeof errorJson?.message === 'string' && errorJson.message.trim()) reason = `: ${errorJson.message.trim().replace(/\.$/, '')}`
+    } catch {
+      // Not JSON
+    }
+
+    command.warn(`Push preview failed (${response.status})${reason}. Skipping preview.`)
     if (verbose) {
       log(ux.colorize('dim', errorText))
     }
