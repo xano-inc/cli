@@ -30,6 +30,8 @@ export default class TenantDeployRequestGet extends BaseCommand {
   static examples = [
     `$ xano tenant_deploy_request get 12
 Deploy request #12: "Deploy v1.2 to prod" [pending]
+  Tenant: prod
+  Release: v1.2
 Policy check of release "v1.2" on tenant "prod":
 Policy gate: pass
   No blocking policy findings are introduced, and no policy the tenant runs under is weakened.
@@ -91,13 +93,15 @@ Policy gate: pass
           ...(policyCheck.unavailable ? {policy_gate_unavailable: policyCheck.unavailable} : {})}, null, 2))
       } else {
         this.log(`Deploy request #${item.id}: "${item.title}" [${item.status}]`)
+        this.log(`  Tenant: ${item._tenant?.name || (item.deployment?.tenant?.id ? `#${item.deployment.tenant.id}` : 'unavailable')}`)
+        this.log(`  Release: ${item._release?.name || (item.deployment?.release?.id ? `#${item.deployment.release.id}` : 'unavailable')}`)
         if (item.description) this.log(`  Description: ${item.description}`)
         if (item.reviewers?.length) this.log(`  Reviewers: ${item.reviewers.map((r) => r.id).join(', ')}`)
         if (item.can_review !== undefined) this.log(`  Can review: ${item.can_review}`)
         if (policyCheck.answer) {
           this.log(`Policy check of release "${item._release?.name}" on tenant "${item._tenant?.name}":`)
           for (const line of gateLines(policyCheck.answer)) this.log(line)
-        } else {
+        } else if (policyCheck.unavailable) {
           this.log(`Policy checks: not available (${policyCheck.unavailable})`)
         }
       }
@@ -119,6 +123,8 @@ Policy gate: pass
     item: ApprovalRequest,
     target: {profile: ProfileConfig; verbose: boolean; workspaceId: string},
   ): Promise<{answer?: PolicyGateAnswer; unavailable?: string}> {
+    // Terminal requests are historical records: previewing now can check a different base release.
+    if (['approved', 'closed'].includes(item.status)) return {}
     const tenant = item._tenant?.name?.trim()
     const release = item._release?.name?.trim()
     if (!tenant || !release) return {unavailable: 'the request does not name its tenant and release'}

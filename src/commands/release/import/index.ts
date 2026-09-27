@@ -98,7 +98,7 @@ Imported release as #15
       } else {
         const sizeMb = (fileBuffer.length / 1024 / 1024).toFixed(2)
         this.log(`Imported release as #${result.id} (${sizeMb} MB)`)
-        for (const line of releasePolicyRunLines(result.policy_run, result.name)) this.log(line)
+        for (const line of releasePolicyRunLines(result.policy_run, result.name, result.id)) this.log(line)
       }
     } catch (error) {
       if (error instanceof Error) {

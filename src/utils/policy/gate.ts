@@ -97,7 +97,7 @@ function ruleName(rule: string | {check?: string; id?: string; title?: string}):
 function releaseLine(label: string, release?: GateRelease | null): string {
   if (!release) return `  ${label}: none (the tenant has no release yet, so only this release's own policies apply)`
   const name = release.name?.trim() || (release.id ? `#${release.id}` : 'unknown')
-  const detail = release.carried === false
+  const detail = release.status === 'not_carried'
     ? 'cut without its policies'
     : [release.run_id ? `policy run ${release.run_id}` : '', release.status ?? ''].filter(Boolean).join(', ')
   return `  ${label}: ${name}${detail ? ` (${detail})` : ''}`

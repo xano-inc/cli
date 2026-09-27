@@ -41,6 +41,7 @@ export default class PolicyRuns extends PolicyCommand {
     '$ xano policy runs --release v1.2',
     '$ xano policy runs --release v1.2 --blocking --all -o json',
     '$ xano policy runs --release v1.2 --recheck',
+    '$ xano policy runs --release-id 12',
   ]
   static override flags = {
     ...PolicyCommand.policyFlags,
@@ -85,7 +86,12 @@ export default class PolicyRuns extends PolicyCommand {
     }),
     release: Flags.string({
       description: "Read this release's policy check (by release name) instead of a branch's run; the finding flags page and filter it as they do a run's",
-      exclusive: ['branch'],
+      exclusive: ['branch', 'release-id'],
+    }),
+    'release-id': Flags.integer({
+      description: 'Read a release policy check by release ID, without looking up its name',
+      exclusive: ['branch', 'release'],
+      min: 1,
     }),
     rule: Flags.string({
       description: 'With a run ID, only findings of this rule ID (AUTH-001.R1); repeatable',
@@ -110,7 +116,7 @@ export default class PolicyRuns extends PolicyCommand {
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(PolicyRuns)
-    if (flags.release !== undefined) return this.readRelease(flags, args.run_id)
+    if (flags.release !== undefined || flags['release-id'] !== undefined) return this.readRelease(flags, args.run_id)
     if (flags.recheck) this.error('--recheck checks a release again: `xano policy runs --release <name> --recheck`.')
     const {request} = this.policyTarget(flags)
     const wanted = args.run_id?.trim() ?? ''
@@ -173,11 +179,11 @@ export default class PolicyRuns extends PolicyCommand {
    */
   private async readRelease(flags: RunsFlags, runId?: string): Promise<void> {
     if (runId?.trim()) this.error('Read one run by its ID, or a release\'s check with --release, not both.')
-    const name = flags.release?.trim() ?? ''
+    const name = flags.release?.trim() ?? String(flags['release-id'] ?? '')
     if (!name) this.error('--release needs a release name.')
     const limit = findingsLimit(this, flags)
     const {request} = this.policyTarget(flags, {label: 'Release policy check', path: ''})
-    const releaseId = await this.releaseId(request, name)
+    const releaseId = flags['release-id'] ?? await this.releaseId(request, name)
     const route = `/release/${releaseId}/policy_run`
     const answer = (flags.recheck ? await request(route, 'POST', {}) : await request(route)) as {check?: unknown; run?: null | ReleaseRunHead}
     const check = flags.recheck ? {check: answer.check ?? null} : {}
@@ -200,7 +206,7 @@ export default class PolicyRuns extends PolicyCommand {
       flags,
       head,
       limit,
-      next: `xano policy runs --release ${quoted(name)}`,
+      next: flags['release-id'] ? `xano policy runs --release-id ${releaseId}` : `xano policy runs --release ${quoted(name)}`,
       path: `${route}/findings`,
       preface: [...rechecked, ...releaseRunLines(name, releaseId, head)],
       reading: `release ${name}`,

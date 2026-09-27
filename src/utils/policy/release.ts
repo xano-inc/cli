@@ -30,7 +30,7 @@ export interface ReleaseRunHead extends PolicyRunHead {
  * carries none. A cut is never refused: blocking findings are judged per tenant at deploy, so the
  * lines point at the deploy preview and the release's findings.
  */
-export function releasePolicyRunLines(policyRun: unknown, releaseName?: string): string[] {
+export function releasePolicyRunLines(policyRun: unknown, releaseName?: string, releaseId?: number): string[] {
   if (!policyRun || typeof policyRun !== 'object') return []
   const check = policyRun as ReleasePolicyRun
   const status = check.status?.trim() || 'unknown'
@@ -44,8 +44,9 @@ export function releasePolicyRunLines(policyRun: unknown, releaseName?: string):
   const lines = [`  Policy check: ${check.run_status || 'recorded'} (run ${check.run_id ?? '?'}), ${findings}`]
   if (check.message?.trim()) lines.push(`    ${check.message.trim()}`)
   const name = releaseName?.trim() ? quoted(releaseName.trim()) : '<release_name>'
-  if (blocking + advisory > 0) lines.push(`    Findings: xano policy runs --release ${name}`)
-  if (blocking > 0) lines.push(`    Each tenant's deploy is gated on the ones it introduces: xano tenant deploy_release <tenant> --release ${name} --check`)
+  const target = releaseName?.trim() || !releaseId ? `--release ${name}` : `--release-id ${releaseId}`
+  if (blocking + advisory > 0) lines.push(`    Findings: xano policy runs ${target}`)
+  if (blocking > 0 && releaseName?.trim()) lines.push(`    Each tenant's deploy is gated on the ones it introduces: xano tenant deploy_release <tenant> --release ${name} --check`)
   return lines
 }
 

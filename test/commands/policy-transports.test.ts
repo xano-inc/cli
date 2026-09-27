@@ -16,8 +16,8 @@ const preview = (extra: Record<string, unknown> = {}) => ({
 })
 
 /**
- * A tenant or sandbox push leaves policy files out and names them once in `policies_skipped`. A
- * release carries its policies like its code, so a release built from local files sends them.
+ * Tier1 tenant and sandbox pushes carry policies. Remote tenant pushes, feature-off imports and
+ * older servers can leave them out; their `policies_skipped` notice is printed once. Releases carry them.
  */
 describe('which pushes carry policy files', () => {
   const fixture = policyFixture()

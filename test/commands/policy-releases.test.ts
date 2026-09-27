@@ -120,7 +120,8 @@ describe('release policy checks', () => {
       const result = await runCommand(['release', 'import', '--file', archive], fixture.config)
       expect(result.error).to.equal(undefined)
       expect(result.stdout).to.contain('Imported release as #14')
-      expect(result.stdout).to.contain('Policy check: fail (run 1712)').and.to.contain('xano policy runs --release <release_name>')
+      expect(result.stdout).to.contain('Policy check: fail (run 1712)').and.to.contain('xano policy runs --release-id 14')
+      expect(result.stdout).not.to.contain('<release_name>')
     })
   })
 
@@ -135,6 +136,30 @@ describe('release policy checks', () => {
   }
 
   describe('tenant deploy_release and the policy gate', () => {
+
+    for (const status of ['unavailable', 'not_carried']) {
+      it(`--check reports ${status} without inventing a verdict and exits 0`, async () => {
+        tenantRoutes(() => { throw new Error('deployed') }, () => json({
+          ...passed, release: {carried: false, id: 12, name: 'v1.2', status}, status,
+        }))
+        const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2', '--check'], fixture.config)
+        expect(result.error).to.equal(undefined)
+        expect(result.stdout).to.contain(`Policy gate: ${status}`)
+        expect(result.stdout).to.contain(status === 'not_carried' ? 'cut without its policies' : 'v1.2 (unavailable)')
+        if (status === 'unavailable') expect(result.stdout).not.to.contain('cut without its policies')
+        expect(fixture.calls).to.have.length(1)
+        expect(process.exitCode ?? 0).to.equal(0)
+      })
+    }
+
+    it('a non-reader gate refusal reports counts and the permission without policy details', async () => {
+      tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined,
+        message: 'Deploy blocked: 1 introduced finding; 1 mandatory policy weakened.', regressions: undefined, removed: undefined}))
+      const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
+      expect(result.stdout).to.contain('workspace:policy read').and.to.contain('Mandatory policies this release weakens: 1')
+      expect(result.stdout).not.to.contain('AUTH-001').and.not.to.contain('SEC-002')
+      expect(result.error).to.have.nested.property('oclif.exit', 2)
+    })
 
     it('--check previews the verdict without deploying and exits 2 when the deploy would be refused', async () => {
       tenantRoutes(() => { throw new Error('deployed') }, () => json(blocked))
@@ -224,6 +249,7 @@ describe('release policy checks', () => {
       expect(empty.error?.message).to.contain('--override-reason needs a reason')
       const both = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2', '--check', '--override-reason', 'x'], fixture.config)
       expect(both.error?.message).to.contain('cannot also be provided')
+      expect(both.error).to.have.nested.property('oclif.exit', 1)
       expect(fixture.calls).to.have.length(0)
     })
 
@@ -249,6 +275,40 @@ describe('release policy checks', () => {
       fixture.route((url) => url.pathname.endsWith('/policy_gate') ? gate() : json(request))
     }
 
+    for (const status of ['approved', 'closed']) {
+      it(`get names the tenant and release of a ${status} request without checking it again`, async () => {
+        fixture.route(url => {
+          if (url.pathname.endsWith('/policy_gate')) throw new Error('historical request rechecked')
+          return json({...request, status})
+        })
+        const result = await runCommand(['tenant_deploy_request', 'get', '7'], fixture.config)
+        expect(result.error).to.equal(undefined)
+        expect(result.stdout).to.contain('Tenant: prod').and.to.contain('Release: v1.2')
+        expect(result.stdout).not.to.contain('Policy gate').and.not.to.contain('not available')
+        expect(fixture.calls).to.have.length(1)
+      })
+    }
+
+    for (const command of ['set_status', 'bypass']) {
+      const args = command === 'set_status' ? ['--status', 'approve'] : ['--reason', 'Incident']
+      it(`${command} emits a JSON policy refusal and exits 2`, async () => {
+        fixture.route(() => refusal(blocked, command === 'set_status' ? 'tenant_approve' : 'tenant_deploy'))
+        const result = await runCommand(['tenant_deploy_request', command, '7', ...args, '-o', 'json'], fixture.config)
+        expect(JSON.parse(result.stdout)).to.include({deployed: false, message: blocked.message})
+        expect(JSON.parse(result.stdout).policy_gate).to.include({code: 'policy_gate', status: 'blocked'})
+        expect(result.error).to.have.nested.property('oclif.exit', 2)
+      })
+
+      it(`${command} keeps operational failures at exit 1 under JSON output`, async () => {
+        fixture.route(() => json({message: 'Not allowed.'}, 403))
+        const result = await runCommand(['tenant_deploy_request', command, '7', ...args, '-o', 'json'], fixture.config)
+        expect(JSON.parse(result.stdout).error).to.include({exit: 1})
+        expect(JSON.parse(result.stdout).error.message).to.contain('Not allowed.')
+        expect(result.error?.message).to.contain('Not allowed.')
+        expect(result.error).to.have.nested.property('oclif.exit', 1)
+      })
+    }
+
     it('get prints the policy check of the request\'s release on its tenant', async () => {
       requestRoutes(() => json(blocked))
       const result = await runCommand(['tenant_deploy_request', 'get', '7'], fixture.config)
@@ -269,6 +329,7 @@ describe('release policy checks', () => {
         const result = await runCommand(['tenant_deploy_request', 'get', '7'], fixture.config)
         expect(result.error).to.equal(undefined)
         expect(result.stdout).to.contain(`Policy checks: not available (${reason})`)
+        expect(result.stdout).to.contain('Tenant: prod').and.to.contain('Release: v1.2')
       })
     }
 
@@ -343,6 +404,45 @@ describe('release policy checks', () => {
     }
 
     const firstPage = {items: [finding], limit: 1, offset: 0, total: 2}
+
+    it('--release-id reads directly without listing releases', async () => {
+      releaseRoutes()
+      const result = await runCommand(['policy', 'runs', '--release-id', '12', '--limit', '1'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(fixture.calls).to.have.length(2)
+      expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/release/12/policy_run')
+      expect(result.stdout).to.contain('Next page: `xano policy runs --release-id 12 --offset 1`')
+    })
+
+    it('reads enveloped release lists and all matching finding pages', async () => {
+      fixture.route(url => {
+        if (url.pathname.endsWith('/release')) return json({items: [{id: 12, name: 'v1.2'}]})
+        if (url.pathname.endsWith('/findings')) {
+          const offset = Number(url.searchParams.get('offset'))
+          return json({items: Array.from({length: offset ? 1 : 500}, () => finding), limit: 500, offset, total: 501})
+        }
+
+        return json({run})
+      })
+      const result = await runCommand(['policy', 'runs', '--release', 'v1.2', '--blocking', '--all', '-o', 'json'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(JSON.parse(result.stdout).findings).to.have.length(501)
+      expect(JSON.parse(result.stdout).findings_page).to.deep.equal({limit: 501, next_offset: null, offset: 0, total: 501})
+      expect(fixture.calls.at(-1)!.url.searchParams.get('offset')).to.equal('500')
+      expect(fixture.calls.at(-1)!.url.searchParams.get('blocking')).to.equal('true')
+    })
+
+    for (const args of [
+      ['--release', 'v1.2', '--release-id', '12'],
+      ['--release-id', '12', '--branch', 'dev'],
+      ['--release', 'v1.2', '--all', '--limit', '1'],
+    ]) {
+      it(`rejects conflicting flags ${args.join(' ')} at exit 1 before requesting`, async () => {
+        const result = await runCommand(['policy', 'runs', ...args], fixture.config)
+        expect(result.error).to.have.nested.property('oclif.exit', 1)
+        expect(fixture.calls).to.have.length(0)
+      })
+    }
 
     /** Two pages of releases (v1.2 on the second), the release's run, and a page of its findings. */
     function releaseRoutes(stored: unknown = run, findings: unknown = firstPage): void {

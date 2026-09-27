@@ -191,6 +191,7 @@ xano policy runs 1674 --blocking --policy AUTH-001   # Only some findings: --blo
                                                      #   --severity, --kind, --object type:id, --tag (repeatable), --search
 xano policy runs --release v1.2                      # A release's check (stored when it was cut), paged and filtered the same way
 xano policy runs --release v1.2 --recheck            # Check the release again from its archive, store the run, then read it
+xano policy runs --release-id 12                    # Read an imported release by ID without a name lookup
 xano policy delete TMP-001                           # Remove a policy; its Version History is kept
 ```
 
@@ -215,6 +216,8 @@ with the first 50, and `policy evaluate` without it still answers the whole run.
 the release ships against the policies it ships. It takes every finding flag a run read takes, `-o json` has the same
 shape (plus the release's `shipped` policies), and a release with no check says so (`{"run": null}` under `-o json`).
 `--recheck` checks the release again from its archive and stores the new run, so a read-only credential is refused.
+`--release-id <id>` reads the same report directly by ID and also supports `--recheck`; it is exclusive with
+`--release` and `--branch`.
 
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
 blocks (an active, mandatory policy failed), whatever else happened; `1` when a request or the import failed, or
@@ -554,6 +557,8 @@ its policy check, and the summary prints it: `Policy check: fail (run 1712), 2 b
 (`{status, run_id, run_status, blocking, advisory, message?}`, or `null` for a credential without `workspace:policy`
 read). A cut is never refused for its findings: each tenant deploy is gated on the ones it introduces (see Tenant
 deployments).
+Tier1 tenant, ephemeral and sandbox pushes carry policy files too when Policies is enabled and the tenant has
+a policy table. Remote tenant pushes still leave them out; remote release deploys carry them.
 
 ### Platforms
 
@@ -822,7 +827,8 @@ xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavail
 xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavailable" --override-policy
 ```
 
-`tenant_deploy_request get` also prints what the policy gate would decide now for the request's release on its
+`tenant_deploy_request get` always names the tenant and release. For requests that are neither approved nor closed,
+it also prints what the policy gate would decide now for the request's release on its
 tenant (under `-o json`, as `policy_gate`). It needs `workspace:policy` read; without it, or with the Policies
 feature off, it prints `Policy checks: not available (<why>)` (`policy_gate: null` and `policy_gate_unavailable`
 under `-o json`) and the command still succeeds. The deploy an approval triggers, and a bypass deploy, are gated like
