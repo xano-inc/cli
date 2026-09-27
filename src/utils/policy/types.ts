@@ -57,7 +57,7 @@ export interface PolicyFinding {
 export interface PolicyVerdict {
   /** True when an active, mandatory policy failed; it decides the exit code whatever the status. */
   blocking?: boolean
-  /** The platform's fixed sentence for the status. */
+  /** The platform's verdict, including the names of rules that checked no objects. */
   message?: string
   run_id?: number
   /**

@@ -42,14 +42,14 @@ export function findingLine(finding: PolicyFinding, rules: Map<string, PolicySna
     finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${finding.message ?? ''}`
 }
 
-/** A rule that passed without inspecting any object, which proves nothing about coverage. */
-export function isUncheckedPass(result: PolicyRuleResult): boolean {
-  return result.status === 'pass' && (result.checked ?? 0) === 0
+/** A completed rule with no objects checked, including older stored pass + checked 0 results. */
+export function hasNoObjects(result: PolicyRuleResult): boolean {
+  return ['no_objects', 'pass'].includes(result.status ?? '') && (result.checked ?? 0) === 0
 }
 
 /**
  * Rule errors ("this rule could not run") and scope warnings ("part of your scope selected
- * nothing") under their own headings, then the rules that passed without inspecting anything.
+ * nothing") under their own headings, then the rules that inspected nothing.
  */
 export function policyResultSummary(results: PolicyRuleResult[] = []): string[] {
   const where = (result: PolicyRuleResult) => `${result.policy_key ?? 'policy'} ${result.check_id ?? 'rule'}`
@@ -66,7 +66,7 @@ export function policyResultSummary(results: PolicyRuleResult[] = []): string[] 
     return lines
   }
 
-  const empty = results.filter(result => isUncheckedPass(result))
+  const empty = results.filter(result => hasNoObjects(result))
   if (empty.length > 0) {
     lines.push('No objects checked (proves nothing about coverage):',
       ...empty.map(result => `  ${where(result)}: no objects checked`))

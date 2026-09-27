@@ -1,6 +1,6 @@
 import type {Policy, PolicyRuleResult, PolicyRunHead} from './types.js'
 
-import {isUncheckedPass} from './findings.js'
+import {hasNoObjects} from './findings.js'
 
 /**
  * Where a policy stands against the latest run. `stale` means the run evaluated a different
@@ -23,7 +23,7 @@ export interface PolicyStatusRow {
   key: string
   /** The policy's own lifecycle (`active` / `draft`). */
   lifecycle: string
-  /** Rules that passed without inspecting any object. */
+  /** Completed rules that inspected no objects. */
   rules_unchecked: number
   /** The platform's answer: the latest run evaluated a different version of this policy. */
   stale: boolean
@@ -71,7 +71,7 @@ export function findingsLabel(row: PolicyStatusRow): string {
 function ruleStatus(results: PolicyRuleResult[], ruleCount: number, checked: number): PolicyStatus {
   if (ruleCount === 0) return 'no_checks'
   if (results.length === 0) return 'not_evaluated'
-  if (results.some((result) => !['fail', 'pass'].includes(result.status ?? ''))) return 'error'
+  if (results.some((result) => !['fail', 'no_objects', 'pass'].includes(result.status ?? ''))) return 'error'
   if (results.some((result) => result.status === 'fail')) return 'fail'
   if (results.length < ruleCount) return 'not_evaluated'
   return checked === 0 ? 'no_objects_checked' : 'pass'
@@ -113,7 +113,7 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): Poli
       findings,
       key: policy.key,
       lifecycle: policy.lifecycle,
-      rules_unchecked: status === 'pass' ? results.filter((result) => isUncheckedPass(result)).length : 0,
+      rules_unchecked: status === 'pass' ? results.filter((result) => hasNoObjects(result)).length : 0,
       stale,
       status,
       title: policy.title,

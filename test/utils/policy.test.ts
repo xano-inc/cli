@@ -317,6 +317,27 @@ describe('policy carriage and feedback', () => {
       results: [{check_id: 'R1', checked: 10, policy_key: 'AUTH-001', status: 'fail'}],
     }
 
+    for (const status of ['no_objects', 'pass']) {
+      it(`reports ${status} with zero checked as coverage information, not an error`, () => {
+        const empty = result(status, 0)
+        const message = 'No policy findings. No objects checked by: AUTH-001.R1.'
+        const check = {blocking: false, message, results: [empty], status: 'pass'}
+        expect(policySummary(check)[0]).to.equal('Policy check: pass, but no objects were checked')
+        expect(policySummary(check)).to.include(message)
+        expect(policyCheckWarning(check)).to.equal(null)
+        expect(policyExitCode(check)).to.equal(0)
+        const mixed = {...check, results: [empty, {...result('pass', 2), check_id: 'R2'}]}
+        expect(policySummary(mixed)[0]).to.equal('Policy check: pass, but 1 rule checked no objects')
+        expect(policyResultSummary(mixed.results).join('\n')).to.contain('AUTH-001 R1: no objects checked')
+        const rows = computeStatusRows([policy], {findings: [], results: [empty]})
+        expect(rows[0].status).to.equal('no_objects_checked')
+        expect(statusExitCode(rows)).to.equal(0)
+        const mixedRows = computeStatusRows([{...policy, rules: [{id: 'R1'}, {id: 'R2'}]}], {findings: [], results: mixed.results})
+        expect(mixedRows[0]).to.include({rules_unchecked: 1, status: 'pass'})
+        expect(statusExitCode(mixedRows)).to.equal(0)
+      })
+    }
+
     it('reports a current failing run', () => {
       const [row] = computeStatusRows([policy], run)
       expect(row).to.deep.equal({

@@ -1,6 +1,6 @@
 import type {PolicyRun, PolicyRunHead, PolicyRunSummary} from './types.js'
 
-import {findingLine, isUncheckedPass, policyResultSummary, policyRuleName, ruleKey, snapshotRules} from './findings.js'
+import {findingLine, hasNoObjects, policyResultSummary, policyRuleName, ruleKey, snapshotRules} from './findings.js'
 
 const RUN_COLUMNS = [6, 8, 14, 12, 9, 0]
 const runRow = (cells: string[]) => cells.map((cell, index) => cell.padEnd(RUN_COLUMNS[index])).join('').trimEnd()
@@ -108,7 +108,7 @@ export function policyRunDetail(run?: PolicyRun): string[] {
       // The name falls back to the id, which the line already carries.
       const name = policyRuleName(rule)
       const result = results.get(ruleKey(policy.key, rule.id))
-      const inspected = result?.checked === undefined ? '' : (isUncheckedPass(result) ? 'no objects checked' : `checked ${result.checked}`)
+      const inspected = result?.checked === undefined ? '' : (hasNoObjects(result) ? 'no objects checked' : `checked ${result.checked}`)
       return `    ${[rule.id, name === rule.id ? '' : name, policySettings(rule.params) || 'settings: none', inspected]
         .filter(Boolean).join('  ')}`
     })

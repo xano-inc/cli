@@ -7,7 +7,7 @@ import type {
   PushPolicyCheck,
 } from './types.js'
 
-import {findingLine, isUncheckedPass, policyResultSummary, snapshotRules} from './findings.js'
+import {findingLine, hasNoObjects, policyResultSummary, snapshotRules} from './findings.js'
 
 /**
  * Feedback printed as a headline: a pass or fail that says whether its findings block, or a branch
@@ -121,7 +121,7 @@ function listed(count: number, all?: number): string {
 function outcome(check: PolicyVerdict, results: PolicyRuleResult[]): string {
   if (check.status === 'fail') return check.blocking ? 'fail (blocking findings)' : 'advisory findings (not blocking)'
   if (check.status !== 'pass') return check.status ?? ''
-  const unchecked = results.filter((result) => isUncheckedPass(result)).length
+  const unchecked = results.filter((result) => hasNoObjects(result)).length
   if (unchecked === 0) return 'pass'
   return unchecked === results.length
     ? 'pass, but no objects were checked'
