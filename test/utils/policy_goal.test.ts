@@ -19,7 +19,7 @@ describe('policy goal authoring', () => {
   })
 
   it('refuses malformed paths, prototype writes, and non-JSON values', () => {
-    for (const param of ['__proto__.polluted=true', 'constructor.prototype.x=true', 'flag=bare', 'a..b=true', 'flag']) {
+    for (const param of ['__proto__.polluted=true', 'constructor.prototype.x=true', 'flag=bare', 'a..b=true', 'flag', 'bound=1e999', 'limits={"min":1e999}']) {
       expect(() => policy_from_goal(goal, [], undefined, [param])).to.throw()
     }
 

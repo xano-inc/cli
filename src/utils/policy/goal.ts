@@ -49,9 +49,12 @@ function apply_override(rules: Array<{params: Record<string, unknown>}>, assignm
   if (parts.length === 0 || parts.some(part => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(part) || ['__proto__', 'constructor', 'prototype'].includes(part))) throw new Error('Invalid parameter path. Use parameter names separated by dots.')
   let value: unknown
   try {
-    value = JSON.parse(assignment.slice(equals + 1))
+    value = JSON.parse(assignment.slice(equals + 1), (_key, parsed: unknown) => {
+      if (typeof parsed === 'number' && !Number.isFinite(parsed)) throw new Error('Numbers must be finite.')
+      return parsed
+    })
   } catch {
-    throw new Error(`The value for ${assignment.slice(0, equals)} must be JSON: a quoted string, number, boolean, array or object.`)
+    throw new Error(`The value for ${assignment.slice(0, equals)} must be JSON: a quoted string, finite number, boolean, array or object.`)
   }
 
   let target = rules[index].params
