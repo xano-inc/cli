@@ -131,7 +131,7 @@ test/
 | `src/utils/multidoc-push.ts` | Shared push logic for both `sandbox push` and `workspace push` — file collection, glob filtering, dry-run preview, confirmation, partial push, GUID sync, validation rendering |
 | `src/utils/document-parser.ts` | XanoScript document parsing — type/name/verb/guid extraction, document key building |
 | `src/utils/reference-checker.ts` | Cross-reference validation and table index checking |
-| `src/utils/policy/` | Policy helpers: `request` (the `workspace:policy` route request), `feedback` (`policy_check` exit code and summary), `status`, `runs`, `findings`, `catalogue`, `errors`, `permission`, `types`. Used by the `policy *` commands and `skills pull`; `workspace push` uses `feedback` and `permission`, `sandbox push` and `ephemeral push` use `feedback` to name the policy files they leave out, `release push` uses it to leave them out before sending, and `workspace pull` uses `request` |
+| `src/utils/policy/` | Policy helpers: `request` (the `workspace:policy` route request), `feedback` (`policy_check` exit code and summary), `status`, `runs`, `findings`, `catalogue`, `errors`, `permission`, `types`, `gate` (deploy previews and refusals), and `release` (stored release checks). Used by `policy *` and `skills pull`; workspace pushes report checks, sandbox/ephemeral pushes print any platform skip notice, and release pushes carry policy files. Release reports are read by name (`--release`) or ID (`--release-id`); only remote tenant pushes, unsupported older tenants, and feature-off imports leave policies out. |
 
 ## Coding Conventions
 
