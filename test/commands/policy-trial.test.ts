@@ -18,7 +18,7 @@ const trial = {
   findings: [{id: 'TRY-001.R1:function:1', message: 'matches forbidden settings', object: {name: 'alpha', type: 'function'}, policy_key: 'TRY-001', rule_id: 'TRY-001.R1'}],
   id: 0,
   policies: snapshot,
-  policy_check: {blocking: false, blocking_finding_ids: [], message: 'Active policies reported findings.', run_id: 0, status: 'fail'},
+  policy_check: {blocking: false, blocking_finding_ids: [], message: 'Policies reported findings.', run_id: 0, status: 'fail'},
   results: [{check_id: 'TRY-001.R1', checked: 3, message: '1 finding', policy_key: 'TRY-001', status: 'fail'}],
   stored: false,
 }
@@ -35,8 +35,18 @@ describe('policy evaluate --policy', () => {
     expect(result.stdout).to.contain('Clear objects (examined, nothing found):\n  TRY-001.R1  2  beta, gamma\n  TRY-001.R2  0')
     // A trial is unstored by design, so the note about credentials that cannot record runs is not shown.
     expect(result.stdout).not.to.contain('Not stored:')
+    expect(result.stdout).not.to.contain('Active policies reported findings.')
     expect(process.exitCode ?? 0).to.equal(0)
   })
+
+  for (const key of ['', '   ']) {
+    it(`refuses a blank trial key ${JSON.stringify(key)} before making any request`, async () => {
+      fixture.route(() => json(trial))
+      const result = await runCommand(['policy', 'evaluate', '--policy', key], fixture.config)
+      expect(result.error?.message).to.match(/(?:--policy must name a policy key|Flag --policy expects a value)/)
+      expect(fixture.calls).to.have.length(0)
+    })
+  }
 
   it('sends the summary answer with the key, and passes the answer through as JSON', async () => {
     fixture.route(() => json(trial))

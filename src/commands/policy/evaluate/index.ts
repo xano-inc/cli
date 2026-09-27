@@ -55,6 +55,7 @@ export default class PolicyEvaluate extends PolicyCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(PolicyEvaluate)
+    if (flags.policy !== undefined && !flags.policy.trim()) this.error('--policy must name a policy key.')
     const {request} = this.policyTarget(flags)
     // The evaluation answers with its run, so the run's own snapshot names any unnamed rule. The
     // summary answer carries the same snapshot and results, and only the first findings.
