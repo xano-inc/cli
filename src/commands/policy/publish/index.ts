@@ -33,6 +33,8 @@ export default class PolicyPublish extends PolicyCommand {
       return
     }
 
+    this.logRuleWarnings(parsed)
+
     // A save identical to the stored definition writes nothing: no version, history entry or audit record.
     this.log(saved.unchanged === true
       ? `No changes to ${parsed.policy.key} (Version ${saved.version}) in ${this.where(target)}.`

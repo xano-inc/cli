@@ -7,6 +7,20 @@ import BaseCommand from './base-command.js'
 import {POLICY_ROUTE, type PolicyRequest, policyRequest, policyScope} from './utils/policy/request.js'
 import {policyRunDetail} from './utils/policy/runs.js'
 
+/** One rule's warnings from the parse route: its 0-based index, id and sentences. */
+export interface RuleWarnings {
+  rule: number
+  rule_id: string
+  warnings: string[]
+}
+
+/** What the parse route answers. */
+export interface ParsedPolicy {
+  policy: Policy
+  rule_warnings: RuleWarnings[]
+  source: string
+}
+
 /** The workspace and branch a policy command acts on, and requests bound to them. */
 export interface PolicyTarget {
   branch: string
@@ -50,6 +64,19 @@ export default abstract class PolicyCommand extends BaseCommand {
     return this.catchAsOperational(new Error(`Policy ${action} failed: ${error.message}`))
   }
 
+  /**
+   * Print each rule's warnings (a name, tag or value that makes the rule check nothing) to stderr,
+   * so piped source stays clean; nothing when there are none.
+   */
+  protected logRuleWarnings(parsed: ParsedPolicy): void {
+    const warned = parsed.rule_warnings ?? []
+    if (warned.length === 0) return
+    this.logToStderr('Rule warnings (the rule may check nothing or everything; fix them before relying on it):')
+    for (const rule of warned) {
+      for (const warning of rule.warnings) this.logToStderr(`  ${rule.rule_id || `rule[${rule.rule}]`}: ${warning}`)
+    }
+  }
+
   /** Print a run's recorded detail, or say it evaluated no policy. */
   protected logRunDetail(run: PolicyRun): void {
     const detail = policyRunDetail(run)
@@ -57,12 +84,15 @@ export default abstract class PolicyCommand extends BaseCommand {
     if (detail.length === 0) this.log(run.id ? `Run ${run.id} evaluated no policies.` : 'No policies were evaluated.')
   }
 
-  /** Ask the parse route for the policy and its canonical source; it must return both. */
-  protected async parseSource(request: PolicyRequest, source: string): Promise<{policy: Policy; source: string}> {
-    const answer = (await request('/parse', 'POST', {source})) as {policy?: Policy; source?: unknown}
+  /**
+   * Ask the parse route for the policy, its canonical source and each rule's warnings against the
+   * target branch; the policy and source must come back.
+   */
+  protected async parseSource(request: PolicyRequest, source: string): Promise<ParsedPolicy> {
+    const answer = (await request('/parse', 'POST', {source})) as Partial<ParsedPolicy>
     if (!answer?.policy?.key || typeof answer.source !== 'string')
       this.error('The platform did not return a parsed policy and canonical source.')
-    return answer as {policy: Policy; source: string}
+    return {...answer, rule_warnings: Array.isArray(answer.rule_warnings) ? answer.rule_warnings : []} as ParsedPolicy
   }
 
   /**

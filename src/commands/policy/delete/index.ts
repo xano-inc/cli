@@ -47,6 +47,8 @@ Deleted policy TMP-DX-001 (ID: 922) from workspace 3.
     }
 
     if (!flags.force) {
+      // Nobody can answer the prompt: refuse rather than report a cancel as success (P-44).
+      if (!process.stdin.isTTY) this.error('Non-interactive environment detected. Use --force to skip confirmation.')
       const confirmed = await confirm(
         `Delete policy ${matched.key} (ID: ${matched.id}, Version ${matched.version}) from ${this.where(target)}? Its Version History is kept.`,
       )

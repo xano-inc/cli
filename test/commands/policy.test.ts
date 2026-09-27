@@ -358,6 +358,26 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(result.stdout)).to.deep.equal({deleted: true, id: 7, key: 'AUTH-001'})
   })
 
+  it('delete without --force in a non-interactive shell exits 1 and deletes nothing', async () => {
+    fixture.route((url, method) => (method === 'DELETE' ? json({}) : json({items: [{id: 7, key: 'AUTH-001', version: 1}]})))
+    const result = await runCommand(['policy', 'delete', 'AUTH-001', '-o', 'json'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.contain('Non-interactive environment detected. Use --force to skip confirmation.')
+    expect(result.stdout).not.to.contain('Deletion cancelled.')
+    expect(fixture.calls.every((call) => call.method === 'GET')).to.equal(true)
+  })
+
+  it('parse prints each rule warning to stderr and passes rule_warnings through -o json', async () => {
+    const warned = {policy: {key: 'AUTH-001'}, rule_warnings: [{rule: 0, rule_id: 'AUTH-001.R1', warnings: ['tags "legasy" is on no query on this branch, so it selects nothing.']}], source}
+    fixture.route(() => json(warned))
+    const summary = await runCommand(['policy', 'parse', '--file', policyFile], fixture.config)
+    expect(summary.stdout).to.contain(source).and.not.to.contain('legasy')
+    expect(summary.stderr).to.contain('AUTH-001.R1: tags "legasy" is on no query on this branch, so it selects nothing.')
+    expect(fixture.calls[0].url.searchParams.get('branch')).to.equal('feature')
+    const asJson = await runCommand(['policy', 'parse', '--file', policyFile, '-o', 'json'], fixture.config)
+    expect(JSON.parse(asJson.stdout).rule_warnings).to.deep.equal(warned.rule_warnings)
+  })
+
   it('delete names the branch contents instead of sending an unresolved key', async () => {
     fixture.route(() => json({items: [{id: 7, key: 'AUTH-001'}, {id: 8, key: 'SEC-100'}]}))
     const result = await runCommand(['policy', 'delete', 'AUTH-002', '--force'], fixture.config)
