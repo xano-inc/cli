@@ -23,6 +23,7 @@ import {
   pushEvidence,
 } from '../../../utils/policy/feedback.js'
 import {policyFilePushGuidance} from '../../../utils/policy/permission.js'
+import {PushPolicyGateError} from '../../../utils/policy/push-gate.js'
 
 /** The `-o json` document for a push whose import ran: the import response and what was sent. */
 function importDocument(result: PushResult): Record<string, unknown> {
@@ -171,6 +172,7 @@ Full sync including knowledge files; removes server objects not present locally
       options: ['summary', 'json'],
       required: false,
     }),
+    'policy-override': Flags.string({description: 'Override a blocking live-branch policy gate with an audited reason (requires workspace:policy update)'}),
     records: Flags.boolean({
       default: false,
       description:
@@ -202,6 +204,11 @@ Full sync including knowledge files; removes server objects not present locally
   }
 
   protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (error instanceof PushPolicyGateError) {
+      if (this.isJsonOutput()) this.log(JSON.stringify({imported: false, refused: error.payload}, null, 2))
+      this.error(error.message, {exit: 2})
+    }
+
     if (error instanceof FailedAfterImportError) return this.catchAfterImport(error)
     return this.catchAsOperational(error)
   }
@@ -234,7 +241,7 @@ Full sync including knowledge files; removes server objects not present locally
       this.error(`Not a directory: ${inputDir}`)
     }
 
-    const branch = flags.branch || profile.branch || ''
+    const branch = flags.branch ?? profile.branch ?? ''
     const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}`
     const json = flags.output === 'json'
     // Only the import writes Version History entries, so only the import carries the message.
@@ -245,6 +252,7 @@ Full sync including knowledge files; removes server objects not present locally
       buildPushUrl(params) {
         const query = new URLSearchParams(params)
         if (message) query.set('message', message)
+        if (flags['policy-override']?.trim()) query.set('override_reason', flags['policy-override'].trim())
         return `${baseUrl}/multidoc?${query.toString()}`
       },
       cliVersion: this.config.version,

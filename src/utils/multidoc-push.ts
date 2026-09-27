@@ -15,6 +15,7 @@ import {
   syncGuidToFrontmatter,
   toPushItems,
 } from './knowledge-sync.js'
+import {PushPolicyGateError} from './policy/push-gate.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
@@ -1357,6 +1358,7 @@ export async function executePush(
       }
     } catch (error) {
       // Ctrl+C or SIGINT
+      if (error instanceof PushPolicyGateError) throw error
       if ((error as Error).name === 'AbortError' || (error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
         log('\nPush cancelled.')
         return stop('cancelled')
@@ -1560,6 +1562,7 @@ export async function executePush(
 
       pushedDocCount = multidoc.split('\n---\n').length
     } catch (error) {
+      if (error instanceof PushPolicyGateError) throw error
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
       command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`)
@@ -1717,7 +1720,6 @@ function formatFailureDuration(elapsedMs?: number): string {
 
 /** Stop with the target's own guidance when it recognises this refusal. */
 function refuseIfExplained(command: Command, target: PushTarget, status: number, body: string): void {
-  if (!target.explainRefusal) return
   let message = body
   let payload: unknown
   try {
@@ -1728,7 +1730,13 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
     // Not JSON
   }
 
-  const guidance = target.explainRefusal(status, payload)
+  const refusal = payload as Record<string, unknown> | undefined
+  if (status === 403 && refusal?.code === 'policy_gate') throw new PushPolicyGateError(refusal)
+  if (refusal?.code === 'policy_gate_transaction_required') {
+    command.error('Push refused: the live branch policy gate requires a transaction. Remove --no-transaction and retry. Nothing was imported.')
+  }
+
+  const guidance = target.explainRefusal?.(status, payload)
   if (guidance) command.error(`Push refused (${status}): ${message}${guidance}`)
 }
 
