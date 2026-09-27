@@ -181,7 +181,7 @@ describe('official policy commands and workspace carriage', () => {
     expect(fs.readFileSync(policyFile, 'utf8')).to.equal(source)
   })
   const covered = {enforcement: 'mandatory', included: true, run_id: 1674, stale: false, version: 1}
-  const active = {enforcement: 'mandatory', id: 1, key: 'AUTH-001', latest_run: covered, lifecycle: 'active', rules: [{id: 'R1'}], version: 1}
+  const active = {active: true, enforcement: 'mandatory', id: 1, key: 'AUTH-001', latest_run: covered, rules: [{id: 'R1'}], version: 1}
   for (const [results, expected] of [[[], 'not_evaluated'], [[{check_id: 'R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}], 'no_objects_checked']] as const) {
     it(`status reports ${expected} without presenting coverage`, async () => {
       fixture.route(url => url.pathname.includes('/run/') ? json({id: 1674, results}) : json({curPage: 1, items: [active], nextPage: null, prevPage: null}))

@@ -6,9 +6,11 @@ import {hasNoObjects} from './findings.js'
  * Where a policy stands against the latest run. `stale` means the run evaluated a different
  * version; `not_evaluated` that it has no result for every rule.
  */
-export type PolicyStatus = 'draft' | 'error' | 'fail' | 'no_checks' | 'no_objects_checked' | 'not_evaluated' | 'pass' | 'stale'
+export type PolicyStatus = 'error' | 'fail' | 'inactive' | 'no_checks' | 'no_objects_checked' | 'not_evaluated' | 'pass' | 'stale'
 
 export interface PolicyStatusRow {
+  /** Whether the policy is active. */
+  active: boolean
   /**
    * Whether the latest run's findings on this policy block a merge: the run evaluated it, in its
    * current version, as active and mandatory (the platform's `latest_run.enforcement`), and found something.
@@ -21,8 +23,6 @@ export interface PolicyStatusRow {
   enforcement: string
   findings: number
   key: string
-  /** The policy's own lifecycle (`active` / `draft`). */
-  lifecycle: string
   /** Completed rules that inspected no objects. */
   rules_unchecked: number
   /** The platform's answer: the latest run evaluated a different version of this policy. */
@@ -34,8 +34,8 @@ export interface PolicyStatusRow {
 /** How a row's status reads in the summary table. */
 export function statusLabel(row: PolicyStatusRow): string {
   switch (row.status) {
-    case 'draft': {
-      return 'draft; not evaluated'
+    case 'inactive': {
+      return 'inactive; not evaluated'
     }
 
     case 'pass': {
@@ -95,7 +95,7 @@ function findingCount(run: PolicyRunHead | undefined, key: string): number {
 export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): PolicyStatusRow[] {
   return policies.map((policy) => {
     const ids = new Set((policy.rules ?? []).map((rule) => rule.id))
-    const active = policy.lifecycle === 'active'
+    const active = policy.active !== false
     const stale = policy.latest_run?.stale === true
     const counted = active && policy.latest_run?.included === true && !stale
     const results = counted
@@ -103,16 +103,16 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): Poli
       : []
     const checked = results.reduce((sum, result) => sum + (result.checked ?? 0), 0)
     const findings = counted ? findingCount(run, policy.key) : 0
-    let status: PolicyStatus = 'draft'
+    let status: PolicyStatus = 'inactive'
     if (active) status = stale ? 'stale' : ruleStatus(results, ids.size, checked)
     return {
+      active: policy.active,
       blocking: counted && policy.latest_run?.enforcement === 'mandatory' && findings > 0,
       checked,
       counted,
       enforcement: policy.enforcement,
       findings,
       key: policy.key,
-      lifecycle: policy.lifecycle,
       rules_unchecked: status === 'pass' ? results.filter((result) => hasNoObjects(result)).length : 0,
       stale,
       status,
@@ -121,7 +121,7 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): Poli
   })
 }
 
-/** The rows whose evidence cannot be relied on: stale, missing or errored. A draft is never evaluated. */
+/** The rows whose evidence cannot be relied on: stale, missing or errored. An inactive policy is never evaluated. */
 function unreliableRows(rows: PolicyStatusRow[]): PolicyStatusRow[] {
   return rows.filter((row) => ['error', 'not_evaluated', 'stale'].includes(row.status))
 }

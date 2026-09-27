@@ -5,8 +5,8 @@ import {trialLines} from '../../src/commands/policy/evaluate/index.js'
 import {json, policyFixture} from '../helpers/policy-fixture.js'
 
 const snapshot = [{
+  active: false,
   key: 'TRY-001',
-  lifecycle: 'draft',
   rules: [{check: 'object.settings_forbidden', id: 'TRY-001.R1', label: 'Objects avoid forbidden settings', params: {}, title: ''}],
   statement: 'Tried before it counts.',
 }]

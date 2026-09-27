@@ -107,11 +107,11 @@ export interface PolicyCoverage {
 }
 
 export interface Policy {
+  active: boolean
   enforcement: string
   id: number
   key: string
   latest_run?: PolicyCoverage
-  lifecycle: string
   rules?: Array<{id: string}>
   title?: string
   /** When the policy was last written, as served; sent back as `last_updated_at` to refuse acting on a stale read. */

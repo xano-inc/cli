@@ -210,6 +210,9 @@ A push to the live branch is refused before commit when mandatory policies block
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
+Policies use `active = true|false` before `enforcement`; authored `lifecycle` is refused. The list shows
+`Active, Mandatory`, `Active, Advisory` or `Inactive`. Inactive policies are saved directly and skipped by
+branch checks; `policy status` reports `inactive`. An inactive policy may have no rules.
 `release push` carries them too: a release ships its policies like its code, and a tenant deploy lands them (see
 Releases). A sandbox or ephemeral tenant push prints the platform's notice for any policy files it leaves out.
 While the instance's Policies feature is off, `workspace pull` exports no policy (and keeps local policy files)

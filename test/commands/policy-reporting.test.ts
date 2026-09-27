@@ -23,7 +23,7 @@ const backendError = {
 }
 const coverage = (overrides: Record<string, unknown> = {}) =>
   ({enforcement: 'mandatory', included: true, run_id: 1129, stale: false, version: 1, ...overrides})
-const policy = {enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: coverage(), lifecycle: 'active', rules: [{id: 'R1'}], version: 1}
+const policy = {active: true, enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
 const staleCoverage = coverage({stale: true, version: 0})
 const notInRun = coverage({enforcement: null, included: false, version: null})
 const noRun = coverage({enforcement: null, included: false, run_id: 0, version: null})
@@ -106,11 +106,11 @@ describe('policy reporting', () => {
     expect(result.stdout.split('\n').every(line => line.length <= 144)).to.equal(true)
   })
 
-  it('list prints the version beside the lifecycle, and JSON is the native body', async () => {
+  it('list prints the version beside its activation state, and JSON is the native body', async () => {
     const body = {curPage: 1, items: [{...policy, title: 'Auth', version: 5}], nextPage: null, prevPage: null}
     fixture.route(() => json(body))
     const result = await command('policy list')
-    expect(result.stdout).to.contain('AUTH-001  active  Auth (ID: 7, Version 5)')
+    expect(result.stdout).to.contain('AUTH-001  Active, Mandatory  Auth (ID: 7, Version 5)')
     expect(JSON.parse((await command('policy list', ['-o', 'json'])).stdout)).to.deep.equal(body)
   })
 
@@ -223,11 +223,11 @@ describe('policy reporting', () => {
     expect(result.stderr).to.contain('/internal/Schema.php')
   })
 
-  it('draft status hides historical counts and diagnostics, and never calls a draft blocking', async () => {
-    statusRoute({...policy, latest_run: staleCoverage, lifecycle: 'draft'}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
+  it('inactive status hides historical counts and diagnostics, and never calls an inactive policy blocking', async () => {
+    statusRoute({...policy, active: false, latest_run: staleCoverage}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
     const result = await command('policy status')
     expect(result.error).to.equal(undefined)
-    expect(result.stdout).to.contain('draft; not evaluated  Mandatory  — findings').and.not.to.contain('OLD ERROR')
+    expect(result.stdout).to.contain('inactive; not evaluated  Mandatory  — findings').and.not.to.contain('OLD ERROR')
     expect(result.stdout).not.to.contain('Blocking')
     expect(process.exitCode ?? 0).to.equal(0)
   })
@@ -285,7 +285,7 @@ describe('policy reporting', () => {
 
     statusRoute(policy, run)
     const asJson = JSON.parse((await command('policy status', ['--fail-on-findings', '-o', 'json'])).stdout)
-    expect(asJson.status[0]).to.include({blocking: true, counted: true, enforcement: 'mandatory', lifecycle: 'active'})
+    expect(asJson.status[0]).to.include({active: true, blocking: true, counted: true, enforcement: 'mandatory'})
     expect(asJson.fail_on_findings).to.deep.equal({exit: 2, reason: 'The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.'})
     expect(process.exitCode).to.equal(2)
   })
@@ -320,8 +320,8 @@ describe('policy reporting', () => {
     [{...policy, latest_run: staleCoverage}, true, 'stale'],
     [{...policy, latest_run: notInRun}, false, 'not_evaluated'],
     [{...policy, latest_run: noRun}, false, 'not_evaluated'],
-    [{...policy, latest_run: staleCoverage, lifecycle: 'draft'}, true, 'draft'],
-    [{...policy, latest_run: noRun, lifecycle: 'draft'}, false, 'draft'],
+    [{...policy, active: false, latest_run: staleCoverage}, true, 'inactive'],
+    [{...policy, active: false, latest_run: noRun}, false, 'inactive'],
   ] as const) {
     it(`status JSON carries the served freshness for ${status} stale=${stale}`, async () => {
       statusRoute(current, run)
@@ -338,8 +338,8 @@ describe('policy reporting', () => {
     [{...policy, latest_run: staleCoverage}, run, 1],
     [{...policy, latest_run: notInRun}, run, 1],
     [{...policy, latest_run: noRun}, run, 1],
-    [{...policy, latest_run: staleCoverage, lifecycle: 'draft'}, run, 0],
-    [{...policy, latest_run: noRun, lifecycle: 'draft'}, run, 0],
+    [{...policy, active: false, latest_run: staleCoverage}, run, 0],
+    [{...policy, active: false, latest_run: noRun}, run, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'pass'}]}, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'error'}]}, 1],
     [policy, {...run, findings: [], results: []}, 1],
