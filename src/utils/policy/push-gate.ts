@@ -7,8 +7,9 @@ export class PushPolicyGateError extends Error {
     const guidance = payload.can_override === true && payload.override_denied !== true
       ? 'To proceed with an audited reason, retry with --policy-override "reason".'
       : 'Fix the findings or ask someone with workspace:policy update permission to override with a reason.'
+    const total = count('total')
     super([
-      `Push refused: ${count('total')} blocking policy findings (${count('introduced')} introduced, ${count('changed')} on changed objects). Nothing was imported.`,
+      `Push refused: ${total} blocking policy finding${total === 1 ? '' : 's'} (${count('introduced')} introduced, ${count('changed')} on changed objects). Nothing was imported.`,
       ...lines,
       ...(payload.truncated ? ['Only the first findings are listed.'] : []),
       guidance,

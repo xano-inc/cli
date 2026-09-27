@@ -16,6 +16,13 @@ describe('workspace push publish gate', () => {
     expect(result.error?.message).to.include('Nothing was imported').and.include('Authentication is required').and.include('--policy-override')
   })
 
+  it('counts a single blocking finding in the singular', async () => {
+    fixture.route(() => json({message: 'Push blocked', payload: {...payload, changed: 0, introduced: 1, total: 1}}, 403))
+    const result = await push('--force')
+    expect(result.error?.oclif?.exit).to.equal(2)
+    expect(result.error?.message).to.include('Push refused: 1 blocking policy finding (1 introduced, 0 on changed objects).')
+  })
+
   it('returns one refusal JSON document and preserves exit 2', async () => {
     fixture.route(() => json({message: 'Push blocked', payload}, 403))
     const result = await push('--force', '-o', 'json')
