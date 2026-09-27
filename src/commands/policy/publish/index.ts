@@ -28,12 +28,12 @@ export default class PolicyPublish extends PolicyCommand {
       this.error('The platform did not return the saved policy. Check `xano policy list` before retrying.')
     }
 
+    this.logRuleWarnings(parsed)
+
     if (flags.output === 'json') {
       this.log(JSON.stringify(saved, null, 2))
       return
     }
-
-    this.logRuleWarnings(parsed)
 
     // A save identical to the stored definition writes nothing: no version, history entry or audit record.
     this.log(saved.unchanged === true

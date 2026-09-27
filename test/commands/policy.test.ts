@@ -378,6 +378,18 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(asJson.stdout).rule_warnings).to.deep.equal(warned.rule_warnings)
   })
 
+  it('publish preserves rule warnings on stderr with JSON output', async () => {
+    const warning = 'tags "legasy" selects nothing.'
+    const saved = {id: 7, key: 'AUTH-001', version: 2}
+    fixture.route((url, method) => url.pathname.endsWith('/parse')
+      ? json({policy: {key: 'AUTH-001'}, rule_warnings: [{rule: 0, rule_id: 'AUTH-001.R1', warnings: [warning]}], source})
+      : method === 'GET' ? json({items: [{id: 7, key: 'AUTH-001'}]}) : json(saved))
+    const result = await runCommand(['policy', 'publish', '--file', policyFile, '-o', 'json'], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(JSON.parse(result.stdout)).to.deep.equal(saved)
+    expect(result.stderr).to.contain(`AUTH-001.R1: ${warning}`)
+  })
+
   it('delete names the branch contents instead of sending an unresolved key', async () => {
     fixture.route(() => json({items: [{id: 7, key: 'AUTH-001'}, {id: 8, key: 'SEC-100'}]}))
     const result = await runCommand(['policy', 'delete', 'AUTH-002', '--force'], fixture.config)
