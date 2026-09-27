@@ -214,7 +214,8 @@ Policies use `active = true|false` before `enforcement`; authored `lifecycle` is
 `Active, Mandatory`, `Active, Advisory` or `Inactive`. Inactive policies are saved directly and skipped by
 branch checks; `policy status` reports `inactive`. An inactive policy may have no rules.
 `release push` carries them too: a release ships its policies like its code, and a tenant deploy lands them (see
-Releases). A sandbox or ephemeral tenant push prints the platform's notice for any policy files it leaves out.
+Releases). Tier1 tenant, sandbox and ephemeral pushes carry them as well; a remote tenant push, or a tenant created
+before policies, leaves them out and prints the platform's notice.
 While the instance's Policies feature is off, `workspace pull` exports no policy (and keeps local policy files)
 and `workspace push` leaves its policy files out, printing the platform's notice instead of a policy count.
 
@@ -251,7 +252,11 @@ gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off 
 `policy_permission_required` (an instance admin grants your role the level) or `policy_scope_required` (create a
 Metadata API token that has the scope). A rule naming a check the instance does not have (`policy_unknown_check`)
 points at `xano policy catalogue`. `policy delete` sends the `updated_at` it listed, so a policy changed since is
-refused (`policy_stale`) rather than deleted.
+refused (`policy_stale`) rather than deleted; it asks first, and without `--force` in a non-interactive shell it
+exits 1. A create past the plan's per-branch cap (Free 3, Essential 10, Pro and above unlimited) is refused with
+`policy_plan_limit`, naming the plan, and a `workspace push` whose new policies would not fit imports nothing.
+`policy parse` and `policy publish` print rule warnings (a part of a rule that would do nothing or allow too much on
+that branch) on stderr; `-o json` keeps stdout the JSON.
 
 ### Workspaces
 
