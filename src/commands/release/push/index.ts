@@ -3,8 +3,9 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
-import {findFilesWithGuid} from '../../../utils/document-parser.js'
-import {withoutPolicyDocuments} from '../../../utils/policy/feedback.js'
+import {findFilesWithGuid, parseDocument} from '../../../utils/document-parser.js'
+import {policiesSkippedNotice} from '../../../utils/policy/feedback.js'
+import {releasePolicyRunLines} from '../../../utils/policy/release.js'
 
 interface Release {
   branch?: string
@@ -13,6 +14,8 @@ interface Release {
   hotfix?: boolean
   id: number
   name: string
+  /** The policy check the cut stored; see `releasePolicyRunLines`. */
+  policy_run?: unknown
   resource_size?: number
 }
 
@@ -131,13 +134,18 @@ Output release details as JSON
       }
     }
 
-    // A release carries no policies: they stay in their workspace.
-    const {documents: documentEntries, notice} = withoutPolicyDocuments(entries)
-    if (notice) this.warn(notice)
-
+    // A release carries its policy files like its code: the platform stores them in the release,
+    // checks the release against them, and a deploy lands them on the tenant.
+    const documentEntries = entries
     if (documentEntries.length === 0) {
-      this.error(notice ? `No documents other than policies in ${flags.directory}` : `All .xs files in ${flags.directory} are empty`)
+      this.error(`All .xs files in ${flags.directory} are empty`)
     }
+
+    const policyKeys = documentEntries
+      .map((entry) => parseDocument(entry.content))
+      .filter((document) => document?.type === 'policy')
+      .map((document) => document!.name)
+      .sort()
 
     const multidoc = documentEntries.map((d) => d.content).join('\n---\n')
 
@@ -200,6 +208,8 @@ Output release details as JSON
       }
 
       const release = (await response.json()) as Release
+      // A platform with the Policies feature off may leave the policy files out, and says which.
+      const skipped = policiesSkippedNotice(release)
 
       if (flags.output === 'json') {
         this.log(JSON.stringify(release, null, 2))
@@ -210,8 +220,12 @@ Output release details as JSON
         if (release.description) this.log(`  Description: ${release.description}`)
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
         this.log(`  Documents: ${documentEntries.length}`)
+        if (policyKeys.length > 0 && !skipped) this.log(`  Policy documents: ${policyKeys.length} (${policyKeys.join(', ')})`)
+        for (const line of releasePolicyRunLines(release.policy_run, release.name ?? flags.name)) this.log(line)
         this.log(`  Time: ${elapsed}s`)
       }
+
+      if (skipped) this.warn(skipped)
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to create release: ${error.message}`)

@@ -24,6 +24,8 @@ export function policyRunTable(runs: PolicyRunSummary[]): string[] {
 export interface PolicyRunPage {
   /** Whether a filter narrowed the findings. */
   filtered: boolean
+  /** The command that reads this run's next page; `xano policy runs <id>` unless another is named. */
+  next?: string
   offset: number
   /** The findings that match, listed or not. */
   total: number
@@ -70,7 +72,7 @@ function pageLines(run: PolicyRunHead, page: PolicyRunPage): string[] {
     ...findings.map(finding => findingLine(finding, rules)),
   )
   if (next < page.total) {
-    lines.push(`Next page: \`xano policy runs ${run.id} --offset ${next}\`, or --all for all ${page.total}${
+    lines.push(`Next page: \`${page.next ?? `xano policy runs ${run.id}`} --offset ${next}\`, or --all for all ${page.total}${
       page.filtered ? ', with the same filters' : ''}.`)
   }
 

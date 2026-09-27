@@ -189,12 +189,15 @@ xano policy runs 1674 --offset 100 --limit 100       # The next page of that run
 xano policy runs 1674 --all -o json                  # Every finding, read page by page
 xano policy runs 1674 --blocking --policy AUTH-001   # Only some findings: --blocking/--advisory, --policy, --rule,
                                                      #   --severity, --kind, --object type:id, --tag (repeatable), --search
+xano policy runs --release v1.2                      # A release's check (stored when it was cut), paged and filtered the same way
+xano policy runs --release v1.2 --recheck            # Check the release again from its archive, store the run, then read it
 xano policy delete TMP-001                           # Remove a policy; its Version History is kept
 ```
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
-Sandbox, ephemeral tenant and release pushes carry none: policy files are left out, and the push says which.
+`release push` carries them too: a release ships its policies like its code, and a tenant deploy lands them (see
+Releases). A sandbox or ephemeral tenant push prints the platform's notice for any policy files it leaves out.
 While the instance's Policies feature is off, `workspace pull` exports no policy (and keeps local policy files)
 and `workspace push` leaves its policy files out, printing the platform's notice instead of a policy count.
 
@@ -208,9 +211,16 @@ summary, so its `-o json` `run` carries each policy's finding count rather than 
 `Listed: the first 100 of N; \`xano policy runs <run_id>\` has them all.` `policy evaluate --summary` does the same
 with the first 50, and `policy evaluate` without it still answers the whole run.
 
+`policy runs --release <name>` reads a release's check: the run stored when the release was cut, evaluated on what
+the release ships against the policies it ships. It takes every finding flag a run read takes, `-o json` has the same
+shape (plus the release's `shipped` policies), and a release with no check says so (`{"run": null}` under `-o json`).
+`--recheck` checks the release again from its archive and stores the new run, so a read-only credential is refused.
+
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
 blocks (an active, mandatory policy failed), whatever else happened; `1` when a request or the import failed, or
-when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`.
+when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
+`tenant_deploy_request set_status` and `tenant_deploy_request bypass` exit `2` when the tenant deploy policy gate
+refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
 
 Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
@@ -531,7 +541,19 @@ xano release deploy "v1.0"
 xano release deploy "v1.0" --force
 xano release deploy "v1.0" --branch "restore-v1" --no-set_live
 xano release deploy "v1.0" -w 40 -o json --force
+
+# Read a release's policy check, or check it again (see Policies)
+xano policy runs --release v1.0
+xano policy runs --release v1.0 --recheck
 ```
+
+A release carries its branch's policies like its code (`release push` sends `policies/*.xs` with the rest), and a
+tenant deploy lands them on the tenant. Cutting a release (`release create`, `release push`, `release import`) stores
+its policy check, and the summary prints it: `Policy check: fail (run 1712), 2 blocking, 1 advisory findings`, or
+`Policy check disabled|skipped|error: <why>` when none was recorded. `-o json` keeps it as `policy_run`
+(`{status, run_id, run_status, blocking, advisory, message?}`, or `null` for a credential without `workspace:policy`
+read). A cut is never refused for its findings: each tenant deploy is gated on the ones it introduces (see Tenant
+deployments).
 
 ### Platforms
 
@@ -724,6 +746,13 @@ xano tenant deploy_platform <tenant_name> --platform_id 5
 # Deploy a release by name
 xano tenant deploy_release <tenant_name> --release v1.0
 
+# Preview the release's policy gate on the tenant without deploying (exit 2 when it would refuse)
+xano tenant deploy_release <tenant_name> --release v1.0 --check
+xano tenant deploy_release <tenant_name> --release v1.0 --check -o json
+
+# Deploy past a blocking policy gate with an audited reason (needs workspace:policy update)
+xano tenant deploy_release <tenant_name> --release v1.0 --override-reason "Accepted; fix tracked in JIRA-12"
+
 # Deploy with a license override file (deploy_platform only)
 xano tenant deploy_platform <tenant_name> --platform_id 5 --license ./license.yaml
 ```
@@ -732,6 +761,17 @@ If a tenant has `required_reviewers` set above 0, `tenant deploy_release` fails 
 error naming the `tenant_deploy_request` command to run instead — see below. A tenant
 with `allow_quick_deploy` enabled skips the gate entirely, regardless of
 `required_reviewers`.
+
+A release deploy is also gated on policy. The gate compares the release's policy check with the tenant's current
+release's: it blocks the blocking findings the release introduces, and any active mandatory policy of the current
+release that the release removes, deactivates, demotes or changes the rules of. Findings already in the current
+release are reported, never blocking. Ephemeral and sandbox tenants get the verdict but are never refused.
+`--check` prints the verdict (status, the releases compared, introduced and existing counts, the weakened
+policies, the policies the release no longer ships, and the first introduced findings) without deploying; `-o json`
+is the gate's answer as served. A refused deploy prints the same verdict and exits `2`, naming the
+`--override-reason` rerun when your credential may override; under `-o json` it prints
+`{"deployed": false, "message", "policy_gate"}`. `--override-reason` sends `override_policy: true` with the reason,
+and the platform audits it. A successful deploy's summary prints the gate's status when the platform returns one.
 
 #### Tenant Deploy Requests
 
@@ -751,7 +791,7 @@ xano tenant_deploy_request list --tenant prod --status pending
 xano tenant_deploy_request list --tenant prod --release v1.2
 xano tenant_deploy_request list --to-review
 
-# Get details of a specific deploy request
+# Get details of a specific deploy request, with its release's policy check on its tenant
 xano tenant_deploy_request get <id>
 
 # Open a deploy request (submits for review immediately unless --draft is passed)
@@ -767,6 +807,7 @@ xano tenant_deploy_request edit <id> --reviewers 12,45,67
 # release as part of that same call)
 xano tenant_deploy_request set_status <id> --status submit
 xano tenant_deploy_request set_status <id> --status approve
+xano tenant_deploy_request set_status <id> --status approve --override-policy --reason "Accepted; fix tracked in JIRA-12"
 xano tenant_deploy_request set_status <id> --status request_changes --reason "Needs a migration note"
 xano tenant_deploy_request set_status <id> --status close --reason "Superseded by a newer request"
 xano tenant_deploy_request set_status <id> --status reopen
@@ -778,7 +819,18 @@ xano tenant_deploy_request revision <id> --release v1.2.1 --note "Added the miss
 # tenant's allow_deploy_bypass to be enabled, and a separately-grantable RBAC
 # permission). Every use is audited.
 xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavailable"
+xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavailable" --override-policy
 ```
+
+`tenant_deploy_request get` also prints what the policy gate would decide now for the request's release on its
+tenant (under `-o json`, as `policy_gate`). It needs `workspace:policy` read; without it, or with the Policies
+feature off, it prints `Policy checks: not available (<why>)` (`policy_gate: null` and `policy_gate_unavailable`
+under `-o json`) and the command still succeeds. The deploy an approval triggers, and a bypass deploy, are gated like
+`tenant deploy_release`: a refusal prints the verdict and exits `2`. An approval refused this way is still recorded
+and the request stays approved; deploy it with `tenant deploy_release --override-reason`. `--override-policy`
+(with `--reason` as the override reason, and the `workspace:policy` update permission) proceeds past the gate on
+`set_status --status approve` and on `bypass`. Approval bypass and policy override are separate permissions:
+neither implies the other.
 
 CI example (e.g. a GitHub Action step):
 

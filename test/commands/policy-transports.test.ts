@@ -16,11 +16,10 @@ const preview = (extra: Record<string, unknown> = {}) => ({
 })
 
 /**
- * Tenants, sandboxes and releases carry no policies: policies stay in their workspace. A tenant or
- * sandbox push leaves policy files out and names them once in `policies_skipped`; a release built
- * from local files never sends them.
+ * A tenant or sandbox push leaves policy files out and names them once in `policies_skipped`. A
+ * release carries its policies like its code, so a release built from local files sends them.
  */
-describe('pushes that carry no policies', () => {
+describe('which pushes carry policy files', () => {
   const fixture = policyFixture()
   const skipped = {
     keys: ['AUTH-001'],
@@ -71,22 +70,32 @@ describe('pushes that carry no policies', () => {
     })
   }
 
-  it('release push leaves policy files out, says so, and counts only what it sent', async () => {
+  it('release push carries its policy files and names them', async () => {
     fixture.route(() => json({id: 10, name: 'v1'}))
     const result = await runCommand(['release', 'push', '-n', 'v1', '-d', tree], fixture.config)
     expect(result.error).to.equal(undefined)
     expect(fixture.calls).to.have.length(1)
     expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/release/multidoc')
-    expect(fixture.calls[0].body).to.contain('function helper').and.not.to.contain('policy "AUTH-001"')
-    expect(warned(result.stderr)).to.contain(skipped.message)
-    expect(result.stdout).to.contain('Documents: 1')
+    expect(fixture.calls[0].body).to.contain('function helper').and.to.contain('policy "AUTH-001"')
+    expect(result.stderr).not.to.contain('policy file')
+    expect(result.stdout).to.contain('Documents: 2').and.to.contain('Policy documents: 1 (AUTH-001)')
   })
 
-  it('release push of policy files alone sends nothing', async () => {
-    fixture.route(() => { throw new Error('unexpected request') })
+  it('release push of policy files alone sends them as the release', async () => {
+    fixture.route(() => json({id: 11, name: 'v1'}))
     const result = await runCommand(['release', 'push', '-n', 'v1', '-d', policiesOnly], fixture.config)
-    expect(result.error?.message).to.contain('No documents other than policies in')
-    expect(fixture.calls).to.have.length(0)
+    expect(result.error).to.equal(undefined)
+    expect(fixture.calls).to.have.length(1)
+    expect(fixture.calls[0].body).to.equal(policy)
+  })
+
+  it('release push prints the notice of a platform that left its policy files out', async () => {
+    const featureOff = {keys: ['AUTH-001'], message: '1 policy file was left out (AUTH-001): Policies are not enabled on this instance.'}
+    fixture.route(() => json({id: 12, name: 'v1', policies_skipped: featureOff}))
+    const result = await runCommand(['release', 'push', '-n', 'v1', '-d', tree], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(warned(result.stderr)).to.contain(featureOff.message)
+    expect(result.stdout).not.to.contain('Policy documents')
   })
 
   /**

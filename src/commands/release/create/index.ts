@@ -1,6 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {releasePolicyRunLines} from '../../../utils/policy/release.js'
 
 interface Release {
   branch?: string
@@ -9,6 +10,8 @@ interface Release {
   hotfix?: boolean
   id: number
   name: string
+  /** The policy check the cut stored; see `releasePolicyRunLines`. */
+  policy_run?: unknown
   resource_size?: number
 }
 
@@ -23,6 +26,10 @@ export default class ReleaseCreate extends BaseCommand {
   static examples = [
     `$ xano release create "v1.0" --branch main
 Created release: v1.0 - ID: 10
+  Branch: main
+  Policy check: fail (run 1712), 2 blocking, 1 advisory findings
+    Findings: xano policy runs --release v1.0
+    Each tenant's deploy is gated on the ones it introduces: xano tenant deploy_release <tenant> --release v1.0 --check
 `,
     `$ xano release create "v1.1-hotfix" --branch main --hotfix --description "Critical fix" -o json`,
   ]
@@ -117,6 +124,7 @@ Created release: v1.0 - ID: 10
         this.log(`Created release: ${release.name} - ID: ${release.id}`)
         if (release.branch) this.log(`  Branch: ${release.branch}`)
         if (release.hotfix) this.log(`  Hotfix: true`)
+        for (const line of releasePolicyRunLines(release.policy_run, release.name ?? args.name)) this.log(line)
       }
     } catch (error) {
       if (error instanceof Error) {
