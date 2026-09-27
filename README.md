@@ -178,6 +178,8 @@ the rest: the `policies` topic of `xano_xanoscript_docs` (the language) and the 
 
 ```bash
 xano policy catalogue --check object.auth_required    # The checks a rule can use (all of them without --check)
+xano policy create --goal endpoints_need_login -b dev # Create an independent policy from a platform goal
+xano policy create --goal no_pii_in_responses --key DATA-020 --param 'fields=["email","ssn"]'
 xano policy list                                     # Policies on the branch
 xano policy parse policies/AUTH-001.xs               # Validate and print canonical XanoScript (or --file, --stdin)
 xano policy publish policies/AUTH-001.xs -m "Why"    # Create or update by key; -m labels the Version History entry
@@ -195,6 +197,17 @@ xano policy runs --release-id 12                    # Read an imported release b
 xano policy delete TMP-001                           # Remove a policy; its Version History is kept
 ```
 
+`policy create --goal <id>` reads the instance's goals from `policy catalogue -o json`, copies a goal's
+sparse settings, validates them natively and creates an Active, Advisory policy. Required goal settings must
+be filled before it saves. Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
+prefix is optional for a single-rule goal. Nested paths work, for example `--param '1.when.statement="db.edit"'`.
+Values are JSON, including quoted strings, arrays, booleans and numbers. The goal key gets a free numeric
+suffix if already taken (case-insensitive); an explicitly taken `--key` is refused. It never updates an
+existing policy. `-m/--message` labels its Version History entry; `-o json` returns the saved policy and
+native rule warnings go to stderr. No continuing link to the goal is stored.
+
+A push to the live branch is refused before commit when mandatory policies block it. A 403 `policy_gate` exits **2**, says nothing was imported, and lists the blocking findings and introduced/changed counts. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
+
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
 `release push` carries them too: a release ships its policies like its code, and a tenant deploy lands them (see
@@ -211,6 +224,11 @@ summary, so its `-o json` `run` carries each policy's finding count rather than 
 `workspace push` prints lists the first 100 findings; when there are more it prints their counts and
 `Listed: the first 100 of N; \`xano policy runs <run_id>\` has them all.` `policy evaluate --summary` does the same
 with the first 50, and `policy evaluate` without it still answers the whole run.
+
+`policy evaluate --policy AUTH-001` tries that one policy alone, even if inactive. It never stores or audits
+the trial, replaces the latest run or gates anything. The output names each rule's clear objects (up to five
+names, with the rest counted). Combine it with `--summary`, `--run-detail` or `-o json`; an inactive trial
+does not exit 2. A blank key is refused before any request, and an unknown key gets the platform's 404.
 
 `policy runs --release <name>` reads a release's check: the run stored when the release was cut, evaluated on what
 the release ships against the policies it ships. It takes every finding flag a run read takes, `-o json` has the same
@@ -280,6 +298,7 @@ xano workspace push -e "table/*"                         # Push all files except
 xano workspace push -i "function/*" -e "**/test*"        # Include functions, exclude tests
 xano workspace push -o json                              # One JSON document: the preview (with --dry-run) or the import result with policy_check
 xano workspace push -m "Tightened the auth policies"     # Label the Version History entry of each policy this push changes; other objects get no message
+xano workspace push --policy-override "Approved exception" # Proceed past a blocking live-branch gate with an audited reason
 
 # Pull from a git repository to local files (defaults to current directory)
 xano workspace git pull -r https://github.com/owner/repo
