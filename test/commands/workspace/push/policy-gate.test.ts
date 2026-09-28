@@ -5,7 +5,8 @@ import {json, policyFixture} from '../../../helpers/policy-fixture.js'
 
 describe('workspace push publish gate', () => {
   const fixture = policyFixture()
-  const payload = {can_override: true, changed: 1, code: 'policy_gate', findings: [{message: 'Authentication is required'}], gate: 'push', introduced: 2, total: 3}
+  const finding = {gate_reason: 'introduced', message: 'declares no auth', object: {name: 'GET /users', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}
+  const payload = {can_override: true, changed: 1, code: 'policy_gate', findings: [finding], gate: 'push', introduced: 2, total: 3}
   const push = (...args: string[]) => runCommand(['workspace', 'push', '-d', fixture.directory, '--no-guids', ...args], fixture.config)
 
   it('exits 2 and explains a refused live push, with findings and override guidance', async () => {
@@ -13,7 +14,8 @@ describe('workspace push publish gate', () => {
     const result = await push('--force')
     expect(result.error?.oclif?.exit).to.equal(2)
     expect(result.error?.message).to.include('3 blocking policy findings').and.include('2 introduced').and.include('1 on changed objects')
-    expect(result.error?.message).to.include('Nothing was imported').and.include('Authentication is required').and.include('--policy-override')
+    expect(result.error?.message).to.include('Nothing was imported').and.include('--policy-override')
+    expect(result.error?.message).to.include('AUTH-001.R1 (AUTH-001)  query GET /users: declares no auth (introduced)')
   })
 
   it('counts a single blocking finding in the singular', async () => {
