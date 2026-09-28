@@ -233,7 +233,8 @@ Pulled 58 documents
   }
 
   /**
-   * Policy keys are case-sensitive on the server, but file names are not on every checkout. The
+   * Policy keys are unique on the server without regard to case, but an older export or a local file
+   * can still differ only in case, and file names are not case-sensitive on every checkout. The
    * policies whose file name differs only in case from another exported policy, or from a local file
    * it would overwrite, are left out with a warning; everything else is written. Local policy files
    * absent from the export are kept. They are reported as stale only when this credential reads the

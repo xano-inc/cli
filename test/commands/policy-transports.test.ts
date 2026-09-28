@@ -16,14 +16,15 @@ const preview = (extra: Record<string, unknown> = {}) => ({
 })
 
 /**
- * Tier1 tenant and sandbox pushes carry policies. Remote tenant pushes, feature-off imports and
- * older servers can leave them out; their `policies_skipped` notice is printed once. Releases carry them.
+ * Tier1 tenant, ephemeral and sandbox pushes carry policies. A remote tenant push, a tenant without a
+ * policy table and any import while the feature is off leave them out; their `policies_skipped`
+ * notice is printed once. Releases carry them.
  */
 describe('which pushes carry policy files', () => {
   const fixture = policyFixture()
   const skipped = {
     keys: ['AUTH-001'],
-    message: '1 policy file was left out (AUTH-001): policies stay in their workspace, and tenants, sandboxes and releases carry none.',
+    message: '1 policy file was left out (AUTH-001): a remote tenant does not accept policy files yet; a release deployed to it carries them.',
   }
   const helper = 'function helper {\n  input {\n  }\n\n  stack {\n  }\n\n  response = null\n}'
   const policy = 'policy "AUTH-001" {\n  title = "Auth"\n}'

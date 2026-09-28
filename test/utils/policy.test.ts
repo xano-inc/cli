@@ -197,7 +197,7 @@ describe('policy carriage and feedback', () => {
     ]
     const evaluation = {findings, id: 12, policy_check: {blocking: true, blocking_finding_ids: ['F1'], status: 'fail'}, results: [], stored: true}
     const summary = summarize(evaluation.policy_check, evaluationEvidence(evaluation)).join('\n')
-    expect(summary).to.contain('Blocking findings (1) — these stop the merge:\n  AUTH-001.R1 (AUTH-001)  query GET /x: No auth')
+    expect(summary).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: No auth')
     expect(summary).to.contain('Advisory findings (1) — reported, not blocking:\n  SEC-100.R1 (SEC-100)  table account: Stale tag')
   })
 
@@ -217,7 +217,7 @@ describe('policy carriage and feedback', () => {
     ]
     const summary = policySummary({blocking: true, blocking_findings: [findings[0]], findings, status: 'fail'}).join('\n')
     // The only distinction that changes what the reader does next.
-    expect(summary).to.contain('Blocking findings (1) — these stop the merge:\n  AUTH-001.R1  Endpoints declare auth (AUTH-001)  query GET /x: No auth')
+    expect(summary).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1  Endpoints declare auth (AUTH-001)  query GET /x: No auth')
     expect(summary).to.contain('Advisory findings (1) — reported, not blocking:\n  AUTH-001.R2  Tables carry a tag (AUTH-001)  table account: Stale tag')
     expect(summary.indexOf('Blocking findings')).to.be.lessThan(summary.indexOf('Advisory findings'))
   })
@@ -230,7 +230,7 @@ describe('policy carriage and feedback', () => {
     expect(advisory).to.contain('  AUTH-001.R1 (AUTH-001)')
     // Every finding blocking is still worth saying, but there is no second group to name.
     const allBlocking = policySummary({blocking: true, blocking_findings: findings, findings, status: 'fail'}).join('\n')
-    expect(allBlocking).to.contain('Blocking findings (1) — these stop the merge:')
+    expect(allBlocking).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:')
     expect(allBlocking).to.not.contain('Advisory findings')
   })
 

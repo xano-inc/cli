@@ -154,7 +154,7 @@ Push and open sandbox review in the browser
       target,
       pushFlags,
     )
-    // A sandbox carries no policies: the platform leaves policy files out and says so once.
+    // When the platform leaves policy files out, it says so once.
     const skipped = policiesSkippedNotice(result.response ?? result.preview)
     if (skipped) this.warn(skipped)
 
