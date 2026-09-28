@@ -7,9 +7,9 @@ import {
   gateOverrideHint,
   gateRefusal,
   type GateRefused,
+  liveGateLines,
   type PolicyGateAnswer,
   quoted,
-  setLiveGateLines,
 } from '../../../utils/policy/gate.js'
 
 interface Release {
@@ -204,7 +204,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
     if (flags.output === 'json') {
       this.log(JSON.stringify({branch: answer.branch ?? null, branch_created: true, message: refused.message, policy_gate: answer, set_live: false}, null, 2))
     } else {
-      for (const line of setLiveGateLines(answer, 'release')) this.log(line)
+      for (const line of liveGateLines(answer, 'release')) this.log(line)
     }
 
     const workspace = flags.workspace ? ` -w ${quoted(flags.workspace)}` : ''

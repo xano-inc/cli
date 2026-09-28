@@ -246,7 +246,7 @@ blocks (an active, mandatory policy failed), whatever else happened; `1` when a 
 when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
 `tenant_deploy_request set_status` and `tenant_deploy_request bypass` exit `2` when the tenant deploy policy gate
 refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
-`release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does.
+`release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live, and `1` for any other failure; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does. `function create` and `function edit` exit `2` when the live-branch publish gate refuses the save (see Functions), and `1` for any other failure. A blank `--policy-override` is refused before any request.
 
 Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
@@ -447,6 +447,7 @@ xano function get <function_id> --include_draft         # Include draft version
 xano function create -f function.xs
 xano function create -f function.xs --edit              # Open in $EDITOR before creating
 cat function.xs | xano function create --stdin
+xano function create -f function.xs --policy-override "Exception approved"  # Past a blocking publish policy gate (audited)
 
 # Edit a function
 xano function edit <function_id>                        # Opens in $EDITOR
@@ -454,6 +455,7 @@ xano function edit <function_id> -f new.xs              # Update from file
 xano function edit <function_id> -f new.xs --edit       # Open in $EDITOR before updating
 cat function.xs | xano function edit <function_id> --stdin  # Update from stdin
 xano function edit <function_id> --no-publish           # Edit without publishing
+xano function edit <function_id> -f new.xs --policy-override "Exception approved"  # Past a blocking publish policy gate (audited)
 
 # Run (execute) a function by name
 xano function run <name>                                # Prompts for declared inputs (on a TTY)
@@ -463,6 +465,11 @@ echo '{"email":"jo@x.com"}' | xano function run <name> --stdin -o json | jq .res
 xano function run <name> --branch dev --logs            # run on a branch, show execution logs
 xano function run <name> --datasource test              # run against the 'test' data source
 ```
+
+`function create` and `function edit` save a function on the live branch through the publish policy gate. When
+blocking findings refuse the save, nothing is saved: the command prints the verdict and the platform's message and
+exits `2` (any other failure exits `1`), and `-o json` prints `{created|updated: false, message, policy_gate}`.
+`--policy-override "<reason>"` saves past the gate with an audited reason (requires `workspace:policy` update).
 
 Input flexibility for `function run` (assembled into one JSON `input` object):
 

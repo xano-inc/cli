@@ -7,8 +7,8 @@ import {
   gateOverrideHint,
   gateRefusal,
   type GateRefused,
+  liveGateLines,
   quoted,
-  setLiveGateLines,
 } from '../../../utils/policy/gate.js'
 
 interface Branch {
@@ -178,7 +178,7 @@ static override flags = {
     if (flags.output === 'json') {
       this.log(JSON.stringify({message: refused.message, policy_gate: refused.answer, set_live: false}, null, 2))
     } else {
-      for (const line of setLiveGateLines(refused.answer, 'branch')) this.log(line)
+      for (const line of liveGateLines(refused.answer, 'branch')) this.log(line)
     }
 
     const workspace = flags.workspace ? ` -w ${flags.workspace}` : ''

@@ -185,10 +185,11 @@ export function deployedGateLine(answer: PolicyGateAnswer): string {
 }
 
 /**
- * The set-live verdict: its status, what blocks, and the first blocking findings. `subject` is what
- * is set live: a branch, or the branch a release was deployed as (`release deploy --set_live`).
+ * The verdict of a gate that measures a change against the live branch (set-live, publish): its
+ * status, what blocks, and the first blocking findings. `subject` is what changes: a branch set live,
+ * the branch a release was deployed as (`release deploy --set_live`), or an object saved to live.
  */
-export function setLiveGateLines(answer: PolicyGateAnswer, subject: 'branch' | 'release'): string[] {
+export function liveGateLines(answer: PolicyGateAnswer, subject: 'branch' | 'release' | 'save'): string[] {
   const lines = [`Policy gate: ${answer.status?.trim() || 'unknown'}`]
   if (typeof answer.total === 'number') {
     lines.push(`  Blocking findings: ${answer.total} (${answer.introduced ?? 0} introduced, ${answer.changed ?? 0} on objects the ${subject} changes); ${answer.existing ?? 0} already on the live branch never block`)
@@ -203,6 +204,19 @@ export function setLiveGateLines(answer: PolicyGateAnswer, subject: 'branch' | '
   }
 
   return lines
+}
+
+/**
+ * A save the live-branch publish gate refused (`function create`, `function edit`): what goes on
+ * stdout (the verdict, or under `-o json` `{created|updated: false, message, policy_gate}`) and the
+ * error the command exits 2 with, saying nothing was saved and how to proceed (`rerun` is the same
+ * command with `--policy-override`).
+ */
+export function publishRefusal(refused: GateRefused, options: {json: boolean; outcome: 'created' | 'updated'; rerun: string}): {lines: string[]; message: string} {
+  const lines = options.json
+    ? [JSON.stringify({message: refused.message, [options.outcome]: false, policy_gate: refused.answer}, null, 2)]
+    : liveGateLines(refused.answer, 'save')
+  return {lines, message: `Nothing was saved. ${refused.message}${gateOverrideHint(refused.answer, options.rerun)}`}
 }
 
 /** The refusal of a `--policy-override` given without a reason, before any request is made. */
