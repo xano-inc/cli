@@ -28,6 +28,8 @@ interface Tenant {
   display?: string
   id: number
   name: string
+  /** The release's policies the tenant's import left out (a key another policy holds, a policy that does not validate). */
+  policies_skipped?: null | {keys?: string[]; message?: string}
   /** The policy gate's verdict on this deploy (`pass`, `overridden`, ...), when the platform gates releases. */
   policy_gate?: PolicyGateAnswer
   release?: {name?: string}
@@ -205,6 +207,8 @@ Policy gate: blocked
         if (tenant.policy_gate?.status) this.log(`  ${deployedGateLine(tenant.policy_gate)}`)
         this.log(`  Time: ${elapsed}s`)
       }
+
+      this.warnPoliciesSkipped(tenant)
     } catch (error) {
       if (refused) throw error
       if (error instanceof Error) {
@@ -351,5 +355,11 @@ Policy gate: blocked
     if (tenant?.deploy_settings?.allow_quick_deploy) return false
 
     return (tenant?.deploy_settings?.required_reviewers ?? 0) > 0
+  }
+
+  /** A release policy the tenant's import could not land (its key is held by another policy) is never dropped silently. */
+  private warnPoliciesSkipped(tenant: Tenant): void {
+    const message = tenant.policies_skipped?.message
+    if (message) this.warn(message)
   }
 }

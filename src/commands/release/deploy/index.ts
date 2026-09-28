@@ -1,6 +1,8 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {findingLine} from '../../../utils/policy/findings.js'
+import {gateOverrideHint, gateRefusal, type GateRefused, type PolicyGateAnswer, quoted} from '../../../utils/policy/gate.js'
 
 interface Release {
   branch?: string
@@ -8,7 +10,14 @@ interface Release {
   description?: string
   id: number
   name: string
+  /** The release's policies the new branch left out (a key another policy holds, a policy that does not validate). */
+  policies_skipped?: null | {keys?: string[]; message?: string}
+  /** The set-live policy gate's verdict (`pass`, `overridden`, ...) with --set_live, when Policies is enabled. */
+  policy_gate?: null | PolicyGateAnswer
 }
+
+/** A set-live refusal names the branch the release was deployed as, which stays. */
+type SetLiveRefusal = PolicyGateAnswer & {branch?: {id?: number; label?: string}}
 
 export default class ReleaseDeploy extends BaseCommand {
   static override args = {
@@ -18,7 +27,7 @@ export default class ReleaseDeploy extends BaseCommand {
     }),
   }
   static description =
-    '[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch.'
+    "[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch. With --set_live the branch is then set live through the set-live policy gate: when blocking findings refuse it, the branch stays, set live is refused, and the command exits 2 unless --policy-override gives a reason."
   static examples = [
     `$ xano release deploy "v1.0"
 Are you sure you want to deploy release "v1.0"? (y/N) y
@@ -29,6 +38,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
 `,
     `$ xano release deploy "v1.0" --branch "restore-v1" --no-set_live`,
     `$ xano release deploy "v1.0" -w 40 -o json --force`,
+    `$ xano release deploy "v1.0" --branch "rollback-v1" --set_live --policy-override "Rollback approved; finding tracked in JIRA-12"`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -50,6 +60,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       options: ['summary', 'json'],
       required: false,
     }),
+    'policy-override': Flags.string({description: 'With --set_live, set the branch live past a blocking set-live policy gate with an audited reason (requires workspace:policy update)'}),
     set_live: Flags.boolean({
       default: false,
       description: '[CRITICAL] STOP and confirm with the user before setting the deployed branch as live.',
@@ -61,6 +72,8 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       required: false,
     }),
   }
+  /** Set once the set-live policy gate refuses, the one failure that exits 2. */
+  private refusedByPolicyGate = false
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(ReleaseDeploy)
@@ -75,11 +88,10 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
     const releaseName = encodeURIComponent(args.release_name)
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/release/${releaseName}/deploy`
 
-    const body: Record<string, unknown> = {
-      set_live: flags.set_live,
+    const body = deployBody(flags)
+    if (body.override_reason && !flags.set_live) {
+      this.error('--policy-override only applies with --set_live: a branch that is not set live is not gated.')
     }
-
-    if (flags.branch) body.branch = flags.branch
 
     if (!flags.force) {
       const confirmed = await this.confirm(
@@ -112,6 +124,8 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       )
 
       if (!response.ok) {
+        const refused = await gateRefusal(response)
+        if (refused) this.refuseSetLive(refused, flags, args.release_name)
         const errorText = await response.text()
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
@@ -126,9 +140,15 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
         const liveStatus = flags.set_live ? ', set live' : ''
         this.log(`Deployed release "${release.name}" to workspace ${workspaceId} (branch: ${branchLabel}${liveStatus})`)
         if (release.description) this.log(`  Description: ${release.description}`)
+        this.logPolicyOutcome(release)
         this.log(`  Time: ${elapsed}s`)
       }
+
+      // A policy of the release the new branch could not take is never dropped silently.
+      const skipped = release.policies_skipped?.message
+      if (skipped) this.warn(skipped)
     } catch (error) {
+      if (this.refusedByPolicyGate) throw error
       if (error instanceof Error) {
         this.error(`Failed to deploy release: ${error.message}`)
       } else {
@@ -151,4 +171,66 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       })
     })
   }
+
+  /** The set-live verdict a successful deploy answered with --set_live (`pass`, `overridden`, ...). */
+  private logPolicyOutcome(release: Release): void {
+    const status = release.policy_gate?.status
+    if (status) this.log(`  Policy gate: ${status}`)
+  }
+
+  /**
+   * The set-live gate refused after the branch was created: the verdict, the refusal, and how to
+   * proceed, exiting 2. Under `-o json` the refusal is `{branch_created, set_live, branch, message,
+   * policy_gate}`.
+   */
+  private refuseSetLive(refused: GateRefused, flags: {branch?: string; output: string; workspace?: string}, releaseName: string): never {
+    const answer = refused.answer as SetLiveRefusal
+    const label = answer.branch?.label || flags.branch || 'the release branch'
+    if (flags.output === 'json') {
+      this.log(JSON.stringify({branch: answer.branch ?? null, branch_created: true, message: refused.message, policy_gate: answer, set_live: false}, null, 2))
+    } else {
+      for (const line of setLiveGateLines(answer)) this.log(line)
+    }
+
+    const workspace = flags.workspace ? ` -w ${quoted(flags.workspace)}` : ''
+    const rerun = `xano branch delete ${quoted(label)}${workspace} && xano release deploy ${quoted(releaseName)}${workspace}${flags.branch ? ` --branch ${quoted(flags.branch)}` : ''} --set_live --policy-override "<why>"`
+    const hint = gateOverrideHint(answer, rerun)
+    this.refusedByPolicyGate = true
+    this.error(
+      `The branch was created; set live was refused. ${refused.message}${hint}${answer.can_override && !answer.override_denied ? `\nOr set "${label}" live from Studio's Branches panel, which asks for the reason.` : ''}`,
+      {exit: 2},
+    )
+  }
+}
+
+/** A count the answer may leave out. */
+function count(value?: number): number {
+  return value ?? 0
+}
+
+/** The set-live verdict: its status, what blocks, and the first blocking findings. */
+function setLiveGateLines(answer: PolicyGateAnswer): string[] {
+  const lines = [`Policy gate: ${answer.status?.trim() || 'unknown'}`]
+  if (typeof answer.total === 'number') {
+    lines.push(`  Blocking findings: ${answer.total} (${count(answer.introduced)} introduced, ${count(answer.changed)} on objects the release changes); ${count(answer.existing)} already on the live branch never block`)
+  }
+
+  const findings = answer.findings ?? []
+  if (findings.length > 0) {
+    lines.push(...findings.map(finding => `  ${findingLine(finding, new Map())}`))
+    if (answer.truncated) lines.push('  Only the first findings are listed.')
+  } else if (answer.findings === undefined && count(answer.total) > 0) {
+    lines.push('  The findings are listed only for a credential that reads policies (workspace:policy read).')
+  }
+
+  return lines
+}
+
+/** The deploy request's body: the new branch's label, set_live, and the override reason when one is given. */
+function deployBody(flags: {branch?: string; 'policy-override'?: string; set_live: boolean}): Record<string, unknown> {
+  const body: Record<string, unknown> = {set_live: flags.set_live}
+  if (flags.branch) body.branch = flags.branch
+  const overrideReason = flags['policy-override']?.trim()
+  if (overrideReason) body.override_reason = overrideReason
+  return body
 }

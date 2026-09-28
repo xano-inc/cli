@@ -125,6 +125,10 @@ describe('release policy checks', () => {
     })
   })
 
+  /** `release deploy v1.2` into a new branch `rollback`, set live, with no confirmation prompt. */
+  const deploy = (...extra: string[]) =>
+    runCommand(['release', 'deploy', 'v1.2', '--branch', 'rollback', '--set_live', '--force', ...extra], fixture.config)
+
   /** The tenant list the approval pre-flight reads (no approval needed), the gate preview, and `deploy` for the deploy. */
   function tenantRoutes(deploy: () => Response, gate: () => Response = () => json(passed)): void {
     fixture.route((url) => {
@@ -265,6 +269,94 @@ describe('release policy checks', () => {
       const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
       expect(result.error?.message).to.equal('Failed to deploy to tenant: Access denied.')
       expect(result.error).to.have.nested.property('oclif.exit', 1)
+    })
+  })
+
+  describe('release deploy --set_live and the set-live gate', () => {
+    const setLiveBlocked = {
+      branch: {id: 99, label: 'rollback'},
+      can_override: true,
+      changed: 0,
+      existing: 2,
+      findings: [finding],
+      gate: 'set_live',
+      introduced: 1,
+      status: 'blocked',
+      total: 1,
+      truncated: false,
+    }
+    const setLiveRefusal = (answer: Record<string, unknown> = setLiveBlocked) =>
+      json({
+        code: 'ERROR_CODE_ACCESS_DENIED',
+        message: 'The release was deployed as branch "rollback". Set live refused: 1 blocking policy finding (1 introduced by this change).',
+        payload: {code: 'policy_gate', ...answer},
+      }, 403)
+
+    it('a refused set-live says the branch was created, lists what blocks, names the override, and exits 2', async () => {
+      fixture.route(() => setLiveRefusal())
+      const result = await deploy()
+      expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/release/v1.2/deploy')
+      expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({branch: 'rollback', set_live: true})
+      expect(result.stdout).to.contain('Policy gate: blocked')
+      expect(result.stdout).to.contain('Blocking findings: 1 (1 introduced, 0 on objects the release changes); 2 already on the live branch never block')
+      expect(result.stdout).to.contain('Endpoint has no authentication.')
+      const message = oneLine(result.error?.message ?? '')
+      expect(message).to.contain('The branch was created; set live was refused.')
+      expect(message).to.contain('xano branch delete rollback && xano release deploy v1.2 --branch rollback --set_live --policy-override "<why>"')
+      expect(message).to.contain('Or set "rollback" live from Studio\'s Branches panel')
+      expect(result.error).to.have.nested.property('oclif.exit', 2)
+    })
+
+    it('a refusal the credential may not override says whose permission it needs', async () => {
+      fixture.route(() => setLiveRefusal({...setLiveBlocked, can_override: false}))
+      const result = await deploy()
+      const message = oneLine(result.error?.message ?? '')
+      expect(message).to.contain('The branch was created; set live was refused.')
+      expect(message).to.contain('needs the `workspace:policy` update permission')
+      expect(message).not.to.contain('--policy-override')
+      expect(result.error).to.have.nested.property('oclif.exit', 2)
+    })
+
+    it('a refusal under -o json names the branch that stays', async () => {
+      fixture.route(() => setLiveRefusal())
+      const result = await deploy('-o', 'json')
+      const output = JSON.parse(result.stdout)
+      expect(output).to.include({branch_created: true, set_live: false})
+      expect(output.branch).to.deep.equal({id: 99, label: 'rollback'})
+      expect(output.policy_gate.gate).to.equal('set_live')
+      expect(result.error).to.have.nested.property('oclif.exit', 2)
+    })
+
+    it('--policy-override sends the reason and prints the verdict the deploy answered', async () => {
+      fixture.route(() => json({id: 12, name: 'v1.2', policies_skipped: null, policy_gate: {...setLiveBlocked, status: 'overridden'}}))
+      const result = await deploy('--policy-override', '"  Rollback approved  "')
+      expect(result.error).to.equal(undefined)
+      expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({branch: 'rollback', override_reason: 'Rollback approved', set_live: true})
+      expect(result.stdout).to.contain('Policy gate: overridden')
+    })
+
+    it('--policy-override without --set_live is refused before any request', async () => {
+      fixture.route(() => { throw new Error('deployed') })
+      const result = await runCommand(['release', 'deploy', 'v1.2', '--force', '--policy-override', 'x'], fixture.config)
+      expect(result.error?.message).to.contain('--policy-override only applies with --set_live')
+      expect(fixture.calls).to.have.length(0)
+    })
+
+    it('warns about the release policies the new branch left out', async () => {
+      const skipped = {keys: ['AUTH-001'], message: '1 policy was left out (AUTH-001): The key "AUTH-001" is held by another policy on this branch.'}
+      fixture.route(() => json({id: 12, name: 'v1.2', policies_skipped: skipped, policy_gate: null}))
+      const result = await runCommand(['release', 'deploy', 'v1.2', '--branch', 'rollback', '--force'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(oneLine(result.stderr)).to.contain('1 policy was left out (AUTH-001)')
+      expect(result.stdout).not.to.contain('Policy gate')
+    })
+
+    it('a tenant deploy warns about the release policies the tenant left out', async () => {
+      const skipped = {keys: ['AUTH-001'], message: '1 policy was left out (AUTH-001): The key "AUTH-001" is held by another policy on this branch.'}
+      tenantRoutes(() => json({id: 5, name: 'prod', policies_skipped: skipped, policy_gate: passed, release: {name: 'v1.2'}}))
+      const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(oneLine(result.stderr)).to.contain('1 policy was left out (AUTH-001)')
     })
   })
 

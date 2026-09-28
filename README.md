@@ -246,6 +246,7 @@ blocks (an active, mandatory policy failed), whatever else happened; `1` when a 
 when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
 `tenant_deploy_request set_status` and `tenant_deploy_request bypass` exit `2` when the tenant deploy policy gate
 refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
+`release deploy --set_live` exits `2` when the set-live policy gate refuses to set the new branch live.
 
 Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
@@ -572,6 +573,9 @@ xano release deploy "v1.0" --force
 xano release deploy "v1.0" --branch "restore-v1" --no-set_live
 xano release deploy "v1.0" -w 40 -o json --force
 
+# Set it live past a blocking set-live policy gate with an audited reason (needs workspace:policy update)
+xano release deploy "v1.0" --branch "rollback-v1" --set_live --policy-override "Rollback approved; tracked in JIRA-12"
+
 # Read a release's policy check, or check it again (see Policies)
 xano policy runs --release v1.0
 xano policy runs --release v1.0 --recheck
@@ -586,6 +590,14 @@ read). A cut is never refused for its findings: each tenant deploy is gated on t
 deployments).
 Tier1 tenant, ephemeral and sandbox pushes carry policy files too when Policies is enabled and the tenant has
 a policy table. Remote tenant pushes still leave them out; remote release deploys carry them.
+
+`release deploy --set_live` lands the release as a new branch, then sets it live through the same policy gate as
+`branch set_live`: the branch is checked against the live branch's policies, and blocking findings it introduces, or
+leaves on objects it changes, refuse it. A refusal keeps the branch, prints the verdict, says `The branch was
+created; set live was refused` and exits `2`; `-o json` prints `{"branch_created": true, "set_live": false, "branch",
+"message", "policy_gate"}`. Set it live from Studio's Branches panel with a reason, or delete the branch and deploy
+again with `--policy-override "<reason>"`, which sets it live past the gate and is audited. A policy of the release
+that the new branch could not take (its key is held by another policy) is named in a warning.
 
 ### Platforms
 
@@ -803,7 +815,8 @@ policies, the policies the release no longer ships, and the first introduced fin
 is the gate's answer as served. A refused deploy prints the same verdict and exits `2`, naming the
 `--override-reason` rerun when your credential may override; under `-o json` it prints
 `{"deployed": false, "message", "policy_gate"}`. `--override-reason` sends `override_policy: true` with the reason,
-and the platform audits it. A successful deploy's summary prints the gate's status when the platform returns one.
+and the platform audits it. A successful deploy's summary prints the gate's status when the platform returns one,
+and a warning names any policy of the release the tenant could not take (its key is held by another policy).
 
 #### Tenant Deploy Requests
 
