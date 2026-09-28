@@ -366,7 +366,7 @@ describe('policy carriage and feedback', () => {
       expect(none).to.include({counted: false, stale: false, status: 'not_evaluated'})
     })
 
-    it('never counts a draft, and never lets its old evidence fail CI', () => {
+    it('never counts an inactive policy, and never lets its old evidence fail CI', () => {
       for (const latest of [coverage({stale: true, version: 0}), coverage({enforcement: null, included: false, version: null})]) {
         const [row] = computeStatusRows([{...policy, active: false, latest_run: latest}], run)
         expect(row).to.include({checked: 0, counted: false, findings: 0, status: 'inactive'})
@@ -441,9 +441,9 @@ describe('policy carriage and feedback', () => {
       const [advisory] = computeStatusRows([{...policy, latest_run: coverage({enforcement: 'advisory'})}], run)
       expect(advisory).to.include({blocking: false, findings: 1})
       expect(findingsLabel(advisory)).to.equal('1 findings')
-      const [draft] = computeStatusRows([{...policy, active: false}], run)
-      expect(draft).to.include({blocking: false})
-      expect(findingsLabel(draft)).to.equal('— findings')
+      const [inactive] = computeStatusRows([{...policy, active: false}], run)
+      expect(inactive).to.include({blocking: false})
+      expect(findingsLabel(inactive)).to.equal('— findings')
     })
   })
 })
