@@ -525,7 +525,9 @@ xano skills pull -b dev -o json                          # Another branch; print
 `xano skills pull` writes the `xano-policies` skill the instance generates from its check catalogue to
 `<directory>/.claude/skills/xano-policies/SKILL.md`, replacing that file without a backup; pull it again after an
 instance upgrade. A copy installed anywhere else is not touched, so remove it. The route needs the
-`workspace:policy` read permission.
+`workspace:policy` read permission. The CLI writes the file's frontmatter (`name` and `description`) itself and drops
+any frontmatter the served content opens with, so a workspace knowledge record that replaces the platform skill cannot
+set agent settings such as `allowed-tools` or `hooks`. It refuses to write through a symbolic link at that path.
 
 ### Releases
 

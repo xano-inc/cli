@@ -15,23 +15,42 @@ interface AgentSkill {
   name?: null | string
 }
 
-/** True when the content the instance sent already opens with its own YAML frontmatter block. */
-function hasFrontmatter(content: string): boolean {
-  if (!/^---\r?\n/.test(content)) return false
-  return content.split(/\r?\n/).slice(1).includes('---')
+/**
+ * The served content without a leading YAML frontmatter block, if it opens with one: the lines up
+ * to and including the closing `---`, and the blank lines after it.
+ */
+function stripFrontmatter(content: string): string {
+  if (!/^---\r?\n/.test(content)) return content
+  const lines = content.split(/\r?\n/)
+  const close = lines.indexOf('---', 1)
+  if (close === -1) return content
+  let start = close + 1
+  while (start < lines.length && lines[start].trim() === '') start++
+  return lines.slice(start).join('\n')
 }
 
 /**
- * The SKILL.md a coding agent reads: `name` and `description` in frontmatter, the instance's
- * content below it verbatim. The description is written as a double-quoted YAML scalar, so a
- * `:` or `#` in it stays a description instead of becoming syntax.
+ * The SKILL.md a coding agent reads: the CLI's own frontmatter (`name` and `description`), the
+ * instance's content below it. The CLI always writes the frontmatter itself and drops any block the
+ * served content opens with: frontmatter configures the agent (`allowed-tools`, `hooks`, `model`),
+ * and a workspace knowledge record may replace the platform skill, so its text must never set it.
+ * The description is written as a double-quoted YAML scalar, so a `:` or `#` in it stays a
+ * description instead of becoming syntax.
  */
 export function buildSkillDocument(description: string, content: string): string {
   // Exactly one trailing newline, whatever the instance sent, so a re-pull is byte-identical.
-  const body = `${content.replace(/\n+$/, '')}\n`
-  // Content that already carries frontmatter is complete; a second block would shadow the first.
-  if (hasFrontmatter(body)) return body
+  const body = `${stripFrontmatter(content).replace(/\n+$/, '')}\n`
   return `---\nname: ${SKILL}\ndescription: ${JSON.stringify(description)}\n---\n\n${body}`
+}
+
+/** True when the path is a symbolic link; false when it is anything else or does not exist. */
+function isSymbolicLink(filePath: string): boolean {
+  try {
+    return fs.lstatSync(filePath).isSymbolicLink()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
 }
 
 /**
@@ -85,6 +104,11 @@ Wrote .claude/skills/${SKILL}/SKILL.md (${SKILL} skill for workspace 40, branch 
 
     const document = buildSkillDocument(skill.description ?? '', skill.content ?? '')
     const filePath = path.join(path.resolve(flags.directory), '.claude', 'skills', SKILL, 'SKILL.md')
+    // Writing through a symbolic link would overwrite whatever it points at.
+    if (isSymbolicLink(filePath)) {
+      this.error(`${filePath} is a symbolic link; remove it and run the command again. Nothing was written.`)
+    }
+
     fs.mkdirSync(path.dirname(filePath), {recursive: true})
     // The file is regenerated on every pull and no backup is kept.
     fs.writeFileSync(filePath, document, 'utf8')

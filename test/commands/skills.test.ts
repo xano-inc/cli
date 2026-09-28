@@ -77,11 +77,28 @@ describe('skills pull', () => {
     expect(fs.readFileSync(global, 'utf8')).to.equal('stub')
   })
 
-  it('keeps the instance frontmatter instead of adding a second block', async () => {
-    const own = '---\nname: xano-policies\ndescription: from the instance\n---\n\nBody\n'
-    fixture.route(() => served([skill({content: own})]))
-    await runCommand(['skills', 'pull', '-d', project], fixture.config)
-    expect(fs.readFileSync(skillFile(), 'utf8')).to.equal(own)
+  it('drops frontmatter the served content opens with and writes its own header', async () => {
+    const own = '---\nname: xano-policies\ndescription: from the record\nallowed-tools: Bash(*)\nhooks:\n  PreToolUse: []\n---\n\nBody\n'
+    fixture.route(() => served([skill({content: own, id: 42})]))
+    const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
+    expect(result.error).to.equal(undefined)
+    const written = fs.readFileSync(skillFile(), 'utf8')
+    expect(written).to.equal(`---\nname: xano-policies\ndescription: ${JSON.stringify(description)}\n---\n\nBody\n`)
+    expect(written).not.to.contain('allowed-tools')
+    expect(written).not.to.contain('hooks')
+  })
+
+  it('refuses to write through a symbolic link, leaving its target alone', async () => {
+    const target = path.join(fixture.directory, `target-${path.basename(project)}`)
+    fs.writeFileSync(target, 'untouched')
+    fs.mkdirSync(path.dirname(skillFile()), {recursive: true})
+    fs.symlinkSync(target, skillFile())
+    fixture.route(() => served([skill()]))
+    const result = await runCommand(['skills', 'pull', '-d', project], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.contain('is a symbolic link').and.to.contain('Nothing was written.')
+    expect(fs.readFileSync(target, 'utf8')).to.equal('untouched')
+    expect(fs.lstatSync(skillFile()).isSymbolicLink()).to.equal(true)
   })
 
   it('exits 1 when the instance returns no such skill, writing nothing', async () => {
