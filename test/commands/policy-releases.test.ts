@@ -123,6 +123,33 @@ describe('release policy checks', () => {
       expect(result.stdout).to.contain('Policy check: fail (run 1712)').and.to.contain('xano policy runs --release-id 14')
       expect(result.stdout).not.to.contain('<release_name>')
     })
+
+    const carried = 'This release archive carries policies, and importing it needs the workspace:policy create and update permission. The release was not imported.'
+    for (const [code, remedy] of [
+      ['policy_permission_required', 'Your role on this workspace lacks the `workspace:policy` create permission'],
+      ['policy_scope_required', 'This Metadata API token was created without the `workspace:policy` create scope'],
+    ] as const) {
+      it(`release import of an archive that carries policies says what it needs (${code}) and fails`, async () => {
+        const archive = path.join(fixture.directory, 'carried.tar.gz')
+        fs.writeFileSync(archive, 'not really gzip')
+        fixture.route(() => json({code: 'ERROR_CODE_ACCESS_DENIED', message: carried, payload: {code, level: 'create', permission: 'workspace:policy'}}, 403))
+        const result = await runCommand(['release', 'import', '--file', archive], fixture.config)
+        expect(oneLine(result.error!.message)).to.contain(`Failed to import release: ERROR_CODE_ACCESS_DENIED: ${carried}`)
+        expect(oneLine(result.error!.message)).to.contain(remedy)
+        expect(result.error!.message).not.to.contain('"payload"')
+        expect(result.error).to.have.nested.property('oclif.exit').that.is.above(0)
+        expect(result.stdout).not.to.contain('Imported release')
+      })
+    }
+
+    it('release import keeps any other failure as the platform answered it', async () => {
+      const archive = path.join(fixture.directory, 'broken.tar.gz')
+      fs.writeFileSync(archive, 'not really gzip')
+      fixture.route(() => json({code: 'ERROR_FATAL', message: 'Invalid release.'}, 500))
+      const result = await runCommand(['release', 'import', '--file', archive], fixture.config)
+      expect(result.error!.message).to.contain('API request failed with status 500').and.to.contain('Invalid release.')
+      expect(result.error).to.have.nested.property('oclif.exit').that.is.above(0)
+    })
   })
 
   /** `release deploy v1.2` into a new branch `rollback`, set live, with no confirmation prompt. */

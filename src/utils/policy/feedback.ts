@@ -176,8 +176,10 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
 
 /**
  * The platform's one notice that a push or its dry run left policy files out
- * (`policies_skipped.message`): a push to a remote tenant or to a tenant without a policy table, and
- * any push while the Policies feature is off. `null` when it left none out.
+ * (`policies_skipped.message`): a push to a remote tenant or to a tenant without a policy table, a
+ * `release push` by a caller without `workspace:policy` create and update (its release carries the
+ * live branch's policies instead), and any push while the Policies feature is off. `null` when it
+ * left none out.
  */
 export function policiesSkippedNotice(answer: unknown): null | string {
   const skipped = answer && typeof answer === 'object' ? (answer as {policies_skipped?: unknown}).policies_skipped : undefined

@@ -3,7 +3,7 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
-import {releasePolicyRunLines} from '../../../utils/policy/release.js'
+import {releaseImportRefusal, releasePolicyRunLines} from '../../../utils/policy/release.js'
 
 interface ImportResult {
   id: number
@@ -87,7 +87,8 @@ Imported release as #15
       if (!response.ok) {
         const errorText = await response.text()
         this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
+          releaseImportRefusal(errorText, response.status, apiUrl) ??
+            `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
         )
       }
 

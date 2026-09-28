@@ -1,6 +1,8 @@
 import type {PolicyRunHead} from './types.js'
 
+import {describePolicyError} from './errors.js'
 import {quoted} from './gate.js'
+import {policyPermissionGuidance} from './permission.js'
 
 /**
  * The policy check a release cut stored (`policy_run` on the create, multidoc push and import
@@ -59,4 +61,17 @@ export function releaseRunLines(releaseName: string, releaseId: number, run: Rel
     `Release ${releaseName} (ID ${releaseId}): ships ${keys.length} ${keys.length === 1 ? 'policy' : 'policies'}${
       keys.length > 0 ? ` (${keys.join(', ')})` : ''}${from ? `; checked as cut from branch ${from}` : ''}`,
   ]
+}
+
+/**
+ * A `release import` the platform refused for the policies the archive carries, as one message with
+ * its remedy, or `null` for any other failure. An archive that says it carries policies needs the
+ * `workspace:policy` create and update permission to import (`policy_permission_required` for the
+ * role, `policy_scope_required` for the token), and nothing is stored without it.
+ */
+export function releaseImportRefusal(text: string, status: number, url: string): null | string {
+  const {message, payload} = describePolicyError(text, status, url)
+  const code = payload && typeof payload === 'object' ? (payload as {code?: unknown}).code : undefined
+  if (typeof code !== 'string' || !code.startsWith('policy_')) return null
+  return `${message}${policyPermissionGuidance(status, payload)}`
 }

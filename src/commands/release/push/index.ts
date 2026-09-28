@@ -206,7 +206,9 @@ Output release details as JSON
       }
 
       const release = (await response.json()) as Release
-      // A platform with the Policies feature off may leave the policy files out, and says which.
+      // The platform says which policy files it left out: all of them while the Policies feature is
+      // off, and those of a caller who may not author policies, whose release carries the live
+      // branch's policies instead.
       const skipped = policiesSkippedNotice(release)
 
       if (flags.output === 'json') {

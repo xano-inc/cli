@@ -18,7 +18,8 @@ const preview = (extra: Record<string, unknown> = {}) => ({
 /**
  * Tier1 tenant, ephemeral and sandbox pushes carry policies. A remote tenant push, a tenant without a
  * policy table and any import while the feature is off leave them out; their `policies_skipped`
- * notice is printed once. Releases carry them.
+ * notice is printed once. Releases carry them; a release push by a caller who may not author
+ * policies carries the live branch's instead, and the notice names the files it left out.
  */
 describe('which pushes carry policy files', () => {
   const fixture = policyFixture()
@@ -97,6 +98,19 @@ describe('which pushes carry policy files', () => {
     expect(result.error).to.equal(undefined)
     expect(warned(result.stderr)).to.contain(featureOff.message)
     expect(result.stdout).not.to.contain('Policy documents')
+  })
+
+  it('release push by a caller who may not author policies warns that the release carries the live branch\'s', async () => {
+    const liveInstead = {
+      keys: ['AUTH-001'],
+      message: '1 policy file was left out (AUTH-001): the credential that created this release has no workspace:policy create and update permission, so the release carries the workspace\'s live-branch policies instead of these files.',
+    }
+    fixture.route(() => json({id: 13, name: 'v1', policies_skipped: liveInstead}))
+    const result = await runCommand(['release', 'push', '-n', 'v1', '-d', tree], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(fixture.calls[0].body).to.contain('policy "AUTH-001"')
+    expect(warned(result.stderr)).to.contain(liveInstead.message)
+    expect(result.stdout).to.contain('Created release: v1').and.not.to.contain('Policy documents')
   })
 
   /**

@@ -213,9 +213,10 @@ and `-o/--output summary|json`. `workspace pull` and `workspace push` carry poli
 Policies use `active = true|false` before `enforcement`; authored `lifecycle` is refused. The list shows
 `Active, Mandatory`, `Active, Advisory` or `Inactive`. Inactive policies are saved directly and skipped by
 branch checks; `policy status` reports `inactive`. An inactive policy may have no rules.
-`release push` carries them too: a release ships its policies like its code, and a tenant deploy lands them (see
-Releases). Tier1 tenant, sandbox and ephemeral pushes carry them as well; a remote tenant push, or a tenant created
-before policies, leaves them out and prints the platform's notice.
+`release push` carries them too, for a credential holding `workspace:policy` create and update: a release ships its
+policies like its code, and a tenant deploy lands them (see Releases). Tier1 tenant, sandbox and ephemeral pushes
+carry them as well; a remote tenant push, or a tenant created before policies, leaves them out and prints the
+platform's notice.
 While the instance's Policies feature is off, `workspace pull` exports no policy (and keeps local policy files)
 and `workspace push` leaves its policy files out, printing the platform's notice instead of a policy count.
 
@@ -594,8 +595,14 @@ xano policy runs --release v1.0 --recheck
 ```
 
 A release carries its branch's policies like its code (`release push` sends `policies/*.xs` with the rest), and a
-tenant deploy lands them on the tenant. Cutting a release (`release create`, `release push`, `release import`) stores
-its policy check, and the summary prints it: `Policy check: fail (run 1712), 2 blocking, 1 advisory findings`, or
+tenant deploy lands them on the tenant. A release built by `release push` carries those files only for a credential
+holding `workspace:policy` create and update; for anyone else it carries the workspace's live-branch policies instead,
+and when the files differ from them the push prints the platform's notice naming them (exit `0`). `release import` of
+an archive that carries policies needs the same levels: without them nothing is stored, and the command fails with
+the platform's message and the remedy for your role or token.
+
+Cutting a release (`release create`, `release push`, `release import`) stores its policy check, and the summary
+prints it: `Policy check: fail (run 1712), 2 blocking, 1 advisory findings`, or
 `Policy check disabled|skipped|error: <why>` when none was recorded. `-o json` keeps it as `policy_run`
 (`{status, run_id, run_status, blocking, advisory, message?}`, or `null` for a credential without `workspace:policy`
 read). A cut is never refused for its findings: each tenant deploy is gated on the ones it introduces (see Tenant
