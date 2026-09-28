@@ -126,21 +126,19 @@ Output release details as JSON
     }
 
     // Read each file and track file path alongside content
-    const entries: Array<{content: string; filePath: string}> = []
+    const documentEntries: Array<{content: string; filePath: string}> = []
     for (const filePath of files) {
       const content = fs.readFileSync(filePath, 'utf8').trim()
       if (content) {
-        entries.push({content, filePath})
+        documentEntries.push({content, filePath})
       }
     }
 
-    // A release carries its policy files like its code: the platform stores them in the release,
-    // checks the release against them, and a deploy lands them on the tenant.
-    const documentEntries = entries
     if (documentEntries.length === 0) {
       this.error(`All .xs files in ${flags.directory} are empty`)
     }
 
+    // A release carries its policy files like its code.
     const policyKeys = documentEntries
       .map((entry) => parseDocument(entry.content))
       .filter((document) => document?.type === 'policy')
