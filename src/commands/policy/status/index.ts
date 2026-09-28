@@ -4,7 +4,7 @@ import type {Policy, PolicyRunHead} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {policyResultSummary} from '../../../utils/policy/findings.js'
-import {listItems, type PolicyRequest} from '../../../utils/policy/request.js'
+import {listAllPolicies, type PolicyRequest} from '../../../utils/policy/request.js'
 import {
   computeStatusRows,
   enforcementLabel,
@@ -32,7 +32,7 @@ export default class PolicyStatus extends PolicyCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(PolicyStatus)
     const {request} = this.policyTarget(flags)
-    const policies = listItems<Policy>(await request())
+    const policies = await listAllPolicies(request)
     const run = await this.latestRun(request, policies)
     const rows = computeStatusRows(policies, run)
     const failOnFindings = flags['fail-on-findings'] ? {exit: statusExitCode(rows), reason: statusExitReason(rows)} : undefined

@@ -1,4 +1,5 @@
 import type {ProfileConfig} from '../../base-command.js'
+import type {Policy} from './types.js'
 
 import {describePolicyError, policyCodeGuidance} from './errors.js'
 import {policyPermissionGuidance} from './permission.js'
@@ -130,4 +131,31 @@ function refusalCode(body: unknown): unknown {
 export function listItems<T>(data: unknown): T[] {
   if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) return data.items
   throw new Error('The platform answered a list request without an items array.')
+}
+
+/**
+ * Every policy on the target branch. The list route pages them (`page`, `nextPage`), so each page is
+ * read in turn until the route names no next one.
+ */
+export async function listAllPolicies(request: PolicyRequest): Promise<Policy[]> {
+  const policies: Policy[] = []
+  let page = 1
+  while (true) {
+    // Each page number comes from the previous response.
+    // eslint-disable-next-line no-await-in-loop
+    const listed = await request('', 'GET', undefined, {page: String(page)})
+    policies.push(...listItems<Policy>(listed))
+    const {nextPage} = listed as {nextPage?: unknown}
+    if (nextPage === undefined || nextPage === null) return policies
+    if (typeof nextPage !== 'number' || !Number.isSafeInteger(nextPage) || nextPage <= page) {
+      throw new Error('The platform returned an invalid next policy page.')
+    }
+
+    page = nextPage
+  }
+}
+
+/** Whether two policy keys name the same policy: keys are unique on a branch without regard to case. */
+export function sameKey(key: string | undefined, other: string): boolean {
+  return typeof key === 'string' && key.toLowerCase() === other.toLowerCase()
 }

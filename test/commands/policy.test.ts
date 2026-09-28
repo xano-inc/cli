@@ -358,6 +358,73 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(result.stdout)).to.deep.equal({deleted: true, id: 7, key: 'AUTH-001'})
   })
 
+  it('publish updates the policy whose key differs only in case', async () => {
+    fixture.route((url, method) =>
+      url.pathname.endsWith('/parse')
+        ? json({policy: {key: 'AUTH-001'}, source})
+        : method === 'GET'
+          ? json({items: [{id: 7, key: 'auth-001'}]})
+          : json({id: 7, key: 'AUTH-001', version: 2}),
+    )
+    const result = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
+    expect(result.error).to.equal(undefined)
+    const save = fixture.calls.find(call => call.method !== 'GET' && !call.url.pathname.endsWith('/parse'))
+    expect(save?.method).to.equal('PUT')
+    expect(save?.url.pathname).to.equal('/api:meta/workspace/1/policy/7')
+  })
+
+  it('delete finds the policy whose key differs only in case', async () => {
+    fixture.route((url, method) => (method === 'DELETE' ? json({}) : json({items: [{id: 7, key: 'AUTH-001', version: 1}]})))
+    const result = await runCommand(['policy', 'delete', 'auth-001', '--force'], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(fixture.calls[1].method).to.equal('DELETE')
+    expect(fixture.calls[1].url.pathname).to.equal('/api:meta/workspace/1/policy/7')
+    expect(result.stdout).to.contain('Deleted policy AUTH-001 (ID: 7)')
+  })
+
+  /** Page 1 holds OTHER-001; page 2 holds AUTH-001. */
+  const pagedList = (url: URL) => url.searchParams.get('page') === '2'
+    ? json({items: [{...active, id: 7, key: 'AUTH-001', latest_run: {...covered, run_id: 0}}], nextPage: null})
+    : json({items: [{...active, id: 3, key: 'OTHER-001', latest_run: {...covered, run_id: 0}}], nextPage: 2})
+  /** The page of each policy-list request, in order. */
+  const listPages = () => fixture.calls.filter(call => call.method === 'GET' && call.url.pathname.endsWith('/policy')).map(call => call.url.searchParams.get('page'))
+
+  describe('reads every page of the policy list', () => {
+    it('publish finds a policy on a later page and updates it', async () => {
+      fixture.route((url, method) => url.pathname.endsWith('/parse')
+        ? json({policy: {key: 'AUTH-001'}, source})
+        : method === 'GET' ? pagedList(url) : json({id: 7, key: 'AUTH-001', version: 2}))
+      const result = await runCommand(['policy', 'publish', '--file', policyFile], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(listPages()).to.deep.equal(['1', '2'])
+      expect(fixture.calls.at(-1)?.method).to.equal('PUT')
+      expect(fixture.calls.at(-1)?.url.pathname).to.equal('/api:meta/workspace/1/policy/7')
+    })
+
+    it('delete finds a policy on a later page', async () => {
+      fixture.route((url, method) => (method === 'DELETE' ? json({}) : pagedList(url)))
+      const result = await runCommand(['policy', 'delete', 'AUTH-001', '--force'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(listPages()).to.deep.equal(['1', '2'])
+      expect(fixture.calls.at(-1)?.url.pathname).to.equal('/api:meta/workspace/1/policy/7')
+    })
+
+    it('status lists the policies of every page', async () => {
+      fixture.route(url => pagedList(url))
+      const result = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(listPages()).to.deep.equal(['1', '2'])
+      expect(JSON.parse(result.stdout).status.map((row: {key: string}) => row.key)).to.have.members(['OTHER-001', 'AUTH-001'])
+    })
+
+    it('refuses a next page that does not move forward, exiting 1', async () => {
+      fixture.route(() => json({items: [], nextPage: 1}))
+      const result = await runCommand(['policy', 'status'], fixture.config)
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+      expect(result.error?.message).to.contain('The platform returned an invalid next policy page.')
+    })
+  })
+
   it('delete without --force in a non-interactive shell exits 1 and deletes nothing', async () => {
     fixture.route((url, method) => (method === 'DELETE' ? json({}) : json({items: [{id: 7, key: 'AUTH-001', version: 1}]})))
     const result = await runCommand(['policy', 'delete', 'AUTH-001', '-o', 'json'], fixture.config)

@@ -1,10 +1,8 @@
 import {Args, Flags} from '@oclif/core'
 
-import type {Policy} from '../../../utils/policy/types.js'
-
 import PolicyCommand from '../../../policy-command.js'
 import {confirm} from '../../../utils/multidoc-push.js'
-import {listItems} from '../../../utils/policy/request.js'
+import {listAllPolicies, sameKey} from '../../../utils/policy/request.js'
 
 export default class PolicyDelete extends PolicyCommand {
   static override args = {
@@ -37,8 +35,8 @@ Deleted policy TMP-DX-001 (ID: 922) from workspace 3.
     const target = this.policyTarget(flags)
     const wanted = args.policy.trim()
     if (!wanted) this.error('Provide the policy key or ID to delete.')
-    const policies = listItems<Policy>(await target.request())
-    const matched = policies.find((policy) => policy.key === wanted)
+    const policies = await listAllPolicies(target.request)
+    const matched = policies.find((policy) => sameKey(policy.key, wanted))
       ?? (/^\d+$/.test(wanted) ? policies.find((policy) => policy.id === Number(wanted)) : undefined)
     if (!matched) {
       const known = policies.map((policy) => policy.key).sort()
@@ -47,7 +45,7 @@ Deleted policy TMP-DX-001 (ID: 922) from workspace 3.
     }
 
     if (!flags.force) {
-      // Nobody can answer the prompt: refuse rather than report a cancel as success (P-44).
+      // Nobody can answer the prompt: refuse rather than report a cancel as success.
       if (!process.stdin.isTTY) this.error('Non-interactive environment detected. Use --force to skip confirmation.')
       const confirmed = await confirm(
         `Delete policy ${matched.key} (ID: ${matched.id}, Version ${matched.version}) from ${this.where(target)}? Its Version History is kept.`,

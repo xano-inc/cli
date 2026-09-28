@@ -86,10 +86,11 @@ export default abstract class PolicyCommand extends BaseCommand {
 
   /**
    * Ask the parse route for the policy, its canonical source and each rule's warnings against the
-   * target branch; the policy and source must come back.
+   * target branch, from XanoScript (`{source}`) or a policy document (`{data}`); the policy and source
+   * must come back.
    */
-  protected async parseSource(request: PolicyRequest, source: string): Promise<ParsedPolicy> {
-    const answer = (await request('/parse', 'POST', {source})) as Partial<ParsedPolicy>
+  protected async parseSource(request: PolicyRequest, input: {data: unknown} | {source: string}): Promise<ParsedPolicy> {
+    const answer = (await request('/parse', 'POST', input)) as Partial<ParsedPolicy>
     if (!answer?.policy?.key || typeof answer.source !== 'string')
       this.error('The platform did not return a parsed policy and canonical source.')
     return {...answer, rule_warnings: Array.isArray(answer.rule_warnings) ? answer.rule_warnings : []} as ParsedPolicy

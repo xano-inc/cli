@@ -12,7 +12,7 @@ export default class PolicyParse extends PolicyCommand {
   async run(): Promise<void> {
     const {args, flags} = await this.parse(PolicyParse)
     const {request} = this.policyTarget(flags)
-    const parsed = await this.parseSource(request, this.readSource(flags, args.file))
+    const parsed = await this.parseSource(request, {source: this.readSource(flags, args.file)})
     this.log(flags.output === 'json' ? JSON.stringify(parsed, null, 2) : parsed.source)
     if (flags.output !== 'json') this.logRuleWarnings(parsed)
   }

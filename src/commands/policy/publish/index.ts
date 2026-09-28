@@ -1,7 +1,5 @@
-import type {Policy} from '../../../utils/policy/types.js'
-
 import PolicyCommand from '../../../policy-command.js'
-import {listItems} from '../../../utils/policy/request.js'
+import {listAllPolicies, sameKey} from '../../../utils/policy/request.js'
 
 export default class PolicyPublish extends PolicyCommand {
   static override args = {...PolicyCommand.sourceArgs}
@@ -19,8 +17,9 @@ export default class PolicyPublish extends PolicyCommand {
     const {request} = target
     const source = this.readSource(flags, args.file)
     // The key picks PUT or POST, so the list is read alongside the parse rather than after it.
-    const [parsed, listed] = await Promise.all([this.parseSource(request, source), request()])
-    const existing = listItems<Policy>(listed).find((policy) => policy.key === parsed.policy.key)
+    const [parsed, policies] = await Promise.all([this.parseSource(request, {source}), listAllPolicies(request)])
+    // A key that differs only in case names the same policy, which PUT updates, key included.
+    const existing = policies.find((policy) => sameKey(policy.key, parsed.policy.key))
     const body: {data: {source: string}; message?: string} = {data: {source: parsed.source}}
     if (flags.message) body.message = flags.message
     const saved = (await request(existing ? `/${existing.id}` : '', existing ? 'PUT' : 'POST', body)) as {id?: unknown; unchanged?: unknown; version?: unknown}
