@@ -13,11 +13,17 @@ export interface ParsedDocument {
 }
 
 /**
+ * The platform's policy key pattern, kept offline for file names. A command that already holds the
+ * catalogue validates a key against the catalogue's `document.key.pattern` instead.
+ */
+export const POLICY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
+/**
  * The file name, without `.xs`, for a policy key. The pattern is the platform's own key pattern, so a
  * key from the server can never name a path outside `policies/`.
  */
 export function policyBaseName(key: string): string {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(key)) throw new Error(`Invalid policy key: ${key}`)
+  if (!POLICY_KEY_PATTERN.test(key)) throw new Error(`Invalid policy key: ${key}`)
   return key
 }
 

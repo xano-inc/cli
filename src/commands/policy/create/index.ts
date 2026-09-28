@@ -1,10 +1,10 @@
 import {Flags} from '@oclif/core'
 
-import type {PolicyGoal} from '../../../utils/policy/goal.js'
+import type {PolicyGoal, PolicyKeyRule} from '../../../utils/policy/goal.js'
 import type {Policy} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
-import {policy_from_goal} from '../../../utils/policy/goal.js'
+import {policyFromGoal} from '../../../utils/policy/goal.js'
 import {listAllPolicies} from '../../../utils/policy/request.js'
 
 export default class PolicyCreate extends PolicyCommand {
@@ -25,11 +25,12 @@ export default class PolicyCreate extends PolicyCommand {
     const {flags} = await this.parse(PolicyCreate)
     const target = this.policyTarget(flags)
     const {request} = target
-    const catalogue = await request('/check') as {goals?: PolicyGoal[]}
+    const catalogue = await request('/check') as {document?: {key?: PolicyKeyRule}; goals?: PolicyGoal[]}
     const goal = catalogue.goals?.find(item => item.id === flags.goal)
     if (!goal) this.error(`Unknown goal "${flags.goal}". Run xano policy catalogue -o json to see this instance's goals.`)
     const keys = (await listAllPolicies(request)).map(policy => policy.key)
-    const document = policy_from_goal(goal, keys, flags.key, flags.param)
+    // The key is checked against the pattern this instance's catalogue serves.
+    const document = policyFromGoal(goal, keys, {key: flags.key, keyRule: catalogue.document?.key, overrides: flags.param})
     const parsed = await this.parseSource(request, {data: document})
     const saved = await request('', 'POST', {data: {source: parsed.source}, ...(flags.message ? {message: flags.message} : {})}) as Policy
     if (typeof saved?.id !== 'number') this.error('The platform did not return the saved policy. Check xano policy list before retrying.')

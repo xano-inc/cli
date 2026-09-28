@@ -1,12 +1,11 @@
-/* eslint-disable unicorn/filename-case -- CLAUDE.md requires underscore filenames. */
 import {captureOutput, runCommand} from '@oclif/test'
 import {expect} from 'chai'
 
 import PolicyCreate from '../../src/commands/policy/create/index.js'
 import {json, policyFixture} from '../helpers/policy-fixture.js'
 
-const ready_goal = {goal: 'No unsafe calls', id: 'safe_calls', key: 'SAFE-001', rules: [{check: 'stack.statement_forbidden', needs: [], params: {statements: ['db.truncate']}, title: ''}], severity: 'high', summary: 'Keep stored data.'}
-const needs_goal = {...ready_goal, id: 'custom', rules: [{check: 'table.coverage_required', needs: ['table_selector.has_field'], params: {}, title: ''}]}
+const readyGoal = {goal: 'No unsafe calls', id: 'safe_calls', key: 'SAFE-001', rules: [{check: 'stack.statement_forbidden', needs: [], params: {statements: ['db.truncate']}, title: ''}], severity: 'high', summary: 'Keep stored data.'}
+const needsGoal = {...readyGoal, id: 'custom', rules: [{check: 'table.coverage_required', needs: ['table_selector.has_field'], params: {}, title: ''}]}
 
 describe('policy create from a platform goal', () => {
   const fixture = policyFixture()
@@ -14,7 +13,7 @@ describe('policy create from a platform goal', () => {
 
   beforeEach(() => {
     fixture.route((url, method) => {
-      if (url.pathname.endsWith('/check')) return json({goals: [ready_goal, needs_goal], items: []})
+      if (url.pathname.endsWith('/check')) return json({goals: [readyGoal, needsGoal], items: []})
       if (url.pathname.endsWith('/parse')) return json({policy: {key: 'SAFE-001'}, rule_warnings: [], source: 'canonical source'})
       if (method === 'GET') return json({items: [], nextPage: null})
       return json(created)
@@ -48,6 +47,19 @@ describe('policy create from a platform goal', () => {
     expect(document.rules[0].params).to.deep.equal({table_selector: {has_field: 'created_at'}})
   })
 
+  it('checks --key against the key pattern the catalogue serves, before any write', async () => {
+    const document = {key: {message: 'Policy key "%s" must be upper case here.', pattern: '^[A-Z-]+$'}}
+    fixture.route((url, method) => {
+      if (url.pathname.endsWith('/check')) return json({document, goals: [readyGoal], items: []})
+      if (method === 'GET') return json({items: [], nextPage: null})
+      throw new Error(`unexpected ${method} ${url.pathname}`)
+    })
+    const result = await runCommand(['policy', 'create', '--goal', 'safe_calls', '--key', 'lower-key'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.contain('Policy key "lower-key" must be upper case here.')
+    expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
+  })
+
   it('refuses unknown goals without writing', async () => {
     const result = await runCommand(['policy', 'create', '--goal', 'missing'], fixture.config)
     expect(result.error?.message).to.contain('Unknown goal')
@@ -56,7 +68,7 @@ describe('policy create from a platform goal', () => {
 
   it('checks every list page for case-insensitive key collisions and chooses a free suffix', async () => {
     fixture.route((url, method) => {
-      if (url.pathname.endsWith('/check')) return json({goals: [ready_goal]})
+      if (url.pathname.endsWith('/check')) return json({goals: [readyGoal]})
       if (url.pathname.endsWith('/parse')) return json({policy: {key: 'SAFE-001-3'}, source: 'canonical source'})
       if (method === 'GET') return url.searchParams.get('page') === '2' ? json({items: [{key: 'SAFE-001-2'}], nextPage: null}) : json({items: [{key: 'safe-001'}], nextPage: 2})
       return json(created)
@@ -67,14 +79,14 @@ describe('policy create from a platform goal', () => {
   })
 
   it('refuses an explicitly taken key instead of updating it', async () => {
-    fixture.route(url => url.pathname.endsWith('/check') ? json({goals: [ready_goal]}) : json({items: [{key: 'taken'}]}))
+    fixture.route(url => url.pathname.endsWith('/check') ? json({goals: [readyGoal]}) : json({items: [{key: 'taken'}]}))
     const result = await runCommand(['policy', 'create', '--goal', 'safe_calls', '--key', 'TAKEN'], fixture.config)
     expect(result.error?.message).to.contain('already exists')
     expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
   })
 
   it('stops at a native validation refusal', async () => {
-    fixture.route(url => url.pathname.endsWith('/check') ? json({goals: [ready_goal]}) : url.pathname.endsWith('/parse') ? json({message: 'Invalid params'}, 400) : json({items: []}))
+    fixture.route(url => url.pathname.endsWith('/check') ? json({goals: [readyGoal]}) : url.pathname.endsWith('/parse') ? json({message: 'Invalid params'}, 400) : json({items: []}))
     const result = await runCommand(['policy', 'create', '--goal', 'safe_calls'], fixture.config)
     expect(result.error?.message).to.contain('Invalid params')
     expect(fixture.calls.at(-1)?.url.pathname).to.match(/\/parse$/)
