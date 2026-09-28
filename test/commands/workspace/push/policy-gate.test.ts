@@ -48,6 +48,14 @@ describe('workspace push publish gate', () => {
     expect(fixture.calls[0].url.searchParams.get('branch')).to.equal('live')
   })
 
+  it("pushes to the live branch for -b '', whatever the profile's branch", async () => {
+    fixture.route(() => json({policy_check: {blocking: false, status: 'pass'}}))
+    const result = await push('--force', '-b', '""')
+    expect(result.error).to.equal(undefined)
+    // No branch parameter is the live branch; the profile's branch is `feature`.
+    expect(fixture.calls[0].url.searchParams.get('branch') ?? '').to.equal('')
+  })
+
   it('refuses a blank --policy-override before any request, exiting 1', async () => {
     fixture.route(() => json({policy_check: {blocking: false, status: 'pass'}}))
     const result = await push('--force', '-b', 'live', '--policy-override', '"   "')

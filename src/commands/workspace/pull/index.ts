@@ -37,7 +37,7 @@ Pulled 58 documents
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
-      description: 'Branch name (optional if set in profile, defaults to live)',
+      description: "Branch name (defaults to profile branch or live; -b '' selects live)",
       required: false,
     }),
     directory: Flags.string({
@@ -87,8 +87,8 @@ Pulled 58 documents
       )
     }
 
-    // Determine branch from flag or profile
-    const branch = flags.branch || profile.branch || ''
+    // Determine branch from flag or profile; `-b ''` selects live whatever the profile's branch, as in push.
+    const branch = flags.branch ?? profile.branch ?? ''
 
     // Build query parameters
     const queryParams = new URLSearchParams({

@@ -142,4 +142,19 @@ describe('workspace pull policy files', () => {
     expect(logs.join('\n')).not.to.contain('xano skills pull')
     expect(fs.readFileSync(path.join(directory, 'policies', 'OLD.xs'), 'utf8')).to.equal(policy('OLD'))
   })
+
+  /** The command with a profile on branch `feature` and `-b` as given. */
+  const withBranch = (branch?: string) => Object.assign(command, {
+    parse: async () => ({flags: {branch, directory, draft: false, env: false, records: false}}),
+    resolveProfile: () => ({profile: {access_token: 'test', branch: 'feature', instance_origin: 'https://test.example', workspace: '1'}}),
+  })
+
+  it("pulls the live branch for -b '', and the profile's branch without -b", async () => {
+    source = 'function first {\n}'
+    await withBranch('').run()
+    expect(requested[0].searchParams.get('branch')).to.equal('')
+    requested.length = 0
+    await withBranch().run()
+    expect(requested[0].searchParams.get('branch')).to.equal('feature')
+  })
 })

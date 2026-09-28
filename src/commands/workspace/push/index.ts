@@ -110,7 +110,7 @@ Full sync including knowledge files; removes server objects not present locally
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
-      description: 'Branch name (optional if set in profile, defaults to live)',
+      description: "Branch name (defaults to profile branch or live; -b '' selects live)",
       required: false,
     }),
     delete: Flags.boolean({

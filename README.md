@@ -254,7 +254,7 @@ gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off 
 Metadata API token that has the scope). A rule naming a check the instance does not have (`policy_unknown_check`)
 points at `xano policy catalogue`. `policy delete` sends the `updated_at` it listed, so a policy changed since is
 refused (`policy_stale`) rather than deleted; it asks first, and without `--force` in a non-interactive shell it
-exits 1. A create past the plan's per-branch cap (Free 3, Essential 10, Pro and above unlimited) is refused with
+exits 1. A create past the plan's per-branch cap (Free 3; Starter, Launch and Essential 10; Pro and above unlimited) is refused with
 `policy_plan_limit`, naming the plan, and a `workspace push` whose new policies would not fit imports nothing.
 `policy parse` and `policy publish` print rule warnings (a part of a rule that would do nothing or allow too much on
 that branch) on stderr; `-o json` keeps stdout the JSON.
@@ -286,6 +286,7 @@ xano workspace delete -w <workspace_id> --force
 xano workspace pull
 xano workspace pull -d ./my-workspace                    # Specify output directory
 xano workspace pull -b dev                               # Specific branch
+xano workspace pull -b ''                                # The live branch, whatever the profile's branch
 xano workspace pull --env --records                      # Include env vars and table records
 xano workspace pull --draft                              # Include draft changes
 
@@ -293,6 +294,7 @@ xano workspace pull --draft                              # Include draft changes
 xano workspace push
 xano workspace push -d ./my-workspace                    # Push from a specific directory
 xano workspace push -b dev
+xano workspace push -b ''                                # The live branch, whatever the profile's branch
 xano workspace push --sync                               # Full push — send all files, not just changed ones
 xano workspace push --sync --delete                      # Full push + delete remote objects not included
 xano workspace push --dry-run                            # Preview changes without pushing
