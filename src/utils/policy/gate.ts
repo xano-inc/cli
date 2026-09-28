@@ -184,6 +184,35 @@ export function deployedGateLine(answer: PolicyGateAnswer): string {
     : `Policy gate: ${status}`
 }
 
+/**
+ * The set-live verdict: its status, what blocks, and the first blocking findings. `subject` is what
+ * is set live: a branch, or the branch a release was deployed as (`release deploy --set_live`).
+ */
+export function setLiveGateLines(answer: PolicyGateAnswer, subject: 'branch' | 'release'): string[] {
+  const lines = [`Policy gate: ${answer.status?.trim() || 'unknown'}`]
+  if (typeof answer.total === 'number') {
+    lines.push(`  Blocking findings: ${answer.total} (${answer.introduced ?? 0} introduced, ${answer.changed ?? 0} on objects the ${subject} changes); ${answer.existing ?? 0} already on the live branch never block`)
+  }
+
+  const findings = answer.findings ?? []
+  if (findings.length > 0) {
+    lines.push(...findings.map(finding => `  ${findingLine(finding, new Map())}`))
+    if (answer.truncated) lines.push('  Only the first findings are listed.')
+  } else if (answer.findings === undefined && (answer.total ?? 0) > 0) {
+    lines.push('  The findings are listed only for a credential that reads policies (workspace:policy read).')
+  }
+
+  return lines
+}
+
+/** The refusal of a `--policy-override` given without a reason, before any request is made. */
+export const BLANK_POLICY_OVERRIDE = '--policy-override needs a reason: say why this change may proceed past the policy gate.'
+
+/** True when `--policy-override` was given but holds only whitespace. */
+export function blankPolicyOverride(reason?: string): boolean {
+  return reason !== undefined && !reason.trim()
+}
+
 /** A value quoted for the shell when it needs it. */
 export function quoted(value: string): string {
   return /^[\w.@%+=:,/-]+$/.test(value) ? value : `"${value.replaceAll(/(["\\$`])/g, String.raw`\$1`)}"`

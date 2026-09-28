@@ -22,6 +22,7 @@ import {
   policySummary,
   pushEvidence,
 } from '../../../utils/policy/feedback.js'
+import {BLANK_POLICY_OVERRIDE, blankPolicyOverride} from '../../../utils/policy/gate.js'
 import {policyFilePushGuidance} from '../../../utils/policy/permission.js'
 import {PushPolicyGateError} from '../../../utils/policy/push-gate.js'
 
@@ -215,6 +216,7 @@ Full sync including knowledge files; removes server objects not present locally
 
   async run(): Promise<void> {
     const {flags} = await this.parse(Push)
+    if (blankPolicyOverride(flags['policy-override'])) this.error(BLANK_POLICY_OVERRIDE)
     const {profile, profileName} = this.resolveProfile(flags)
 
     // Determine workspace_id from flag or profile

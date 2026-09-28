@@ -335,11 +335,32 @@ describe('release policy checks', () => {
       expect(result.stdout).to.contain('Policy gate: overridden')
     })
 
-    it('--policy-override without --set_live is refused before any request', async () => {
+    it('--policy-override without --set_live is refused before any request, exiting 1', async () => {
       fixture.route(() => { throw new Error('deployed') })
       const result = await runCommand(['release', 'deploy', 'v1.2', '--force', '--policy-override', 'x'], fixture.config)
       expect(result.error?.message).to.contain('--policy-override only applies with --set_live')
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
       expect(fixture.calls).to.have.length(0)
+    })
+
+    it('a blank --policy-override is refused before any request, exiting 1', async () => {
+      fixture.route(() => { throw new Error('deployed') })
+      const result = await deploy('--policy-override', '"  "')
+      expect(result.error?.message).to.contain('--policy-override needs a reason')
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+      expect(fixture.calls).to.have.length(0)
+    })
+
+    it('any failure that is not the set-live gate exits 1, and -o json prints the error document', async () => {
+      fixture.route(() => json({code: 'ERROR_CODE_NOT_FOUND', message: 'Release not found.'}, 404))
+      const result = await deploy()
+      expect(result.error?.message).to.contain('Failed to deploy release').and.to.contain('404')
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+
+      fixture.route(() => json({code: 'ERROR_CODE_NOT_FOUND', message: 'Release not found.'}, 404))
+      const asJson = await deploy('-o', 'json')
+      expect(asJson.error).to.have.nested.property('oclif.exit', 1)
+      expect(JSON.parse(asJson.stdout).error).to.include({exit: 1})
     })
 
     it('warns about the release policies the new branch left out', async () => {

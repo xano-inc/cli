@@ -1,8 +1,16 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
-import {findingLine} from '../../../utils/policy/findings.js'
-import {gateOverrideHint, gateRefusal, type GateRefused, type PolicyGateAnswer, quoted} from '../../../utils/policy/gate.js'
+import {
+  BLANK_POLICY_OVERRIDE,
+  blankPolicyOverride,
+  gateOverrideHint,
+  gateRefusal,
+  type GateRefused,
+  type PolicyGateAnswer,
+  quoted,
+  setLiveGateLines,
+} from '../../../utils/policy/gate.js'
 
 interface Release {
   branch?: string
@@ -75,8 +83,15 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
   /** Set once the set-live policy gate refuses, the one failure that exits 2. */
   private refusedByPolicyGate = false
 
+  /** Exit 2 is the set-live gate's refusal; every other failure, flag errors included, exits 1. */
+  protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (this.refusedByPolicyGate) return super.catch(error)
+    return this.catchAsOperational(error)
+  }
+
   async run(): Promise<void> {
     const {args, flags} = await this.parse(ReleaseDeploy)
+    if (blankPolicyOverride(flags['policy-override'])) this.error(BLANK_POLICY_OVERRIDE)
 
     const {profile} = this.resolveProfile(flags)
 
@@ -189,7 +204,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
     if (flags.output === 'json') {
       this.log(JSON.stringify({branch: answer.branch ?? null, branch_created: true, message: refused.message, policy_gate: answer, set_live: false}, null, 2))
     } else {
-      for (const line of setLiveGateLines(answer)) this.log(line)
+      for (const line of setLiveGateLines(answer, 'release')) this.log(line)
     }
 
     const workspace = flags.workspace ? ` -w ${quoted(flags.workspace)}` : ''
@@ -201,29 +216,6 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       {exit: 2},
     )
   }
-}
-
-/** A count the answer may leave out. */
-function count(value?: number): number {
-  return value ?? 0
-}
-
-/** The set-live verdict: its status, what blocks, and the first blocking findings. */
-function setLiveGateLines(answer: PolicyGateAnswer): string[] {
-  const lines = [`Policy gate: ${answer.status?.trim() || 'unknown'}`]
-  if (typeof answer.total === 'number') {
-    lines.push(`  Blocking findings: ${answer.total} (${count(answer.introduced)} introduced, ${count(answer.changed)} on objects the release changes); ${count(answer.existing)} already on the live branch never block`)
-  }
-
-  const findings = answer.findings ?? []
-  if (findings.length > 0) {
-    lines.push(...findings.map(finding => `  ${findingLine(finding, new Map())}`))
-    if (answer.truncated) lines.push('  Only the first findings are listed.')
-  } else if (answer.findings === undefined && count(answer.total) > 0) {
-    lines.push('  The findings are listed only for a credential that reads policies (workspace:policy read).')
-  }
-
-  return lines
 }
 
 /** The deploy request's body: the new branch's label, set_live, and the override reason when one is given. */

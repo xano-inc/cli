@@ -1,6 +1,8 @@
 /* eslint-disable unicorn/filename-case -- CLAUDE.md requires underscore filenames. */
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
+import * as fs from 'node:fs'
+import path from 'node:path'
 
 import {json, policyFixture} from '../../helpers/policy-fixture.js'
 
@@ -90,6 +92,25 @@ describe('branch set_live and the set-live policy gate', () => {
     expect(error).to.contain('Overriding a policy gate needs the workspace:policy update permission.')
     expect(error).not.to.contain('To proceed past the policy gate')
     expect(result.error).to.have.nested.property('oclif.exit', 2)
+  })
+
+  it('a blank --policy-override is refused before any request, exiting 1', async () => {
+    fixture.route(() => json(live))
+    const result = await setLive('--policy-override', '"  "')
+    expect(result.error?.message).to.contain('--policy-override needs a reason')
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(fixture.calls).to.have.length(0)
+  })
+
+  it('a missing workspace exits 1, not the gate\'s 2', async () => {
+    const credentials = path.join(fixture.directory, 'no-workspace.yaml')
+    fs.writeFileSync(credentials, 'profiles:\n  fixture:\n    instance_origin: https://test.example.com\n    access_token: test-token\ndefault: fixture\n')
+    process.env.XANO_CONFIG = credentials
+    fixture.route(() => json(live))
+    const result = await setLive()
+    expect(result.error?.message).to.contain('No workspace ID provided')
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(fixture.calls).to.have.length(0)
   })
 
   it('any other failure exits 1', async () => {

@@ -46,6 +46,14 @@ describe('workspace push publish gate', () => {
     expect(fixture.calls[0].url.searchParams.get('branch')).to.equal('live')
   })
 
+  it('refuses a blank --policy-override before any request, exiting 1', async () => {
+    fixture.route(() => json({policy_check: {blocking: false, status: 'pass'}}))
+    const result = await push('--force', '-b', 'live', '--policy-override', '"   "')
+    expect(result.error?.oclif?.exit).to.equal(1)
+    expect(result.error?.message).to.include('--policy-override needs a reason')
+    expect(fixture.calls).to.have.length(0)
+  })
+
   it('explains transaction refusal as an operational failure', async () => {
     fixture.route(() => json({message: 'Transaction required', payload: {code: 'policy_gate_transaction_required'}}, 400))
     const result = await push('--force', '--no-transaction')
