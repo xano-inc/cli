@@ -255,7 +255,7 @@ gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off 
 Metadata API token that has the scope). A rule naming a check the instance does not have (`policy_unknown_check`)
 points at `xano policy catalogue`. `policy delete` sends the `updated_at` it listed, so a policy changed since is
 refused (`policy_stale`) rather than deleted; it asks first, and without `--force` in a non-interactive shell it
-exits 1. A create past the plan's per-branch cap (Free 3; Starter, Launch and Essential 10; Pro and above unlimited) is refused with
+exits 1. A create past the plan's per-branch policy cap (lower plans cap the policies on each branch; Pro and above are unlimited) is refused with
 `policy_plan_limit`, naming the plan, and a `workspace push` whose new policies would not fit imports nothing.
 `policy parse` and `policy publish` print rule warnings (a part of a rule that would do nothing or allow too much on
 that branch) on stderr; `-o json` keeps stdout the JSON.

@@ -12,11 +12,11 @@ describe('workspace push at the plan policy cap', () => {
   const fixture = policyFixture({source: 'policy F-PUSH-1 { title = "One" }'})
   const push = (...extra: string[]) => runCommand(['workspace', 'push', '-d', fixture.directory, '--no-guids', ...extra], fixture.config)
 
-  const message = 'This would add 1 policy (F-PUSH-1), but the Free plan allows 3 policies per branch, and this branch has 3. Nothing was imported. Upgrade your plan to add more policies.'
+  const message = 'This would add 1 policy (F-PUSH-1), but the Example plan allows 2 policies per branch, and this branch has 2. Nothing was imported. Upgrade your plan to add more policies.'
   const refused = () => json({
     code: 'ERROR_CODE_ACCESS_DENIED',
     message,
-    payload: {adding: 1, code: 'policy_plan_limit', count: 3, limit: 3, plan: 'build', plan_name: 'Free', policies: ['F-PUSH-1']},
+    payload: {adding: 1, code: 'policy_plan_limit', count: 2, limit: 2, plan: 'example', plan_name: 'Example', policies: ['F-PUSH-1']},
   }, 403)
 
   it('stops the dry run with the platform message and never reaches the import', async () => {
