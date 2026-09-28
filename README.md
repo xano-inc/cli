@@ -246,7 +246,7 @@ blocks (an active, mandatory policy failed), whatever else happened; `1` when a 
 when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
 `tenant_deploy_request set_status` and `tenant_deploy_request bypass` exit `2` when the tenant deploy policy gate
 refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
-`release deploy --set_live` exits `2` when the set-live policy gate refuses to set the new branch live.
+`release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does.
 
 Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
@@ -422,6 +422,7 @@ xano branch edit <branch_label> --color "#ff0000"
 # Set live branch
 xano branch set_live <branch_label>
 xano branch set_live <branch_label> --force
+xano branch set_live <branch_label> --policy-override "Rollback approved"  # Past a blocking set-live policy gate (audited)
 
 # Delete a branch
 xano branch delete <branch_label>
