@@ -243,6 +243,13 @@ describe('release policy checks', () => {
       expect(result.stdout).to.contain('Policy gate: overridden')
     })
 
+    it('a deploy to an ungated tenant that the gate would block says the deploy went ahead', async () => {
+      tenantRoutes(() => json({id: 5, name: 'prod', policy_gate: {...blocked, gated: false}, release: {name: 'v1.2'}}))
+      const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(result.stdout).to.contain('Policy gate: blocked (not gated: this tenant is ephemeral or a sandbox, so the deploy went ahead)')
+    })
+
     it('--override-reason needs a reason, and --check never deploys with one', async () => {
       tenantRoutes(() => { throw new Error('deployed') })
       const empty = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2', '--override-reason', '" "'], fixture.config)

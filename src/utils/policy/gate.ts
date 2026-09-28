@@ -173,6 +173,17 @@ export function gateLines(answer: PolicyGateAnswer): string[] {
   return lines
 }
 
+/**
+ * The line a completed deploy prints about its gate. A blocked verdict on an ephemeral or sandbox
+ * tenant refused nothing (the deploy went ahead), so it says so rather than reading as a failure.
+ */
+export function deployedGateLine(answer: PolicyGateAnswer): string {
+  const status = answer.status?.trim() || 'unknown'
+  return status === 'blocked' && answer.gated === false
+    ? 'Policy gate: blocked (not gated: this tenant is ephemeral or a sandbox, so the deploy went ahead)'
+    : `Policy gate: ${status}`
+}
+
 /** A value quoted for the shell when it needs it. */
 export function quoted(value: string): string {
   return /^[\w.@%+=:,/-]+$/.test(value) ? value : `"${value.replaceAll(/(["\\$`])/g, String.raw`\$1`)}"`

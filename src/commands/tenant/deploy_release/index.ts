@@ -2,6 +2,7 @@ import {Args, Flags} from '@oclif/core'
 
 import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
 import {
+  deployedGateLine,
   fetchPolicyGate,
   gateExitCode,
   gateLines,
@@ -201,7 +202,7 @@ Policy gate: blocked
         this.log(`Deployed release "${releaseName}" to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.release?.name) this.log(`  Release: ${tenant.release.name}`)
-        if (tenant.policy_gate?.status) this.log(`  Policy gate: ${tenant.policy_gate.status}`)
+        if (tenant.policy_gate?.status) this.log(`  ${deployedGateLine(tenant.policy_gate)}`)
         this.log(`  Time: ${elapsed}s`)
       }
     } catch (error) {
