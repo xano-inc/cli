@@ -1,4 +1,4 @@
-/* eslint-disable camelcase */
+ 
 import {expect} from 'chai'
 
 import {

@@ -816,7 +816,7 @@ async function computeKnowledgePreview(
     const serverResult = await pushKnowledge(listUrl, accessToken, verboseFetch, verbose, {
       branch,
       delete: shouldDelete,
-      // eslint-disable-next-line camelcase -- external Metadata API field name
+       
       dry_run: true,
       items,
     })
@@ -1415,11 +1415,7 @@ export async function executePush(
       return
     }
 
-    if (filteredEntries.length > 0) {
-      multidoc = filteredEntries.map((d) => d.content).join('\n---\n')
-    } else {
-      multidoc = ''
-    }
+    multidoc = filteredEntries.length > 0 ? filteredEntries.map((d) => d.content).join('\n---\n') : '';
   }
 
   // ── Execute the actual push ───────────────────────────────────────────

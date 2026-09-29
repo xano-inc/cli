@@ -3,8 +3,7 @@ import inquirer from 'inquirer'
 import * as yaml from 'js-yaml'
 import * as fs from 'node:fs'
 import * as http from 'node:http'
-import * as os from 'node:os'
-import {dirname, join} from 'node:path'
+import {dirname} from 'node:path'
 import open from 'open'
 
 import {buildUserAgent, resolveCredentialsPath} from '../../base-command.js'
@@ -300,14 +299,6 @@ To authenticate, open the following URL in any browser:
     return noBrowser ? this.promptForToken(origin) : this.startAuthServer(origin)
   }
 
-  private getHeaders(accessToken?: string): Record<string, string> {
-    return {
-      'User-Agent': buildUserAgent(this.config.version),
-      accept: 'application/json',
-      ...(accessToken && {Authorization: `Bearer ${accessToken}`}),
-    }
-  }
-
   private async fetchBranches(accessToken: string, origin: string, workspaceId: string): Promise<Branch[]> {
     try {
       const response = await fetch(`${origin}/api:meta/workspace/${workspaceId}/branch`, {
@@ -388,6 +379,14 @@ To authenticate, open the following URL in any browser:
       return []
     } catch {
       return []
+    }
+  }
+
+  private getHeaders(accessToken?: string): Record<string, string> {
+    return {
+      accept: 'application/json',
+      'User-Agent': buildUserAgent(this.config.version),
+      ...(accessToken && {Authorization: `Bearer ${accessToken}`}),
     }
   }
 

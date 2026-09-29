@@ -427,9 +427,7 @@ export function buildApiGroupFolderResolver(
     }
   }
 
-  return (groupName: string): string => {
-    return apiGroupFolderMap.get(groupName) ?? snakeCaseFn(groupName)
-  }
+  return (groupName: string): string => apiGroupFolderMap.get(groupName) ?? snakeCaseFn(groupName)
 }
 
 /**

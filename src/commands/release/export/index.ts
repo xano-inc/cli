@@ -1,6 +1,6 @@
 import {Args, Flags} from '@oclif/core'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import BaseCommand, {buildUserAgent, type ProfileConfig} from '../../../base-command.js'
 
@@ -110,7 +110,7 @@ Downloaded release 'v1.0' to ./release-v1.0.tar.gz
       const reader = downloadResponse.body.getReader()
 
       let totalBytes = 0
-      // eslint-disable-next-line no-constant-condition
+       
       while (true) {
         // eslint-disable-next-line no-await-in-loop
         const {done, value} = await reader.read()

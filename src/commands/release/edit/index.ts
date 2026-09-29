@@ -99,8 +99,8 @@ Updated release: v1.0-final - ID: 10
 
       // Merge in user-provided values
       const body: Record<string, unknown> = {
-        description: flags.description !== undefined ? flags.description : (current.description ?? ''),
-        name: flags.name !== undefined ? flags.name : current.name,
+        description: flags.description === undefined ? (current.description ?? '') : flags.description,
+        name: flags.name === undefined ? current.name : flags.name,
       }
 
       // Update release

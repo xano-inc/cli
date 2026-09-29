@@ -38,7 +38,7 @@ Sandbox Environment: (tc24-abcd-x1y2)
         if (tenant.xano_domain) this.log(`  Domain: ${tenant.xano_domain}`)
         if (tenant.sandbox_expires_at) {
           const expiresAt = new Date(tenant.sandbox_expires_at)
-          if (!isNaN(expiresAt.getTime())) {
+          if (!Number.isNaN(expiresAt.getTime())) {
             const msLeft = expiresAt.getTime() - Date.now()
             if (msLeft > 0) {
               const minsLeft = Math.ceil(msLeft / 60_000)

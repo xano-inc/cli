@@ -1,4 +1,4 @@
-/* eslint-disable camelcase */
+ 
 import {expect} from 'chai'
 import * as fs from 'node:fs'
 import * as os from 'node:os'

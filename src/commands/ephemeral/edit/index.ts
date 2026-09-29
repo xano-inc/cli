@@ -100,8 +100,8 @@ Updated tenant: New Name (e4f2-9ab1-xyz1) - ID: 42
 
       // Merge in user-provided values
       const body: Record<string, unknown> = {
-        description: flags.description !== undefined ? flags.description : (current.description ?? ''),
-        display: flags.display !== undefined ? flags.display : (current.display ?? current.name),
+        description: flags.description === undefined ? (current.description ?? '') : flags.description,
+        display: flags.display === undefined ? (current.display ?? current.name) : flags.display,
         domain: current.domain ?? '',
         ingress: current.ingress ?? false,
         proxy: current.proxy ?? '',

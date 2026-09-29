@@ -1,6 +1,6 @@
 import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {findFilesWithGuid} from '../../../utils/document-parser.js'
@@ -87,7 +87,7 @@ Output release details as JSON
   async run(): Promise<void> {
     const {flags} = await this.parse(ReleasePush)
 
-    const {profileName, profile} = this.resolveProfile(flags)
+    const {profile, profileName} = this.resolveProfile(flags)
 
     // Determine workspace_id from flag or profile
     let workspaceId: string

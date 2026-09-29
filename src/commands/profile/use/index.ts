@@ -87,7 +87,7 @@ Added profile.yaml to .gitignore
 `,
   ]
   static override flags = {
-    // eslint-disable-next-line camelcase
+     
     account_origin: Flags.string({
       char: 'a',
       description: 'Override account origin for this project',
@@ -109,7 +109,7 @@ Added profile.yaml to .gitignore
       description: 'Add (or skip adding) profile.yaml to .gitignore without prompting',
       required: false,
     }),
-    // eslint-disable-next-line camelcase
+     
     instance_origin: Flags.string({
       char: 'i',
       description: 'Override instance origin for this project',
@@ -129,9 +129,9 @@ Added profile.yaml to .gitignore
 
     const config: LocalProfileConfig = {profile: args.name}
     if (flags.workspace) config.workspace = flags.workspace
-    // eslint-disable-next-line camelcase
+     
     if (flags.instance_origin) config.instance_origin = flags.instance_origin
-    // eslint-disable-next-line camelcase
+     
     if (flags.account_origin) config.account_origin = flags.account_origin
     if (flags.branch) config.branch = flags.branch
 

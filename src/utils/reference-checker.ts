@@ -93,13 +93,13 @@ function stripQuotes(name: string): string {
  * Map from XanoScript document types to the canonical type used in the registry.
  * Some types are aliases (agent, mcp_server → toolset bucket, but referenced as "agent").
  */
-/* eslint-disable camelcase */
+ 
 const TYPE_ALIASES: Record<string, string> = {
   agent: 'agent',
   mcp_server: 'agent',
   toolset: 'agent',
 }
-/* eslint-enable camelcase */
+ 
 
 /**
  * Normalize a document type to its canonical registry type.
@@ -179,6 +179,7 @@ export function checkReferences(
       }
     }
   }
+
   const badRefs: BadReference[] = []
 
   for (const doc of documents) {
@@ -256,7 +257,7 @@ export function checkTableIndexes(documents: Array<{content: string}>): BadIndex
 
 function extractSchemaFields(content: string): Set<string> {
   // id, created_at, and xdo are system fields not declared in the schema
-  const fields = new Set<string>(['id', 'created_at', 'xdo'])
+  const fields = new Set<string>(['created_at', 'id', 'xdo'])
 
   // Find the schema block by matching braces
   const schemaStart = content.match(/\bschema\s*\{/)

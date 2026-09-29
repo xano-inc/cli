@@ -1,6 +1,6 @@
 import {Args, Flags} from '@oclif/core'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import path from 'node:path'
 
 import BaseCommand from '../../../../base-command.js'
 
@@ -29,14 +29,13 @@ export function generateBuildName(date: Date = new Date()): string {
 }
 
 export default class StaticHostBuildCreate extends BaseCommand {
-  static hidden = true
   static args = {
     static_host: Args.string({
       description: 'Static Host name',
       required: true,
     }),
   }
-static description = '[Deprecated: use "static_host build push -f <file>" instead] Create a new build from a zip file'
+  static description = '[Deprecated: use "static_host build push -f <file>" instead] Create a new build from a zip file'
 static examples = [
     `$ xano static_host:build:create default -f ./build.zip -n "v1.0.0"
 Build created successfully!
@@ -99,6 +98,7 @@ static override flags = {
       required: false,
     }),
   }
+static hidden = true
 
   async run(): Promise<void> {
     this.warn('`static_host build create` is deprecated. Use `static_host build push -f <file>` instead.')

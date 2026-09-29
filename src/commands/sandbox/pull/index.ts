@@ -1,6 +1,7 @@
 import {Flags} from '@oclif/core'
-
 import snakeCase from 'lodash.snakecase'
+import * as fs from 'node:fs'
+import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {
@@ -11,9 +12,6 @@ import {
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
-
-import * as fs from 'node:fs'
-import * as path from 'node:path'
 
 export default class SandboxPull extends BaseCommand {
   static override description = 'Pull documents from your sandbox environment and split into individual files'
@@ -144,8 +142,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
       const count = typeCounters.get(baseName) || 0
       typeCounters.set(baseName, count + 1)
 
-      let filename: string
-      filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
+      const filename = count === 0 ? `${baseName}.xs` : `${baseName}_${count + 1}.xs`
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')

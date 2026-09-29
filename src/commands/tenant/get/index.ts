@@ -9,7 +9,6 @@ interface Tenant {
   description?: string
   display?: string
   domain?: string
-  type?: string
   id: number
   ingress?: boolean
   license?: string
@@ -18,6 +17,7 @@ interface Tenant {
   release?: string | {id?: number; name?: string}
   state?: string
   tasks?: boolean
+  type?: string
   version?: number
   xano_domain?: string
 }

@@ -14,10 +14,8 @@ export default class EphemeralImpersonate extends BaseCommand {
       required: true,
     }),
   }
-
-  static description = 'Impersonate an ephemeral tenant and open it in the browser'
-
-  static examples = [
+static description = 'Impersonate an ephemeral tenant and open it in the browser'
+static examples = [
     `$ xano ephemeral impersonate e4f2-9ab1-xyz1
 Opening browser...
 Impersonation successful!
@@ -25,8 +23,7 @@ Impersonation successful!
     `$ xano ephemeral impersonate e4f2-9ab1-xyz1 -o json`,
     `$ xano ephemeral impersonate e4f2-9ab1-xyz1 --guest --url-only`,
   ]
-
-  static override flags = {
+static override flags = {
     ...BaseCommand.baseFlags,
     guest: Flags.boolean({
       char: 'g',
@@ -97,6 +94,20 @@ Impersonation successful!
     }
   }
 
+  private getFrontendUrl(instanceOrigin: string): string {
+    try {
+      const url = new URL(instanceOrigin)
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        url.port = '4200'
+        return url.origin
+      }
+    } catch {
+      // fall through
+    }
+
+    return instanceOrigin
+  }
+
   private async getImpersonateResponse(
     profile: ProfileConfig,
     workspaceId: string,
@@ -112,8 +123,8 @@ Impersonation successful!
       apiUrl,
       {
         headers: {
-          Authorization: `Bearer ${profile.access_token}`,
           accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
         },
         method: 'GET',
       },
@@ -133,20 +144,6 @@ Impersonation successful!
     }
 
     return result
-  }
-
-  private getFrontendUrl(instanceOrigin: string): string {
-    try {
-      const url = new URL(instanceOrigin)
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-        url.port = '4200'
-        return url.origin
-      }
-    } catch {
-      // fall through
-    }
-
-    return instanceOrigin
   }
 
 }

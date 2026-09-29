@@ -14,18 +14,15 @@ export default class TenantImpersonate extends BaseCommand {
       required: true,
     }),
   }
-
-  static description = 'Impersonate a tenant and open it in the browser'
-
-  static examples = [
+static description = 'Impersonate a tenant and open it in the browser'
+static examples = [
     `$ xano tenant impersonate my-tenant
 Opening browser...
 Impersonation successful!
 `,
     `$ xano tenant impersonate my-tenant -o json`,
   ]
-
-  static override flags = {
+static override flags = {
     ...BaseCommand.baseFlags,
     output: Flags.string({
       char: 'o',
@@ -90,6 +87,20 @@ Impersonation successful!
     }
   }
 
+  private getFrontendUrl(instanceOrigin: string): string {
+    try {
+      const url = new URL(instanceOrigin)
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        url.port = '4200'
+        return url.origin
+      }
+    } catch {
+      // fall through
+    }
+
+    return instanceOrigin
+  }
+
   private async getImpersonateResponse(
     profile: ProfileConfig,
     workspaceId: string,
@@ -103,8 +114,8 @@ Impersonation successful!
       apiUrl,
       {
         headers: {
-          Authorization: `Bearer ${profile.access_token}`,
           accept: 'application/json',
+          Authorization: `Bearer ${profile.access_token}`,
         },
         method: 'GET',
       },
@@ -124,20 +135,6 @@ Impersonation successful!
     }
 
     return result
-  }
-
-  private getFrontendUrl(instanceOrigin: string): string {
-    try {
-      const url = new URL(instanceOrigin)
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-        url.port = '4200'
-        return url.origin
-      }
-    } catch {
-      // fall through
-    }
-
-    return instanceOrigin
   }
 
 }

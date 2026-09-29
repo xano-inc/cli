@@ -215,7 +215,7 @@ static override flags = {
     workspaceId: string
   }): Promise<FunctionListItem | undefined> {
     const {branch, name, profile, verbose, workspaceId} = opts
-    // eslint-disable-next-line camelcase -- external Metadata API query param
+     
     const params = new URLSearchParams({per_page: '100', search: name})
     if (branch) params.set('branch', branch)
     const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function?${params.toString()}`

@@ -162,24 +162,24 @@ Updated tenant: New Name (my-tenant) - ID: 42
         deploy_settings: {
           allow_deploy_bypass: current.deploy_settings?.allow_deploy_bypass ?? false,
           allow_quick_deploy:
-            flags.allow_quick_deploy !== undefined
-              ? flags.allow_quick_deploy
-              : (current.deploy_settings?.allow_quick_deploy ?? false),
+            flags.allow_quick_deploy === undefined
+              ? (current.deploy_settings?.allow_quick_deploy ?? false)
+              : flags.allow_quick_deploy,
           required_reviewers:
-            flags.required_reviewers !== undefined
-              ? flags.required_reviewers
-              : (current.deploy_settings?.required_reviewers ?? 0),
+            flags.required_reviewers === undefined
+              ? (current.deploy_settings?.required_reviewers ?? 0)
+              : flags.required_reviewers,
         },
-        description: flags.description !== undefined ? flags.description : (current.description ?? ''),
-        display: flags.display !== undefined ? flags.display : (current.display ?? current.name),
-        domain: flags.domain !== undefined ? flags.domain : (current.domain ?? ''),
-        ingress: flags.ingress !== undefined ? flags.ingress : (current.ingress ?? true),
-        proxy: flags.proxy !== undefined ? flags.proxy : (current.proxy ?? ''),
+        description: flags.description === undefined ? (current.description ?? '') : flags.description,
+        display: flags.display === undefined ? (current.display ?? current.name) : flags.display,
+        domain: flags.domain === undefined ? (current.domain ?? '') : flags.domain,
+        ingress: flags.ingress === undefined ? (current.ingress ?? true) : flags.ingress,
+        proxy: flags.proxy === undefined ? (current.proxy ?? '') : flags.proxy,
         rbac: {
-          enabled: flags.rbac !== undefined ? flags.rbac : (current.rbac?.enabled ?? false),
+          enabled: flags.rbac === undefined ? (current.rbac?.enabled ?? false) : flags.rbac,
         },
         tag: current.tag ?? [],
-        tasks: flags.tasks !== undefined ? flags.tasks : (current.tasks ?? true),
+        tasks: flags.tasks === undefined ? (current.tasks ?? true) : flags.tasks,
       }
 
       // Update tenant

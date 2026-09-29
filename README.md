@@ -244,6 +244,36 @@ directory *adds* a file rather than overwriting, and renaming a workspace leaves
 the old-name file behind. Delete the stale ones, keeping the single document that
 matches your target workspace.
 
+### Flatten
+
+A hand-authored `.xs` file can hold several documents joined by `---`. That is
+convenient to edit but unsupported by `push`: the partial-diff filter and GUID
+writeback both parse only the first document in a file, so such a bundle
+silently pushes nothing (partial mode) or corrupts GUIDs (full mode). `push`
+refuses these files and offers to flatten them.
+
+`xano flatten` performs that split on demand, producing the same
+one-document-per-file tree `pull` would have written. It is purely local — no
+profile, token, or network — and deletes the original bundle once the split
+succeeds, unless you pass `--keep-source`.
+
+```bash
+# Split a bundle in place into per-document files (removes the original)
+xano flatten secret/pdf-micro/multidoc.xs
+
+# Write the split files somewhere else instead of alongside the bundle
+xano flatten ./bundle.xs -o ./workspace
+
+# Preview the resulting layout without writing anything
+xano flatten secret/pdf-micro/multidoc.xs --dry-run
+
+# Flatten every multi-doc .xs under a directory, keeping the originals
+xano flatten ./dir-of-bundles --keep-source
+
+# Overwrite existing destination files instead of erroring
+xano flatten ./bundle.xs --force
+```
+
 ### Knowledge
 
 Knowledge items are user-authored docs and skills (e.g. `CLAUDE.md`, `AGENTS.md`, runbooks)

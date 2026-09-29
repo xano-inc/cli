@@ -9,8 +9,7 @@ interface ImpersonateResponse {
 
 export default class SandboxReview extends BaseCommand {
   static description = 'Open your sandbox environment in the browser to review and promote changes'
-
-  static examples = [
+static examples = [
     `$ xano sandbox review
 Opening browser...
 Review session started!
@@ -19,8 +18,7 @@ Review session started!
     `$ xano sandbox review -o json`,
     `$ xano sandbox review --insecure`,
   ]
-
-  static override flags = {
+static override flags = {
     ...BaseCommand.baseFlags,
     insecure: Flags.boolean({
       char: 'k',

@@ -1,4 +1,4 @@
-/* eslint-disable camelcase -- knowledge_type / dry_run / guid_map are external Metadata API field names */
+ 
 import * as yaml from 'js-yaml'
 import snakeCase from 'lodash.snakecase'
 import {minimatch} from 'minimatch'
@@ -77,7 +77,7 @@ export interface KnowledgeDryRunResult {
   summary: Record<string, KnowledgeDryRunSummary>
 }
 
-// eslint-disable-next-line n/no-unsupported-features/node-builtins, no-undef
+ 
 type VerboseFetch = (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
 
 // ── Frontmatter ──────────────────────────────────────────────────────────────
