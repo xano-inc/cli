@@ -87,11 +87,11 @@ Updated deploy request #12: "Deploy v1.2.1 to prod" [pending]
       const current = (await getResponse.json()) as ApprovalRequest
 
       const body: Record<string, unknown> = {
-        description: flags.description !== undefined ? flags.description : (current.description ?? ''),
+        description: flags.description === undefined ? (current.description ?? '') : flags.description,
         reviewer_ids: flags.reviewers
           ? flags.reviewers.split(',').map((id) => Number.parseInt(id.trim(), 10))
           : (current.reviewers ?? []).map((r) => r.id),
-        title: flags.title !== undefined ? flags.title : current.title,
+        title: flags.title === undefined ? current.title : flags.title,
       }
 
       const putResponse = await this.verboseFetch(
