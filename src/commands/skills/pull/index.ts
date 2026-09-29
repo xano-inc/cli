@@ -55,8 +55,8 @@ function isSymbolicLink(filePath: string): boolean {
 
 /**
  * Whether the served skill is the workspace's own knowledge record. A stored record has a positive
- * id; the skill the platform generates has none of its own (cloud-client serves it under the
- * negative sentinel `AgentSkill::ID`), so an item without a positive id is the platform's.
+ * id; the skill the platform generates has none of its own (the platform serves it under a
+ * negative sentinel id), so an item without a positive id is the platform's.
  */
 function isWorkspaceRecord(skill: AgentSkill): boolean {
   return typeof skill.id === 'number' && Number.isInteger(skill.id) && skill.id > 0
