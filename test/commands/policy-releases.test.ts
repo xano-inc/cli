@@ -55,6 +55,10 @@ const passed = {
   total: 0,
 }
 
+/** A release's stored check as `GET release/policy_check` lists it. */
+const storedCheck = (release_id: number, status: string, counts: Record<string, number>, policies = 14) =>
+  ({counts: {errors: 0, ...counts}, finished_at: '2026-09-28T01:34:17.799Z', policies, release_id, run_id: 34_400 + release_id, status})
+
 const refusal = (answer: Record<string, unknown>, gate = 'tenant_deploy') =>
   json({code: 'ERROR_CODE_ACCESS_DENIED', message: String(answer.message), payload: {code: 'policy_gate', ...answer, gate}}, 403)
 
@@ -667,5 +671,119 @@ describe('release policy checks', () => {
       expect(missing.error?.message).to.contain("Release 'v9' not found")
       expect(missing.error).to.have.nested.property('oclif.exit', 1)
     })
+  })
+
+  describe('release list and the stored checks', () => {
+    const releases = [
+      {branch: 'main', created_at: 1_790_000_000_000, hotfix: false, id: 15, name: 'v1.4'},
+      {branch: 'main', hotfix: true, id: 14, name: 'v1.3-hotfix'},
+      {branch: 'main', id: 13, name: 'v1.2'},
+      {branch: 'main', id: 12, name: 'v1.1'},
+      {branch: 'main', id: 11, name: 'v1.0'},
+      {branch: 'main', id: 10, name: 'v0.9'},
+    ]
+    const checks = [
+      storedCheck(15, 'fail', {advisory: 1, blocking: 2, findings: 3}),
+      // Advisory findings alone still make the run's status `fail`; the tag counts them instead.
+      storedCheck(14, 'fail', {advisory: 11, blocking: 0, findings: 11}),
+      storedCheck(13, 'pass', {advisory: 0, blocking: 0, findings: 0}),
+      storedCheck(12, 'error', {advisory: 0, blocking: 1, errors: 2, findings: 1}),
+      storedCheck(11, 'pass', {advisory: 0, blocking: 0, findings: 0}, 0),
+    ]
+    const releaseLine = /^ {2}- \S+ \(ID: \d+\) - main( \[hotfix])?( \(.+\))?$/
+
+    /** The release list, and the stored checks (or what stands in for them). */
+    function listRoutes(policyCheck: () => Response = () => json({items: checks}), list: unknown = releases): void {
+      fixture.route(url => (url.pathname.endsWith('/release/policy_check') ? policyCheck() : json(list)))
+    }
+
+    it('tags each release with its stored check, worded as the Policies column, and points at policy runs', async () => {
+      listRoutes()
+      const result = await runCommand(['release', 'list'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(result.stdout).to.match(/ {2}- v1\.4 \(ID: 15\) - main \(.+\) \[policies: 2 blocking, 1 advisory]\n/)
+      expect(result.stdout).to.contain('  - v1.3-hotfix (ID: 14) - main [hotfix] [policies: 11 advisory]\n')
+      expect(result.stdout).to.contain('  - v1.2 (ID: 13) - main [policies: passed]\n')
+      expect(result.stdout).to.contain('  - v1.1 (ID: 12) - main [policies: could not check, 1 blocking]\n')
+      expect(result.stdout).to.contain('  - v1.0 (ID: 11) - main [policies: none shipped]\n')
+      expect(result.stdout).to.contain('  - v0.9 (ID: 10) - main [policies: not checked]\n')
+      expect(result.stdout).to.contain('Policy check details: xano policy runs --release <name>')
+      // The tag is the release's own check: a deploy is held per tenant, and `fail` would misread advisory findings.
+      expect(result.stdout.toLowerCase()).not.to.contain('blocked').and.not.to.contain('blocks').and.not.to.contain('fail')
+      expect(process.exitCode ?? 0).to.equal(0)
+    })
+
+    it('reads every listed release in one policy_check request, as PHP reads a list', async () => {
+      listRoutes()
+      await runCommand(['release', 'list'], fixture.config)
+      expect(fixture.calls.map(call => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/release', '/api:meta/workspace/1/release/policy_check'])
+      const read = fixture.calls[1]
+      expect(read.method).to.equal('GET')
+      expect(read.body).to.equal(undefined)
+      expect([0, 1, 2, 3, 4, 5].map(index => read.url.searchParams.get(`release_id[${index}]`))).to.deep.equal(['15', '14', '13', '12', '11', '10'])
+      expect(read.url.searchParams.has('release_id[6]')).to.equal(false)
+    })
+
+    it('tags an enveloped release list too', async () => {
+      listRoutes(undefined, {items: releases.slice(0, 1)})
+      const result = await runCommand(['release', 'list'], fixture.config)
+      expect(result.stdout).to.contain('[policies: 2 blocking, 1 advisory]')
+    })
+
+    it('asks about no checks for an empty list', async () => {
+      listRoutes(undefined, [])
+      const result = await runCommand(['release', 'list'], fixture.config)
+      expect(result.stdout).to.contain('No releases found')
+      expect(fixture.calls).to.have.length(1)
+    })
+
+    it('adds policy_check to each item under -o json, null for a release with no stored check', async () => {
+      listRoutes()
+      const result = await runCommand(['release', 'list', '-o', 'json'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      const {items} = JSON.parse(result.stdout)
+      expect(items).to.have.length(6)
+      const stored: {release_id?: number} = {...checks[0]}
+      delete stored.release_id
+      expect(items[0].policy_check).to.deep.equal(stored)
+      expect(items[0].policy_check).not.to.have.property('release_id')
+      expect(items[0]).to.include({id: 15, name: 'v1.4'})
+      expect(items[5].policy_check).to.equal(null)
+    })
+
+    for (const [why, answer] of [
+      ['the Policies feature is off', () => policyRefusal('policy_feature_disabled')],
+      ['the role lacks workspace:policy read', () => policyRefusal('policy_permission_required')],
+      ['the token lacks the workspace:policy scope', () => policyRefusal('policy_scope_required')],
+      ['the platform has no such route', () => new Response('', {status: 404})],
+      ['the platform fails', () => json({code: 'ERROR_CODE_INTERNAL', message: 'boom'}, 500)],
+      ['the answer is not JSON', () => new Response('<html>', {status: 200})],
+      ['the answer has no items', () => json({})],
+      ['the request fails', () => {
+        throw new Error('ECONNRESET')
+      }],
+    ] as const) {
+      it(`prints the list as it is when ${why}`, async () => {
+        listRoutes(answer)
+        const result = await runCommand(['release', 'list'], fixture.config)
+        expect(result.error).to.equal(undefined)
+        const lines = result.stdout.trimEnd().split('\n')
+        expect(lines[0]).to.equal('Releases in workspace 1:')
+        expect(lines.slice(1)).to.have.length(6)
+        for (const line of lines.slice(1)) expect(line).to.match(releaseLine)
+        expect(result.stdout).not.to.contain('policies').and.not.to.contain('Policy')
+        expect(fixture.calls).to.have.length(2)
+        expect(process.exitCode ?? 0).to.equal(0)
+      })
+
+      it(`leaves policy_check out of -o json when ${why}`, async () => {
+        listRoutes(answer)
+        const result = await runCommand(['release', 'list', '-o', 'json'], fixture.config)
+        expect(result.error).to.equal(undefined)
+        const {items} = JSON.parse(result.stdout)
+        expect(items).to.have.length(6)
+        for (const item of items) expect(item).not.to.have.property('policy_check')
+      })
+    }
   })
 })

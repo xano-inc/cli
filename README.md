@@ -544,7 +544,7 @@ set agent settings such as `allowed-tools` or `hooks`. It refuses to write throu
 All release commands use **release names** (e.g., `v1.0`), not IDs.
 
 ```bash
-# List releases
+# List releases, each tagged with its stored policy check when Policies is enabled and readable (see Policies)
 xano release list
 
 # Get release details
@@ -607,6 +607,17 @@ prints it: `Policy check: fail (run 1712), 2 blocking, 1 advisory findings`, or
 (`{status, run_id, run_status, blocking, advisory, message?}`, or `null` for a credential without `workspace:policy`
 read). A cut is never refused for its findings: each tenant deploy is gated on the ones it introduces (see Tenant
 deployments).
+
+`release list` tags each release with its stored check, worded as Studio's Policies column: `[policies: 2 blocking,
+1 advisory]`, `[policies: 11 advisory]`, `[policies: passed]`, `[policies: none shipped]` (the release carries no
+policies), `[policies: could not check]` (a rule could not run) or `[policies: not checked]` (no stored check:
+deploying the release checks it, and so does `policy runs --release <name> --recheck`), and ends with
+`Policy check details: xano policy runs --release <name>`. The tag is the release's own check, its code against the
+policies it ships; whether a tenant deploy is held depends on what the release introduces against that tenant's
+current release (`tenant deploy_release --check`). The list reads `release/policy_check` once, stores nothing, and
+prints as it did before when that read is refused (Policies off, no `workspace:policy` read) or fails. `-o json`
+adds `policy_check` to each item (`{run_id, status, finished_at, counts {findings, blocking, advisory, errors},
+policies}`, or `null` for a release with no stored check) and leaves it out when the checks could not be read.
 Tier1 tenant, ephemeral and sandbox pushes carry policy files too when Policies is enabled and the tenant has
 a policy table. Remote tenant pushes still leave them out; remote release deploys carry them.
 
