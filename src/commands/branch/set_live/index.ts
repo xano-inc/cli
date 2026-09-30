@@ -26,7 +26,7 @@ export default class BranchSetLive extends BaseCommand {
     }),
   }
 static description =
-    '[IMPORTANT] ALWAYS confirm with the user before changing the live branch. Sets a branch as the live (active) branch for API requests. The set-live policy gate checks the branch against the live branch\'s policies: when blocking findings refuse it, the command exits 2 unless --policy-override gives a reason.'
+    '[IMPORTANT] ALWAYS confirm with the user before changing the live branch. Sets a branch as the live (active) branch for API requests. The set-live policy gate checks the branch against its own policies, which live will have once it is set live: when blocking findings refuse it, the command exits 2 unless --policy-override gives a reason.'
 static examples = [
     `$ xano branch set-live staging
 Are you sure you want to set 'staging' as the live branch? (y/N) y

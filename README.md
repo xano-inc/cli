@@ -206,7 +206,7 @@ suffix if already taken (case-insensitive); an explicitly taken `--key` is refus
 existing policy. `-m/--message` labels its Version History entry; `-o json` returns the saved policy and
 native rule warnings go to stderr. No continuing link to the goal is stored.
 
-A push to the live branch is refused before commit when mandatory policies block it. A 403 `policy_gate` exits **2**, says nothing was imported, and lists the blocking findings and introduced/changed counts. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
+A push to the live branch is refused before commit when mandatory policies block it. The gate judges the branch by the policies it will have after the push, so the pushed policy files count, and a push that weakens a mandatory policy of the live branch (demotes, deactivates or deletes it, or loosens one of its rules) needs `workspace:policy` update and is otherwise refused before anything is imported. A 403 `policy_gate` exits **2**, says nothing was imported, and lists the blocking findings and introduced/changed counts. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
@@ -622,8 +622,9 @@ Tier1 tenant, ephemeral and sandbox pushes carry policy files too when Policies 
 a policy table. Remote tenant pushes still leave them out; remote release deploys carry them.
 
 `release deploy --set_live` lands the release as a new branch, then sets it live through the same policy gate as
-`branch set_live`: the branch is checked against the live branch's policies, and blocking findings it introduces, or
-leaves on objects it changes, refuse it. A refusal keeps the branch, prints the verdict, says `The branch was
+`branch set_live`: the branch is checked against its own policies, which live will have once it is set live, and
+blocking findings it introduces compared with the live branch, or leaves on objects it changes, refuse it. A branch
+that weakens a mandatory policy of the live branch needs `workspace:policy` update. A refusal keeps the branch, prints the verdict, says `The branch was
 created; set live was refused` and exits `2`; `-o json` prints `{"branch_created": true, "set_live": false, "branch",
 "message", "policy_gate"}`. Set it live from Studio's Branches panel with a reason, or delete the branch and deploy
 again with `--policy-override "<reason>"`, which sets it live past the gate and is audited. A policy of the release
