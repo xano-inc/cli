@@ -351,6 +351,20 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.stdout).not.to.contain('Deleted policy')
   })
 
+  it('delete of an active mandatory policy without workspace:policy update exits 1 with why and whom to ask', async () => {
+    const refused = 'Delete refused: it weakens mandatory policy GATE-001, which needs the workspace:policy update permission.'
+    fixture.route((url, method) => method === 'DELETE'
+      ? json({code: 'ERROR_CODE_ACCESS_DENIED', message: refused, payload: {code: 'policy_weakening_permission_required', gate: 'delete', level: 'update', permission: 'workspace:policy', policies: ['GATE-001']}}, 403)
+      : json({items: [{id: 7, key: 'GATE-001', version: 3}]}))
+    const result = await runCommand(['policy', 'delete', 'GATE-001', '--force'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.equal(`Policy request failed (403): ERROR_CODE_ACCESS_DENIED: ${refused}\n`
+      + 'Deleting a policy that is active and mandatory weakens it, so it needs the `workspace:policy` update permission, not only delete.\n'
+      + '  - Ask someone who holds that permission to make this change, or an instance admin to grant it to your role.')
+    expect(result.error?.message).not.to.contain('--policy-override')
+    expect(result.stdout).not.to.contain('Deleted policy')
+  })
+
   it('delete accepts an ID and stays a faithful JSON passthrough', async () => {
     fixture.route((url, method) => (method === 'DELETE' ? json({}) : json({items: [{id: 7, key: 'AUTH-001', version: 1}]})))
     const result = await runCommand(['policy', 'delete', '7', '-f', '-o', 'json'], fixture.config)

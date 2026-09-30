@@ -1737,7 +1737,7 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
   // workspace:policy update: a permission refusal (exit 1), not a blocking finding. The platform's
   // sentence already reads "Push refused: … Nothing was imported.", so it is printed as it is.
   if (status === 403 && refusal?.code === WEAKENING_REFUSAL) {
-    command.error(`${message}${target.explainRefusal?.(status, payload) ?? policyWeakeningGuidance(payload)}`)
+    command.error(`${message}${target.explainRefusal?.(status, payload) ?? policyWeakeningGuidance(payload, [], true)}`)
   }
 
   // The plan's policy cap: the platform's message names the plan, its cap and the remedy, and the

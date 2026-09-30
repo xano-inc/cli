@@ -7,15 +7,21 @@
  *   policy_scope_required        the Metadata API token was created without that level
  *   policy_weakening_permission_required
  *                                a push, set-live or merge weakens a policy that is active and
- *                                mandatory on the branch, which needs the `update` level
+ *                                mandatory on the branch, which needs the `update` level;
+ *                                deleting one (gate `delete`), or an archive import that would
+ *                                remove one, too
  *
  * `payload.level` is the level the request needed, and a refused push lists the policy files it
  * carried in `payload.policies`. A refusal without a code gets no advice beyond its own message.
  */
 interface Refusal {
   code?: unknown
+  /** The gate a weakening refusal names: `push`, `set_live`, `merge`, `archive_import` or `delete`. */
+  gate?: unknown
   level?: unknown
   policies?: unknown
+  /** A weakening refusal whose check could not read the policies (it fails closed). */
+  unavailable?: unknown
 }
 
 const TOKEN_SETTINGS = 'Instance settings → Metadata API & MCP Server → Manage Access Tokens'
@@ -79,7 +85,7 @@ export function policyFilePushGuidance(payload: unknown): string | undefined {
     return policyWeakeningGuidance(payload, [
       'To push everything else, leave the policy files out:  xano workspace push -e "policies/*"',
       'To discard your local policy edits, pull again:        xano workspace pull',
-    ])
+    ], true)
   }
 
   if (!Array.isArray(refusal.policies) || refusal.policies.length === 0) return undefined
@@ -100,14 +106,21 @@ export function policyFilePushGuidance(payload: unknown): string | undefined {
 
 /**
  * Guidance for a change refused with `policy_weakening_permission_required`. The platform's sentence
- * already names the policies and what was left alone; this says why, that `--policy-override` does
- * not stand in for the permission, and how to go on: `ways` are the command's own, before the
- * fallback of asking someone who holds the permission.
+ * already names the policies and what was left alone; this says why (a delete of a mandatory policy,
+ * or a check that could not read the policies and so fails closed), that `--policy-override` does
+ * not stand in for the permission when the command has that flag (`overrideFlag`), and how to go on:
+ * `ways` are the command's own, before the fallback of asking someone who holds the permission.
  */
-export function policyWeakeningGuidance(payload: unknown, ways: string[] = []): string {
+export function policyWeakeningGuidance(payload: unknown, ways: string[] = [], overrideFlag = false): string {
   const refusal = refusalOf(payload)
+  const permission = `${permissionAt({level: refusal.level ?? 'update'})} permission`
+  const why = refusal.unavailable === true
+    ? `The policies could not be read to check this, so only someone with the ${permission} may proceed.`
+    : refusal.gate === 'delete'
+      ? `Deleting a policy that is active and mandatory weakens it, so it needs the ${permission}, not only delete.`
+      : `Weakening means demoting, deactivating or deleting a mandatory policy, or loosening one of its rules, and it needs the ${permission}.`
   return (
-    `\nWeakening means demoting, deactivating or deleting a mandatory policy, or loosening one of its rules. It needs the ${permissionAt({level: refusal.level ?? 'update'})} permission itself: --policy-override does not stand in for it.` +
+    `\n${why}${overrideFlag ? ' --policy-override does not stand in for it.' : ''}` +
     [...ways, `${ways.length > 0 ? 'Or ask' : 'Ask'} someone who holds that permission to make this change, or an instance admin to grant it to your role.`].map(way => `\n  - ${way}`).join('')
   )
 }

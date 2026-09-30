@@ -144,6 +144,22 @@ describe('branch set_live and the set-live policy gate', () => {
       expect(result.error).to.have.nested.property('oclif.exit', 1)
     })
 
+    it('when the check could not read the policies, it fails closed and says so, exiting 1', async () => {
+      const unchecked = 'Set live refused: whether it weakens a mandatory policy could not be checked, and weakening one needs the workspace:policy update permission. The live branch was not changed.'
+      fixture.route(() => json({
+        code: 'ERROR_CODE_ACCESS_DENIED',
+        message: unchecked,
+        payload: {code: 'policy_weakening_permission_required', gate: 'set_live', level: 'update', permission: 'workspace:policy', policies: [], unavailable: true},
+      }, 403))
+      const result = await setLive()
+      const error = oneLine(result.error?.message ?? '')
+      expect(error.startsWith(unchecked)).to.equal(true)
+      expect(error).to.contain('The policies could not be read to check this, so only someone with the `workspace:policy` update permission may proceed.')
+      expect(error).to.contain('The check may read them next time: xano branch set_live rollback')
+      expect(error).not.to.contain("the live branch's version of those policies")
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+    })
+
     it('--policy-override does not turn it into a gate refusal', async () => {
       fixture.route(() => weakening())
       const result = await setLive('--policy-override', 'Approved')

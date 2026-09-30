@@ -202,8 +202,10 @@ static override flags = {
   private refuseWeakening(refused: WeakeningRefused, flags: {workspace?: number}, branchLabel: string): never {
     const workspace = flags.workspace ? ` -w ${flags.workspace}` : ''
     this.refusedByPermission = true
-    this.error(`${refused.message}${policyWeakeningGuidance(refused.payload, [
-      `To set it live yourself, give ${quoted(branchLabel)} the live branch's version of those policies, then run: xano branch set_live ${quoted(branchLabel)}${workspace}`,
-    ])}`)
+    const again = `xano branch set_live ${quoted(branchLabel)}${workspace}`
+    const way = refused.payload.unavailable === true
+      ? `The check may read them next time: ${again}`
+      : `To set it live yourself, give ${quoted(branchLabel)} the live branch's version of those policies, then run: ${again}`
+    this.error(`${refused.message}${policyWeakeningGuidance(refused.payload, [way], true)}`)
   }
 }

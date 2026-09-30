@@ -242,7 +242,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       ? [`The branch stays. To remove it:  xano branch delete ${quoted(label)}${workspace}`, `Someone with that permission can set it live:  xano branch set_live ${quoted(label)}${workspace}`]
       : []
     this.refusedByPermission = true
-    this.error(`${refused.message}${policyWeakeningGuidance(refused.payload, ways)}`)
+    this.error(`${refused.message}${policyWeakeningGuidance(refused.payload, ways, true)}`)
   }
 }
 

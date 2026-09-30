@@ -247,7 +247,7 @@ blocks (an active, mandatory policy failed), whatever else happened; `1` when a 
 when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
 `tenant_deploy_request set_status` and `tenant_deploy_request bypass` exit `2` when the tenant deploy policy gate
 refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
-`release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live, and `1` for any other failure; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does. `function create` and `function edit` exit `2` when the live-branch publish gate refuses the save (see Functions), and `1` for any other failure. A blank `--policy-override` is refused before any request. A `workspace push`, `branch set_live` or `release deploy --set_live` refused with `policy_weakening_permission_required` exits `1`, like the other permission refusals: it is a missing permission, not a blocking finding.
+`release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live, and `1` for any other failure; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does. `function create` and `function edit` exit `2` when the live-branch publish gate refuses the save (see Functions), and `1` for any other failure. A blank `--policy-override` is refused before any request. A `workspace push`, `branch set_live`, `release deploy --set_live` or `policy delete` refused with `policy_weakening_permission_required` exits `1`, like the other permission refusals: it is a missing permission, not a blocking finding.
 
 Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
@@ -258,7 +258,9 @@ loosens one of its rules; for a set live, a live mandatory policy the branch lac
 `workspace:policy` update, and without it is refused before anything is written with
 `policy_weakening_permission_required`, naming the policies. `--policy-override` does not lift it: the CLI prints the
 platform's sentence and how to go on (a push can leave the policy files out with `-e "policies/*"`), and a push's
-`--dry-run` is refused the same way. A rule naming a check the instance does not have (`policy_unknown_check`)
+`--dry-run` is refused the same way. `policy delete` of an active, mandatory policy needs update too, not only delete,
+and is refused with the same code otherwise. A set live whose check could not read the policies fails closed: only
+update proceeds, and the refusal says so (`unavailable`). A rule naming a check the instance does not have (`policy_unknown_check`)
 points at `xano policy catalogue`. `policy delete` sends the `updated_at` it listed, so a policy changed since is
 refused (`policy_stale`) rather than deleted; it asks first, and without `--force` in a non-interactive shell it
 exits 1. A create past the plan's per-branch policy cap (lower plans cap the policies on each branch; Pro and above are unlimited) is refused with
@@ -630,7 +632,8 @@ a policy table. Remote tenant pushes still leave them out; remote release deploy
 `release deploy --set_live` lands the release as a new branch, then sets it live through the same policy gate as
 `branch set_live`: the branch is checked against its own policies, which live will have once it is set live, and
 blocking findings it introduces compared with the live branch, or leaves on objects it changes, refuse it. A branch
-that weakens a mandatory policy of the live branch needs `workspace:policy` update: without it set live is refused
+that weakens a mandatory policy of the live branch needs `workspace:policy` update (a release that lands no policy is
+judged by the live branch's policies instead, and nothing is checked for weakening): without it set live is refused
 with `policy_weakening_permission_required`, the branch stays, and the command exits `1`, naming the branch to set
 live or delete. A gate refusal keeps the branch, prints the verdict, says `The branch was
 created; set live was refused` and exits `2`; `-o json` prints `{"branch_created": true, "set_live": false, "branch",

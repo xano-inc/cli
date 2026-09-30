@@ -223,7 +223,8 @@ export async function gateRefusal(response: Response): Promise<GateRefused | nul
  */
 export interface WeakeningRefused {
   message: string
-  payload: {branch?: {id?: number; label?: string}; code: string; gate?: string; level?: string; permission?: string; policies?: string[]}
+  /** `unavailable`: the policies could not be read to check it, so only the permission proceeds (`policies` is empty). */
+  payload: {branch?: {id?: number; label?: string}; code: string; gate?: string; level?: string; permission?: string; policies?: string[]; unavailable?: boolean}
 }
 
 /** The weakening refusal read from a failed response, or `null` for any other failure. */

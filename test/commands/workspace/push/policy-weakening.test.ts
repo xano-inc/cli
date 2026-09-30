@@ -30,7 +30,7 @@ describe('workspace push that weakens a mandatory policy, without workspace:poli
     const error = oneLine(result.error?.message ?? '')
     expect(error.startsWith(message)).to.equal(true)
     expect(error).not.to.contain('Push refused (403)')
-    expect(error).to.contain('needs the `workspace:policy` update permission itself: --policy-override does not stand in for it.')
+    expect(error).to.contain('and it needs the `workspace:policy` update permission. --policy-override does not stand in for it.')
     expect(error).to.contain('-e "policies/*"')
     expect(error).to.contain('xano workspace pull')
     expect(`${result.stdout}${result.stderr}`).not.to.contain('Skipping preview')
