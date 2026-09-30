@@ -4,7 +4,7 @@ import type {PolicyFinding} from './types.js'
 import {describePolicyError} from './errors.js'
 import {findingLine} from './findings.js'
 
-/** A release as the tenant deploy gate compares it. */
+/** The release the tenant deploy gate judges. */
 export interface GateRelease {
   /** Whether the release was cut with its policies; one cut without them has no check. */
   carried?: boolean
@@ -16,54 +16,40 @@ export interface GateRelease {
   status?: string
 }
 
-/** A mandatory policy of the base release that the release weakens: every one blocks. */
-export interface GateRegression {
-  change?: string
-  enforcement?: string
-  key?: string
-  rules?: Array<string | {check?: string; id?: string; title?: string}>
-  title?: string
-}
-
-/** A policy the base release shipped that the release does not. */
-export interface GateRemoved {
-  active?: boolean
-  enforcement?: string
-  key?: string
-  title?: string
-}
-
 /**
  * The tenant deploy gate's answer: what `GET tenant/{name}/policy_gate` previews, and the payload of
- * the 403 a refused deploy answers (with `code: policy_gate`). The findings, regressions and removed
- * policies come only to a credential that reads the workspace's policies.
+ * the 403 a refused deploy answers (with `code: policy_gate`). The gate judges the release alone, by
+ * its own policy check, so the same release gets the same verdict on every tenant; only `gated`
+ * differs. The findings come only to a credential that reads the workspace's policies.
  */
 export interface PolicyGateAnswer {
-  base_release?: GateRelease | null
   can_override?: boolean
-  changed?: number
   code?: string
-  existing?: number
-  /** The first blocking findings the release introduces. */
+  /** The first of the release's blocking findings. */
   findings?: PolicyFinding[]
   /** `tenant_deploy`, or `tenant_approve` when an approval completes the deploy. */
   gate?: string
   /** False for an ephemeral or sandbox tenant: the verdict is reported but never refuses. */
   gated?: boolean
-  introduced?: number
   message?: string
   override_denied?: boolean
-  regressions?: GateRegression[]
-  regressions_total?: number
   release?: GateRelease | null
-  removed?: GateRemoved[]
-  removed_total?: number
   run_id?: number
   /** `pass`, `blocked`, `overridden`, `not_applicable`, `not_carried`, `disabled` or `unavailable`. */
   status?: string
-  /** Every blocking finding the release introduces, listed or not. */
+  /** Every blocking finding the release has, listed or not. */
   total?: number
   truncated?: boolean
+}
+
+/**
+ * A gate that measures a change against the live branch (set-live, publish, a live-branch save): its
+ * blocking findings split by why they block.
+ */
+export interface LiveGateAnswer extends Omit<PolicyGateAnswer, 'gated' | 'release'> {
+  changed?: number
+  existing?: number
+  introduced?: number
 }
 
 /** The refusal code a policy gate's 403 carries in `payload.code`. */
@@ -74,101 +60,48 @@ export function gateExitCode(answer?: null | PolicyGateAnswer): number {
   return answer?.status === 'blocked' && answer.gated !== false ? 2 : 0
 }
 
-const CHANGES: Record<string, string> = {
-  deactivated: 'deactivated',
-  demoted: 'no longer mandatory',
-  removed: 'removed',
-  rules_changed: 'rules removed or changed',
-}
-
-function named(item: {key?: string; title?: string}): string {
-  const key = item.key?.trim() || 'policy'
-  const title = item.title?.trim()
-  return title && title !== key ? `${key} (${title})` : key
-}
-
-function ruleName(rule: string | {check?: string; id?: string; title?: string}): string {
-  if (typeof rule === 'string') return rule
-  const id = rule.id?.trim() || rule.check?.trim() || 'rule'
-  const title = rule.title?.trim()
-  return title && title !== id ? `${id} ${title}` : id
-}
-
-function releaseLine(label: string, release?: GateRelease | null): string {
-  if (!release) return `  ${label}: none (the tenant has no release yet, so only this release's own policies apply)`
+function releaseLine(release: GateRelease | null | undefined, status: string): string {
+  if (!release) return '  Release: unknown'
   const name = release.name?.trim() || (release.id ? `#${release.id}` : 'unknown')
-  const detail = release.status === 'not_carried'
+  const detail = status === 'not_carried' || release.status === 'not_carried'
     ? 'cut without its policies'
     : [release.run_id ? `policy run ${release.run_id}` : '', release.status ?? ''].filter(Boolean).join(', ')
-  return `  ${label}: ${name}${detail ? ` (${detail})` : ''}`
+  return `  Release: ${name}${detail ? ` (${detail})` : ''}`
 }
 
-/** The mandatory policies of the tenant's current release that the release weakens: each one blocks. */
-function regressionLines(answer: PolicyGateAnswer): string[] {
-  const regressions = answer.regressions ?? []
-  if (regressions.length === 0) {
-    return (answer.regressions_total ?? 0) > 0 ? [`  Mandatory policies this release weakens: ${answer.regressions_total}`] : []
-  }
-
-  return [
-    `  Mandatory policies this release weakens (${regressions.length}), each of which blocks:`,
-    ...regressions.map(regression => {
-      const rules = (regression.rules ?? []).map(rule => ruleName(rule))
-      const change = CHANGES[regression.change ?? ''] ?? regression.change ?? 'changed'
-      return `    ${named(regression)}: ${change}${rules.length > 0 ? ` (${rules.join(', ')})` : ''}`
-    }),
-  ]
-}
-
-/** The policies the tenant's current release ships and the release does not, called out rather than diffed. */
-function removedLines(answer: PolicyGateAnswer): string[] {
-  const removed = answer.removed ?? []
-  if (removed.length === 0) {
-    return (answer.removed_total ?? 0) > 0 ? [`  Policies the current release ships and this release does not: ${answer.removed_total}`] : []
-  }
-
-  return [
-    `  Policies the current release ships and this release does not (${removed.length}):`,
-    ...removed.map(policy => `    ${named(policy)}: ${policy.enforcement ?? 'advisory'}, ${policy.active === false ? 'Inactive' : 'Active'}`),
-  ]
-}
-
-/** The first blocking findings the release introduces, and where the rest of its findings are. */
+/** The first of the release's blocking findings, and where the rest of its findings are. */
 function findingLines(answer: PolicyGateAnswer): string[] {
   const findings = answer.findings ?? []
   if (findings.length === 0) {
-    const withheld = answer.findings === undefined && ((answer.introduced ?? 0) > 0 || (answer.regressions_total ?? 0) > 0)
-    return withheld ? ['  The findings and policy names are listed only for a credential that reads policies (workspace:policy read).'] : []
+    const withheld = answer.findings === undefined && (answer.total ?? 0) > 0
+    return withheld ? ['  The findings are listed only for a credential that reads policies (workspace:policy read).'] : []
   }
 
   const total = answer.total ?? findings.length
   const releaseName = answer.release?.name?.trim()
   return [
-    `  Introduced findings (${total > findings.length ? `first ${findings.length} of ${total}` : findings.length}):`,
+    `  Blocking findings (${total > findings.length ? `first ${findings.length} of ${total}` : findings.length}):`,
     ...findings.map(finding => `  ${findingLine(finding, new Map())}`),
     ...(releaseName ? [`  Every finding of the release: xano policy runs --release ${quoted(releaseName)}`] : []),
   ]
 }
 
 /**
- * The gate's verdict on stdout: a headline with its sentence, the releases it compared, what blocks
- * (the findings the release introduces, and the tenant's mandatory policies it weakens), the policies
- * it stops shipping, and the first introduced findings.
+ * The gate's verdict on stdout: a headline with its sentence, the release it judged, how many of its
+ * findings block, and the first of them. Every blocking finding of the release counts, whatever the
+ * tenant runs today.
  */
 export function gateLines(answer: PolicyGateAnswer): string[] {
   const status = answer.status?.trim() || 'unknown'
   const lines = [`Policy gate: ${status}`]
   if (answer.message?.trim()) lines.push(`  ${answer.message.trim()}`)
-  if (answer.release !== undefined) lines.push(releaseLine('Release', answer.release))
-  if (answer.release !== undefined && answer.base_release !== undefined) {
-    lines.push(releaseLine('Compared with the tenant\'s current release', answer.base_release))
+  if (answer.release !== undefined) lines.push(releaseLine(answer.release, status))
+  // Listed findings carry their own count; otherwise say how many there are.
+  if (['blocked', 'overridden', 'pass'].includes(status) && typeof answer.total === 'number' && (answer.findings ?? []).length === 0) {
+    lines.push(`  Blocking findings in this release: ${answer.total}`)
   }
 
-  if (['blocked', 'overridden', 'pass'].includes(status) && typeof answer.introduced === 'number') {
-    lines.push(`  Blocking findings: ${answer.introduced} introduced by this release, ${answer.existing ?? 0} already in the current release (those never block)`)
-  }
-
-  lines.push(...regressionLines(answer), ...removedLines(answer), ...findingLines(answer))
+  lines.push(...findingLines(answer))
   if (answer.gated === false) lines.push('  Not gated: this tenant is ephemeral or a sandbox, so the verdict never refuses a deploy to it.')
   return lines
 }
@@ -189,7 +122,7 @@ export function deployedGateLine(answer: PolicyGateAnswer): string {
  * status, what blocks, and the first blocking findings. `subject` is what changes: a branch set live,
  * the branch a release was deployed as (`release deploy --set_live`), or an object saved to live.
  */
-export function liveGateLines(answer: PolicyGateAnswer, subject: 'branch' | 'release' | 'save'): string[] {
+export function liveGateLines(answer: LiveGateAnswer, subject: 'branch' | 'release' | 'save'): string[] {
   const lines = [`Policy gate: ${answer.status?.trim() || 'unknown'}`]
   if (typeof answer.total === 'number') {
     lines.push(`  Blocking findings: ${answer.total} (${answer.introduced ?? 0} introduced, ${answer.changed ?? 0} on objects the ${subject} changes); ${answer.existing ?? 0} already on the live branch never block`)

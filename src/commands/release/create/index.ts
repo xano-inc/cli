@@ -29,7 +29,7 @@ Created release: v1.0 - ID: 10
   Branch: main
   Policy check: fail (run 1712), 2 blocking, 1 advisory findings
     Findings: xano policy runs --release v1.0
-    Each tenant's deploy is gated on the ones it introduces: xano tenant deploy_release <tenant> --release v1.0 --check
+    Its blocking findings block a deploy to a standard or run tenant: xano tenant deploy_release <tenant> --release v1.0 --check
 `,
     `$ xano release create "v1.1-hotfix" --branch main --hotfix --description "Critical fix" -o json`,
   ]

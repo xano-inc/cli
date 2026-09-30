@@ -130,7 +130,7 @@ export function releasePolicyRunLines(policyRun: unknown, releaseName?: string, 
   const name = releaseName?.trim() ? quoted(releaseName.trim()) : '<release_name>'
   const target = releaseName?.trim() || !releaseId ? `--release ${name}` : `--release-id ${releaseId}`
   if (blocking + advisory > 0) lines.push(`    Findings: xano policy runs ${target}`)
-  if (blocking > 0 && releaseName?.trim()) lines.push(`    Each tenant's deploy is gated on the ones it introduces: xano tenant deploy_release <tenant> --release ${name} --check`)
+  if (blocking > 0 && releaseName?.trim()) lines.push(`    Its blocking findings block a deploy to a standard or run tenant: xano tenant deploy_release <tenant> --release ${name} --check`)
   return lines
 }
 

@@ -605,7 +605,7 @@ Cutting a release (`release create`, `release push`, `release import`) stores it
 prints it: `Policy check: fail (run 1712), 2 blocking, 1 advisory findings`, or
 `Policy check disabled|skipped|error: <why>` when none was recorded. `-o json` keeps it as `policy_run`
 (`{status, run_id, run_status, blocking, advisory, message?}`, or `null` for a credential without `workspace:policy`
-read). A cut is never refused for its findings: each tenant deploy is gated on the ones it introduces (see Tenant
+read). A cut is never refused for its findings: its blocking findings are what gates each tenant deploy (see Tenant
 deployments).
 
 `release list` tags each release with its stored check, worded as Studio's Policies column: `[policies: 2 blocking,
@@ -613,8 +613,8 @@ deployments).
 policies), `[policies: could not check]` (a rule could not run) or `[policies: not checked]` (no stored check:
 deploying the release checks it, and so does `policy runs --release <name> --recheck`), and ends with
 `Policy check details: xano policy runs --release <name>`. The tag is the release's own check, its code against the
-policies it ships; whether a tenant deploy is held depends on what the release introduces against that tenant's
-current release (`tenant deploy_release --check`). The list reads `release/policy_check` once, stores nothing, and
+policies it ships, and it is also what the tenant deploy gate judges: a release with blocking findings is held on
+every standard or run tenant (`tenant deploy_release --check`). The list reads `release/policy_check` once, stores nothing, and
 prints as it did before when that read is refused (Policies off, no `workspace:policy` read) or fails. `-o json`
 adds `policy_check` to each item (`{run_id, status, finished_at, counts {findings, blocking, advisory, errors},
 policies}`, or `null` for a release with no stored check) and leaves it out when the checks could not be read.
@@ -836,13 +836,13 @@ error naming the `tenant_deploy_request` command to run instead — see below. A
 with `allow_quick_deploy` enabled skips the gate entirely, regardless of
 `required_reviewers`.
 
-A release deploy is also gated on policy. The gate compares the release's policy check with the tenant's current
-release's: it blocks the blocking findings the release introduces, and any active mandatory policy of the current
-release that the release removes, deactivates, demotes or changes the rules of. Findings already in the current
-release are reported, never blocking. Ephemeral and sandbox tenants get the verdict but are never refused.
-`--check` prints the verdict (status, the releases compared, introduced and existing counts, the weakened
-policies, the policies the release no longer ships, and the first introduced findings) without deploying; `-o json`
-is the gate's answer as served. A refused deploy prints the same verdict and exits `2`, naming the
+A release deploy is also gated on policy. The gate judges the release alone, by its own policy check (the one
+stored when it was cut, or checked from its archive on demand): the blocking findings of its active mandatory policies
+refuse the deploy, including findings the tenant's current release already has. It does not compare the release with
+what the tenant runs, so the same release gets the same verdict on every tenant. Ephemeral and sandbox tenants get the
+verdict but are never refused. A release cut before releases carried policies reads `not_carried` and is not gated.
+`--check` prints the verdict (status, the release and its policy run, the number of blocking findings, and the first
+of them) without deploying; `-o json` is the gate's answer as served. A refused deploy prints the same verdict and exits `2`, naming the
 `--override-reason` rerun when your credential may override; under `-o json` it prints
 `{"deployed": false, "message", "policy_gate"}`. `--override-reason` sends `override_policy: true` with the reason,
 and the platform audits it. A successful deploy's summary prints the gate's status when the platform returns one,

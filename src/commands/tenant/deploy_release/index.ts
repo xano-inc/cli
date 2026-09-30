@@ -49,16 +49,16 @@ export default class TenantDeployRelease extends BaseCommand {
     }),
   }
   static description =
-    "[CRITICAL] STOP and confirm with the user before deploying a release to a tenant; this mutates the live tenant. Deploys a release to a tenant. A deploy is gated on the release's policy check: blocking findings it introduces, or a mandatory policy of the tenant's current release that it weakens, refuse it (exit 2) unless --override-reason is given. --check previews that verdict without deploying."
+    "[CRITICAL] STOP and confirm with the user before deploying a release to a tenant; this mutates the live tenant. Deploys a release to a tenant. A deploy is gated on the release's own policy check: any blocking finding in the release refuses it (exit 2) unless --override-reason is given, whatever the tenant runs today, so the release gets the same verdict on every tenant. --check previews that verdict without deploying."
   static examples = [
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0
 Deployed release "v1.0" to tenant: My Tenant (my-tenant)
 `,
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0 -o json`,
     `$ xano tenant deploy_release prod --release v1.2 --check
-Checked release "v1.2" against tenant "prod"; nothing was deployed.
+Checked release "v1.2" for tenant "prod"; nothing was deployed.
 Policy gate: blocked
-  Deploy blocked: 1 blocking policy finding this release introduces.
+  Deploy blocked: this release has 1 blocking policy finding.
 `,
     `$ xano tenant deploy_release prod --release v1.2 --override-reason "Hotfix; AUTH-001 finding tracked in JIRA-12"`,
   ]
@@ -245,7 +245,7 @@ Policy gate: blocked
     if (flags.output === 'json') {
       this.log(JSON.stringify(answer, null, 2))
     } else {
-      this.log(`Checked release "${releaseName}" against tenant "${tenantName}"; nothing was deployed.`)
+      this.log(`Checked release "${releaseName}" for tenant "${tenantName}"; nothing was deployed.`)
       for (const line of gateLines(answer)) this.log(line)
       if (exit) {
         this.log(answer.can_override

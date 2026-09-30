@@ -34,7 +34,9 @@ Deploy request #12: "Deploy v1.2 to prod" [pending]
   Release: v1.2
 Policy check of release "v1.2" on tenant "prod":
 Policy gate: pass
-  No blocking policy findings are introduced, and no policy the tenant runs under is weakened.
+  This release has no blocking policy findings.
+  Release: v1.2 (policy run 301, pass)
+  Blocking findings in this release: 0
 `,
     `$ xano tenant_deploy_request get 12 -o json`,
   ]

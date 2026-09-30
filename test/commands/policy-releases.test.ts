@@ -17,22 +17,17 @@ const finding = {
   severity: 'high',
 }
 
-/** A blocked verdict for release v1.2 on a gated tenant whose current release is v1.1. */
+/**
+ * A blocked verdict for release v1.2 on a gated tenant. The gate judges the release alone: every
+ * blocking finding of its own check counts, whatever the tenant runs today.
+ */
 const blocked = {
-  base_release: {carried: true, id: 11, name: 'v1.1', run_id: 540, status: 'pass'},
   can_override: true,
-  changed: 0,
-  existing: 2,
-  findings: [{gate_reason: 'introduced', ...finding}],
+  findings: [finding],
   gate: 'tenant_deploy',
   gated: true,
-  introduced: 1,
-  message: 'Deploy blocked: 1 blocking policy finding this release introduces; it weakens 1 mandatory policy the tenant runs under (SEC-002).',
-  regressions: [{change: 'rules_changed', enforcement: 'mandatory', key: 'SEC-002', rules: [{check: 'object.auth_required', id: 'R2', title: 'Signed in'}], title: 'Secrets'}],
-  regressions_total: 1,
-  release: {carried: true, id: 12, name: 'v1.2', run_id: 555, status: 'fail'},
-  removed: [{active: true, enforcement: 'advisory', key: 'OLD-001', title: 'Old rule'}],
-  removed_total: 1,
+  message: 'Deploy blocked: this release has 1 blocking policy finding.',
+  release: {carried: true, counts: {advisory: 0, blocking: 1, errors: 0, findings: 1}, id: 12, name: 'v1.2', run_id: 555, status: 'fail'},
   run_id: 555,
   status: 'blocked',
   total: 1,
@@ -40,17 +35,13 @@ const blocked = {
 }
 
 const passed = {
-  base_release: null,
   can_override: true,
-  existing: 0,
   findings: [],
   gate: 'tenant_deploy',
   gated: true,
-  introduced: 0,
-  message: 'No blocking policy findings are introduced, and no policy the tenant runs under is weakened.',
-  regressions: [],
-  release: {carried: true, id: 12, name: 'v1.2', run_id: 555, status: 'pass'},
-  removed: [],
+  message: 'This release has no blocking policy findings.',
+  release: {carried: true, counts: {advisory: 0, blocking: 0, errors: 0, findings: 0}, id: 12, name: 'v1.2', run_id: 555, status: 'pass'},
+  run_id: 555,
   status: 'pass',
   total: 0,
 }
@@ -188,11 +179,10 @@ describe('release policy checks', () => {
     }
 
     it('a non-reader gate refusal reports counts and the permission without policy details', async () => {
-      tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined,
-        message: 'Deploy blocked: 1 introduced finding; 1 mandatory policy weakened.', regressions: undefined, removed: undefined}))
+      tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined, truncated: undefined}))
       const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
-      expect(result.stdout).to.contain('workspace:policy read').and.to.contain('Mandatory policies this release weakens: 1')
-      expect(result.stdout).not.to.contain('AUTH-001').and.not.to.contain('SEC-002')
+      expect(result.stdout).to.contain('workspace:policy read').and.to.contain('Blocking findings in this release: 1')
+      expect(result.stdout).not.to.contain('AUTH-001')
       expect(result.error).to.have.nested.property('oclif.exit', 2)
     })
 
@@ -206,11 +196,10 @@ describe('release policy checks', () => {
       expect(result.stdout).to.contain('nothing was deployed')
       expect(result.stdout).to.contain('Policy gate: blocked')
       expect(result.stdout).to.contain('Release: v1.2 (policy run 555, fail)')
-      expect(result.stdout).to.contain("Compared with the tenant's current release: v1.1 (policy run 540, pass)")
-      expect(result.stdout).to.contain('Blocking findings: 1 introduced by this release, 2 already in the current release')
-      expect(result.stdout).to.contain('SEC-002 (Secrets): rules removed or changed (R2 Signed in)')
-      expect(result.stdout).to.contain('OLD-001 (Old rule): advisory, Active')
+      expect(result.stdout).to.contain('Blocking findings (1):')
       expect(result.stdout).to.contain('R1 [high] (AUTH-001)  query GET /orders: Endpoint has no authentication.')
+      // The gate judges the release alone: nothing compares it with the tenant's current release.
+      expect(result.stdout).not.to.contain('Compared with').and.not.to.contain('introduced').and.not.to.contain('weaken')
       expect(result.stdout).to.contain('xano tenant deploy_release prod --release v1.2 --override-reason "<why>"')
       expect(process.exitCode).to.equal(2)
     })
@@ -218,7 +207,8 @@ describe('release policy checks', () => {
     it('--check exits 0 for a passing verdict and for a blocked tenant that is not gated', async () => {
       tenantRoutes(() => { throw new Error('deployed') })
       const pass = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2', '--check'], fixture.config)
-      expect(pass.stdout).to.contain('Policy gate: pass').and.to.contain('none (the tenant has no release yet')
+      expect(pass.stdout).to.contain('Policy gate: pass').and.to.contain('This release has no blocking policy findings.')
+      expect(pass.stdout).to.contain('Blocking findings in this release: 0')
       expect(process.exitCode ?? 0).to.equal(0)
 
       tenantRoutes(() => { throw new Error('deployed') }, () => json({...blocked, gated: false}))
@@ -246,7 +236,7 @@ describe('release policy checks', () => {
       tenantRoutes(() => refusal(blocked))
       const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
       expect(result.stdout).to.contain('Policy gate: blocked').and.to.contain('R1 [high]')
-      expect(result.error?.message).to.contain('Deploy blocked: 1 blocking policy finding')
+      expect(result.error?.message).to.contain('Deploy blocked: this release has 1 blocking policy finding.')
       expect(result.error?.message).to.contain('xano tenant deploy_release prod --release v1.2 --override-reason "<why>"')
       expect(result.error?.message).not.to.contain('Failed to deploy to tenant')
       expect(result.error).to.have.nested.property('oclif.exit', 2)

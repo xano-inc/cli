@@ -7,8 +7,8 @@ import {
   gateOverrideHint,
   gateRefusal,
   type GateRefused,
+  type LiveGateAnswer,
   liveGateLines,
-  type PolicyGateAnswer,
   quoted,
 } from '../../../utils/policy/gate.js'
 
@@ -21,11 +21,11 @@ interface Release {
   /** The release's policies the new branch left out (a key another policy holds, a policy that does not validate). */
   policies_skipped?: null | {keys?: string[]; message?: string}
   /** The set-live policy gate's verdict (`pass`, `overridden`, ...) with --set_live, when Policies is enabled. */
-  policy_gate?: null | PolicyGateAnswer
+  policy_gate?: LiveGateAnswer | null
 }
 
 /** A set-live refusal names the branch the release was deployed as, which stays. */
-type SetLiveRefusal = PolicyGateAnswer & {branch?: {id?: number; label?: string}}
+type SetLiveRefusal = LiveGateAnswer & {branch?: {id?: number; label?: string}}
 
 export default class ReleaseDeploy extends BaseCommand {
   static override args = {
