@@ -384,6 +384,30 @@ describe('release policy checks', () => {
       expect(JSON.parse(asJson.stdout).error).to.include({exit: 1})
     })
 
+    it('a set live refused for weakening a mandatory policy is a permission refusal: it names the branch that stays and exits 1', async () => {
+      const message = 'The release was deployed as branch "rollback". Set live refused: it weakens mandatory policy GATE-001, which needs the workspace:policy update permission. The live branch was not changed.'
+      const weakening = () => json({
+        code: 'ERROR_CODE_ACCESS_DENIED',
+        message,
+        payload: {branch: {id: 99, label: 'rollback'}, code: 'policy_weakening_permission_required', gate: 'set_live', level: 'update', permission: 'workspace:policy', policies: ['GATE-001']},
+      }, 403)
+      fixture.route(() => weakening())
+      const result = await deploy('-w', '40')
+      const error = oneLine(result.error?.message ?? '')
+      expect(error.startsWith(message)).to.equal(true)
+      expect(error).to.contain('--policy-override does not stand in for it.')
+      expect(error).to.contain('xano branch delete rollback -w 40')
+      expect(error).to.contain('xano branch set_live rollback -w 40')
+      expect(error).not.to.contain('Failed to deploy release')
+      expect(result.stdout).not.to.contain('Policy gate:')
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+
+      fixture.route(() => weakening())
+      const asJson = await deploy('-o', 'json')
+      expect(JSON.parse(asJson.stdout).error).to.include({exit: 1})
+      expect(asJson.error).to.have.nested.property('oclif.exit', 1)
+    })
+
     it('warns about the release policies the new branch left out', async () => {
       const skipped = {keys: ['AUTH-001'], message: '1 policy was left out (AUTH-001): The key "AUTH-001" is held by another policy on this branch.'}
       fixture.route(() => json({id: 12, name: 'v1.2', policies_skipped: skipped, policy_gate: null}))

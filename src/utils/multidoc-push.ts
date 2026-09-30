@@ -15,6 +15,7 @@ import {
   syncGuidToFrontmatter,
   toPushItems,
 } from './knowledge-sync.js'
+import {policyWeakeningGuidance, WEAKENING_REFUSAL} from './policy/permission.js'
 import {PushPolicyGateError} from './policy/push-gate.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
@@ -1732,6 +1733,13 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
 
   const refusal = payload as Record<string, unknown> | undefined
   if (status === 403 && refusal?.code === 'policy_gate') throw new PushPolicyGateError(refusal)
+  // Policy files that weaken a mandatory policy of the live branch, from a credential without
+  // workspace:policy update: a permission refusal (exit 1), not a blocking finding. The platform's
+  // sentence already reads "Push refused: … Nothing was imported.", so it is printed as it is.
+  if (status === 403 && refusal?.code === WEAKENING_REFUSAL) {
+    command.error(`${message}${target.explainRefusal?.(status, payload) ?? policyWeakeningGuidance(payload)}`)
+  }
+
   // The plan's policy cap: the platform's message names the plan, its cap and the remedy, and the
   // push itself would be refused the same way, so the preview stops here rather than skipping.
   if (status === 403 && refusal?.code === 'policy_plan_limit') command.error(`Push refused (${status}): ${message}`)

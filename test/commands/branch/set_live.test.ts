@@ -113,6 +113,46 @@ describe('branch set_live and the set-live policy gate', () => {
     expect(fixture.calls).to.have.length(0)
   })
 
+  describe('a branch that weakens a mandatory policy of the live branch', () => {
+    const message = 'Set live refused: it weakens mandatory policies GATE-001, GATE-002, which needs the workspace:policy update permission. The live branch was not changed.'
+    const weakening = () => json({
+      code: 'ERROR_CODE_ACCESS_DENIED',
+      message,
+      payload: {code: 'policy_weakening_permission_required', gate: 'set_live', level: 'update', permission: 'workspace:policy', policies: ['GATE-001', 'GATE-002']},
+    }, 403)
+
+    it('is a permission refusal: the platform\'s sentence and how to go on, exiting 1', async () => {
+      fixture.route(() => weakening())
+      const result = await setLive('-w', '7')
+      const error = oneLine(result.error?.message ?? '')
+      expect(error.startsWith(message)).to.equal(true)
+      expect(error).to.contain('--policy-override does not stand in for it.')
+      expect(error).to.contain('xano branch set_live rollback -w 7')
+      expect(error).to.contain('ask someone who holds that permission')
+      expect(error).not.to.contain('Failed to set branch as live')
+      expect(error).not.to.contain('ERROR_CODE_ACCESS_DENIED')
+      expect(result.stdout).not.to.contain('Policy gate:')
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+    })
+
+    it('under -o json prints the error document and exits 1', async () => {
+      fixture.route(() => weakening())
+      const result = await setLive('-o', 'json')
+      const output = JSON.parse(result.stdout)
+      expect(output.error).to.include({exit: 1})
+      expect(output.error.message).to.contain(message)
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+    })
+
+    it('--policy-override does not turn it into a gate refusal', async () => {
+      fixture.route(() => weakening())
+      const result = await setLive('--policy-override', 'Approved')
+      expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({override_reason: 'Approved'})
+      expect(oneLine(result.error?.message ?? '')).to.contain(message)
+      expect(result.error).to.have.nested.property('oclif.exit', 1)
+    })
+  })
+
   it('any other failure exits 1', async () => {
     fixture.route(() => json({code: 'ERROR_CODE_ACCESS_DENIED', message: 'Access denied.', payload: {code: 'policy_permission_required'}}, 403))
     const result = await setLive()

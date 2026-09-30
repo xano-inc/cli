@@ -10,7 +10,10 @@ import {
   type LiveGateAnswer,
   liveGateLines,
   quoted,
+  weakeningRefusal,
+  type WeakeningRefused,
 } from '../../../utils/policy/gate.js'
+import {policyWeakeningGuidance} from '../../../utils/policy/permission.js'
 
 interface Release {
   branch?: string
@@ -35,7 +38,7 @@ export default class ReleaseDeploy extends BaseCommand {
     }),
   }
   static description =
-    "[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch. With --set_live the branch is then set live through the set-live policy gate: when blocking findings refuse it, the branch stays, set live is refused, and the command exits 2 unless --policy-override gives a reason."
+    "[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch. With --set_live the branch is then set live through the set-live policy gate: when blocking findings refuse it, the branch stays, set live is refused, and the command exits 2 unless --policy-override gives a reason. A release that weakens a mandatory policy of the live branch needs workspace:policy update to be set live; without it the branch stays and the command exits 1."
   static examples = [
     `$ xano release deploy "v1.0"
 Are you sure you want to deploy release "v1.0"? (y/N) y
@@ -80,6 +83,8 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       required: false,
     }),
   }
+  /** Set once the platform refuses set live for a weakened mandatory policy: already explained, it exits 1 as it is. */
+  private refusedByPermission = false
   /** Set once the set-live policy gate refuses, the one failure that exits 2. */
   private refusedByPolicyGate = false
 
@@ -139,8 +144,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       )
 
       if (!response.ok) {
-        const refused = await gateRefusal(response)
-        if (refused) this.refuseSetLive(refused, flags, args.release_name)
+        await this.refuseIfSetLiveRefused(response, flags, args.release_name)
         const errorText = await response.text()
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
@@ -163,7 +167,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       const skipped = release.policies_skipped?.message
       if (skipped) this.warn(skipped)
     } catch (error) {
-      if (this.refusedByPolicyGate) throw error
+      if (this.refusedByPolicyGate || this.refusedByPermission) throw error
       if (error instanceof Error) {
         this.error(`Failed to deploy release: ${error.message}`)
       } else {
@@ -193,6 +197,14 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
     if (status) this.log(`  Policy gate: ${status}`)
   }
 
+  /** Stops the command when set live was refused after the branch was created: by the gate (exit 2) or for a weakened mandatory policy (exit 1). */
+  private async refuseIfSetLiveRefused(response: Response, flags: {branch?: string; output: string; workspace?: string}, releaseName: string): Promise<void> {
+    const refused = await gateRefusal(response)
+    if (refused) this.refuseSetLive(refused, flags, releaseName)
+    const weakening = await weakeningRefusal(response)
+    if (weakening) this.refuseWeakening(weakening, flags)
+  }
+
   /**
    * The set-live gate refused after the branch was created: the verdict, the refusal, and how to
    * proceed, exiting 2. Under `-o json` the refusal is `{branch_created, set_live, branch, message,
@@ -215,6 +227,22 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       `The branch was created; set live was refused. ${refused.message}${hint}${answer.can_override && !answer.override_denied ? `\nOr set "${label}" live from Studio's Branches panel, which asks for the reason.` : ''}`,
       {exit: 2},
     )
+  }
+
+  /**
+   * Set live was refused after the branch was created because the release weakens (or lacks) a
+   * mandatory policy of the live branch, and the credential lacks `workspace:policy` update. That is a
+   * permission refusal, not a blocking finding: it exits 1 (under `-o json` as `{error}`) with the
+   * platform's sentence, which names the branch, and how to go on.
+   */
+  private refuseWeakening(refused: WeakeningRefused, flags: {branch?: string; workspace?: string}): never {
+    const label = refused.payload.branch?.label || flags.branch
+    const workspace = flags.workspace ? ` -w ${quoted(flags.workspace)}` : ''
+    const ways = label
+      ? [`The branch stays. To remove it:  xano branch delete ${quoted(label)}${workspace}`, `Someone with that permission can set it live:  xano branch set_live ${quoted(label)}${workspace}`]
+      : []
+    this.refusedByPermission = true
+    this.error(`${refused.message}${policyWeakeningGuidance(refused.payload, ways)}`)
   }
 }
 

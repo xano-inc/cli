@@ -3,6 +3,7 @@ import type {PolicyFinding} from './types.js'
 
 import {describePolicyError} from './errors.js'
 import {findingLine} from './findings.js'
+import {WEAKENING_REFUSAL} from './permission.js'
 
 /** The release the tenant deploy gate judges. */
 export interface GateRelease {
@@ -191,8 +192,8 @@ export function gateRefusalOutput(refused: GateRefused, json: boolean): string[]
     : gateLines(refused.answer)
 }
 
-/** A policy gate's refusal read from a failed response: its message and answer, or `null` for any other failure. */
-export async function gateRefusal(response: Response): Promise<GateRefused | null> {
+/** A 403 whose `payload.code` is `code`: its trimmed message (`''` for none) and payload, or `null` for any other failure. The body is left unread. */
+async function coded403(response: Response, code: string): Promise<null | {message: string; payload: Record<string, unknown>}> {
   if (response.status !== 403) return null
   let body: unknown
   try {
@@ -202,10 +203,34 @@ export async function gateRefusal(response: Response): Promise<GateRefused | nul
   }
 
   const payload = body && typeof body === 'object' ? (body as {payload?: unknown}).payload : undefined
-  if (!payload || typeof payload !== 'object' || (payload as {code?: unknown}).code !== GATE_REFUSAL) return null
-  const answer = payload as PolicyGateAnswer
+  if (!payload || typeof payload !== 'object' || (payload as {code?: unknown}).code !== code) return null
   const {message} = (body as {message?: unknown})
-  return {answer, message: typeof message === 'string' && message.trim() ? message.trim() : (answer.message ?? 'Refused by the policy gate.')}
+  return {message: typeof message === 'string' ? message.trim() : '', payload: payload as Record<string, unknown>}
+}
+
+/** A policy gate's refusal read from a failed response: its message and answer, or `null` for any other failure. */
+export async function gateRefusal(response: Response): Promise<GateRefused | null> {
+  const refused = await coded403(response, GATE_REFUSAL)
+  if (!refused) return null
+  const answer = refused.payload as PolicyGateAnswer
+  return {answer, message: refused.message || (answer.message ?? 'Refused by the policy gate.')}
+}
+
+/**
+ * A change refused because it weakens a policy active and mandatory on the branch, from a caller
+ * without the `workspace:policy` update permission (`policy_weakening_permission_required`). A
+ * release deploy or archive import with set live adds the branch it landed, which stays.
+ */
+export interface WeakeningRefused {
+  message: string
+  payload: {branch?: {id?: number; label?: string}; code: string; gate?: string; level?: string; permission?: string; policies?: string[]}
+}
+
+/** The weakening refusal read from a failed response, or `null` for any other failure. */
+export async function weakeningRefusal(response: Response): Promise<null | WeakeningRefused> {
+  const refused = await coded403(response, WEAKENING_REFUSAL)
+  if (!refused) return null
+  return {message: refused.message || 'Refused: the change weakens a mandatory policy.', payload: refused.payload as WeakeningRefused['payload']}
 }
 
 /** What a gate preview needs from the command that asks for it. */
