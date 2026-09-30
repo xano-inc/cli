@@ -71,6 +71,9 @@
       "branch": {
         "description": "Manage workspace branches"
       },
+      "debug": {
+        "description": "Run and inspect XanoScript debug executions"
+      },
       "sandbox": {
         "description": "Manage your sandbox environment"
       },
