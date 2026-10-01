@@ -43,6 +43,8 @@ static examples = [
     `$ xano function:run calcScore --branch dev --logs`,
     `$ xano function:run calcScore --datasource test
 # Runs against the 'test' data source instead of 'live'`,
+    `$ xano function:run calcScore --tenant my-tenant
+# Runs the function on the tenant instead of the workspace`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
@@ -94,6 +96,11 @@ static override flags = {
       exclusive: ['json'],
       required: false,
     }),
+    tenant: Flags.string({
+      char: 't',
+      description: 'Tenant name to run the function on (defaults to the workspace)',
+      required: false,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -138,8 +145,9 @@ static override flags = {
       }
     }
 
-    // 3) Execute via the meta run endpoint.
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/run`
+    // 3) Execute via the meta run endpoint, scoped to the tenant when one is given.
+    const tenantPath = flags.tenant ? `/tenant/${encodeURIComponent(flags.tenant)}` : ''
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}${tenantPath}/function/run`
     const body: JsonObject = {input, name: functionName}
     if (branch) body.branch = branch
 

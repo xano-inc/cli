@@ -475,6 +475,7 @@ xano function run <name> --json @payload.json --data env=staging   # base payloa
 echo '{"email":"jo@x.com"}' | xano function run <name> --stdin -o json | jq .result
 xano function run <name> --branch dev --logs            # run on a branch, show execution logs
 xano function run <name> --datasource test              # run against the 'test' data source
+xano function run <name> --tenant my-tenant             # run on a tenant instead of the workspace
 ```
 
 `function create` and `function edit` save a function on the live branch through the publish policy gate. When
@@ -496,6 +497,9 @@ Input flexibility for `function run` (assembled into one JSON `input` object):
 `X-Data-Source` header, so table reads and writes hit that data source's tables. Omit it
 to run against `live`; an unknown label is rejected by the server with
 `Invalid data source.`
+
+`-t/--tenant <name>` runs the function on that tenant
+(`/workspace/{id}/tenant/{name}/function/run`) instead of the workspace.
 
 Merge order is JSON base first, then `--data` overrides. Missing required inputs are
 prompted for on an interactive terminal; in a non-TTY (CI) context the command fails
