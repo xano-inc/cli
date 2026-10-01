@@ -498,8 +498,8 @@ Input flexibility for `function run` (assembled into one JSON `input` object):
 to run against `live`; an unknown label is rejected by the server with
 `Invalid data source.`
 
-`-t/--tenant <name>` runs the function on that tenant
-(`/workspace/{id}/tenant/{name}/function/run`) instead of the workspace.
+`-t/--tenant <name>` runs the function on that tenant instead of the workspace by sending
+the `X-Tenant` header (also used when reading the function's declared inputs).
 
 Merge order is JSON base first, then `--data` overrides. Missing required inputs are
 prompted for on an interactive terminal; in a non-TTY (CI) context the command fails
