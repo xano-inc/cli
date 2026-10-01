@@ -2,8 +2,47 @@ import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
 import {resolve} from 'node:path'
 
+import type {PushPolicyCheck} from '../../../utils/policy/types.js'
+
 import BaseCommand from '../../../base-command.js'
-import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
+import {parseDocument} from '../../../utils/document-parser.js'
+import {
+  executePush,
+  FailedAfterImportError,
+  type PushFlags,
+  type PushResult,
+  type PushTarget,
+} from '../../../utils/multidoc-push.js'
+import {policyCodeGuidance} from '../../../utils/policy/errors.js'
+import {
+  policiesSkippedNotice,
+  policyCheckWarning,
+  policyDocumentSummary,
+  policyExitCode,
+  policySummary,
+  pushEvidence,
+} from '../../../utils/policy/feedback.js'
+import {BLANK_POLICY_OVERRIDE, blankPolicyOverride} from '../../../utils/policy/gate.js'
+import {policyFilePushGuidance} from '../../../utils/policy/permission.js'
+import {PushPolicyGateError} from '../../../utils/policy/push-gate.js'
+
+/** The `-o json` document for a push whose import ran: the import response and what was sent. */
+function importDocument(result: PushResult): Record<string, unknown> {
+  return {...result.response, documents: result.sent.length, imported: true, knowledge: result.knowledge}
+}
+
+/** The policy check the import answered with, if any. */
+function policyCheck(result: PushResult): PushPolicyCheck | undefined {
+  return result.response?.policy_check as PushPolicyCheck | undefined
+}
+
+/**
+ * The platform's one notice that it left the push's policy files out (the Policies feature is off):
+ * the import's, else its preview's, since a partial push may not send the files the preview named.
+ */
+function policiesSkipped(result: PushResult): null | string {
+  return policiesSkippedNotice(result.response) ?? policiesSkippedNotice(result.preview)
+}
 
 export default class Push extends BaseCommand {
   static override description =
@@ -60,6 +99,9 @@ Push functions but exclude test files
     `$ xano workspace push -i "knowledge/**"
 Push only knowledge files (agents.md / skills / docs)
 `,
+    `$ xano workspace push -m "Tightened the auth policies"
+Label the Version History entry of each policy this push changes; other objects get no message
+`,
     `$ xano workspace push --sync --delete
 Full sync including knowledge files; removes server objects not present locally
 `,
@@ -68,7 +110,7 @@ Full sync including knowledge files; removes server objects not present locally
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
-      description: 'Branch name (optional if set in profile, defaults to live)',
+      description: "Branch name (defaults to profile branch or live; -b '' selects live)",
       required: false,
     }),
     delete: Flags.boolean({
@@ -119,6 +161,19 @@ Full sync including knowledge files; removes server objects not present locally
       multiple: true,
       required: false,
     }),
+    message: Flags.string({
+      char: 'm',
+      description: 'Labels the Version History entry of each policy this push changes; other objects get no message',
+      required: false,
+    }),
+    output: Flags.string({
+      char: 'o',
+      default: 'summary',
+      description: 'Output format; JSON retains the complete import and policy feedback',
+      options: ['summary', 'json'],
+      required: false,
+    }),
+    'policy-override': Flags.string({description: 'Override a blocking live-branch policy gate with an audited reason (requires workspace:policy update)'}),
     records: Flags.boolean({
       default: false,
       description:
@@ -149,8 +204,19 @@ Full sync including knowledge files; removes server objects not present locally
     }),
   }
 
+  protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (error instanceof PushPolicyGateError) {
+      if (this.isJsonOutput()) this.log(JSON.stringify({imported: false, refused: error.payload}, null, 2))
+      this.error(error.message, {exit: 2})
+    }
+
+    if (error instanceof FailedAfterImportError) return this.catchAfterImport(error)
+    return this.catchAsOperational(error)
+  }
+
   async run(): Promise<void> {
     const {flags} = await this.parse(Push)
+    if (blankPolicyOverride(flags['policy-override'])) this.error(BLANK_POLICY_OVERRIDE)
     const {profile, profileName} = this.resolveProfile(flags)
 
     // Determine workspace_id from flag or profile
@@ -177,13 +243,22 @@ Full sync including knowledge files; removes server objects not present locally
       this.error(`Not a directory: ${inputDir}`)
     }
 
-    const branch = flags.branch || profile.branch || ''
+    const branch = flags.branch ?? profile.branch ?? ''
     const baseUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}`
+    const json = flags.output === 'json'
+    // Only the import writes Version History entries, so only the import carries the message.
+    const message = flags.message?.trim()
 
     const target: PushTarget = {
       buildDryRunUrl: (params) => `${baseUrl}/multidoc/dry-run?${params.toString()}`,
-      buildPushUrl: (params) => `${baseUrl}/multidoc?${params.toString()}`,
+      buildPushUrl(params) {
+        const query = new URLSearchParams(params)
+        if (message) query.set('message', message)
+        if (flags['policy-override']?.trim()) query.set('override_reason', flags['policy-override'].trim())
+        return `${baseUrl}/multidoc?${query.toString()}`
+      },
       cliVersion: this.config.version,
+      explainRefusal: (status, payload) => (status === 403 ? policyFilePushGuidance(payload) : policyCodeGuidance(payload) || undefined),
       instanceOrigin: profile.instance_origin,
       label: `workspace ${workspaceId}`,
       supportsBranches: true,
@@ -205,7 +280,7 @@ Full sync including knowledge files; removes server objects not present locally
       verbose: flags.verbose,
     }
 
-    await executePush(
+    const result = await executePush(
       {
         accessToken: profile.access_token,
         branch,
@@ -215,10 +290,67 @@ Full sync including knowledge files; removes server objects not present locally
           listUrl: () => `${baseUrl}/knowledge/sync`,
           rootDir: inputDir,
         },
+        // Under `-o json` stdout carries one JSON document, so progress goes to stderr.
+        log: json ? this.logToStderr.bind(this) : undefined,
         verboseFetch: this.verboseFetch.bind(this),
       },
       target,
       pushFlags,
     )
+
+    if (json) {
+      this.log(JSON.stringify(result.stopped
+        ? {imported: false, preview: result.preview, reason: result.stopped}
+        : importDocument(result), null, 2))
+    }
+
+    // Policy feedback describes the multidoc import, so a push that imported none has none. Its
+    // preview may still say that the policy files are left out.
+    if (result.response) {
+      this.reportPolicyFeedback(result, json)
+    } else {
+      const skipped = policiesSkipped(result)
+      if (skipped) this.warn(skipped)
+    }
+  }
+
+  /**
+   * A failure after the import landed. The import stands, so its policy feedback is reported as for
+   * any push and a blocking finding still exits 2; otherwise the failure exits 1. Under `-o json`
+   * stdout holds the import's document with the failure as `error`.
+   */
+  private catchAfterImport(error: FailedAfterImportError): never {
+    const json = this.isJsonOutput()
+    const exit = policyExitCode(policyCheck(error.imported)) || 1
+    if (json) this.log(JSON.stringify({...importDocument(error.imported), error: {exit, message: error.message}}, null, 2))
+    this.reportPolicyFeedback(error.imported, json)
+    this.error(error, {exit})
+  }
+
+  /**
+   * What happened to the policy documents, then the policy check the import answered with. When the
+   * platform left the policy files out, its notice says so instead of a count of what was sent.
+   */
+  private reportPolicyFeedback(result: PushResult, json: boolean): void {
+    const check = policyCheck(result)
+    const skipped = policiesSkipped(result)
+    if (skipped) this.warn(skipped)
+    if (!json) {
+      if (!skipped) {
+        const sentPolicies = result.sent.filter((entry) => parseDocument(entry.content)?.type === 'policy').length
+        for (const line of policyDocumentSummary(result.preview, sentPolicies)) this.log(line)
+      }
+
+      for (const line of policySummary(check, pushEvidence(check))) this.log(line)
+    }
+
+    const warning = policyCheckWarning(check)
+    if (warning) this.warn(warning)
+    const code = policyExitCode(check)
+    if (code) {
+      process.exitCode = code
+      if (!json) this.log('Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
+      this.warn('Workspace import completed with blocking policy findings; the imported changes were not rolled back.')
+    }
   }
 }

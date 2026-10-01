@@ -205,6 +205,17 @@ export default abstract class BaseCommand extends Command {
     }
   }
 
+  /**
+   * Report a failure as exit 1 for commands that reserve exit 2 for findings: operational errors,
+   * flag errors and oclif's own default exit 2 all become 1, and under `-o json` the failure is also
+   * written to stdout as `{"error": {"exit": 1, "message"}}`. A deliberate exit 0 passes through.
+   */
+  protected async catchAsOperational(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (error.oclif?.exit === 0) return super.catch(error)
+    if (this.isJsonOutput()) this.log(JSON.stringify({error: {exit: 1, message: error.message}}, null, 2))
+    this.error(error, {exit: 1})
+  }
+
   async finally(_: Error | undefined): Promise<void> {
     if (this.updateNotice && !this.isJsonOutput()) {
       this.log(this.updateNotice)
@@ -283,6 +294,18 @@ export default abstract class BaseCommand extends Command {
 
     const forceUpdateCheck = process.env.XANO_FORCE_UPDATE_CHECK === '1'
     this.updateNotice = checkForUpdate(this.config.version, forceUpdateCheck)
+  }
+
+  /** Raw-argv check: the parsed flags are not available yet when the banner prints. */
+  protected isJsonOutput(): boolean {
+    const args = this.argv
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--output' && args[i + 1] === 'json') return true
+      if (args[i] === '-o' && args[i + 1] === 'json') return true
+      if (args[i] === '--output=json' || args[i] === '-o=json') return true
+    }
+
+    return false
   }
 
   protected loadCredentialsFile(): CredentialsFile | null {
@@ -450,20 +473,21 @@ export default abstract class BaseCommand extends Command {
       ...(timeoutMs > 0 && !options.signal ? {signal: AbortSignal.timeout(timeoutMs)} : {}),
     })
     const contentType = headers['Content-Type'] || 'application/json'
+    const logDiagnostic = this.isJsonOutput() ? this.logToStderr.bind(this) : this.log.bind(this)
 
     if (verbose) {
-      this.log('')
-      this.log('─'.repeat(60))
-      this.log(`→ ${method} ${url}`)
-      this.log(`  Content-Type: ${contentType}`)
+      logDiagnostic('')
+      logDiagnostic('─'.repeat(60))
+      logDiagnostic(`→ ${method} ${url}`)
+      logDiagnostic(`  Content-Type: ${contentType}`)
       if (authToken) {
-        this.log(`  Authorization: Bearer ${authToken.slice(0, 8)}...${authToken.slice(-4)}`)
+        logDiagnostic(`  Authorization: Bearer ${authToken.slice(0, 8)}...${authToken.slice(-4)}`)
       }
 
       if (options.body) {
         const bodyStr = typeof options.body === 'string' ? options.body : String(options.body)
         const bodyPreview = bodyStr.length > 500 ? bodyStr.slice(0, 500) + '...' : bodyStr
-        this.log(`  Body: ${bodyPreview}`)
+        logDiagnostic(`  Body: ${bodyPreview}`)
       }
     }
 
@@ -479,9 +503,7 @@ export default abstract class BaseCommand extends Command {
       if (dispatcherSupported && isInvalidDispatcherError(error)) {
         dispatcherSupported = false
         if (verbose) {
-          this.log(
-            '  (this Node runtime rejected undici dispatcher; retrying without it — see DEV-7773)',
-          )
+          logDiagnostic('  (this Node runtime rejected undici dispatcher; retrying without it — see DEV-7773)')
         }
 
         response = await fetch(url, buildFetchOptions(false))
@@ -493,9 +515,9 @@ export default abstract class BaseCommand extends Command {
     const elapsed = Date.now() - startTime
 
     if (verbose) {
-      this.log(`← ${response.status} ${response.statusText} (${elapsed}ms)`)
-      this.log('─'.repeat(60))
-      this.log('')
+      logDiagnostic(`← ${response.status} ${response.statusText} (${elapsed}ms)`)
+      logDiagnostic('─'.repeat(60))
+      logDiagnostic('')
     }
 
     return response
@@ -591,17 +613,6 @@ export default abstract class BaseCommand extends Command {
 
     conclude(`stopped waiting after ${Math.round(timeoutMs / 1000)}s (last status: ${stage || 'unknown'})`)
     return stage
-  }
-
-  private isJsonOutput(): boolean {
-    const args = process.argv
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] === '--output' && args[i + 1] === 'json') return true
-      if (args[i] === '-o' && args[i + 1] === 'json') return true
-      if (args[i] === '--output=json' || args[i] === '-o=json') return true
-    }
-
-    return false
   }
 
   /**

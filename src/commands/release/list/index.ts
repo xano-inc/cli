@@ -1,7 +1,8 @@
 import {Flags} from '@oclif/core'
 
-import BaseCommand from '../../../base-command.js'
+import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
 import {buildPagingJson} from '../../../utils/paging.js'
+import {readReleasePolicyChecks, type ReleasePolicyCheck, releasePolicyCheckTag} from '../../../utils/policy/release.js'
 
 interface Release {
   branch?: string
@@ -13,13 +14,24 @@ interface Release {
   resource_size?: number
 }
 
+/** The stored checks by release id, or `null` when they could not be read (see `readReleasePolicyChecks`). */
+type ReleaseChecks = Map<number, ReleasePolicyCheck> | null
+
 export default class ReleaseList extends BaseCommand {
-  static description = 'List all releases in a workspace'
+  static description =
+    "List all releases in a workspace, each with its stored policy check when the credential can read policies (the release's own check, as Studio's Policies column shows it)"
   static examples = [
     `$ xano release list
 Releases in workspace 5:
   - v1.0 (ID: 10) - main
   - v1.1-hotfix (ID: 11) - main [hotfix]
+`,
+    `$ xano release list
+Releases in workspace 5:
+  - v1.2 (ID: 12) - main (9/28/2026, 4:12:03 PM PDT) [policies: 2 blocking, 1 advisory]
+  - v1.1-hotfix (ID: 11) - main [hotfix] (9/27/2026, 9:40:15 AM PDT) [policies: passed]
+  - v1.0 (ID: 10) - main (9/20/2026, 1:05:44 PM PDT) [policies: not checked]
+Policy check details: xano policy runs --release <name>
 `,
     `$ xano release list -w 5 --output json`,
   ]
@@ -81,21 +93,17 @@ Releases in workspace 5:
         this.error('Unexpected API response format')
       }
 
+      const checks = await this.policyChecks(profile, String(workspaceId), releases, flags.verbose)
+
       if (flags.output === 'json') {
-        this.log(JSON.stringify(buildPagingJson({items: releases}, {tier: 'none'}), null, 2))
+        this.log(JSON.stringify(buildPagingJson({items: withPolicyChecks(releases, checks)}, {tier: 'none'}), null, 2))
       } else if (releases.length === 0) {
-          this.log('No releases found')
-        } else {
-          this.log(`Releases in workspace ${workspaceId}:`)
-          for (const release of releases) {
-            const branch = release.branch ? ` - ${release.branch}` : ''
-            const hotfix = release.hotfix ? ' [hotfix]' : ''
-            const createdAt = release.created_at
-              ? ` (${new Date(release.created_at).toLocaleString(undefined, {timeZoneName: 'short'})})`
-              : ''
-            this.log(`  - ${release.name} (ID: ${release.id})${branch}${hotfix}${createdAt}`)
-          }
-        }
+        this.log('No releases found')
+      } else {
+        this.log(`Releases in workspace ${workspaceId}:`)
+        for (const release of releases) this.log(releaseLine(release, checks))
+        if (checks) this.log('Policy check details: xano policy runs --release <name>')
+      }
     } catch (error) {
       if (error instanceof Error) {
         this.error(`Failed to list releases: ${error.message}`)
@@ -104,4 +112,47 @@ Releases in workspace 5:
       }
     }
   }
+
+  /**
+   * The releases' stored policy checks, read once for the whole list. The list never fails or
+   * changes because of this read: it answers `null` when the checks cannot be read (the Policies
+   * feature is off, the credential lacks `workspace:policy` read, or the request failed), and the
+   * list then prints as it would without policies.
+   */
+  private async policyChecks(profile: ProfileConfig, workspace: string, releases: Release[], verbose: boolean): Promise<ReleaseChecks> {
+    if (releases.length === 0) return null
+    return readReleasePolicyChecks(
+      {logToStderr: (message) => this.logToStderr(message), verboseFetch: (...args) => this.verboseFetch(...args)},
+      {branch: '', profile, verbose, workspace},
+      releases.map(release => release.id),
+    )
+  }
+}
+
+/** A release's summary line, tagged with its stored check when the checks were read. */
+function releaseLine(release: Release, checks: ReleaseChecks): string {
+  const branch = release.branch ? ` - ${release.branch}` : ''
+  const hotfix = release.hotfix ? ' [hotfix]' : ''
+  const createdAt = release.created_at
+    ? ` (${new Date(release.created_at).toLocaleString(undefined, {timeZoneName: 'short'})})`
+    : ''
+  const policies = checks ? ` ${releasePolicyCheckTag(checks.get(release.id))}` : ''
+  return `  - ${release.name} (ID: ${release.id})${branch}${hotfix}${createdAt}${policies}`
+}
+
+/**
+ * The releases for `-o json`: each gains `policy_check` (its stored check as the platform lists
+ * it, without the release id it is keyed by, or `null` for a release with no stored check) when
+ * the checks were read, and stays as served when they could not be, so a reader can tell an
+ * unchecked release (`null`) from checks the CLI could not read (absent).
+ */
+function withPolicyChecks(releases: Release[], checks: ReleaseChecks): Array<Release & {policy_check?: null | Omit<ReleasePolicyCheck, 'release_id'>}> {
+  if (!checks) return releases
+  return releases.map(release => {
+    const check = checks.get(release.id)
+    if (!check) return {...release, policy_check: null}
+    const stored = {...check}
+    delete stored.release_id
+    return {...release, policy_check: stored}
+  })
 }

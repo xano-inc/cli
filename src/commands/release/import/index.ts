@@ -3,9 +3,13 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
+import {releaseImportRefusal, releasePolicyRunLines} from '../../../utils/policy/release.js'
 
 interface ImportResult {
   id: number
+  name?: string
+  /** The policy check the import stored; see `releasePolicyRunLines`. */
+  policy_run?: unknown
 }
 
 export default class ReleaseImport extends BaseCommand {
@@ -83,7 +87,8 @@ Imported release as #15
       if (!response.ok) {
         const errorText = await response.text()
         this.error(
-          `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
+          releaseImportRefusal(errorText, response.status, apiUrl) ??
+            `API request failed with status ${response.status}: ${response.statusText}\n${errorText}`,
         )
       }
 
@@ -94,6 +99,7 @@ Imported release as #15
       } else {
         const sizeMb = (fileBuffer.length / 1024 / 1024).toFixed(2)
         this.log(`Imported release as #${result.id} (${sizeMb} MB)`)
+        for (const line of releasePolicyRunLines(result.policy_run, result.name, result.id)) this.log(line)
       }
     } catch (error) {
       if (error instanceof Error) {

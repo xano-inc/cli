@@ -6,6 +6,7 @@ import * as os from 'node:os'
 import path from 'node:path'
 
 import BaseCommand, {buildUserAgent, type ProfileConfig} from '../../../base-command.js'
+import {BLANK_POLICY_OVERRIDE, blankPolicyOverride, gateRefusal, type GateRefused, publishRefusal, quoted} from '../../../utils/policy/gate.js'
 
 interface Function {
   created_at?: number | string
@@ -82,6 +83,7 @@ Name: my_function
   ...
 }
 `,
+    `$ xano function:edit 163 -f function.xs --policy-override "Exception approved; finding tracked in JIRA-12"`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -104,6 +106,7 @@ Name: my_function
       options: ['summary', 'json'],
       required: false,
     }),
+    'policy-override': Flags.string({description: 'Publish past a blocking live-branch publish policy gate with an audited reason (requires workspace:policy update)'}),
     publish: Flags.boolean({
       default: true,
       description: 'Publish the function after editing',
@@ -122,9 +125,18 @@ Name: my_function
       required: false,
     }),
   }
+/** Set once the publish policy gate refuses, the one failure that exits 2. */
+  private refusedByPolicyGate = false
+
+  /** Exit 2 is the publish gate's refusal; every other failure, flag errors included, exits 1. */
+  protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (this.refusedByPolicyGate) return super.catch(error)
+    return this.catchAsOperational(error)
+  }
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(FunctionEdit)
+    if (blankPolicyOverride(flags['policy-override'])) this.error(BLANK_POLICY_OVERRIDE)
 
     const {profile, profileName} = this.resolveProfile(flags)
 
@@ -203,6 +215,9 @@ Name: my_function
       include_xanoscript: 'false',
       publish: flags.publish ? 'true' : 'false',
     })
+    // A reason from someone with workspace:policy update publishes past a blocking publish gate.
+    const overrideReason = flags['policy-override']?.trim()
+    if (overrideReason) queryParams.set('override_reason', overrideReason)
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/${functionId}?${queryParams.toString()}`
 
     // Update function via API
@@ -223,6 +238,8 @@ Name: my_function
       )
 
       if (!response.ok) {
+        const refused = await gateRefusal(response)
+        if (refused) this.refusePublish(refused, flags, functionId)
         const errorText = await response.text()
         this.error(`API request failed with status ${response.status}: ${response.statusText}\n${errorText}`)
       }
@@ -244,6 +261,7 @@ Name: my_function
         this.log(`Name: ${result.name}`)
       }
     } catch (error) {
+      if (this.refusedByPolicyGate) throw error
       if (error instanceof Error) {
         this.error(`Failed to update function: ${error.message}`)
       } else {
@@ -492,5 +510,23 @@ Name: my_function
       // Resume stdin if it was paused
       process.stdin.resume()
     })
+  }
+
+  /**
+   * The live-branch publish gate refused the update: the verdict on stdout (under `-o json`,
+   * `{updated: false, message, policy_gate}`), then the platform's message and how to proceed,
+   * exiting 2.
+   */
+  private refusePublish(refused: GateRefused, flags: {file?: string; output: string; stdin: boolean; workspace?: string}, functionId: string): never {
+    const workspace = flags.workspace ? ` -w ${quoted(flags.workspace)}` : ''
+    const source = flags.file ? ` -f ${quoted(flags.file)}` : flags.stdin ? ' --stdin' : ''
+    const {lines, message} = publishRefusal(refused, {
+      json: flags.output === 'json',
+      outcome: 'updated',
+      rerun: `xano function edit ${quoted(functionId)}${workspace}${source} --policy-override "<why>"`,
+    })
+    for (const line of lines) this.log(line)
+    this.refusedByPolicyGate = true
+    this.error(message, {exit: 2})
   }
 }

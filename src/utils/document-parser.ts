@@ -13,6 +13,21 @@ export interface ParsedDocument {
 }
 
 /**
+ * The platform's policy key pattern, kept offline for file names. A command that already holds the
+ * catalogue validates a key against the catalogue's `document.key.pattern` instead.
+ */
+export const POLICY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
+/**
+ * The file name, without `.xs`, for a policy key. The pattern is the platform's own key pattern, so a
+ * key from the server can never name a path outside `policies/`.
+ */
+export function policyBaseName(key: string): string {
+  if (!POLICY_KEY_PATTERN.test(key)) throw new Error(`Invalid policy key: ${key}`)
+  return key
+}
+
+/**
  * Parse a single XanoScript document to extract its type, name, and optional verb/api_group.
  * Skips leading comment lines (starting with //) to find the first meaningful line.
  */
@@ -52,6 +67,9 @@ export function parseDocument(content: string): null | ParsedDocument {
   if (name.startsWith('"') && name.endsWith('"')) {
     name = name.slice(1, -1)
   }
+
+  // Policy bodies are opaque. Prose/parameters may mention guid or api_group; these are not document identity.
+  if (type === 'policy') return {content, name, type}
 
   // Extract verb if present (e.g., verb=GET)
   let verb: string | undefined
@@ -212,6 +230,11 @@ export function resolveDocumentPath(
 ): DocumentPlacement {
   const {getApiGroupFolder, getChannelServer, join, snakeCase} = deps
   const sanitize = (name: string): string => sanitizeDocumentName(name, snakeCase)
+
+  if (doc.type === 'policy') {
+    // policy → policies/{key}.xs (the key is validated, never snake_cased)
+    return {baseName: policyBaseName(doc.name), typeDir: join(outputDir, 'policies')}
+  }
 
   if (doc.type === 'workspace') {
     // workspace → workspace/{name}.xs

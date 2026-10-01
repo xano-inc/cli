@@ -9,9 +9,11 @@ import {
   buildChannelServerResolver,
   type ParsedDocument,
   parseDocument,
+  policyBaseName,
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
+import {type PolicyListing, policyListing} from '../../../utils/policy/request.js'
 
 export default class Pull extends BaseCommand {
   static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
@@ -35,7 +37,7 @@ Pulled 58 documents
     ...BaseCommand.baseFlags,
     branch: Flags.string({
       char: 'b',
-      description: 'Branch name (optional if set in profile, defaults to live)',
+      description: "Branch name (defaults to profile branch or live; -b '' selects live)",
       required: false,
     }),
     directory: Flags.string({
@@ -85,8 +87,8 @@ Pulled 58 documents
       )
     }
 
-    // Determine branch from flag or profile
-    const branch = flags.branch || profile.branch || ''
+    // Determine branch from flag or profile; `-b ''` selects live whatever the profile's branch, as in push.
+    const branch = flags.branch ?? profile.branch ?? ''
 
     // Build query parameters
     const queryParams = new URLSearchParams({
@@ -148,13 +150,17 @@ Pulled 58 documents
       }
     }
 
+    // Resolve the output directory
+    const outputDir = path.resolve(flags.directory)
+    const clashing = await this.policyClashes(documents, outputDir, () => policyListing(
+      {logToStderr: (message) => this.logToStderr(message), verboseFetch: (...args) => this.verboseFetch(...args)},
+      {branch, profile, verbose: flags.verbose, workspace: workspaceId},
+    ))
+
     if (documents.length === 0) {
       this.log('No documents found in response')
       return
     }
-
-    // Resolve the output directory
-    const outputDir = path.resolve(flags.directory)
 
     // Create the output directory if it doesn't exist
     fs.mkdirSync(outputDir, {recursive: true})
@@ -171,7 +177,7 @@ Pulled 58 documents
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
     let writtenCount = 0
-    for (const doc of documents) {
+    for (const doc of documents.filter((document) => !clashing.has(document))) {
       const {baseName, typeDir} = resolveDocumentPath(doc, outputDir, {
         getApiGroupFolder,
         getChannelServer,
@@ -218,5 +224,76 @@ Pulled 58 documents
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
+    // Policy files state the rules; the skill the instance generates tells an agent how to follow them.
+    // Only a pull that carried policy files says so: an instance with the Policies feature off exports
+    // none, and its skill route answers 403.
+    if (documents.some((doc) => doc.type === 'policy')) {
+      this.log('Run `xano skills pull` to install the policies skill for your coding agent.')
+    }
+  }
+
+  /**
+   * Policy keys are unique on the server without regard to case, but an older export or a local file
+   * can still differ only in case, and file names are not case-sensitive on every checkout. The
+   * policies whose file name differs only in case from another exported policy, or from a local file
+   * it would overwrite, are left out with a warning; everything else is written. Local policy files
+   * absent from the export are kept. They are reported as stale only when this credential reads the
+   * branch's policies, because an export leaves out the policies its credential cannot read, and
+   * every policy while the Policies feature is off.
+   */
+  private async policyClashes(
+    documents: ParsedDocument[],
+    outputDir: string,
+    readsPolicies: () => Promise<PolicyListing>,
+  ): Promise<Set<ParsedDocument>> {
+    const exported = new Map<string, string[]>()
+    for (const doc of documents.filter(doc => doc.type === 'policy')) {
+      const filename = `${policyBaseName(doc.name)}.xs`
+      exported.set(filename.toLowerCase(), [...(exported.get(filename.toLowerCase()) ?? []), filename])
+    }
+
+    const clashes = new Map<string, string>()
+    for (const [normalized, names] of exported) {
+      if (names.length > 1) clashes.set(normalized, names.map(name => `policies/${name}`).join(' and '))
+    }
+
+    const policyDir = path.join(outputDir, 'policies')
+    const localFiles = fs.existsSync(policyDir)
+      ? fs.readdirSync(policyDir, {withFileTypes: true})
+        .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.xs'))
+        .map(entry => entry.name)
+        .sort()
+      : []
+    const stale: string[] = []
+    for (const filename of localFiles) {
+      const names = exported.get(filename.toLowerCase())
+      if (!names) stale.push(`policies/${filename}`)
+      else if (!names.includes(filename) && !clashes.has(filename.toLowerCase())) {
+        clashes.set(filename.toLowerCase(), `policies/${names[0]} (local policies/${filename})`)
+      }
+    }
+
+    if (clashes.size > 0) {
+      this.warn(
+        `Policy files that differ only in case are left out of this pull; everything else is written:\n  ${[...clashes.values()].join('\n  ')}\n` +
+          'Rename one of the policies, or move the local file aside, then pull again.',
+      )
+    }
+
+    if (stale.length > 0) {
+      // An export that carries a policy was made by a credential that reads them.
+      const listing = exported.size > 0 ? 'listed' : await readsPolicies()
+      if (listing === 'listed') {
+        this.warn(
+          `Stale local policy files are absent from this export and were kept:\n  ${stale.join('\n  ')}\nReview them before pushing; a push can publish these policies again.`,
+        )
+      } else if (listing === 'feature_off') {
+        this.log('Local policy files were kept: Policies are not enabled on this instance, so the export carries none.')
+      } else {
+        this.log(`Local policy files were kept: this credential cannot list this workspace's policies, and the export carries none.`)
+      }
+    }
+
+    return new Set(documents.filter(doc => doc.type === 'policy' && clashes.has(`${doc.name}.xs`.toLowerCase())))
   }
 }

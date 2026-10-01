@@ -1,4 +1,4 @@
-import {Command, ux} from '@oclif/core'
+import {Command, Errors, ux} from '@oclif/core'
 import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
@@ -15,6 +15,8 @@ import {
   syncGuidToFrontmatter,
   toPushItems,
 } from './knowledge-sync.js'
+import {policyWeakeningGuidance, WEAKENING_REFUSAL} from './policy/permission.js'
+import {PushPolicyGateError} from './policy/push-gate.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
@@ -41,6 +43,11 @@ export interface PushTarget {
   buildPushUrl: (queryParams: URLSearchParams) => string
   /** CLI version string */
   cliVersion: string
+  /**
+   * Guidance for a refusal this target recognises, given the HTTP status and the server's payload.
+   * A preview or import refused that way stops with the message and this guidance appended.
+   */
+  explainRefusal?: (status: number, payload: unknown) => string | undefined
   /** Instance origin URL (e.g., "https://x123-abcd-1234.xano.io") */
   instanceOrigin: string
   /** Human-readable label for log messages (e.g., "sandbox environment", "workspace 40") */
@@ -76,6 +83,8 @@ export interface PushContext {
   inputDir: string
   /** Optional knowledge sync config. Only workspace push sets this. */
   knowledge?: KnowledgeConfig
+  /** Where progress and diagnostics go; defaults to the command's stdout. */
+  log?: (message: string) => void
   verboseFetch: (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
 }
 
@@ -88,7 +97,7 @@ interface GuidMapEntry {
   verb?: string
 }
 
-interface DryRunSummary {
+export interface DryRunSummary {
   created: number
   deleted: number
   truncated: number
@@ -96,7 +105,7 @@ interface DryRunSummary {
   updated: number
 }
 
-interface DryRunOperation {
+export interface DryRunOperation {
   action: string
   details: string
   name: string
@@ -104,12 +113,34 @@ interface DryRunOperation {
   type: string
 }
 
-interface DryRunResult {
+export interface DryRunResult {
   operations: DryRunOperation[]
   /** True when the sandbox currently holds a different source workspace than the one being pushed. */
   source_workspace_mismatch?: boolean
   summary: Record<string, DryRunSummary>
   workspace_name?: string
+}
+
+/** What a push did, for the calling command to report. */
+export interface PushResult {
+  knowledge: {deleted: number; imported: number}
+  preview: DryRunResult | null
+  /** The multidoc import's response body; absent when no multidoc was imported. */
+  response?: Record<string, unknown>
+  /** The documents the multidoc import carried. */
+  sent: Array<{content: string; filePath: string}>
+  /** Why the push stopped before writing anything, when it did. */
+  stopped?: 'blocked' | 'cancelled' | 'dry-run' | 'no-changes'
+}
+
+/**
+ * A push that failed after its multidoc import landed. The import is not rolled back, so the error
+ * carries what it did for the calling command to report beside the failure.
+ */
+export class FailedAfterImportError extends Errors.CLIError {
+  constructor(message: string, readonly imported: PushResult) {
+    super(message)
+  }
 }
 
 /**
@@ -858,9 +889,12 @@ export async function executePush(
   ctx: PushContext,
   target: PushTarget,
   flags: PushFlags,
-): Promise<void> {
+): Promise<PushResult> {
   const {accessToken, command, inputDir, verboseFetch} = ctx
-  const log = command.log.bind(command)
+  const log = ctx.log ?? command.log.bind(command)
+  let dryRunPreview: DryRunResult | null = null
+  const stop = (stopped: NonNullable<PushResult['stopped']>): PushResult =>
+    ({knowledge: {deleted: 0, imported: 0}, preview: dryRunPreview, sent: [], stopped})
 
   // ── Collect knowledge entries (before file check so knowledge-only push works) ─
 
@@ -938,7 +972,7 @@ export async function executePush(
         const doFlatten = await confirm('Flatten these file(s) in place and continue the push?')
         if (!doFlatten) {
           log('Push cancelled. Run `xano flatten <file>` yourself, or re-run to be prompted again.')
-          return
+          return stop('cancelled')
         }
       } else {
         command.error(
@@ -1072,7 +1106,6 @@ export async function executePush(
 
   // ── Dry-run / Preview ─────────────────────────────────────────────────
 
-  let dryRunPreview: DryRunResult | null = null
   const dryRunUrl = knowledgeOnly ? null : target.buildDryRunUrl(queryParams)
 
   if (dryRunUrl && (flags['dry-run'] || !flags.force)) {
@@ -1206,7 +1239,7 @@ export async function executePush(
             log(ux.colorize('red', `Push blocked: ${criticalOps.length} critical error(s) found.`))
 
             if (!flags.force) {
-              return
+              return stop('blocked')
             }
 
             log(ux.colorize('yellow', 'Proceeding anyway due to --force flag.'))
@@ -1246,11 +1279,11 @@ export async function executePush(
           if (!hasChanges && !hasLocalRecords) {
             log('')
             log('No changes to push.')
-            return
+            return stop('no-changes')
           }
 
           if (flags['dry-run']) {
-            return
+            return stop('dry-run')
           }
 
           // Warn when the sandbox currently holds a different source workspace than the one being
@@ -1279,7 +1312,7 @@ export async function executePush(
               const proceed = await confirm('Continue with push anyway?')
               if (!proceed) {
                 log('Push cancelled. Run `xano sandbox reset` then retry.')
-                return
+                return stop('cancelled')
               }
 
               mismatchConfirmed = true
@@ -1307,7 +1340,7 @@ export async function executePush(
               const confirmed = await confirm(message)
               if (!confirmed) {
                 log('Push cancelled.')
-                return
+                return stop('cancelled')
               }
             } else {
               command.error('Non-interactive environment detected. Use --force to skip confirmation.')
@@ -1321,14 +1354,15 @@ export async function executePush(
           await confirmOrAbort(command, log)
         }
       } else {
-        await handleDryRunError(dryRunResponse, command, flags, target)
+        await handleDryRunError(dryRunResponse, command, target, {log, verbose: flags.verbose})
         // If we get here, the user confirmed to proceed without preview
       }
     } catch (error) {
       // Ctrl+C or SIGINT
+      if (error instanceof PushPolicyGateError) throw error
       if ((error as Error).name === 'AbortError' || (error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
         log('\nPush cancelled.')
-        return
+        return stop('cancelled')
       }
 
       // Re-throw oclif errors
@@ -1377,18 +1411,18 @@ export async function executePush(
     if (!hasChanges) {
       log('')
       log('No changes to push.')
-      return
+      return stop('no-changes')
     }
 
     if (flags['dry-run']) {
-      return
+      return stop('dry-run')
     }
 
     if (process.stdin.isTTY) {
       const confirmed = await confirm('Proceed with push?')
       if (!confirmed) {
         log('Push cancelled.')
-        return
+        return stop('cancelled')
       }
     } else {
       command.error('Non-interactive environment detected. Use --force to skip confirmation.')
@@ -1407,21 +1441,23 @@ export async function executePush(
 
   // ── Partial push: filter to changed documents only ────────────────────
 
+  let sent = documentEntries
   if (!knowledgeOnly && isPartial && dryRunPreview) {
-    const filteredEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
+    sent = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
 
-    if (filteredEntries.length === 0 && knowledgeObjects.length === 0) {
+    if (sent.length === 0 && knowledgeObjects.length === 0) {
       log('No changes to push.')
-      return
+      return stop('no-changes')
     }
 
-    multidoc = filteredEntries.length > 0 ? filteredEntries.map((d) => d.content).join('\n---\n') : '';
+    multidoc = sent.map((d) => d.content).join('\n---\n')
   }
 
   // ── Execute the actual push ───────────────────────────────────────────
 
   const startTime = Date.now()
   let pushedDocCount = 0
+  let pushResponse: Record<string, unknown> | undefined
 
   if (!knowledgeOnly && multidoc) {
     const apiUrl = target.buildPushUrl(queryParams)
@@ -1439,16 +1475,20 @@ export async function executePush(
       )
 
       if (!response.ok) {
-        handlePushError(response, await response.text(), documentEntries, inputDir, command)
+        const errorText = await response.text()
+        refuseIfExplained(command, target, response.status, errorText)
+        handlePushError(response, errorText, documentEntries, inputDir, command)
       }
 
       // Parse response for GUID map
       const responseText = await response.text()
       let guidMap: GuidMapEntry[] = []
+      pushResponse = {}
 
       if (responseText && responseText !== 'null') {
         try {
           const responseJson = JSON.parse(responseText)
+          if (responseJson && typeof responseJson === 'object') pushResponse = responseJson
           if (responseJson?.guid_map && Array.isArray(responseJson.guid_map)) {
             guidMap = responseJson.guid_map
           }
@@ -1474,7 +1514,7 @@ export async function executePush(
         let updatedCount = 0
         let canonicalCount = 0
         for (const entry of guidMap) {
-          if (!entry.guid) continue
+          if (!entry.guid || entry.type === 'policy') continue
 
           const key = buildDocumentKey(entry.type, entry.name, entry.verb, entry.api_group)
           let filePath = documentFileMap.get(key)
@@ -1523,6 +1563,7 @@ export async function executePush(
 
       pushedDocCount = multidoc.split('\n---\n').length
     } catch (error) {
+      if (error instanceof PushPolicyGateError) throw error
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
       command.error(`Failed to push multidoc: ${describeNetworkError(error, apiUrl, elapsedMs)}`)
@@ -1533,6 +1574,12 @@ export async function executePush(
 
   let knowledgeImported = 0
   let knowledgeDeleted = 0
+  const pushed = (): PushResult => ({
+    knowledge: {deleted: knowledgeDeleted, imported: knowledgeImported},
+    preview: dryRunPreview,
+    response: pushResponse,
+    sent: pushResponse ? sent : [],
+  })
 
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
     const listUrl = ctx.knowledge.listUrl()
@@ -1568,7 +1615,9 @@ export async function executePush(
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       const elapsedMs = Date.now() - startTime
-      command.error(`Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`)
+      const message = `Failed to push knowledge: ${describeNetworkError(error, listUrl, elapsedMs)}`
+      if (pushResponse) throw new FailedAfterImportError(message, pushed())
+      command.error(message)
     }
   }
 
@@ -1582,6 +1631,7 @@ export async function executePush(
   }
 
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
+  return pushed()
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────
@@ -1669,17 +1719,48 @@ function formatFailureDuration(elapsedMs?: number): string {
     : ` (failed after ${human})`
 }
 
+/** Stop with the target's own guidance when it recognises this refusal. */
+function refuseIfExplained(command: Command, target: PushTarget, status: number, body: string): void {
+  let message = body
+  let payload: unknown
+  try {
+    const parsed = JSON.parse(body)
+    if (typeof parsed?.message === 'string') message = parsed.message
+    payload = parsed?.payload
+  } catch {
+    // Not JSON
+  }
+
+  const refusal = payload as Record<string, unknown> | undefined
+  if (status === 403 && refusal?.code === 'policy_gate') throw new PushPolicyGateError(refusal)
+  // Policy files that weaken a mandatory policy of the live branch, from a credential without
+  // workspace:policy update: a permission refusal (exit 1), not a blocking finding. The platform's
+  // sentence already reads "Push refused: … Nothing was imported.", so it is printed as it is.
+  if (status === 403 && refusal?.code === WEAKENING_REFUSAL) {
+    command.error(`${message}${target.explainRefusal?.(status, payload) ?? policyWeakeningGuidance(payload, [], true)}`)
+  }
+
+  // The plan's policy cap: the platform's message names the plan, its cap and the remedy, and the
+  // push itself would be refused the same way, so the preview stops here rather than skipping.
+  if (status === 403 && refusal?.code === 'policy_plan_limit') command.error(`Push refused (${status}): ${message}`)
+  if (refusal?.code === 'policy_gate_transaction_required') {
+    command.error('Push refused: the live branch policy gate requires a transaction. Remove --no-transaction and retry. Nothing was imported.')
+  }
+
+  const guidance = target.explainRefusal?.(status, payload)
+  if (guidance) command.error(`Push refused (${status}): ${message}${guidance}`)
+}
+
 async function handleDryRunError(
   response: Response,
   command: Command,
-  flags: PushFlags,
   target: PushTarget,
+  {log, verbose}: {log: (msg: string) => void; verbose: boolean},
 ): Promise<void> {
-  const log = command.log.bind(command)
+  const errorText = await response.text()
+  refuseIfExplained(command, target, response.status, errorText)
 
   if (response.status === 404) {
-    const errorText = await response.text()
-
     try {
       const errorJson = JSON.parse(errorText)
       if (errorJson.message) {
@@ -1697,8 +1778,6 @@ async function handleDryRunError(
     log(ux.colorize('dim', 'Push preview not yet available on this instance.'))
     log('')
   } else {
-    const errorText = await response.text()
-
     // Check if push is disabled
     try {
       const errorJson = JSON.parse(errorText)
@@ -1748,8 +1827,16 @@ async function handleDryRunError(
       // Not JSON, fall through
     }
 
-    command.warn(`Push preview failed (${response.status}). Skipping preview.`)
-    if (flags.verbose) {
+    let reason = ''
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (typeof errorJson?.message === 'string' && errorJson.message.trim()) reason = `: ${errorJson.message.trim().replace(/\.$/, '')}`
+    } catch {
+      // Not JSON
+    }
+
+    command.warn(`Push preview failed (${response.status})${reason}. Skipping preview.`)
+    if (verbose) {
       log(ux.colorize('dim', errorText))
     }
   }

@@ -1,6 +1,19 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand, {type ProfileConfig} from '../../../base-command.js'
+import {
+  deployedGateLine,
+  fetchPolicyGate,
+  gateExitCode,
+  gateLines,
+  gateOverrideHint,
+  gateRefusal,
+  gateRefusalOutput,
+  type GateRefused,
+  type PolicyGateAnswer,
+  quoted,
+} from '../../../utils/policy/gate.js'
+import {policyPermissionGuidance} from '../../../utils/policy/permission.js'
 
 interface ApprovalRequest {
   _release?: {id?: number; name?: string}
@@ -15,8 +28,17 @@ interface Tenant {
   display?: string
   id: number
   name: string
+  /** The release's policies the tenant's import left out (a key another policy holds, a policy that does not validate). */
+  policies_skipped?: null | {keys?: string[]; message?: string}
+  /** The policy gate's verdict on this deploy (`pass`, `overridden`, ...), when the platform gates releases. */
+  policy_gate?: PolicyGateAnswer
   release?: {name?: string}
   state?: string
+}
+
+interface DeployReleaseFlags {
+  output: string
+  verbose: boolean
 }
 
 export default class TenantDeployRelease extends BaseCommand {
@@ -27,21 +49,36 @@ export default class TenantDeployRelease extends BaseCommand {
     }),
   }
   static description =
-    '[CRITICAL] STOP and confirm with the user before deploying a release to a tenant; this mutates the live tenant. Deploys a release to a tenant.'
+    "[CRITICAL] STOP and confirm with the user before deploying a release to a tenant; this mutates the live tenant. Deploys a release to a tenant. A deploy is gated on the release's own policy check: any blocking finding in the release refuses it (exit 2) unless --override-reason is given, whatever the tenant runs today, so the release gets the same verdict on every tenant. --check previews that verdict without deploying."
   static examples = [
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0
 Deployed release "v1.0" to tenant: My Tenant (my-tenant)
 `,
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0 -o json`,
+    `$ xano tenant deploy_release prod --release v1.2 --check
+Checked release "v1.2" for tenant "prod"; nothing was deployed.
+Policy gate: blocked
+  Deploy blocked: this release has 1 blocking policy finding.
+`,
+    `$ xano tenant deploy_release prod --release v1.2 --override-reason "Hotfix; AUTH-001 finding tracked in JIRA-12"`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    check: Flags.boolean({
+      default: false,
+      description: "Preview the release's policy gate on this tenant without deploying; exits 2 when the deploy would be refused",
+      exclusive: ['override-reason'],
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
       description: 'Output format',
       options: ['summary', 'json'],
       required: false,
+    }),
+    'override-reason': Flags.string({
+      description: 'Deploy past a blocking policy gate, recording this reason (needs the workspace:policy update permission; audited)',
+      exclusive: ['check'],
     }),
     release: Flags.string({
       char: 'r',
@@ -53,6 +90,14 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       description: 'Workspace ID (uses profile workspace if not provided)',
       required: false,
     }),
+  }
+  /** Set once the policy gate refuses the deploy, the one failure that exits 2. */
+  private refusedByPolicyGate = false
+
+  /** Exit 2 is the policy gate's refusal; every other failure, flag errors included, exits 1. */
+  protected override async catch(error: Error & {oclif?: {exit?: number}}): Promise<void> {
+    if (this.refusedByPolicyGate) return super.catch(error)
+    return this.catchAsOperational(error)
   }
 
   async run(): Promise<void> {
@@ -67,6 +112,16 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
 
     const releaseName = flags.release
     const tenantName = args.tenant_name
+
+    if (flags.check) {
+      await this.checkPolicyGate({flags, profile, releaseName, tenantName, workspaceId})
+      return
+    }
+
+    const overrideReason = flags['override-reason']?.trim()
+    if (flags['override-reason'] !== undefined && !overrideReason) {
+      this.error('--override-reason needs a reason: say why this deploy may proceed past the policy gate.')
+    }
 
     // Pre-flight: the "approval required" error must always be shown before any
     // permission/RBAC error. The backend's own deploy route checks RBAC first
@@ -97,12 +152,17 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
     this.warn('This may take a few minutes. Please be patient.')
 
     const startTime = Date.now()
+    // A refusal by the policy gate exits 2 with its verdict; the catch that rewords other failures keeps it.
+    let refused: GateRefused | null = null
 
     try {
       const response = await this.verboseFetch(
         apiUrl,
         {
-          body: JSON.stringify({release_name: releaseName}),
+          body: JSON.stringify({
+            release_name: releaseName,
+            ...(overrideReason ? {override_policy: true, override_reason: overrideReason} : {}),
+          }),
           headers: {
             accept: 'application/json',
             Authorization: `Bearer ${profile.access_token}`,
@@ -115,6 +175,12 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       )
 
       if (!response.ok) {
+        refused = await gateRefusal(response)
+        if (refused) {
+          const override = `xano tenant deploy_release ${quoted(tenantName)} --release ${quoted(releaseName)} --override-reason "<why>"`
+          this.refuseByPolicyGate(refused, flags, override)
+        }
+
         let message = await this.parseApiError(response, 'API request failed')
         // Only reached once the pre-flight above has already confirmed the
         // approval gate is satisfied or not applicable — so a permission error
@@ -138,15 +204,57 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
         this.log(`Deployed release "${releaseName}" to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.release?.name) this.log(`  Release: ${tenant.release.name}`)
+        if (tenant.policy_gate?.status) this.log(`  ${deployedGateLine(tenant.policy_gate)}`)
         this.log(`  Time: ${elapsed}s`)
       }
+
+      this.warnPoliciesSkipped(tenant)
     } catch (error) {
+      if (refused) throw error
       if (error instanceof Error) {
         this.error(`Failed to deploy to tenant: ${error.message}`)
       } else {
         this.error(`Failed to deploy to tenant: ${String(error)}`)
       }
     }
+  }
+
+  /**
+   * `--check`: what the policy gate would decide for this release on this tenant, without deploying.
+   * Exits 2 when the deploy would be refused; a preview the platform cannot answer exits 1.
+   */
+  private async checkPolicyGate(opts: {
+    flags: DeployReleaseFlags
+    profile: ProfileConfig
+    releaseName: string
+    tenantName: string
+    workspaceId: string
+  }): Promise<void> {
+    const {flags, profile, releaseName, tenantName, workspaceId} = opts
+    const result = await fetchPolicyGate(
+      {verboseFetch: (...args) => this.verboseFetch(...args)},
+      {profile, release: releaseName, tenant: tenantName, verbose: flags.verbose, workspace: workspaceId},
+    )
+    if ('unavailable' in result) {
+      const {message, payload, status} = result.unavailable
+      this.error(`Policy gate preview failed (${status}): ${message}${policyPermissionGuidance(status, payload)}`)
+    }
+
+    const {answer} = result
+    const exit = gateExitCode(answer)
+    if (flags.output === 'json') {
+      this.log(JSON.stringify(answer, null, 2))
+    } else {
+      this.log(`Checked release "${releaseName}" for tenant "${tenantName}"; nothing was deployed.`)
+      for (const line of gateLines(answer)) this.log(line)
+      if (exit) {
+        this.log(answer.can_override
+          ? `To deploy past the gate: xano tenant deploy_release ${quoted(tenantName)} --release ${quoted(releaseName)} --override-reason "<why>"`
+          : 'A deploy is refused unless someone with the workspace:policy update permission overrides the gate.')
+      }
+    }
+
+    if (exit) process.exitCode = exit
   }
 
   /**
@@ -190,6 +298,13 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
     const items = Array.isArray(data) ? data : (data.items ?? [])
 
     return items.some((item) => item.status === 'approved' && item._release?.name === releaseName)
+  }
+
+  /** A deploy the policy gate refused: its verdict, then the refusal and how to proceed, exiting 2. */
+  private refuseByPolicyGate(refused: GateRefused, flags: DeployReleaseFlags, override: string): never {
+    for (const line of gateRefusalOutput(refused, flags.output === 'json')) this.log(line)
+    this.refusedByPolicyGate = true
+    this.error(`${refused.message}${gateOverrideHint(refused.answer, override)}`, {exit: 2})
   }
 
   /**
@@ -240,5 +355,11 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
     if (tenant?.deploy_settings?.allow_quick_deploy) return false
 
     return (tenant?.deploy_settings?.required_reviewers ?? 0) > 0
+  }
+
+  /** A release policy the tenant's import could not land (its key is held by another policy) is never dropped silently. */
+  private warnPoliciesSkipped(tenant: Tenant): void {
+    const message = tenant.policies_skipped?.message
+    if (message) this.warn(message)
   }
 }
