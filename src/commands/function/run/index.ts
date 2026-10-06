@@ -43,6 +43,8 @@ static examples = [
     `$ xano function:run calcScore --branch dev --logs`,
     `$ xano function:run calcScore --datasource test
 # Runs against the 'test' data source instead of 'live'`,
+    `$ xano function:run calcScore --tenant my-tenant
+# Runs the function on the tenant instead of the workspace`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
@@ -94,6 +96,11 @@ static override flags = {
       exclusive: ['json'],
       required: false,
     }),
+    tenant: Flags.string({
+      char: 't',
+      description: 'Tenant name to run the function on (defaults to the workspace)',
+      required: false,
+    }),
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
@@ -125,6 +132,7 @@ static override flags = {
         branch,
         name: functionName,
         profile,
+        tenant: flags.tenant,
         verbose: flags.verbose,
         workspaceId,
       })
@@ -155,6 +163,9 @@ static override flags = {
     // rejected server-side with "Invalid data source."
     const dataSource = flags.datasource?.trim()
     if (dataSource) headers['X-Data-Source'] = dataSource
+
+    // X-Tenant runs the function on that tenant instead of the workspace.
+    if (flags.tenant) headers['X-Tenant'] = flags.tenant
 
     const response = await this.verboseFetch(
       apiUrl,
@@ -211,19 +222,23 @@ static override flags = {
     branch: string
     name: string
     profile: ProfileConfig
+    tenant?: string
     verbose: boolean
     workspaceId: string
   }): Promise<FunctionListItem | undefined> {
-    const {branch, name, profile, verbose, workspaceId} = opts
+    const {branch, name, profile, tenant, verbose, workspaceId} = opts
      
     const params = new URLSearchParams({per_page: '100', search: name})
     if (branch) params.set('branch', branch)
     const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function?${params.toString()}`
 
+    const headers: Record<string, string> = {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`}
+    if (tenant) headers['X-Tenant'] = tenant
+
     try {
       const response = await this.verboseFetch(
         url,
-        {headers: {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`}, method: 'GET'},
+        {headers, method: 'GET'},
         verbose,
         profile.access_token,
       )
