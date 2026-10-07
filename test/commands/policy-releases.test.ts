@@ -384,8 +384,8 @@ describe('release policy checks', () => {
       expect(JSON.parse(asJson.stdout).error).to.include({exit: 1})
     })
 
-    it('a set live refused for weakening a mandatory policy is a permission refusal: it names the branch that stays and exits 1', async () => {
-      const message = 'The release was deployed as branch "rollback". Set live refused: it weakens mandatory policy GATE-001, which needs the workspace:policy update permission. The live branch was not changed.'
+    it('a set live refused for weakening a blocking policy is a permission refusal: it names the branch that stays and exits 1', async () => {
+      const message = 'The release was deployed as branch "rollback". Set live refused: it weakens blocking policy GATE-001, which needs the workspace:policy update permission. The live branch was not changed.'
       const weakening = () => json({
         code: 'ERROR_CODE_ACCESS_DENIED',
         message,
@@ -563,7 +563,7 @@ describe('release policy checks', () => {
       policies: [{key: 'AUTH-001', rules: [{id: 'R1', label: 'Authentication required'}]}],
       release: {branch: {id: 3, label: 'main'}, id: 12},
       results: [{check_id: 'R1', checked: 40, policy_key: 'AUTH-001', status: 'fail'}],
-      shipped: [{active: true, enforcement: 'mandatory', key: 'AUTH-001'}, {active: true, enforcement: 'advisory', key: 'LOG-001'}],
+      shipped: [{active: true, enforcement: 'blocking', key: 'AUTH-001'}, {active: true, enforcement: 'advisory', key: 'LOG-001'}],
       status: 'fail',
       trigger: 'release',
     }

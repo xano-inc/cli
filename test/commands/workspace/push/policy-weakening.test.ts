@@ -8,15 +8,15 @@ const oneLine = (text: string) => text.replaceAll(/\s*›\s*/g, ' ').replaceAll(
 
 /**
  * A push to the live branch is judged by the policies it leaves, so policy files that weaken a
- * policy active and mandatory on the branch need the `workspace:policy` update permission. Without
+ * policy active and blocking on the branch need the `workspace:policy` update permission. Without
  * it the push, and its preview, are refused before anything is written. That is a permission
  * refusal like `policy_permission_required` (exit 1), not a blocking finding (exit 2).
  */
-describe('workspace push that weakens a mandatory policy, without workspace:policy update', () => {
+describe('workspace push that weakens a blocking policy, without workspace:policy update', () => {
   const fixture = policyFixture({source: 'policy GATE-001 {\n  title = "Gate"\n  enforcement = "advisory"\n}'})
   const push = (...extra: string[]) => runCommand(['workspace', 'push', '-d', fixture.directory, '--no-guids', ...extra], fixture.config)
 
-  const message = 'Push refused: it weakens mandatory policy GATE-001, which needs the workspace:policy update permission. Nothing was imported.'
+  const message = 'Push refused: it weakens blocking policy GATE-001, which needs the workspace:policy update permission. Nothing was imported.'
   const refused = () => json({
     code: 'ERROR_CODE_ACCESS_DENIED',
     message,

@@ -20,6 +20,6 @@ export default class PolicyList extends PolicyCommand {
     const policies = listItems<Policy>(result)
     if (policies.length === 0) this.log('No policies found.')
     for (const policy of policies)
-      this.log(`${policy.key}  ${policy.active ? `Active, ${policy.enforcement === 'mandatory' ? 'Mandatory' : 'Advisory'}` : 'Inactive'}  ${policy.title ?? ''} (ID: ${policy.id}, Version ${policy.version})`)
+      this.log(`${policy.key}  ${policy.active ? `Active, ${policy.enforcement === 'blocking' ? 'Blocking' : 'Advisory'}` : 'Inactive'}  ${policy.title ?? ''} (ID: ${policy.id}, Version ${policy.version})`)
   }
 }

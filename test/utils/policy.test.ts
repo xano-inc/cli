@@ -15,6 +15,7 @@ import {policyResultSummary, policyRuleName} from '../../src/utils/policy/findin
 import {policyRunDetail, policyRunSummary, policyRunTable, policySettings} from '../../src/utils/policy/runs.js'
 import {
   computeStatusRows,
+  enforcementColumn,
   enforcementLabel,
   findingsLabel,
   statusExitCode,
@@ -26,7 +27,7 @@ const result = (status: string, checked = 1) => ({check_id: 'R1', checked, polic
 /** A push's summary: its `policy_check` carries its own evidence. */
 const policySummary = (check?: Parameters<typeof pushEvidence>[0]) => summarize(check, pushEvidence(check))
 const coverage = (overrides: Record<string, unknown> = {}) =>
-  ({enforcement: 'mandatory', included: true, run_id: 5, stale: false, version: 1, ...overrides})
+  ({enforcement: 'blocking', included: true, run_id: 5, stale: false, version: 1, ...overrides})
 
 describe('policy carriage and feedback', () => {
   it('preserves stable policy keys as safe filenames', () => {
@@ -197,7 +198,7 @@ describe('policy carriage and feedback', () => {
     ]
     const evaluation = {findings, id: 12, policy_check: {blocking: true, blocking_finding_ids: ['F1'], status: 'fail'}, results: [], stored: true}
     const summary = summarize(evaluation.policy_check, evaluationEvidence(evaluation)).join('\n')
-    expect(summary).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: No auth')
+    expect(summary).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: No auth')
     expect(summary).to.contain('Advisory findings (1) — reported, not blocking:\n  SEC-100.R1 (SEC-100)  table account: Stale tag')
   })
 
@@ -217,7 +218,7 @@ describe('policy carriage and feedback', () => {
     ]
     const summary = policySummary({blocking: true, blocking_findings: [findings[0]], findings, status: 'fail'}).join('\n')
     // The only distinction that changes what the reader does next.
-    expect(summary).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1  Endpoints declare auth (AUTH-001)  query GET /x: No auth')
+    expect(summary).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1  Endpoints declare auth (AUTH-001)  query GET /x: No auth')
     expect(summary).to.contain('Advisory findings (1) — reported, not blocking:\n  AUTH-001.R2  Tables carry a tag (AUTH-001)  table account: Stale tag')
     expect(summary.indexOf('Blocking findings')).to.be.lessThan(summary.indexOf('Advisory findings'))
   })
@@ -230,7 +231,7 @@ describe('policy carriage and feedback', () => {
     expect(advisory).to.contain('  AUTH-001.R1 (AUTH-001)')
     // Every finding blocking is still worth saying, but there is no second group to name.
     const allBlocking = policySummary({blocking: true, blocking_findings: findings, findings, status: 'fail'}).join('\n')
-    expect(allBlocking).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:')
+    expect(allBlocking).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
     expect(allBlocking).to.not.contain('Advisory findings')
   })
 
@@ -310,7 +311,7 @@ describe('policy carriage and feedback', () => {
   })
 
   describe('computeStatusRows', () => {
-    const policy = {active: true, enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
+    const policy = {active: true, enforcement: 'blocking', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
     const run = {
       findings: [{policy_key: 'AUTH-001'}],
       id: 5,
@@ -341,7 +342,7 @@ describe('policy carriage and feedback', () => {
     it('reports a current failing run', () => {
       const [row] = computeStatusRows([policy], run)
       expect(row).to.deep.equal({
-        active: true, blocking: true, checked: 10, counted: true, enforcement: 'mandatory', findings: 1, key: 'AUTH-001',
+        active: true, blocking: true, checked: 10, counted: true, enforcement: 'blocking', findings: 1, key: 'AUTH-001',
         rules_unchecked: 0, stale: false, status: 'fail', title: undefined,
       })
       expect(statusExitCode([row])).to.equal(2)
@@ -431,10 +432,12 @@ describe('policy carriage and feedback', () => {
     })
 
     it("words enforcement as Studio does, and calls findings blocking only as the run judged them", () => {
-      expect(enforcementLabel('mandatory')).to.equal('Mandatory')
+      expect(enforcementLabel('blocking')).to.equal('Blocking')
       expect(enforcementLabel('advisory')).to.equal('Advisory')
       expect(enforcementLabel('')).to.equal('—')
       expect(enforcementLabel('conditional')).to.equal('conditional')
+      expect(enforcementColumn({active: false, enforcement: 'blocking'})).to.equal('Inactive')
+      expect(enforcementColumn({active: true, enforcement: 'blocking'})).to.equal('Blocking')
       const [blocking] = computeStatusRows([policy], run)
       expect(findingsLabel(blocking)).to.equal('1 findings (blocking)')
       // The run evaluated the policy as advisory: its findings do not block, whatever the row says today.

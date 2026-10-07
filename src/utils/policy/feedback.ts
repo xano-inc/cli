@@ -152,13 +152,13 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
     const blocked = findings.filter(finding => blocking.has(finding.id ?? ''))
     const advisory = findings.filter(finding => !blocking.has(finding.id ?? ''))
     lines.push(
-      `Blocking findings (${listed(blocked.length, allBlocking)}) — active mandatory policies; a gate refuses a change that introduces one or changes its object:`,
+      `Blocking findings (${listed(blocked.length, allBlocking)}) — active blocking policies; a gate refuses a change that introduces one or changes its object:`,
       ...blocked.map(finding => findingLine(finding, rules)),
       `Advisory findings (${listed(advisory.length, allAdvisory)}) — reported, not blocking:`,
       ...advisory.map(finding => findingLine(finding, rules)),
     )
   } else {
-    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${listed(findings.length, allBlocking)}) — active mandatory policies; a gate refuses a change that introduces one or changes its object:`)
+    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${listed(findings.length, allBlocking)}) — active blocking policies; a gate refuses a change that introduces one or changes its object:`)
     // Without a headline (an `error` status, say) nothing else says what these findings are.
     else if (findings.length > 0 && !isHeadlined(check)) lines.push(`Advisory findings (${listed(findings.length, allAdvisory)}) — reported, not blocking:`)
     lines.push(...findings.map(finding => findingLine(finding, rules)))

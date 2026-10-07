@@ -1,3 +1,4 @@
+import type {PolicyTemplate} from './template.js'
 import type {PolicyCatalogueEntry} from './types.js'
 
 /**
@@ -71,4 +72,39 @@ function requiredParams(check: PolicyCatalogueEntry): string {
   const oneOf = check.requires_one_of ?? []
   if (oneOf.length > 0) required.push(`one of: ${oneOf.join(' | ')}`)
   return required.join(', ') || 'none'
+}
+
+/** The catalogue's `template_categories`: the groups templates are filed under, in the order to offer them. */
+export interface PolicyTemplateCategory {
+  id: string
+  label: string
+}
+
+/**
+ * The catalogue's templates, grouped under their `category` in the order `template_categories`
+ * lists them, each group named by its label. A category the list does not name follows in the order
+ * first seen, named by its id; a template without one (an older instance) is listed under "Other".
+ * Each row names the id `policy create --template` takes, the title, and what it would create.
+ */
+export function policyTemplateSummary(templates: PolicyTemplate[], categories: PolicyTemplateCategory[] = []): string[] {
+  if (templates.length === 0) return []
+  const labels = new Map(categories.map(category => [category.id, category.label]))
+  const groups = new Map<string, PolicyTemplate[]>(categories.map(category => [category.id, []]))
+  for (const template of templates) {
+    const category = template.category?.trim() || ''
+    groups.set(category, [...(groups.get(category) ?? []), template])
+  }
+
+  const width = Math.min(36, Math.max(...templates.map(template => template.id.length)))
+  return [
+    'Templates (xano policy create --template <id>):',
+    ...[...groups].filter(([, members]) => members.length > 0).flatMap(([category, members]) => [
+      '',
+      labels.get(category) ?? (category || 'Other'),
+      ...members.map(template => {
+        const rules = template.rules.length === 1 ? '1 rule' : `${template.rules.length} rules`
+        return `  ${template.id.padEnd(width)}  ${template.title} (${template.key}, ${template.severity}, ${rules})`
+      }),
+    ]),
+  ]
 }

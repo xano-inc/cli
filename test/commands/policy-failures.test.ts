@@ -138,9 +138,9 @@ describe('policy failure contracts', () => {
   })
 
   function statusRoute(): void {
-    const latest = {enforcement: 'mandatory', included: true, run_id: 5, stale: false, version: 1}
+    const latest = {enforcement: 'blocking', included: true, run_id: 5, stale: false, version: 1}
     fixture.route(url => url.pathname.includes('/run/') ? json({id: 5, results})
-      : json({items: [{active: true, enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: latest, rules: results.map(result => ({id: result.check_id})), version: 1}]}))
+      : json({items: [{active: true, enforcement: 'blocking', id: 7, key: 'AUTH-001', latest_run: latest, rules: results.map(result => ({id: result.check_id})), version: 1}]}))
   }
 
   it('status gives errors precedence over failed rules', async () => {
