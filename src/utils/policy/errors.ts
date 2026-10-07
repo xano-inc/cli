@@ -41,6 +41,40 @@ export function policyCodeGuidance(payload: unknown): string {
   return typeof code === 'string' && Object.hasOwn(CODE_GUIDANCE, code) ? CODE_GUIDANCE[code] : ''
 }
 
+/** A payload string worth naming, trimmed, or `''`. */
+function named(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+/**
+ * The CLI's own sentence for a refusal that names policies, keyed on the platform's `payload.code`,
+ * or `null` to print the platform's coded message (also when the payload lacks the names):
+ *
+ *   policy_duplicate   a new policy's rules exactly match a policy the branch has
+ *   policy_key_taken   another live policy of the branch holds the key
+ */
+export function policyRefusal(payload: unknown): null | string {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const refusal = payload as Record<string, unknown>
+  const existing = named(refusal.existing_key)
+  if (!existing) return null
+  if (refusal.code === 'policy_duplicate') {
+    const copies = Array.isArray(refusal.policies) ? refusal.policies : []
+    const tried = named((copies[0] as undefined | {key?: unknown})?.key)
+    return `${tried ? `Policy ${tried}` : 'The policy'} was not created: its rules exactly match ${existing}, which this branch already has. `
+      + 'Change a parameter or scope to add a different policy (for policy create, --param N.path=JSON); its key does not count.'
+  }
+
+  if (refusal.code === 'policy_key_taken') {
+    const tried = named(refusal.key) || existing
+    const id = typeof refusal.existing_id === 'number' ? ` (policy id ${refusal.existing_id})` : ''
+    return `Policy ${tried} was not saved: this branch already has ${existing}${id}. `
+      + `Choose a key no policy has (for policy create, --key), or update ${existing} with policy publish.`
+  }
+
+  return null
+}
+
 /** A failed policy-route response: one message to print, and the refusal's payload. */
 export interface PolicyError {
   message: string

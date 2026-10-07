@@ -69,9 +69,12 @@ export function enforcementColumn(row: Pick<PolicyStatusRow, 'active' | 'enforce
   return row.active ? enforcementLabel(row.enforcement) : 'Inactive'
 }
 
-/** `3 findings`, marked blocking when they block; a dash where the row carries no current count. */
+/**
+ * `3 findings`, marked blocking when they block. A row the latest run did not count says so: an active
+ * policy is `not checked yet` (never evaluated, or changed since), an inactive one `not checked`.
+ */
 export function findingsLabel(row: PolicyStatusRow): string {
-  if (!row.counted) return '— findings'
+  if (!row.counted) return row.status === 'inactive' ? 'not checked' : 'not checked yet'
   return `${row.findings} findings${row.blocking ? ' (blocking)' : ''}`
 }
 

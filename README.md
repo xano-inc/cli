@@ -230,7 +230,8 @@ A run can hold tens of thousands of findings, so the CLI reads them a page at a 
 the run's summary and one page of its findings; a page that is not every finding says `(one page)` and how to read
 the next. `-o json` is the summary with `findings`, the page's findings as an array, and
 `findings_page: {total, offset, limit, next_offset}`. `--all` reads every page (500 a request, saying so on stderr
-when there are more) and returns every matching finding in `findings`. `policy status` reads the latest run's
+when there are more) and returns every matching finding in `findings`. In `policy status` a policy the latest run did
+not count reads `not checked yet` (`not checked` when inactive) where its findings would be. `policy status` reads the latest run's
 summary, so its `-o json` `run` carries each policy's finding count rather than the findings. The `policy_check` a
 `workspace push` prints lists the first 100 findings; when there are more it prints their counts and
 `Listed: the first 100 of N; \`xano policy runs <run_id>\` has them all.` `policy evaluate --summary` does the same
@@ -271,6 +272,9 @@ points at `xano policy catalogue`. `policy delete` sends the `updated_at` it lis
 refused (`policy_stale`) rather than deleted; it asks first, and without `--force` in a non-interactive shell it
 exits 1. A create past the plan's per-branch policy cap (lower plans cap the policies on each branch; Pro and above are unlimited) is refused with
 `policy_plan_limit`, naming the plan, and a `workspace push` whose new policies would not fit imports nothing.
+A create or publish whose rules exactly match a policy the branch has (`policy_duplicate`), or whose key another policy holds
+(`policy_key_taken`), is refused with a sentence naming the key it tried and the policy that has the rules or the key,
+and what to change: a parameter or scope for a copy, another key (`--key`) for a taken one.
 `policy parse` and `policy publish` print rule warnings (a part of a rule that would do nothing or allow too much on
 that branch) on stderr; `-o json` keeps stdout the JSON.
 

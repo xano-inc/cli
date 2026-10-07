@@ -108,4 +108,54 @@ describe('policy create from a platform template', () => {
     expect(result.error?.message).to.contain('Invalid params')
     expect(fixture.calls.at(-1)?.url.pathname).to.match(/\/parse$/)
   })
+
+  /** The template route answers the save with `refusal`; parse succeeds, as it does on the platform. */
+  const refusedSave = (refusal: unknown) => fixture.route((url, method) => {
+    if (url.pathname.endsWith('/check')) return json({items: [], templates: [readyTemplate]})
+    if (url.pathname.endsWith('/parse')) return json({policy: {key: 'SAFE-001-3'}, rule_warnings: [], source: 'canonical source'})
+    if (method === 'GET') return json({items: [], nextPage: null})
+    return json(refusal, 400)
+  })
+
+  it('words an exact-copy refusal itself: the key it tried, the policy that has the rules, what to change', async () => {
+    const message = 'A policy with exactly these rules already exists: SAFE-001. Change a parameter or scope to add another.'
+    refusedSave({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {code: 'policy_duplicate', existing_id: 4, existing_key: 'SAFE-001', policies: [{existing_id: 4, existing_key: 'SAFE-001', key: 'SAFE-001-3'}]}})
+    const result = await runCommand(['policy', 'create', '--template', 'safe_calls'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.equal('Policy SAFE-001-3 was not created: its rules exactly match SAFE-001, which this branch already has. '
+      + 'Change a parameter or scope to add a different policy (for policy create, --param N.path=JSON); its key does not count.')
+    expect(result.error?.message).not.to.contain('ERROR_CODE').and.not.to.contain('request failed')
+  })
+
+  it('words a taken-key refusal itself: the key it tried and the policy that holds it', async () => {
+    const message = 'A policy with key "SAFE-001" already exists on this branch (policy id 4). To change it, update policy id 4 instead of creating a new one.'
+    refusedSave({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {code: 'policy_key_taken', existing_id: 4, existing_key: 'SAFE-001', key: 'safe-001'}})
+    const result = await runCommand(['policy', 'create', '--template', 'safe_calls', '--key', 'safe-001'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(result.error?.message).to.equal('Policy safe-001 was not saved: this branch already has SAFE-001 (policy id 4). '
+      + 'Choose a key no policy has (for policy create, --key), or update SAFE-001 with policy publish.')
+  })
+
+  it('keeps the platform message for a refusal whose payload does not name the policy', async () => {
+    const message = 'A policy with exactly these rules already exists: SAFE-001. Change a parameter or scope to add another.'
+    refusedSave({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {code: 'policy_duplicate'}})
+    const result = await runCommand(['policy', 'create', '--template', 'safe_calls'], fixture.config)
+    expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${message}`)
+  })
+
+  it('keeps the platform message for a taken-key refusal whose payload does not name the policy', async () => {
+    const message = 'A policy with key "SAFE-001" already exists on this branch.'
+    refusedSave({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {code: 'policy_key_taken', existing_id: null}})
+    const result = await runCommand(['policy', 'create', '--template', 'safe_calls'], fixture.config)
+    expect(result.error?.message).to.equal(`Policy request failed (400): ERROR_CODE_BAD_REQUEST: ${message}`)
+  })
+
+  it('keeps the -o json error envelope for an exact-copy refusal, with the plain sentence as its message', async () => {
+    const message = 'A policy with exactly these rules already exists: SAFE-001. Change a parameter or scope to add another.'
+    refusedSave({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {code: 'policy_duplicate', existing_id: 4, existing_key: 'SAFE-001', policies: [{existing_id: 4, existing_key: 'SAFE-001', key: 'SAFE-001-3'}]}})
+    const result = await runCommand(['policy', 'create', '--template', 'safe_calls', '-o', 'json'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    expect(JSON.parse(result.stdout)).to.deep.equal({error: {exit: 1, message: 'Policy SAFE-001-3 was not created: its rules exactly match SAFE-001, which this branch already has. '
+      + 'Change a parameter or scope to add a different policy (for policy create, --param N.path=JSON); its key does not count.'}})
+  })
 })
