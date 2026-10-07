@@ -4,9 +4,12 @@ import {POLICY_KEY_PATTERN} from '../document-parser.js'
 export interface PolicyTemplate {
   /** The id of the group the catalogue files the template under (`access_control`…; labels in `template_categories`). */
   category?: string
+  /** Framework tag ids (`soc2`…; labels in `template_frameworks`): topics the template relates to, never a compliance claim. */
+  frameworks?: string[]
   id: string
   key: string
-  rules: Array<{check: string; needs: string[]; params: Record<string, unknown>; title: string}>
+  /** `needs`: the param paths the author fills, every one of them unless `needs_any` says one is enough. */
+  rules: Array<{check: string; needs: string[]; needs_any?: boolean; params: Record<string, unknown>; title: string}>
   severity: string
   summary: string
   /** Becomes the policy title. */
@@ -40,8 +43,9 @@ export interface TemplatePolicyDocument {
 
 /**
  * The policy document for a template: its sparse settings with the `--param` assignments applied, every
- * `needs` path filled, and a key no policy on the branch holds (compared case-insensitively). A taken
- * template key gets a free numeric suffix; a taken or malformed `--key` is refused.
+ * `needs` path filled (at least one of a rule's when it says `needs_any`), and a key no policy on the
+ * branch holds (compared case-insensitively). A taken template key gets a free numeric suffix; a taken or
+ * malformed `--key` is refused.
  */
 export function policyFromTemplate(template: PolicyTemplate, takenKeys: string[], options: TemplatePolicyOptions = {}): TemplatePolicyDocument {
   const {key, keyRule, overrides = []} = options
@@ -53,7 +57,7 @@ export function policyFromTemplate(template: PolicyTemplate, takenKeys: string[]
   const rules = template.rules.map(rule => ({check: rule.check, params: Array.isArray(rule.params) ? {} : structuredClone(rule.params), title: rule.title}))
   for (const assignment of overrides) applyOverride(rules, assignment)
 
-  const missing = template.rules.flatMap((rule, index) => (rule.needs ?? []).filter(path => !filled(readPath(rules[index].params, path))).map(path => `${index + 1}.${path}`))
+  const missing = template.rules.flatMap((rule, index) => missingNeeds(rule, rules[index].params, index))
   if (missing.length > 0) throw new Error(`Fill the template's required settings with --param 'N.path=JSON': ${missing.join(', ')}.`)
   return {key: chosen, rules, severity: template.severity, statement: template.summary, title: template.title}
 }
@@ -73,6 +77,16 @@ function keyRefusal(rule: null | PolicyKeyRule | undefined, key: string): string
   return typeof rule?.message === 'string' && rule.message.trim()
     ? rule.message.replaceAll('%s', key)
     : 'A policy key must be 1–64 letters, digits, dots, underscores or hyphens, starting with a letter or digit.'
+}
+
+/**
+ * A rule's unfilled `needs`, each as `N.path`: every unfilled one, or, for a `needs_any` rule with none
+ * filled, one entry naming the alternatives (`1.hosts or 1.providers`).
+ */
+function missingNeeds(rule: PolicyTemplate['rules'][number], params: Record<string, unknown>, index: number): string[] {
+  const needs = (rule.needs ?? []).map(path => ({filled: filled(readPath(params, path)), name: `${index + 1}.${path}`}))
+  if (rule.needs_any === true && needs.length > 1) return needs.some(need => need.filled) ? [] : [needs.map(need => need.name).join(' or ')]
+  return needs.filter(need => !need.filled).map(need => need.name)
 }
 
 /** The value at a dotted path of a rule's params, or undefined when any step is missing. */

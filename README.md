@@ -198,10 +198,14 @@ xano policy runs --release-id 12                    # Read an imported release b
 xano policy delete TMP-001                           # Remove a policy; its Version History is kept
 ```
 
+`policy catalogue` lists the templates by category, each row ending with its framework tags in brackets
+(`[SOC 2, HIPAA]`), and prints the instance's own sentence on what the tags mean under the heading. A tag
+marks a template on a related topic; it does not make a workspace compliant.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
 validates them natively and creates an Active, Advisory policy. Required template settings must
-be filled before it saves. Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
+be filled before it saves: every one of a rule's `needs`, or at least one when the rule says `needs_any: true`
+(the refusal names the alternatives, as in `1.hosts or 1.providers`). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
 prefix is optional for a single-rule template. Nested paths work, for example `--param '1.when.statement="db.edit"'`.
 Values are JSON, including quoted strings, arrays, booleans and numbers. The template key gets a free numeric
 suffix if already taken (case-insensitive); an explicitly taken `--key` is refused. It never updates an

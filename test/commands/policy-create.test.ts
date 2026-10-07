@@ -39,6 +39,23 @@ describe('policy create from a platform template', () => {
     expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
   })
 
+  it('takes one need of a needs_any rule, and names the alternatives when none is filled', async () => {
+    const vendors = {...readyTemplate, id: 'vendors', rules: [{check: 'outbound.vendor_allowlist', needs: ['hosts', 'providers'], needs_any: true, params: {}, title: ''}]}
+    fixture.route((url, method) => {
+      if (url.pathname.endsWith('/check')) return json({items: [], templates: [vendors]})
+      if (url.pathname.endsWith('/parse')) return json({policy: {key: 'SAFE-001'}, rule_warnings: [], source: 'canonical source'})
+      if (method === 'GET') return json({items: [], nextPage: null})
+      return json(created)
+    })
+    const refused = await runCommand(['policy', 'create', '--template', 'vendors'], fixture.config)
+    expect(refused.error?.message).to.contain('1.hosts or 1.providers')
+    expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
+
+    const result = await captureOutput(() => PolicyCreate.run(['--template', 'vendors', '--param', 'hosts=["api.example.com"]'], fixture.config))
+    expect(result.error).to.equal(undefined)
+    expect(JSON.parse(fixture.calls.find(call => call.url.pathname.endsWith('/parse'))!.body!).data.rules[0].params).to.deep.equal({hosts: ['api.example.com']})
+  })
+
   it('fills nested parameters with typed JSON, keeping unrelated seed values', async () => {
     const result = await captureOutput(() => PolicyCreate.run(['--template', 'custom', '--key', 'MY-KEY', '--param', '1.table_selector.has_field="created_at"'], fixture.config))
     expect(result.error).to.equal(undefined)

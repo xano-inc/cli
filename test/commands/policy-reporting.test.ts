@@ -102,6 +102,43 @@ describe('policy reporting', () => {
     expect(at('uncategorized')).to.be.greaterThan(lines.indexOf('Other'))
   })
 
+  it('catalogue tags templates with their framework labels and prints the served note once, under the heading', async () => {
+    const rule = {check: 'object.auth_required', needs: [], params: {}, title: ''}
+    const note = 'Framework tags point to templates on related topics. They don\'t make a workspace compliant, and Xano doesn\'t track changes to these frameworks.'
+    fixture.route(() => json({items: checks, template_categories: [{id: 'access_control', label: 'Access control'}], template_frameworks: [
+      {id: 'soc2', label: 'SOC 2'}, {id: 'hipaa', label: 'HIPAA'},
+    ], template_frameworks_note: note, templates: [
+      {category: 'access_control', frameworks: ['soc2', 'hipaa'], id: 'endpoints_need_login', key: 'AUTH-010', rules: [rule], severity: 'critical', summary: '', title: 'Endpoints require login'},
+      {category: 'access_control', frameworks: [], id: 'one_auth_table', key: 'AUTH-050', rules: [rule], severity: 'medium', summary: '', title: 'Users sign in through one auth table'},
+      {category: 'access_control', frameworks: ['newer'], id: 'tagged_later', key: 'N-001', rules: [rule], severity: 'low', summary: '', title: 'Tagged by a newer instance'},
+    ]}))
+    const lines = (await command('policy catalogue')).stdout.split('\n')
+    const heading = lines.indexOf('Templates (xano policy create --template <id>):')
+    expect(lines[heading + 1]).to.equal(note)
+    expect(lines.filter(line => line === note)).to.have.length(1)
+    expect(lines.find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\) \[SOC 2, HIPAA\]$/)
+    expect(lines.find(line => line.includes('one_auth_table'))).to.match(/\(AUTH-050, medium, 1 rule\)$/)
+    expect(lines.find(line => line.includes('tagged_later'))).to.match(/\[newer\]$/)
+  })
+
+  it('catalogue prints no framework note when no template carries a tag', async () => {
+    const rule = {check: 'object.auth_required', needs: [], params: {}, title: ''}
+    fixture.route(() => json({items: checks, template_frameworks: [{id: 'soc2', label: 'SOC 2'}], template_frameworks_note: 'A note.', templates: [
+      {category: 'access_control', frameworks: [], id: 'one_auth_table', key: 'AUTH-050', rules: [rule], severity: 'medium', summary: '', title: 'Users sign in through one auth table'},
+    ]}))
+    expect((await command('policy catalogue')).stdout).not.to.contain('A note.')
+  })
+
+  it('catalogue shows no framework tags when the instance serves no note to show with them', async () => {
+    const rule = {check: 'object.auth_required', needs: [], params: {}, title: ''}
+    fixture.route(() => json({items: checks, template_frameworks: [{id: 'soc2', label: 'SOC 2'}], templates: [
+      {category: 'access_control', frameworks: ['soc2'], id: 'endpoints_need_login', key: 'AUTH-010', rules: [rule], severity: 'critical', summary: '', title: 'Endpoints require login'},
+    ]}))
+    const {stdout} = await command('policy catalogue')
+    expect(stdout.split('\n').find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\)$/)
+    expect(stdout).not.to.contain('SOC 2')
+  })
+
   it('catalogue prints no template section when the instance serves none', async () => {
     fixture.route(() => json(catalogue))
     expect((await command('policy catalogue')).stdout).not.to.contain('Templates')

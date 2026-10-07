@@ -49,4 +49,19 @@ describe('policy template authoring', () => {
     for (const value of ['null', '[]', '{}', '""']) expect(() => policyFromTemplate(required, [], {overrides: [`flag=${value}`]})).to.throw('Fill')
     expect(policyFromTemplate(required, [], {overrides: ['flag=false']}).rules[0].params.flag).to.equal(false)
   })
+
+  it('requires every need of a rule unless it says needs_any', () => {
+    const both = {...template, rules: [{...template.rules[0], needs: ['tables', 'functions']}]}
+    expect(() => policyFromTemplate(both, [], {overrides: ['tables=["audit_log"]']})).to.throw(/: 1\.functions\.$/)
+    expect(() => policyFromTemplate({...both, rules: [{...both.rules[0], needs_any: false}]}, [], {overrides: ['tables=["audit_log"]']})).to.throw(/: 1\.functions\.$/)
+    expect(policyFromTemplate(both, [], {overrides: ['tables=["audit_log"]', 'functions=["write_audit"]']}).rules[0].params).to.include.keys('tables', 'functions')
+  })
+
+  it('accepts one filled need of a needs_any rule and names the alternatives when none is', () => {
+    const either = {...template, rules: [{...template.rules[0], needs: ['hosts', 'providers'], needs_any: true}]}
+    expect(() => policyFromTemplate(either, [])).to.throw(/: 1\.hosts or 1\.providers\.$/)
+    expect(() => policyFromTemplate(either, [], {overrides: ['hosts=[]']})).to.throw('1.hosts or 1.providers')
+    expect(policyFromTemplate(either, [], {overrides: ['hosts=["api.example.com"]']}).rules[0].params).to.deep.equal({existing: true, hosts: ['api.example.com']})
+    expect(policyFromTemplate(either, [], {overrides: ['providers=["openai"]']}).rules[0].params).to.deep.equal({existing: true, providers: ['openai']})
+  })
 })
