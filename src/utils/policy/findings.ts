@@ -1,4 +1,4 @@
-import type {PolicyFinding, PolicyRuleResult, PolicySnapshotPolicy, PolicySnapshotRule} from './types.js'
+import type {CoverageFinding, PolicyFinding, PolicyRuleResult, PolicySnapshotPolicy, PolicySnapshotRule} from './types.js'
 
 /**
  * The platform's naming rule, shared with Studio: the author's title, then the check's human
@@ -40,6 +40,23 @@ export function findingLine(finding: PolicyFinding, rules: Map<string, PolicySna
   const severity = finding.severity?.trim() ? ` [${finding.severity.trim()}]` : ''
   return `  ${[id, id === rule ? '' : rule].filter(Boolean).join('  ')}${severity} (${policy})  ${
     finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${finding.message ?? ''}`
+}
+
+/**
+ * A finding as a caller without `workspace:policy` read is told it (`access: "coverage"`): its rule's
+ * name, its policy's key and title, its object and message, then the check's fix hint on a line of
+ * its own. Such a finding has no rule id or severity, and a deleted policy's finding has no fix.
+ */
+export function coverageFindingLines(finding: CoverageFinding): string[] {
+  const key = finding.policy_key?.trim() || 'policy'
+  const title = finding.policy_title?.trim()
+  const rule = finding.rule_title?.trim() || finding.check?.label?.trim() || 'finding'
+  const object = [finding.object?.type, finding.object?.name].filter(Boolean).join(' ')
+  const deleted = finding.deleted ? ' [policy deleted]' : ''
+  const lines = [`  ${rule} (${title ? `${key} ${title}` : key})${deleted}  ${object}: ${finding.message ?? ''}`]
+  const fix = finding.deleted ? '' : finding.check?.fix_hint?.trim()
+  if (fix) lines.push(`    Fix: ${fix}`)
+  return lines
 }
 
 /** A completed rule with no objects checked, including older stored pass + checked 0 results. */

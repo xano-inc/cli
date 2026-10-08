@@ -5,6 +5,10 @@
  *   policy_feature_disabled      the instance's `policies` feature is off
  *   policy_permission_required   the caller's role lacks the `workspace:policy` level on this workspace
  *   policy_scope_required        the Metadata API token was created without that level
+ *   policy_object_permission_required
+ *                                an object's policy coverage needs the object kind's own read
+ *                                permission (`payload.permission`, e.g. `workspace:function`),
+ *                                never `workspace:policy`
  *   policy_weakening_permission_required
  *                                a push, set-live or merge weakens a policy that is active and
  *                                blocking on the branch, which needs the `update` level;
@@ -19,6 +23,8 @@ interface Refusal {
   /** The gate a weakening refusal names: `push`, `set_live`, `merge`, `archive_import` or `delete`. */
   gate?: unknown
   level?: unknown
+  /** The permission an object coverage refusal names, e.g. `workspace:function`. */
+  permission?: unknown
   policies?: unknown
   /** A weakening refusal whose check could not read the policies (it fails closed). */
   unavailable?: unknown
@@ -53,6 +59,11 @@ export function policyPermissionGuidance(status: number, payload: unknown): stri
   switch (refusal.code) {
     case 'policy_feature_disabled': {
       return '\nThe Policies feature is turned off for this instance, so no token or permission can reach it. Ask your Xano contact to enable Policies.'
+    }
+
+    case 'policy_object_permission_required': {
+      const permission = typeof refusal.permission === 'string' && refusal.permission ? `\`${refusal.permission}\` read` : 'read'
+      return `\nYour role on this workspace lacks the ${permission} permission for this object. An object's policy coverage needs only that, not \`workspace:policy\`. Ask an instance admin to grant it.`
     }
 
     case 'policy_permission_required': {

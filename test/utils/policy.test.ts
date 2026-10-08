@@ -35,7 +35,7 @@ describe('policy carriage and feedback', () => {
     expect(() => policyBaseName('../escape')).to.throw('Invalid policy key')
   })
 
-  const warned = ['disabled', 'forbidden', 'unavailable', 'error']
+  const warned = ['disabled', 'unavailable', 'error']
 
   it('exits 2 whenever the platform says a finding blocks, whatever the status', () => {
     expect(policyExitCode({blocking: true, status: 'fail'})).to.equal(2)
@@ -46,8 +46,9 @@ describe('policy carriage and feedback', () => {
     expect(policyExitCode()).to.equal(0)
   })
 
-  it('warns once with the server status and message for disabled, forbidden, unavailable and error', () => {
-    for (const status of warned) {
+  it('warns once with the server status and message for disabled, unavailable, error and an older platform\'s forbidden', () => {
+    // A platform before members without policy read were told their own findings answered `forbidden`.
+    for (const status of [...warned, 'forbidden']) {
       expect(policyCheckWarning({blocking: false, message: `Said ${status}.`, status})).to.equal(`Policy check ${status}: Said ${status}.`)
       expect(policySummary({blocking: false, message: `Said ${status}.`, status})).to.deep.equal([])
     }

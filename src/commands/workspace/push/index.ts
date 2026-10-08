@@ -15,6 +15,7 @@ import {
 } from '../../../utils/multidoc-push.js'
 import {policyCodeGuidance} from '../../../utils/policy/errors.js'
 import {
+  isCoverageCheck,
   policiesSkippedNotice,
   policyCheckWarning,
   policyDocumentSummary,
@@ -349,7 +350,13 @@ Full sync including knowledge files; removes server objects not present locally
     const code = policyExitCode(check)
     if (code) {
       process.exitCode = code
-      if (!json) this.log('Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
+      // A caller without workspace:policy read is told its own findings and no run, so the run reads would be refused.
+      if (!json) {
+        this.log(isCoverageCheck(check)
+          ? 'Next: fix the blocking findings above, or `xano policy coverage <type>:<id>` for the policies that apply to one object.'
+          : 'Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
+      }
+
       this.warn('Workspace import completed with blocking policy findings; the imported changes were not rolled back.')
     }
   }

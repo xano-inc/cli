@@ -178,11 +178,14 @@ describe('release policy checks', () => {
       })
     }
 
-    it('a non-reader gate refusal reports counts and the permission without policy details', async () => {
-      tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined, truncated: undefined}))
+    it('a non-reader gate refusal names the blocking policy and the counts, without the findings', async () => {
+      // The platform names the blocking policies to every caller; the findings stay a reader's.
+      const message = 'Deploy blocked: this release has 1 blocking policy finding from AUTH-001.'
+      tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined, message, truncated: undefined}))
       const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
-      expect(result.stdout).to.contain('workspace:policy read').and.to.contain('Blocking findings in this release: 1')
-      expect(result.stdout).not.to.contain('AUTH-001')
+      expect(result.stdout).to.contain(message).and.to.contain('Blocking findings in this release: 1')
+      expect(result.stdout).to.contain('The findings are listed only for a credential that reads policies (workspace:policy read).')
+      expect(result.stdout).not.to.contain('Endpoint has no authentication.')
       expect(result.error).to.have.nested.property('oclif.exit', 2)
     })
 

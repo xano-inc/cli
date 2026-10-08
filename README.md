@@ -196,6 +196,7 @@ xano policy runs --release v1.2                      # A release's check (stored
 xano policy runs --release v1.2 --recheck            # Check the release again from its archive, store the run, then read it
 xano policy runs --release-id 12                    # Read an imported release by ID without a name lookup
 xano policy delete TMP-001                           # Remove a policy; its Version History is kept
+xano policy coverage query:42                        # Which policies apply to one object, why, and its findings
 ```
 
 `policy catalogue` lists the templates by category, each row ending with its framework tags in brackets
@@ -212,7 +213,7 @@ suffix if already taken (case-insensitive); an explicitly taken `--key` is refus
 existing policy. `-m/--message` labels its Version History entry; `-o json` returns the saved policy and
 native rule warnings go to stderr. No continuing link to the template is stored.
 
-A push to the live branch is refused before commit when blocking policies refuse it. The gate judges the branch by the policies it will have after the push, so the pushed policy files count, and a push that weakens a blocking policy of the live branch (demotes, deactivates or deletes it, or loosens one of its rules) needs `workspace:policy` update and is otherwise refused before anything is imported. A 403 `policy_gate` exits **2**, says nothing was imported, and lists the blocking findings and introduced/changed counts. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
+A push to the live branch is refused before commit when blocking policies refuse it. The gate judges the branch by the policies it will have after the push, so the pushed policy files count, and a push that weakens a blocking policy of the live branch (demotes, deactivates or deletes it, or loosens one of its rules) needs `workspace:policy` update and is otherwise refused before anything is imported. A 403 `policy_gate` exits **2**, prints the platform's sentence (which names the policies the blocking findings come from, to every caller), says nothing was imported, and lists the blocking findings; a credential without `workspace:policy` read gets the counts and the policy keys, not the findings. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
@@ -249,6 +250,22 @@ shape (plus the release's `shipped` policies), and a release with no check says 
 `--release-id <id>` reads the same report directly by ID and also supports `--recheck`; it is exclusive with
 `--release` and `--branch`.
 
+`policy coverage <type>:<id>` shows one object as Studio's object panel does: the chip (`Policies 1 blocking · 1
+advisory`, `Policies ✓ 6 pass`, `3 apply · not checked yet`, …), the object's findings in the branch's latest run,
+Blocking then Advisory, each with its policy key and title, rule, message and fix hint, then the policies that apply
+with whether each passes and why it applies. The object is written as findings name it (`query:42`,
+`function:12`). It needs only the object kind's own read permission (`workspace:api` for an endpoint,
+`workspace:function`, `workspace:database` for a table, …), not `workspace:policy`, so the answer leaves out policy
+details (statements, rule settings, other objects' findings, run ids). `-o json` is the platform's answer. It always
+exits 0. Drafts are checked in Studio (on Save, or with Check draft); the CLI reads stored definitions only.
+
+A `workspace push` by a credential without `workspace:policy` read is evaluated like anyone's, but its
+`policy_check` (`access: "coverage"`, `scope: "pushed_objects"`) lists only that credential's findings on the objects
+the push carried, in the same trimmed form, and names no run (`run_id` 0); its status, `blocking` and counts are about
+those findings, so exit `2` still means one of them blocks. The CLI prints them with their fix hints and the
+platform's note, and no `xano policy runs` hint. An older platform answers `forbidden` instead, which is printed as
+one warning line.
+
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
 blocks (an active, blocking policy failed), whatever else happened; `1` when a request or the import failed, or
 when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
@@ -256,7 +273,8 @@ when `status --fail-on-findings` finds stale, missing or errored evidence; other
 refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
 `release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live, and `1` for any other failure; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does. `function create` and `function edit` exit `2` when the live-branch publish gate refuses the save (see Functions), and `1` for any other failure. A blank `--policy-override` is refused before any request. A `workspace push`, `branch set_live`, `release deploy --set_live` or `policy delete` refused with `policy_weakening_permission_required` exits `1`, like the other permission refusals: it is a missing permission, not a blocking finding.
 
-Each route needs the `workspace:policy` permission at the request's level. A refusal's `payload.code` names the
+Each route needs the `workspace:policy` permission at the request's level, except `policy coverage`, which needs
+the object's own read permission (`policy_object_permission_required` names it). A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
 `policy_permission_required` (an instance admin grants your role the level) or `policy_scope_required` (create a
 Metadata API token that has the scope). A push to the live branch, a set live or a merge is judged by the policies it

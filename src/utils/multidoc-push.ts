@@ -1732,7 +1732,7 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
   }
 
   const refusal = payload as Record<string, unknown> | undefined
-  if (status === 403 && refusal?.code === 'policy_gate') throw new PushPolicyGateError(refusal)
+  if (status === 403 && refusal?.code === 'policy_gate') throw new PushPolicyGateError(refusal, message === body ? undefined : message)
   // Policy files that weaken a blocking policy of the live branch, from a credential without
   // workspace:policy update: a permission refusal (exit 1), not a blocking finding. The platform's
   // sentence already reads "Push refused: … Nothing was imported.", so it is printed as it is.

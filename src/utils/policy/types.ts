@@ -45,12 +45,25 @@ export interface PolicyFinding {
   /** Stable finding id, used to tell a blocking finding from an advisory one. */
   id?: string
   message?: string
-  object?: {name?: string; type?: string}
+  object?: {id?: number; name?: string; type?: string}
   policy_key?: string
   policy_title?: string
   rule_id?: string
   rule_title?: string
   severity?: string
+}
+
+/**
+ * A finding as the platform trims it for a caller without `workspace:policy` read (`access:
+ * "coverage"`): no rule id, severity, params or `allow`, but the check's label, first description
+ * sentence and fix hint, and whether it blocks.
+ */
+export interface CoverageFinding extends PolicyFinding {
+  blocking?: boolean
+  /** `null` when the rule can no longer be resolved (a deleted policy, a rule removed since the run). */
+  check?: null | {description?: string; fix_hint?: string; label?: string}
+  /** Coverage only: the run evaluated a policy the branch no longer holds. */
+  deleted?: boolean
 }
 
 /** The verdict every `policy_check` carries. */
@@ -62,7 +75,9 @@ export interface PolicyVerdict {
   run_id?: number
   /**
    * `pass`, `fail` or `error` (a check could not run) for an evaluation; `disabled`,
-   * `not_applicable`, `forbidden` or `unavailable` when nothing was evaluated.
+   * `not_applicable` or `unavailable` when nothing was evaluated. An older platform answers
+   * `forbidden` to a caller without `workspace:policy` read, which is reported like any other
+   * status it has no headline for.
    */
   status?: string
 }
@@ -81,17 +96,64 @@ export interface PolicyCounts {
  * The lists hold the first 100 each, in the platform's order; the stored run (`run_id`) has them all.
  */
 export interface PushPolicyCheck extends PolicyVerdict {
+  /**
+   * `coverage` for a caller without `workspace:policy` read: the findings are only those on the
+   * objects the push carried that the caller may read, trimmed (`CoverageFinding`), with `run_id` 0,
+   * `results` empty and a `note`; `status`, `blocking` and `counts` are about those findings.
+   */
+  access?: string
   /** The first blocking findings. */
   blocking_findings?: PolicyFinding[]
   /** What the lists are out of. */
   counts?: PolicyCounts
   /** The first findings, blocking first. */
   findings?: PolicyFinding[]
+  /** The platform's sentence on what a trimmed answer leaves out (`access: "coverage"`). */
+  note?: string
   results?: PolicyRuleResult[]
+  /** `pushed_objects` beside `access: "coverage"`: the findings are about the pushed objects only. */
+  scope?: string
   /** Every finding, listed or not. */
   total?: number
   /** Whether either list was cut. */
   truncated?: boolean
+}
+
+/** One policy that applies to an object, as the coverage route serves it. */
+export interface ObjectCoveragePolicy {
+  blocking?: boolean
+  /** `blocking` or `advisory`. */
+  enforcement?: string
+  key?: string
+  /** Why it applies here, one plain sentence per rule. */
+  reasons?: string[]
+  /** `failing`, `passing` or `not_checked`. */
+  status?: string
+  title?: string
+}
+
+/**
+ * `GET policy/object/coverage`: which active policies apply to one object, and its findings in the
+ * branch's newest run, trimmed for anyone who may read the object (`workspace:policy` read is not
+ * needed). The same trimmed shape for every caller.
+ */
+export interface ObjectCoverage {
+  access?: string
+  findings?: CoverageFinding[]
+  note?: string
+  object?: {app_id?: number; id?: number; name?: string; type?: string}
+  policies?: ObjectCoveragePolicy[]
+  /** The branch's newest ended run, `null` before the first. */
+  run?: null | {started_at?: string; status?: string}
+  summary?: {
+    advisory?: number
+    applies?: number
+    blocking?: number
+    not_checked?: number
+    passing?: number
+    /** `none_apply`, `findings`, `not_checked`, `check_failed` or `pass`. */
+    state?: string
+  }
 }
 
 /** A policy's place in its branch's newest run, as the platform serves it on every policy. */

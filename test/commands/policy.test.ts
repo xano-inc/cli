@@ -134,7 +134,6 @@ describe('official policy commands and workspace carriage', () => {
     [{blocking: false, status: 'fail'}, 0, null],
     [{blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}, 0, null],
     [{blocking: false, message: 'Policies are not enabled.', status: 'disabled'}, 0, 'Policy check disabled: Policies are not enabled.'],
-    [{blocking: false, message: 'This credential cannot read policies.', status: 'forbidden'}, 0, 'Policy check forbidden: This credential cannot read policies.'],
     [{blocking: false, message: 'Evaluation is unavailable.', status: 'unavailable'}, 0, 'Policy check unavailable: Evaluation is unavailable.'],
     [{blocking: false, message: 'A check could not run.', status: 'error'}, 0, 'Policy check error: A check could not run.'],
     [{blocking: true, message: 'A check could not run.', status: 'error'}, 2, 'Policy check error: A check could not run.'],
