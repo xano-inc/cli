@@ -82,9 +82,10 @@ export interface PolicyEvidence {
    * The answer to a caller without `workspace:policy` read (`access: "coverage"`): its own findings
    * on the pushed objects, trimmed, with no run to read (`run_id` 0) and no rule results, the
    * platform's `note` on what it leaves out, how many rules could not run on the branch, and how
-   * many findings the push introduced on the objects it does not list (`elsewhere`, never named).
+   * many findings there are on the objects it does not list (`elsewhere`, never named): those the
+   * push introduced when `basis` is `introduced`, otherwise every one (no baseline, or an older platform).
    */
-  trimmed?: {elsewhere: {blocking: number; total: number}; errors: number; note: string}
+  trimmed?: {elsewhere: {blocking: number; introduced: boolean; total: number}; errors: number; note: string}
 }
 
 /** A count the platform served, or 0. */
@@ -95,7 +96,11 @@ function count(value: unknown): number {
 /** What a trimmed answer (`access: "coverage"`) says beyond its findings. */
 function trimmedEvidence(check: PushPolicyCheck): NonNullable<PolicyEvidence['trimmed']> {
   return {
-    elsewhere: {blocking: count(check.elsewhere?.blocking), total: count(check.elsewhere?.total)},
+    elsewhere: {
+      blocking: count(check.elsewhere?.blocking),
+      introduced: check.elsewhere?.basis === 'introduced',
+      total: count(check.elsewhere?.total),
+    },
     errors: check.counts?.errors ?? 0,
     note: typeof check.note === 'string' ? check.note.trim() : '',
   }
@@ -107,7 +112,8 @@ function trimmedLines(trimmed: NonNullable<PolicyEvidence['trimmed']>): string[]
   return [
     // Counted, never named: the objects are not the caller's to be told about.
     ...(elsewhere.total > 0
-      ? [`On objects this push did not list: ${elsewhere.total} new finding${elsewhere.total === 1 ? '' : 's'} (${elsewhere.blocking} blocking), counted, not named.`]
+      // "new" only when the platform compared with the branch before the push (`basis: introduced`).
+      ? [`On objects this push did not list: ${elsewhere.total} ${elsewhere.introduced ? 'new ' : ''}finding${elsewhere.total === 1 ? '' : 's'} (${elsewhere.blocking} blocking), counted, not named.`]
       : []),
     ...(trimmed.errors > 0 ? [`Rules that could not run on the branch: ${trimmed.errors}.`] : []),
     ...(trimmed.note ? [trimmed.note] : []),

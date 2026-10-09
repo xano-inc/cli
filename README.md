@@ -264,10 +264,13 @@ A `workspace push` by a credential without `workspace:policy` read is evaluated 
 the push carried that it may read (the workspace too, when the push carried `workspace.xs` and the credential has
 `workspace:settings` read), in the same trimmed form, and names no run (`run_id` 0). Its counts are about those
 findings, except `counts.errors`, the branch's rules that could not run. `elsewhere {total, blocking}` counts, never
-names, the findings the push introduced on the objects it does not list. `blocking` is what a reader's push of the
+names, the findings on the objects it does not list: with `basis: "introduced"` those the push introduced, with
+`basis: "all"` every one there. `blocking` is what a reader's push of the
 same change says, so the exit code is the same whoever pushes: `2` can mean a blocking finding on an object this
 credential is not told about. The CLI prints the listed findings with their fix hints, the
-`On objects this push did not list: N new findings (B blocking), counted, not named.` line when there are any, and
+`On objects this push did not list: N new findings (B blocking), counted, not named.` line when there are any
+(`N findings` rather than `N new findings` when `elsewhere.basis` is `all`, because no baseline from before the push was
+known, or when an older platform sends no `basis`), and
 the platform's note, and no `xano policy runs` hint. An older platform answers `forbidden` instead, which is printed
 as one warning line.
 

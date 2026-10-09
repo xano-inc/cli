@@ -110,11 +110,12 @@ export interface PushPolicyCheck extends PolicyVerdict {
   /** What the lists are out of. */
   counts?: PolicyCounts
   /**
-   * A trimmed answer's count of the findings the push introduced on the objects it does not list
-   * (never named): those not in the branch's newest run just before the push, or every one there
-   * when no run described the branch then.
+   * A trimmed answer's count of the findings on the objects the push does not list (never named).
+   * `basis` `introduced`: those the push introduced (not in the push gate's evaluation of the branch
+   * before it on the live branch; elsewhere not in the newest run that still described the branch);
+   * `all`: no baseline was known, so every finding there. An older platform sends no `basis`.
    */
-  elsewhere?: {blocking?: number; total?: number}
+  elsewhere?: {basis?: string; blocking?: number; total?: number}
   /** The first findings, blocking first. */
   findings?: PolicyFinding[]
   /** The platform's sentence on what a trimmed answer leaves out (`access: "coverage"`). */

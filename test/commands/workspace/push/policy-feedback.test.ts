@@ -164,7 +164,7 @@ describe('workspace push policy feedback', () => {
 
     it('counts the findings it introduced on objects it does not list, and blocks as a reader\'s push does', async () => {
       // Nothing of theirs is listed, yet the branch holds a blocking finding after the push.
-      fixture.route(() => json({guid_map: [], policy_check: coverage([], {blocking: true, elsewhere: {blocking: 1, total: 3}, message: 'Policies reported findings.', status: 'fail'})}))
+      fixture.route(() => json({guid_map: [], policy_check: coverage([], {blocking: true, elsewhere: {basis: 'introduced', blocking: 1, total: 3}, message: 'Policies reported findings.', status: 'fail'})}))
       const result = await push()
       expect(process.exitCode).to.equal(2)
       expect(result.stdout).to.contain('Policy check: fail (blocking findings)')
@@ -173,8 +173,18 @@ describe('workspace push policy feedback', () => {
       expect(result.stdout).not.to.contain('fix the blocking findings above')
     })
 
+    for (const [basis, label] of [['all', 'with no baseline'], [undefined, 'from an older platform']] as const) {
+      it(`counts every finding on objects it does not list, not "new" ones, ${label}`, async () => {
+        const elsewhere = {blocking: 0, total: 1, ...(basis ? {basis} : {})}
+        fixture.route(() => json({guid_map: [], policy_check: coverage([own(1, true)], {elsewhere})}))
+        const result = await push()
+        expect(result.stdout).to.contain('On objects this push did not list: 1 finding (0 blocking), counted, not named.')
+        expect(result.stdout).not.to.contain('new finding')
+      })
+    }
+
     it('says nothing of other objects when the push introduced nothing there', async () => {
-      fixture.route(() => json({guid_map: [], policy_check: coverage([own(1, true)], {elsewhere: {blocking: 0, total: 0}})}))
+      fixture.route(() => json({guid_map: [], policy_check: coverage([own(1, true)], {elsewhere: {basis: 'introduced', blocking: 0, total: 0}})}))
       const result = await push()
       expect(result.stdout).not.to.contain('On objects this push did not list')
       expect(result.stdout).to.contain('Next: fix the blocking findings above')
