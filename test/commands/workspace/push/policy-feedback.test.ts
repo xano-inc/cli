@@ -8,6 +8,7 @@ import readline from 'node:readline'
 import {json, policyFixture} from '../../../helpers/policy-fixture.js'
 
 const finding = {id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}
+// `forbidden` is what a platform answered before members without policy read got their own findings.
 const warned = ['disabled', 'forbidden', 'unavailable', 'error']
 const blocked = (n: number) => ({...finding, id: `B${n}`, object: {name: `GET /b${n}`, type: 'query'}})
 const advisory = (n: number) => ({...finding, id: `A${n}`, object: {name: `GET /a${n}`, type: 'query'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'})
@@ -15,6 +16,19 @@ const advisory = (n: number) => ({...finding, id: `A${n}`, object: {name: `GET /
 const capped = (blocking: unknown[], findings: unknown[], counts: {blocking: number; errors: number; findings: number}) => ({
   blocking: counts.blocking > 0, blocking_findings: blocking, counts, findings, message: 'Active policies reported findings.',
   results: [], run_id: 88, status: 'fail', total: counts.findings, truncated: counts.findings > findings.length,
+})
+
+/** A trimmed finding, as the platform tells a caller without workspace:policy read. */
+const own = (n: number, blocking: boolean) => ({
+  blocking,
+  check: {description: 'Requires every endpoint to declare authentication.', fix_hint: blocking ? 'Set auth on the endpoint.' : '', label: 'Endpoints require authentication'},
+  deleted: false,
+  id: `AUTH-010.R1:query:${n}`,
+  message: `query "orders${n}" (GET) has no authentication`,
+  object: {app_id: 3, id: n, name: `orders${n}`, type: 'query'},
+  policy_key: blocking ? 'AUTH-010' : 'LOG-002',
+  policy_title: blocking ? 'Endpoints require login' : '',
+  rule_title: 'Endpoint requires authentication',
 })
 
 describe('workspace push policy feedback', () => {
@@ -66,7 +80,7 @@ describe('workspace push policy feedback', () => {
       const first = Array.from({length: 100}, (_, n) => blocked(n))
       fixture.route(() => json({guid_map: [], policy_check: capped(first, first, {blocking: 150, errors: 0, findings: 400})}))
       const result = await push()
-      expect(result.stdout).to.contain('Active policies reported findings.\nFindings: 400 (150 blocking, 250 advisory)\nBlocking findings (first 100 of 150) — active mandatory policies; a gate refuses a change that introduces one or changes its object:')
+      expect(result.stdout).to.contain('Active policies reported findings.\nFindings: 400 (150 blocking, 250 advisory)\nBlocking findings (first 100 of 150) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
       expect(result.stdout).to.contain('Listed: the first 100 of 400; `xano policy runs 88` has them all.')
       expect(result.stdout.split('\n').filter(line => line.includes('GET /b'))).to.have.length(100)
       expect(process.exitCode).to.equal(2)
@@ -76,7 +90,7 @@ describe('workspace push policy feedback', () => {
       const first = [...Array.from({length: 30}, (_, n) => blocked(n)), ...Array.from({length: 70}, (_, n) => advisory(n))]
       fixture.route(() => json({guid_map: [], policy_check: capped(first.slice(0, 30), first, {blocking: 30, errors: 0, findings: 400})}))
       const result = await push()
-      expect(result.stdout).to.contain('Blocking findings (30) — active mandatory policies; a gate refuses a change that introduces one or changes its object:')
+      expect(result.stdout).to.contain('Blocking findings (30) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
       expect(result.stdout).to.contain('Advisory findings (first 70 of 370) — reported, not blocking:')
     })
 
@@ -84,7 +98,7 @@ describe('workspace push policy feedback', () => {
       const all = [blocked(0), advisory(0)]
       fixture.route(() => json({guid_map: [], policy_check: capped([all[0]], all, {blocking: 1, errors: 0, findings: 2})}))
       const result = await push()
-      expect(result.stdout).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:')
+      expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
       expect(result.stdout).not.to.contain('Findings: 2').and.not.to.contain('Listed:')
     })
 
@@ -96,7 +110,95 @@ describe('workspace push policy feedback', () => {
     })
   })
 
-  it('keeps stdout a single JSON document and still warns on stderr', async () => {
+  describe('a caller without policy read', () => {
+    const note = 'Only findings on the objects this push carried are listed. Full policy details need the workspace:policy read permission.'
+    const coverage = (findings: Array<ReturnType<typeof own>>, extra: Record<string, unknown> = {}) => {
+      const blockingFindings = findings.filter(finding => finding.blocking)
+      return {
+        access: 'coverage', blocking: blockingFindings.length > 0, blocking_findings: blockingFindings,
+        counts: {blocking: blockingFindings.length, errors: 0, findings: findings.length}, findings,
+        message: findings.length > 0 ? 'Policies reported findings.' : 'No policy findings.', note, results: [], run_id: 0,
+        scope: 'pushed_objects', status: findings.length > 0 ? 'fail' : 'pass', total: findings.length, truncated: false, ...extra,
+      }
+    }
+
+    it('lists its own findings with key, title, rule, message and fix, and exits 2 when one blocks', async () => {
+      fixture.route(() => json({guid_map: [], policy_check: coverage([own(1, true), own(2, false)])}))
+      const result = await push()
+      expect(result.error).to.equal(undefined)
+      expect(process.exitCode).to.equal(2)
+      expect(result.stdout).to.contain('Policy check: fail (blocking findings)\nPolicies reported findings.')
+      expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:\n'
+        + '  Endpoint requires authentication (AUTH-010 Endpoints require login)  query orders1: query "orders1" (GET) has no authentication\n'
+        + '    Fix: Set auth on the endpoint.')
+      expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:\n'
+        + '  Endpoint requires authentication (LOG-002)  query orders2: query "orders2" (GET) has no authentication')
+      expect(result.stdout).to.contain(note)
+      // There is no run this caller may read.
+      expect(result.stdout).not.to.contain('xano policy runs').and.not.to.contain('xano policy status')
+      expect(result.stdout).to.contain('`xano policy coverage <type>:<id>`')
+      expect(result.stderr).not.to.contain('Policy check forbidden')
+    })
+
+    it('exits 0 when its findings are advisory, and passes the platform document through under -o json', async () => {
+      const check = coverage([own(2, false)])
+      fixture.route(() => json({guid_map: [], policy_check: check}))
+      const summary = await push()
+      expect(process.exitCode ?? 0).to.equal(0)
+      expect(summary.stdout).to.contain('Policy check: advisory findings (not blocking)').and.to.contain(note)
+      process.exitCode = undefined
+      fixture.route(() => json({guid_map: [], policy_check: check}))
+      expect(JSON.parse((await push('-o', 'json')).stdout).policy_check).to.deep.equal(check)
+    })
+
+    it('says a cut list is cut without naming a run, and counts the branch\'s rules that could not run', async () => {
+      const first = Array.from({length: 100}, (_, n) => own(n, true))
+      fixture.route(() => json({guid_map: [], policy_check: coverage(first, {counts: {blocking: 150, errors: 2, findings: 150}, total: 150, truncated: true})}))
+      const result = await push()
+      expect(result.stdout).to.contain('Findings: 150 (150 blocking, 0 advisory)')
+      expect(result.stdout).to.contain('Listed: the first 100 of 150.\n')
+      expect(result.stdout).to.contain('Rules that could not run on the branch: 2.')
+      expect(result.stdout).not.to.contain('was not stored')
+      expect(process.exitCode).to.equal(2)
+    })
+
+    it('counts the findings it introduced on objects it does not list, and blocks as a reader\'s push does', async () => {
+      // Nothing of theirs is listed, yet the branch holds a blocking finding after the push.
+      fixture.route(() => json({guid_map: [], policy_check: coverage([], {blocking: true, elsewhere: {basis: 'introduced', blocking: 1, total: 3}, message: 'Policies reported findings.', status: 'fail'})}))
+      const result = await push()
+      expect(process.exitCode).to.equal(2)
+      expect(result.stdout).to.contain('Policy check: fail (blocking findings)')
+      expect(result.stdout).to.contain('On objects this push did not list: 3 new findings (1 blocking), counted, not named.')
+      expect(result.stdout).to.contain('Next: the blocking findings are on objects this push did not list')
+      expect(result.stdout).not.to.contain('fix the blocking findings above')
+    })
+
+    for (const [basis, label] of [['all', 'with no baseline'], [undefined, 'from an older platform']] as const) {
+      it(`counts every finding on objects it does not list, not "new" ones, ${label}`, async () => {
+        const elsewhere = {blocking: 0, total: 1, ...(basis ? {basis} : {})}
+        fixture.route(() => json({guid_map: [], policy_check: coverage([own(1, true)], {elsewhere})}))
+        const result = await push()
+        expect(result.stdout).to.contain('On objects this push did not list: 1 finding (0 blocking), counted, not named.')
+        expect(result.stdout).not.to.contain('new finding')
+      })
+    }
+
+    it('says nothing of other objects when the push introduced nothing there', async () => {
+      fixture.route(() => json({guid_map: [], policy_check: coverage([own(1, true)], {elsewhere: {basis: 'introduced', blocking: 0, total: 0}})}))
+      const result = await push()
+      expect(result.stdout).not.to.contain('On objects this push did not list')
+      expect(result.stdout).to.contain('Next: fix the blocking findings above')
+    })
+
+    it('leaves out the fix of a deleted policy\'s finding', async () => {
+      const gone = {...own(1, false), deleted: true}
+      fixture.route(() => json({guid_map: [], policy_check: coverage([gone])}))
+      const result = await push()
+      expect(result.stdout).to.contain('[policy deleted]').and.not.to.contain('Fix:')
+    })
+  })
+
+  it('keeps stdout a single JSON document and still warns on stderr, for an older platform\'s forbidden too', async () => {
     const check = {blocking: false, message: 'This credential cannot read policies.', status: 'forbidden'}
     fixture.route(() => json({guid_map: [], policy_check: check}))
     const result = await push('-o', 'json')

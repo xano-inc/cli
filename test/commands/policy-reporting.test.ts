@@ -12,7 +12,7 @@ const checks = [{
   object_kinds: ['query', 'function'],
   params: {object_kinds: {required: false, type: 'string[]'}, statements: {required: true, type: 'string[]'}},
 }, {description: 'Check authentication tables.', fix_hint: 'Enable auth.', id: 'table.auth_table_rules', label: 'Endpoints use the single auth table', object_kinds: ['table'], params: []}]
-const catalogue = {goals: [], items: checks}
+const catalogue = {items: checks, templates: []}
 const backendError = {
   code: 'ERROR_CODE_SYNTAX_ERROR',
   message: 'Invalid block: enforcement',
@@ -22,8 +22,8 @@ const backendError = {
   traceId: 'private-trace-id',
 }
 const coverage = (overrides: Record<string, unknown> = {}) =>
-  ({enforcement: 'mandatory', included: true, run_id: 1129, stale: false, version: 1, ...overrides})
-const policy = {active: true, enforcement: 'mandatory', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
+  ({enforcement: 'blocking', included: true, run_id: 1129, stale: false, version: 1, ...overrides})
+const policy = {active: true, enforcement: 'blocking', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
 const staleCoverage = coverage({stale: true, version: 0})
 const notInRun = coverage({enforcement: null, included: false, version: null})
 const noRun = coverage({enforcement: null, included: false, run_id: 0, version: null})
@@ -67,13 +67,81 @@ describe('policy reporting', () => {
   })
 
   it('catalogue names the params a rule must set one of', async () => {
-    fixture.route(() => json({goals: [], items: [{
+    fixture.route(() => json({items: [{
       description: 'Bound a param.', id: 'statement.param_bound', label: 'Statement params stay in bounds', object_kinds: ['query'],
       params: {max: {type: 'number'}, min: {type: 'number'}}, requires_one_of: ['min', 'max'],
-    }]}))
+    }], templates: []}))
     const result = await command('policy catalogue')
     expect(result.stdout.split('\n').find(line => line.startsWith('statement.param_bound'))).to.contain('one of: min | max')
     expect(result.stdout).not.to.contain('  none')
+  })
+
+  it('catalogue lists the templates under their category labels, in the order the catalogue lists the categories', async () => {
+    const rule = {check: 'object.auth_required', needs: [], params: {}, title: ''}
+    fixture.route(() => json({items: checks, template_categories: [
+      {id: 'access_control', label: 'Access control'}, {id: 'secrets', label: 'Secrets'}, {id: 'testing', label: 'Testing'},
+    ], templates: [
+      {category: 'testing', id: 'endpoints_have_tests', key: 'CHG-001', rules: [rule, rule], severity: 'low', summary: '', title: 'Endpoints are tested'},
+      {category: 'access_control', id: 'endpoints_need_login', key: 'AUTH-010', rules: [rule], severity: 'critical', summary: '', title: 'Endpoints require login'},
+      {category: 'access_control', id: 'one_auth_table', key: 'AUTH-050', rules: [rule], severity: 'medium', summary: '', title: 'Users sign in through one auth table'},
+      {category: 'future_group', id: 'newer', key: 'N-001', rules: [rule], severity: 'low', summary: '', title: 'From a newer instance'},
+      {id: 'uncategorized', key: 'X-001', rules: [rule], severity: 'low', summary: '', title: 'From an older instance'},
+    ]}))
+    const result = await command('policy catalogue')
+    expect(result.error).to.equal(undefined)
+    const lines = result.stdout.split('\n')
+    const at = (text: string) => lines.findIndex(line => line.includes(text))
+    expect(at('Templates (xano policy create --template <id>):')).to.be.greaterThan(at('stack.statement_forbidden'))
+    expect(lines.filter(line => line === 'Access control')).to.have.length(1)
+    expect(lines).not.to.include('Secrets')
+    expect(at('Access control')).to.be.lessThan(at('endpoints_need_login'))
+    expect(at('endpoints_need_login')).to.be.lessThan(at('one_auth_table'))
+    expect(at('one_auth_table')).to.be.lessThan(lines.indexOf('Testing'))
+    expect(lines[at('endpoints_have_tests')]).to.contain('Endpoints are tested (CHG-001, low, 2 rules)')
+    expect(at('newer')).to.be.greaterThan(lines.indexOf('future_group'))
+    expect(at('uncategorized')).to.be.greaterThan(lines.indexOf('Other'))
+  })
+
+  it('catalogue tags templates with their framework labels and prints the served note once, under the heading', async () => {
+    const rule = {check: 'object.auth_required', needs: [], params: {}, title: ''}
+    const note = 'Framework tags point to templates on related topics. They don\'t make a workspace compliant, and Xano doesn\'t track changes to these frameworks.'
+    fixture.route(() => json({items: checks, template_categories: [{id: 'access_control', label: 'Access control'}], template_frameworks: [
+      {id: 'soc2', label: 'SOC 2'}, {id: 'hipaa', label: 'HIPAA'},
+    ], template_frameworks_note: note, templates: [
+      {category: 'access_control', frameworks: ['soc2', 'hipaa'], id: 'endpoints_need_login', key: 'AUTH-010', rules: [rule], severity: 'critical', summary: '', title: 'Endpoints require login'},
+      {category: 'access_control', frameworks: [], id: 'one_auth_table', key: 'AUTH-050', rules: [rule], severity: 'medium', summary: '', title: 'Users sign in through one auth table'},
+      {category: 'access_control', frameworks: ['newer'], id: 'tagged_later', key: 'N-001', rules: [rule], severity: 'low', summary: '', title: 'Tagged by a newer instance'},
+    ]}))
+    const lines = (await command('policy catalogue')).stdout.split('\n')
+    const heading = lines.indexOf('Templates (xano policy create --template <id>):')
+    expect(lines[heading + 1]).to.equal(note)
+    expect(lines.filter(line => line === note)).to.have.length(1)
+    expect(lines.find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\) \[SOC 2, HIPAA\]$/)
+    expect(lines.find(line => line.includes('one_auth_table'))).to.match(/\(AUTH-050, medium, 1 rule\)$/)
+    expect(lines.find(line => line.includes('tagged_later'))).to.match(/\[newer\]$/)
+  })
+
+  it('catalogue prints no framework note when no template carries a tag', async () => {
+    const rule = {check: 'object.auth_required', needs: [], params: {}, title: ''}
+    fixture.route(() => json({items: checks, template_frameworks: [{id: 'soc2', label: 'SOC 2'}], template_frameworks_note: 'A note.', templates: [
+      {category: 'access_control', frameworks: [], id: 'one_auth_table', key: 'AUTH-050', rules: [rule], severity: 'medium', summary: '', title: 'Users sign in through one auth table'},
+    ]}))
+    expect((await command('policy catalogue')).stdout).not.to.contain('A note.')
+  })
+
+  it('catalogue shows no framework tags when the instance serves no note to show with them', async () => {
+    const rule = {check: 'object.auth_required', needs: [], params: {}, title: ''}
+    fixture.route(() => json({items: checks, template_frameworks: [{id: 'soc2', label: 'SOC 2'}], templates: [
+      {category: 'access_control', frameworks: ['soc2'], id: 'endpoints_need_login', key: 'AUTH-010', rules: [rule], severity: 'critical', summary: '', title: 'Endpoints require login'},
+    ]}))
+    const {stdout} = await command('policy catalogue')
+    expect(stdout.split('\n').find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\)$/)
+    expect(stdout).not.to.contain('SOC 2')
+  })
+
+  it('catalogue prints no template section when the instance serves none', async () => {
+    fixture.route(() => json(catalogue))
+    expect((await command('policy catalogue')).stdout).not.to.contain('Templates')
   })
 
   it('catalogue JSON is the native body', async () => {
@@ -100,7 +168,7 @@ describe('policy reporting', () => {
   })
 
   it('catalogue wraps long descriptions instead of truncating them', async () => {
-    fixture.route(() => json({goals: [], items: [{...checks[0], description: 'Inspect every nested statement. '.repeat(8)}]}))
+    fixture.route(() => json({items: [{...checks[0], description: 'Inspect every nested statement. '.repeat(8)}], templates: []}))
     const result = await command('policy catalogue')
     expect(result.stdout.match(/Inspect/g)).to.have.length(8)
     expect(result.stdout.split('\n').every(line => line.length <= 144)).to.equal(true)
@@ -110,7 +178,7 @@ describe('policy reporting', () => {
     const body = {curPage: 1, items: [{...policy, title: 'Auth', version: 5}], nextPage: null, prevPage: null}
     fixture.route(() => json(body))
     const result = await command('policy list')
-    expect(result.stdout).to.contain('AUTH-001  Active, Mandatory  Auth (ID: 7, Version 5)')
+    expect(result.stdout).to.contain('AUTH-001  Active, Blocking  Auth (ID: 7, Version 5)')
     expect(JSON.parse((await command('policy list', ['-o', 'json'])).stdout)).to.deep.equal(body)
   })
 
@@ -227,14 +295,15 @@ describe('policy reporting', () => {
     statusRoute({...policy, active: false, latest_run: staleCoverage}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
     const result = await command('policy status')
     expect(result.error).to.equal(undefined)
-    expect(result.stdout).to.contain('inactive; not evaluated  Mandatory  — findings').and.not.to.contain('OLD ERROR')
+    expect(result.stdout).to.contain('inactive; not evaluated  Inactive  not checked  ').and.not.to.contain('OLD ERROR')
+    expect(result.stdout).not.to.contain('— findings')
     expect(result.stdout).not.to.contain('Blocking')
     expect(process.exitCode ?? 0).to.equal(0)
   })
 
   it('status words enforcement as Studio does, and marks only findings the run judged blocking', async () => {
     statusRoute(policy, run)
-    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Mandatory  1 findings (blocking)')
+    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Blocking  1 findings (blocking)')
     statusRoute({...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run)
     const advisory = await command('policy status', ['-o', 'json'])
     expect(JSON.parse(advisory.stdout).status[0]).to.include({blocking: false, findings: 1})
@@ -266,7 +335,7 @@ describe('policy reporting', () => {
     ]
     statusRoute({...policy, rules: [{id: 'R1'}, {id: 'R2'}]}, {...run, findings: [], results})
     const result = await command('policy status')
-    expect(result.stdout).to.contain('AUTH-001  pass; 1 rule no objects checked  Mandatory  0 findings')
+    expect(result.stdout).to.contain('AUTH-001  pass; 1 rule no objects checked  Blocking  0 findings')
     expect(result.stdout).to.contain('No objects checked (proves nothing about coverage):\n  AUTH-001 R2: no objects checked')
     const asJson = await command('policy status', ['-o', 'json'])
     expect(JSON.parse(asJson.stdout).status[0]).to.include({rules_unchecked: 1, status: 'pass'})
@@ -285,7 +354,7 @@ describe('policy reporting', () => {
 
     statusRoute(policy, run)
     const asJson = JSON.parse((await command('policy status', ['--fail-on-findings', '-o', 'json'])).stdout)
-    expect(asJson.status[0]).to.include({active: true, blocking: true, counted: true, enforcement: 'mandatory'})
+    expect(asJson.status[0]).to.include({active: true, blocking: true, counted: true, enforcement: 'blocking'})
     expect(asJson.fail_on_findings).to.deep.equal({exit: 2, reason: 'The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.'})
     expect(process.exitCode).to.equal(2)
   })

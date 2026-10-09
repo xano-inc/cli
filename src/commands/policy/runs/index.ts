@@ -57,7 +57,7 @@ export default class PolicyRuns extends PolicyCommand {
     }),
     blocking: Flags.boolean({
       default: false,
-      description: "With a run ID, only the blocking findings (an active mandatory policy's)",
+      description: "With a run ID, only the blocking findings (an active blocking policy's)",
       exclusive: ['advisory'],
     }),
     kind: Flags.string({

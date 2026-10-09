@@ -18,6 +18,26 @@ describe('workspace push publish gate', () => {
     expect(result.error?.message).to.include('AUTH-001.R1 (AUTH-001)  query GET /users: declares no auth (introduced)')
   })
 
+  it('prints the platform\'s sentence, which names the blocking policies to every caller', async () => {
+    const message = 'Push refused: 3 blocking policy findings from AUTH-001 and PII-001 (2 introduced by this change, 1 on objects it changes).'
+    fixture.route(() => json({message, payload}, 403))
+    const result = await push('--force')
+    expect(result.error?.oclif?.exit).to.equal(2)
+    expect(result.error?.message).to.include(`${message} Nothing was imported.`)
+    expect(result.error?.message).to.include('AUTH-001.R1 (AUTH-001)  query GET /users: declares no auth (introduced)')
+  })
+
+  it('tells a caller without policy read which policies refused the push, and that the findings need policy read', async () => {
+    const message = 'Push refused: 3 blocking policy findings from AUTH-001 (2 introduced by this change, 1 on objects it changes).'
+    const counts = {can_override: false, changed: 1, code: 'policy_gate', gate: 'push', introduced: 2, total: 3}
+    fixture.route(() => json({message, payload: counts}, 403))
+    const result = await push('--force')
+    expect(result.error?.oclif?.exit).to.equal(2)
+    expect(result.error?.message).to.include(`${message} Nothing was imported.`)
+    expect(result.error?.message).to.include('The findings are listed only for a credential that reads policies (workspace:policy read).')
+    expect(result.error?.message).to.include('ask someone with workspace:policy update permission')
+  })
+
   it('counts a single blocking finding in the singular', async () => {
     fixture.route(() => json({message: 'Push blocked', payload: {...payload, changed: 0, introduced: 1, total: 1}}, 403))
     const result = await push('--force')

@@ -11,7 +11,7 @@ export default class PolicyDelete extends PolicyCommand {
       required: true,
     }),
   }
-  static override description = 'Delete a policy from a branch; its Version History is kept. Deleting an active, mandatory policy also needs the workspace:policy update permission.'
+  static override description = 'Delete a policy from a branch; its Version History is kept. Deleting an active, blocking policy also needs the workspace:policy update permission.'
   static override examples = [
     `$ xano policy delete TMP-DX-001
 Delete policy TMP-DX-001 (ID: 922, Version 2) from workspace 3? Its Version History is kept. (y/N) y

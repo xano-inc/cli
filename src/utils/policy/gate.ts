@@ -217,7 +217,7 @@ export async function gateRefusal(response: Response): Promise<GateRefused | nul
 }
 
 /**
- * A change refused because it weakens a policy active and mandatory on the branch, from a caller
+ * A change refused because it weakens a policy active and blocking on the branch, from a caller
  * without the `workspace:policy` update permission (`policy_weakening_permission_required`). A
  * release deploy or archive import with set live adds the branch it landed, which stays.
  */
@@ -231,7 +231,7 @@ export interface WeakeningRefused {
 export async function weakeningRefusal(response: Response): Promise<null | WeakeningRefused> {
   const refused = await coded403(response, WEAKENING_REFUSAL)
   if (!refused) return null
-  return {message: refused.message || 'Refused: the change weakens a mandatory policy.', payload: refused.payload as WeakeningRefused['payload']}
+  return {message: refused.message || 'Refused: the change weakens a blocking policy.', payload: refused.payload as WeakeningRefused['payload']}
 }
 
 /** What a gate preview needs from the command that asks for it. */

@@ -29,7 +29,7 @@ export default class BranchSetLive extends BaseCommand {
     }),
   }
 static description =
-    '[IMPORTANT] ALWAYS confirm with the user before changing the live branch. Sets a branch as the live (active) branch for API requests. The set-live policy gate checks the branch against its own policies, which live will have once it is set live: when blocking findings refuse it, the command exits 2 unless --policy-override gives a reason. A branch that weakens a mandatory policy of the live branch needs workspace:policy update; without it the command exits 1.'
+    '[IMPORTANT] ALWAYS confirm with the user before changing the live branch. Sets a branch as the live (active) branch for API requests. The set-live policy gate checks the branch against its own policies, which live will have once it is set live: when blocking findings refuse it, the command exits 2 unless --policy-override gives a reason. A branch that weakens a blocking policy of the live branch needs workspace:policy update; without it the command exits 1.'
 static examples = [
     `$ xano branch set-live staging
 Are you sure you want to set 'staging' as the live branch? (y/N) y
@@ -70,7 +70,7 @@ static override flags = {
       required: false,
     }),
   }
-  /** Set once the platform refuses for a weakened mandatory policy: already explained, it exits 1 as it is. */
+  /** Set once the platform refuses for a weakened blocking policy: already explained, it exits 1 as it is. */
   private refusedByPermission = false
   /** Set once the set-live policy gate refuses, the one failure that exits 2. */
   private refusedByPolicyGate = false
@@ -195,7 +195,7 @@ static override flags = {
   }
 
   /**
-   * The branch weakens a mandatory policy of the live branch (or lacks one), and the credential lacks
+   * The branch weakens a blocking policy of the live branch (or lacks one), and the credential lacks
    * `workspace:policy` update. That is a permission refusal, not a blocking finding: it exits 1 (under
    * `-o json` as `{error}`) with the platform's sentence and how to go on. The live branch is unchanged.
    */

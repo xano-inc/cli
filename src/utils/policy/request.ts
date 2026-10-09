@@ -1,7 +1,7 @@
 import type {ProfileConfig} from '../../base-command.js'
 import type {Policy} from './types.js'
 
-import {describePolicyError, policyCodeGuidance} from './errors.js'
+import {describePolicyError, policyCodeGuidance, policyRefusal} from './errors.js'
 import {policyPermissionGuidance} from './permission.js'
 
 /** Query params; a list is sent as PHP reads one (`policy[0]=A&policy[1]=B`). */
@@ -64,6 +64,9 @@ export function policyRequest(host: PolicyRequestHost, route: PolicyRequestRoute
       const text = (await response.text()).replaceAll(profile.access_token, '[REDACTED]')
       if (verbose && text) host.logToStderr(text)
       const {message, payload} = describePolicyError(text, response.status, url)
+      // A refusal that names policies reads as the CLI's own sentence, not the coded message.
+      const plain = policyRefusal(payload)
+      if (plain) host.error(plain)
       const guidance = `${policyPermissionGuidance(response.status, payload)}${policyCodeGuidance(payload)}`
       host.error(`${label} request failed (${response.status}): ${message}${guidance}`)
     }

@@ -7,7 +7,7 @@ import type {
   PushPolicyCheck,
 } from './types.js'
 
-import {findingLine, hasNoObjects, policyResultSummary, snapshotRules} from './findings.js'
+import {coverageFindingLines, findingLine, hasNoObjects, policyResultSummary, snapshotRules} from './findings.js'
 
 /**
  * Feedback printed as a headline: a pass or fail that says whether its findings block, or a branch
@@ -24,9 +24,10 @@ export function policyExitCode(check?: PolicyVerdict): number {
 }
 
 /**
- * The one warning line for feedback without a headline (`disabled`, `forbidden`, `unavailable`,
- * `error`, an unknown status, or a pass or fail that does not say whether it blocks): the server's
- * own status and message, or that none came back. `null` for headlined feedback.
+ * The one warning line for feedback without a headline (`disabled`, `unavailable`, `error`, an
+ * unknown status such as an older platform's `forbidden`, or a pass or fail that does not say whether
+ * it blocks): the server's own status and message, or that none came back. `null` for headlined
+ * feedback.
  */
 export function policyCheckWarning(check?: PolicyVerdict): null | string {
   if (!check) return 'Policy check: no policy feedback returned.'
@@ -77,6 +78,46 @@ export interface PolicyEvidence {
   results: PolicyRuleResult[]
   /** The run's own `policies[]`, which names unnamed rules; a push answers none. */
   snapshot: PolicySnapshotPolicy[]
+  /**
+   * The answer to a caller without `workspace:policy` read (`access: "coverage"`): its own findings
+   * on the pushed objects, trimmed, with no run to read (`run_id` 0) and no rule results, the
+   * platform's `note` on what it leaves out, how many rules could not run on the branch, and how
+   * many findings there are on the objects it does not list (`elsewhere`, never named): those the
+   * push introduced when `basis` is `introduced`, otherwise every one (no baseline, or an older platform).
+   */
+  trimmed?: {elsewhere: {blocking: number; introduced: boolean; total: number}; errors: number; note: string}
+}
+
+/** A count the platform served, or 0. */
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/** What a trimmed answer (`access: "coverage"`) says beyond its findings. */
+function trimmedEvidence(check: PushPolicyCheck): NonNullable<PolicyEvidence['trimmed']> {
+  return {
+    elsewhere: {
+      blocking: count(check.elsewhere?.blocking),
+      introduced: check.elsewhere?.basis === 'introduced',
+      total: count(check.elsewhere?.total),
+    },
+    errors: check.counts?.errors ?? 0,
+    note: typeof check.note === 'string' ? check.note.trim() : '',
+  }
+}
+
+/** A trimmed answer's closing lines: what it counted elsewhere, the branch's rule errors, its note. */
+function trimmedLines(trimmed: NonNullable<PolicyEvidence['trimmed']>): string[] {
+  const {elsewhere} = trimmed
+  return [
+    // Counted, never named: the objects are not the caller's to be told about.
+    ...(elsewhere.total > 0
+      // "new" only when the platform compared with the branch before the push (`basis: introduced`).
+      ? [`On objects this push did not list: ${elsewhere.total} ${elsewhere.introduced ? 'new ' : ''}finding${elsewhere.total === 1 ? '' : 's'} (${elsewhere.blocking} blocking), counted, not named.`]
+      : []),
+    ...(trimmed.errors > 0 ? [`Rules that could not run on the branch: ${trimmed.errors}.`] : []),
+    ...(trimmed.note ? [trimmed.note] : []),
+  ]
 }
 
 /**
@@ -84,6 +125,7 @@ export interface PolicyEvidence {
  * 100 of each list, with `counts` and `total` saying what they are out of.
  */
 export function pushEvidence(check?: PushPolicyCheck): PolicyEvidence {
+  const trimmed = check && isCoverageCheck(check) ? {trimmed: trimmedEvidence(check)} : {}
   return {
     blocking: new Set((check?.blocking_findings ?? []).map(finding => finding.id ?? '').filter(Boolean)),
     ...(check?.truncated && check.counts
@@ -92,7 +134,16 @@ export function pushEvidence(check?: PushPolicyCheck): PolicyEvidence {
     findings: check?.findings ?? [],
     results: check?.results ?? [],
     snapshot: [],
+    ...trimmed,
   }
+}
+
+/**
+ * A push's `policy_check` for a caller without `workspace:policy` read: only that caller's findings
+ * on the objects the push carried, and no run it may read.
+ */
+export function isCoverageCheck(check?: PushPolicyCheck): boolean {
+  return check?.access === 'coverage'
 }
 
 /**
@@ -141,7 +192,8 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
   }
 
   const rules = snapshotRules(evidence.snapshot)
-  const {blocking, cut, findings} = evidence
+  const {blocking, cut, findings, trimmed} = evidence
+  const render = (finding: PolicyFinding) => trimmed ? coverageFindingLines(finding) : [findingLine(finding, rules)]
   // A cut list is out of the counts; the ones the answer lists come first, blocking first.
   const allBlocking = cut?.blocking
   const allAdvisory = cut ? cut.findings - cut.blocking : undefined
@@ -152,25 +204,30 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
     const blocked = findings.filter(finding => blocking.has(finding.id ?? ''))
     const advisory = findings.filter(finding => !blocking.has(finding.id ?? ''))
     lines.push(
-      `Blocking findings (${listed(blocked.length, allBlocking)}) — active mandatory policies; a gate refuses a change that introduces one or changes its object:`,
-      ...blocked.map(finding => findingLine(finding, rules)),
+      `Blocking findings (${listed(blocked.length, allBlocking)}) — active blocking policies; a gate refuses a change that introduces one or changes its object:`,
+      ...blocked.flatMap(finding => render(finding)),
       `Advisory findings (${listed(advisory.length, allAdvisory)}) — reported, not blocking:`,
-      ...advisory.map(finding => findingLine(finding, rules)),
+      ...advisory.flatMap(finding => render(finding)),
     )
   } else {
-    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${listed(findings.length, allBlocking)}) — active mandatory policies; a gate refuses a change that introduces one or changes its object:`)
+    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${listed(findings.length, allBlocking)}) — active blocking policies; a gate refuses a change that introduces one or changes its object:`)
     // Without a headline (an `error` status, say) nothing else says what these findings are.
     else if (findings.length > 0 && !isHeadlined(check)) lines.push(`Advisory findings (${listed(findings.length, allAdvisory)}) — reported, not blocking:`)
-    lines.push(...findings.map(finding => findingLine(finding, rules)))
+    lines.push(...findings.flatMap(finding => render(finding)))
   }
 
   if (cut) {
-    lines.push(`Listed: the first ${findings.length} of ${cut.findings}; ${cut.runId > 0
-      ? `\`xano policy runs ${cut.runId}\` has them all.`
-      : 'this evaluation was not stored, so the rest cannot be listed.'}`)
+    // A trimmed answer names no run: the caller may not read one.
+    lines.push(trimmed
+      ? `Listed: the first ${findings.length} of ${cut.findings}.`
+      : `Listed: the first ${findings.length} of ${cut.findings}; ${cut.runId > 0
+        ? `\`xano policy runs ${cut.runId}\` has them all.`
+        : 'this evaluation was not stored, so the rest cannot be listed.'}`)
   }
 
   lines.push(...policyResultSummary(evidence.results))
+  if (trimmed) lines.push(...trimmedLines(trimmed))
+
   return lines
 }
 

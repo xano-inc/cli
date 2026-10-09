@@ -38,7 +38,7 @@ export default class ReleaseDeploy extends BaseCommand {
     }),
   }
   static description =
-    "[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch. With --set_live the branch is then set live through the set-live policy gate: when blocking findings refuse it, the branch stays, set live is refused, and the command exits 2 unless --policy-override gives a reason. A release that weakens a mandatory policy of the live branch needs workspace:policy update to be set live; without it the branch stays and the command exits 1."
+    "[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch. With --set_live the branch is then set live through the set-live policy gate: when blocking findings refuse it, the branch stays, set live is refused, and the command exits 2 unless --policy-override gives a reason. A release that weakens a blocking policy of the live branch needs workspace:policy update to be set live; without it the branch stays and the command exits 1."
   static examples = [
     `$ xano release deploy "v1.0"
 Are you sure you want to deploy release "v1.0"? (y/N) y
@@ -83,7 +83,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       required: false,
     }),
   }
-  /** Set once the platform refuses set live for a weakened mandatory policy: already explained, it exits 1 as it is. */
+  /** Set once the platform refuses set live for a weakened blocking policy: already explained, it exits 1 as it is. */
   private refusedByPermission = false
   /** Set once the set-live policy gate refuses, the one failure that exits 2. */
   private refusedByPolicyGate = false
@@ -197,7 +197,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
     if (status) this.log(`  Policy gate: ${status}`)
   }
 
-  /** Stops the command when set live was refused after the branch was created: by the gate (exit 2) or for a weakened mandatory policy (exit 1). */
+  /** Stops the command when set live was refused after the branch was created: by the gate (exit 2) or for a weakened blocking policy (exit 1). */
   private async refuseIfSetLiveRefused(response: Response, flags: {branch?: string; output: string; workspace?: string}, releaseName: string): Promise<void> {
     const refused = await gateRefusal(response)
     if (refused) this.refuseSetLive(refused, flags, releaseName)
@@ -231,7 +231,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
 
   /**
    * Set live was refused after the branch was created because the release weakens (or lacks) a
-   * mandatory policy of the live branch, and the credential lacks `workspace:policy` update. That is a
+   * blocking policy of the live branch, and the credential lacks `workspace:policy` update. That is a
    * permission refusal, not a blocking finding: it exits 1 (under `-o json` as `{error}`) with the
    * platform's sentence, which names the branch, and how to go on.
    */
