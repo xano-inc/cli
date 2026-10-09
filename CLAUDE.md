@@ -83,7 +83,7 @@ src/
 ├── index.ts                     # Entry point (re-exports oclif run)
 ├── commands/
 │   ├── auth/                    # Browser-based authentication
-│   ├── policy/                  # Policy management (catalogue, list, create, parse, publish, evaluate, status, runs, delete)
+│   ├── policy/                  # Policy management (catalogue, list, create, parse, publish, evaluate, status, runs, delete, coverage)
 │   ├── profile/                 # Profile management (9 commands)
 │   │   ├── wizard.ts            # Interactive profile creation
 │   │   ├── create.ts            # Manual profile creation
@@ -131,7 +131,7 @@ test/
 | `src/utils/multidoc-push.ts` | Shared push logic for both `sandbox push` and `workspace push` — file collection, glob filtering, dry-run preview, confirmation, partial push, GUID sync, validation rendering |
 | `src/utils/document-parser.ts` | XanoScript document parsing — type/name/verb/guid extraction, document key building |
 | `src/utils/reference-checker.ts` | Cross-reference validation and table index checking |
-| `src/utils/policy/` | Policy helpers for `policy *`, `skills pull` and the gated commands: `request` (policy route requests, every list page), `feedback` (`policy_check` exit code and summary), `status`, `runs`, `findings`, `catalogue`, `errors`, `permission`, `types`, `gate` (gate previews and refusals), `push-gate` (push gate refusal), `goal` (goal → policy document) and `release` (stored release checks, and the `release list` tag). Which pushes carry policy files is in the README. |
+| `src/utils/policy/` | Policy helpers for `policy *`, `skills pull` and the gated commands: `request` (policy route requests, every list page), `feedback` (`policy_check` exit code and summary), `status`, `runs`, `findings`, `coverage` (one object's coverage), `catalogue`, `errors`, `permission`, `types`, `gate` (gate previews and refusals), `push-gate` (push gate refusal), `template` (template → policy document) and `release` (stored release checks, and the `release list` tag). Which pushes carry policy files is in the README. |
 
 ## Coding Conventions
 

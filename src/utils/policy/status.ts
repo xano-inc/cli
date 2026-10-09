@@ -13,13 +13,13 @@ export interface PolicyStatusRow {
   active: boolean
   /**
    * Whether the latest run's findings on this policy block a merge: the run evaluated it, in its
-   * current version, as active and mandatory (the platform's `latest_run.enforcement`), and found something.
+   * current version, as active and blocking (the platform's `latest_run.enforcement`), and found something.
    */
   blocking: boolean
   checked: number
   /** Whether `findings` and `checked` come from the latest run: only for an active policy it evaluated in its current version. */
   counted: boolean
-  /** The policy's own enforcement (`mandatory` / `advisory`). */
+  /** The policy's own enforcement (`blocking` / `advisory`). */
   enforcement: string
   findings: number
   key: string
@@ -56,14 +56,25 @@ export function statusLabel(row: PolicyStatusRow): string {
 
 /** The policy's own enforcement, in Studio's words. Whether its findings block is `findingsLabel`'s to say. */
 export function enforcementLabel(enforcement: string): string {
-  if (enforcement === 'mandatory') return 'Mandatory'
+  if (enforcement === 'blocking') return 'Blocking'
   if (enforcement === 'advisory') return 'Advisory'
   return enforcement.trim() || '—'
 }
 
-/** `3 findings`, marked blocking when they block; a dash where the row carries no current count. */
+/**
+ * The enforcement column of a status row, worded as Studio's list words it: an inactive policy
+ * reads `Inactive` whatever its enforcement, so it never reads as blocking.
+ */
+export function enforcementColumn(row: Pick<PolicyStatusRow, 'active' | 'enforcement'>): string {
+  return row.active ? enforcementLabel(row.enforcement) : 'Inactive'
+}
+
+/**
+ * `3 findings`, marked blocking when they block. A row the latest run did not count says so: an active
+ * policy is `not checked yet` (never evaluated, or changed since), an inactive one `not checked`.
+ */
 export function findingsLabel(row: PolicyStatusRow): string {
-  if (!row.counted) return '— findings'
+  if (!row.counted) return row.status === 'inactive' ? 'not checked' : 'not checked yet'
   return `${row.findings} findings${row.blocking ? ' (blocking)' : ''}`
 }
 
@@ -107,7 +118,7 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): Poli
     if (active) status = stale ? 'stale' : ruleStatus(results, ids.size, checked)
     return {
       active: policy.active,
-      blocking: counted && policy.latest_run?.enforcement === 'mandatory' && findings > 0,
+      blocking: counted && policy.latest_run?.enforcement === 'blocking' && findings > 0,
       checked,
       counted,
       enforcement: policy.enforcement,

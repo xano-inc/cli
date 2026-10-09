@@ -113,8 +113,8 @@ describe('branch set_live and the set-live policy gate', () => {
     expect(fixture.calls).to.have.length(0)
   })
 
-  describe('a branch that weakens a mandatory policy of the live branch', () => {
-    const message = 'Set live refused: it weakens mandatory policies GATE-001, GATE-002, which needs the workspace:policy update permission. The live branch was not changed.'
+  describe('a branch that weakens a blocking policy of the live branch', () => {
+    const message = 'Set live refused: it weakens blocking policies GATE-001, GATE-002, which needs the workspace:policy update permission. The live branch was not changed.'
     const weakening = () => json({
       code: 'ERROR_CODE_ACCESS_DENIED',
       message,
@@ -145,7 +145,7 @@ describe('branch set_live and the set-live policy gate', () => {
     })
 
     it('when the check could not read the policies, it fails closed and says so, exiting 1', async () => {
-      const unchecked = 'Set live refused: whether it weakens a mandatory policy could not be checked, and weakening one needs the workspace:policy update permission. The live branch was not changed.'
+      const unchecked = 'Set live refused: whether it weakens a blocking policy could not be checked, and weakening one needs the workspace:policy update permission. The live branch was not changed.'
       fixture.route(() => json({
         code: 'ERROR_CODE_ACCESS_DENIED',
         message: unchecked,

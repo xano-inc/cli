@@ -178,11 +178,14 @@ describe('release policy checks', () => {
       })
     }
 
-    it('a non-reader gate refusal reports counts and the permission without policy details', async () => {
-      tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined, truncated: undefined}))
+    it('a non-reader gate refusal names the blocking policy and the counts, without the findings', async () => {
+      // The platform names the blocking policies to every caller; the findings stay a reader's.
+      const message = 'Deploy blocked: this release has 1 blocking policy finding from AUTH-001.'
+      tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined, message, truncated: undefined}))
       const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
-      expect(result.stdout).to.contain('workspace:policy read').and.to.contain('Blocking findings in this release: 1')
-      expect(result.stdout).not.to.contain('AUTH-001')
+      expect(result.stdout).to.contain(message).and.to.contain('Blocking findings in this release: 1')
+      expect(result.stdout).to.contain('The findings are listed only for a credential that reads policies (workspace:policy read).')
+      expect(result.stdout).not.to.contain('Endpoint has no authentication.')
       expect(result.error).to.have.nested.property('oclif.exit', 2)
     })
 
@@ -384,8 +387,8 @@ describe('release policy checks', () => {
       expect(JSON.parse(asJson.stdout).error).to.include({exit: 1})
     })
 
-    it('a set live refused for weakening a mandatory policy is a permission refusal: it names the branch that stays and exits 1', async () => {
-      const message = 'The release was deployed as branch "rollback". Set live refused: it weakens mandatory policy GATE-001, which needs the workspace:policy update permission. The live branch was not changed.'
+    it('a set live refused for weakening a blocking policy is a permission refusal: it names the branch that stays and exits 1', async () => {
+      const message = 'The release was deployed as branch "rollback". Set live refused: it weakens blocking policy GATE-001, which needs the workspace:policy update permission. The live branch was not changed.'
       const weakening = () => json({
         code: 'ERROR_CODE_ACCESS_DENIED',
         message,
@@ -563,7 +566,7 @@ describe('release policy checks', () => {
       policies: [{key: 'AUTH-001', rules: [{id: 'R1', label: 'Authentication required'}]}],
       release: {branch: {id: 3, label: 'main'}, id: 12},
       results: [{check_id: 'R1', checked: 40, policy_key: 'AUTH-001', status: 'fail'}],
-      shipped: [{active: true, enforcement: 'mandatory', key: 'AUTH-001'}, {active: true, enforcement: 'advisory', key: 'LOG-001'}],
+      shipped: [{active: true, enforcement: 'blocking', key: 'AUTH-001'}, {active: true, enforcement: 'advisory', key: 'LOG-001'}],
       status: 'fail',
       trigger: 'release',
     }

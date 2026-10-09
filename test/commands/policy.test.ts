@@ -134,7 +134,6 @@ describe('official policy commands and workspace carriage', () => {
     [{blocking: false, status: 'fail'}, 0, null],
     [{blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}, 0, null],
     [{blocking: false, message: 'Policies are not enabled.', status: 'disabled'}, 0, 'Policy check disabled: Policies are not enabled.'],
-    [{blocking: false, message: 'This credential cannot read policies.', status: 'forbidden'}, 0, 'Policy check forbidden: This credential cannot read policies.'],
     [{blocking: false, message: 'Evaluation is unavailable.', status: 'unavailable'}, 0, 'Policy check unavailable: Evaluation is unavailable.'],
     [{blocking: false, message: 'A check could not run.', status: 'error'}, 0, 'Policy check error: A check could not run.'],
     [{blocking: true, message: 'A check could not run.', status: 'error'}, 2, 'Policy check error: A check could not run.'],
@@ -180,8 +179,8 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls[0].body).to.contain('policy AUTH-001')
     expect(fs.readFileSync(policyFile, 'utf8')).to.equal(source)
   })
-  const covered = {enforcement: 'mandatory', included: true, run_id: 1674, stale: false, version: 1}
-  const active = {active: true, enforcement: 'mandatory', id: 1, key: 'AUTH-001', latest_run: covered, rules: [{id: 'R1'}], version: 1}
+  const covered = {enforcement: 'blocking', included: true, run_id: 1674, stale: false, version: 1}
+  const active = {active: true, enforcement: 'blocking', id: 1, key: 'AUTH-001', latest_run: covered, rules: [{id: 'R1'}], version: 1}
   for (const [results, expected] of [[[], 'not_evaluated'], [[{check_id: 'R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}], 'no_objects_checked']] as const) {
     it(`status reports ${expected} without presenting coverage`, async () => {
       fixture.route(url => url.pathname.includes('/run/') ? json({id: 1674, results}) : json({curPage: 1, items: [active], nextPage: null, prevPage: null}))
@@ -222,7 +221,7 @@ describe('official policy commands and workspace carriage', () => {
     }
 
     expect(outputs[1].stdout).to.equal(outputs[0].stdout)
-    expect(outputs[1].stdout).to.contain('AUTH-001  fail  Mandatory  2 findings (blocking)').and.to.contain('SEC-100  fail  Mandatory  1 findings')
+    expect(outputs[1].stdout).to.contain('AUTH-001  fail  Blocking  2 findings (blocking)').and.to.contain('SEC-100  fail  Blocking  1 findings')
     expect(outputs[1].stdout).to.contain('The latest run has 2 blocking findings (AUTH-001)')
   })
 
@@ -259,7 +258,7 @@ describe('official policy commands and workspace carriage', () => {
       expect(fixture.calls[0].method).to.equal('POST')
       expect(fixture.calls[0].body).to.equal(undefined)
       expect(result.stdout).to.contain('Policy check: fail (blocking findings)\nActive policies reported findings.')
-      expect(result.stdout).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: no auth')
+      expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: no auth')
       expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:\n  SEC-100.R1 (SEC-100)  table account: stale tag')
       expect(result.stdout).not.to.contain('Not stored')
       expect(process.exitCode).to.equal(2)
@@ -351,15 +350,15 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.stdout).not.to.contain('Deleted policy')
   })
 
-  it('delete of an active mandatory policy without workspace:policy update exits 1 with why and whom to ask', async () => {
-    const refused = 'Delete refused: it weakens mandatory policy GATE-001, which needs the workspace:policy update permission.'
+  it('delete of an active blocking policy without workspace:policy update exits 1 with why and whom to ask', async () => {
+    const refused = 'Delete refused: it weakens blocking policy GATE-001, which needs the workspace:policy update permission.'
     fixture.route((url, method) => method === 'DELETE'
       ? json({code: 'ERROR_CODE_ACCESS_DENIED', message: refused, payload: {code: 'policy_weakening_permission_required', gate: 'delete', level: 'update', permission: 'workspace:policy', policies: ['GATE-001']}}, 403)
       : json({items: [{id: 7, key: 'GATE-001', version: 3}]}))
     const result = await runCommand(['policy', 'delete', 'GATE-001', '--force'], fixture.config)
     expect(result.error).to.have.nested.property('oclif.exit', 1)
     expect(result.error?.message).to.equal(`Policy request failed (403): ERROR_CODE_ACCESS_DENIED: ${refused}\n`
-      + 'Deleting a policy that is active and mandatory weakens it, so it needs the `workspace:policy` update permission, not only delete.\n'
+      + 'Deleting a policy that is active and blocking weakens it, so it needs the `workspace:policy` update permission, not only delete.\n'
       + '  - Ask someone who holds that permission to make this change, or an instance admin to grant it to your role.')
     expect(result.error?.message).not.to.contain('--policy-override')
     expect(result.stdout).not.to.contain('Deleted policy')
@@ -629,7 +628,7 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('Pushed 1 documents to')
     expect(result.stdout).to.contain('Policy documents: 1 sent without a preview, so which of them changed is not known')
-    expect(result.stdout).to.contain('Blocking findings (1) — active mandatory policies; a gate refuses a change that introduces one or changes its object:')
+    expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
     expect(result.stdout).to.contain('SEC-100.R1 (SEC-100)  query GET /x: no auth')
     expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:')
     expect(result.stdout).to.contain('SEC-100.R2 (SEC-100)  table account: stale tag')
