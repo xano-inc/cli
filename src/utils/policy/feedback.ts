@@ -81,9 +81,37 @@ export interface PolicyEvidence {
   /**
    * The answer to a caller without `workspace:policy` read (`access: "coverage"`): its own findings
    * on the pushed objects, trimmed, with no run to read (`run_id` 0) and no rule results, the
-   * platform's `note` on what it leaves out, and how many rules could not run on the branch.
+   * platform's `note` on what it leaves out, how many rules could not run on the branch, and how
+   * many findings the push introduced on the objects it does not list (`elsewhere`, never named).
    */
-  trimmed?: {errors: number; note: string}
+  trimmed?: {elsewhere: {blocking: number; total: number}; errors: number; note: string}
+}
+
+/** A count the platform served, or 0. */
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/** What a trimmed answer (`access: "coverage"`) says beyond its findings. */
+function trimmedEvidence(check: PushPolicyCheck): NonNullable<PolicyEvidence['trimmed']> {
+  return {
+    elsewhere: {blocking: count(check.elsewhere?.blocking), total: count(check.elsewhere?.total)},
+    errors: check.counts?.errors ?? 0,
+    note: typeof check.note === 'string' ? check.note.trim() : '',
+  }
+}
+
+/** A trimmed answer's closing lines: what it counted elsewhere, the branch's rule errors, its note. */
+function trimmedLines(trimmed: NonNullable<PolicyEvidence['trimmed']>): string[] {
+  const {elsewhere} = trimmed
+  return [
+    // Counted, never named: the objects are not the caller's to be told about.
+    ...(elsewhere.total > 0
+      ? [`On objects this push did not list: ${elsewhere.total} new finding${elsewhere.total === 1 ? '' : 's'} (${elsewhere.blocking} blocking), counted, not named.`]
+      : []),
+    ...(trimmed.errors > 0 ? [`Rules that could not run on the branch: ${trimmed.errors}.`] : []),
+    ...(trimmed.note ? [trimmed.note] : []),
+  ]
 }
 
 /**
@@ -91,9 +119,7 @@ export interface PolicyEvidence {
  * 100 of each list, with `counts` and `total` saying what they are out of.
  */
 export function pushEvidence(check?: PushPolicyCheck): PolicyEvidence {
-  const trimmed = isCoverageCheck(check)
-    ? {trimmed: {errors: check?.counts?.errors ?? 0, note: typeof check?.note === 'string' ? check.note.trim() : ''}}
-    : {}
+  const trimmed = check && isCoverageCheck(check) ? {trimmed: trimmedEvidence(check)} : {}
   return {
     blocking: new Set((check?.blocking_findings ?? []).map(finding => finding.id ?? '').filter(Boolean)),
     ...(check?.truncated && check.counts
@@ -194,10 +220,7 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
   }
 
   lines.push(...policyResultSummary(evidence.results))
-  if (trimmed) {
-    if (trimmed.errors > 0) lines.push(`Rules that could not run on the branch: ${trimmed.errors}.`)
-    if (trimmed.note) lines.push(trimmed.note)
-  }
+  if (trimmed) lines.push(...trimmedLines(trimmed))
 
   return lines
 }

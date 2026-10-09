@@ -162,6 +162,24 @@ describe('workspace push policy feedback', () => {
       expect(process.exitCode).to.equal(2)
     })
 
+    it('counts the findings it introduced on objects it does not list, and blocks as a reader\'s push does', async () => {
+      // Nothing of theirs is listed, yet the branch holds a blocking finding after the push.
+      fixture.route(() => json({guid_map: [], policy_check: coverage([], {blocking: true, elsewhere: {blocking: 1, total: 3}, message: 'Policies reported findings.', status: 'fail'})}))
+      const result = await push()
+      expect(process.exitCode).to.equal(2)
+      expect(result.stdout).to.contain('Policy check: fail (blocking findings)')
+      expect(result.stdout).to.contain('On objects this push did not list: 3 new findings (1 blocking), counted, not named.')
+      expect(result.stdout).to.contain('Next: the blocking findings are on objects this push did not list')
+      expect(result.stdout).not.to.contain('fix the blocking findings above')
+    })
+
+    it('says nothing of other objects when the push introduced nothing there', async () => {
+      fixture.route(() => json({guid_map: [], policy_check: coverage([own(1, true)], {elsewhere: {blocking: 0, total: 0}})}))
+      const result = await push()
+      expect(result.stdout).not.to.contain('On objects this push did not list')
+      expect(result.stdout).to.contain('Next: fix the blocking findings above')
+    })
+
     it('leaves out the fix of a deleted policy\'s finding', async () => {
       const gone = {...own(1, false), deleted: true}
       fixture.route(() => json({guid_map: [], policy_check: coverage([gone])}))

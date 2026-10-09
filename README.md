@@ -261,10 +261,15 @@ when it answers, and 1 on a refusal or a malformed `type:id`. Drafts are checked
 
 A `workspace push` by a credential without `workspace:policy` read is evaluated like anyone's, but its
 `policy_check` (`access: "coverage"`, `scope: "pushed_objects"`) lists only that credential's findings on the objects
-the push carried, in the same trimmed form, and names no run (`run_id` 0); its status, `blocking` and counts are about
-those findings, so exit `2` still means one of them blocks. The CLI prints them with their fix hints and the
-platform's note, and no `xano policy runs` hint. An older platform answers `forbidden` instead, which is printed as
-one warning line.
+the push carried that it may read (the workspace too, when the push carried `workspace.xs` and the credential has
+`workspace:settings` read), in the same trimmed form, and names no run (`run_id` 0). Its counts are about those
+findings, except `counts.errors`, the branch's rules that could not run. `elsewhere {total, blocking}` counts, never
+names, the findings the push introduced on the objects it does not list. `blocking` is what a reader's push of the
+same change says, so the exit code is the same whoever pushes: `2` can mean a blocking finding on an object this
+credential is not told about. The CLI prints the listed findings with their fix hints, the
+`On objects this push did not list: N new findings (B blocking), counted, not named.` line when there are any, and
+the platform's note, and no `xano policy runs` hint. An older platform answers `forbidden` instead, which is printed
+as one warning line.
 
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
 blocks (an active, blocking policy failed), whatever else happened; `1` when a request or the import failed, or

@@ -98,14 +98,23 @@ export interface PolicyCounts {
 export interface PushPolicyCheck extends PolicyVerdict {
   /**
    * `coverage` for a caller without `workspace:policy` read: the findings are only those on the
-   * objects the push carried that the caller may read, trimmed (`CoverageFinding`), with `run_id` 0,
-   * `results` empty and a `note`; `status`, `blocking` and `counts` are about those findings.
+   * objects the push carried that the caller may read (the workspace too, for a push that carried
+   * the workspace document and a caller with `workspace:settings` read), trimmed (`CoverageFinding`),
+   * with `run_id` 0, `results` empty and a `note`. `counts` are about those findings, except
+   * `counts.errors` (the branch's); `blocking` is what a reader's push of the same change says, so
+   * the exit code is the same whoever pushed.
    */
   access?: string
   /** The first blocking findings. */
   blocking_findings?: PolicyFinding[]
   /** What the lists are out of. */
   counts?: PolicyCounts
+  /**
+   * A trimmed answer's count of the findings the push introduced on the objects it does not list
+   * (never named): those not in the branch's newest run just before the push, or every one there
+   * when no run described the branch then.
+   */
+  elsewhere?: {blocking?: number; total?: number}
   /** The first findings, blocking first. */
   findings?: PolicyFinding[]
   /** The platform's sentence on what a trimmed answer leaves out (`access: "coverage"`). */
