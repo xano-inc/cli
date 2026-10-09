@@ -251,13 +251,13 @@ shape (plus the release's `shipped` policies), and a release with no check says 
 `--release` and `--branch`.
 
 `policy coverage <type>:<id>` shows one object as Studio's object panel does: the chip (`Policies 1 blocking · 1
-advisory`, `Policies ✓ 6 pass`, `3 apply · not checked yet`, …), the object's findings in the branch's latest run,
+advisory`, `Policies ✓ 6 pass`, `Policies · 3 apply · not checked yet`, …), the object's findings in the branch's latest run,
 Blocking then Advisory, each with its policy key and title, rule, message and fix hint, then the policies that apply
 with whether each passes and why it applies. The object is written as findings name it (`query:42`,
-`function:12`). It needs only the object kind's own read permission (`workspace:api` for an endpoint,
+`function:12`); the workspace object's id is the workspace's own id (`workspace:17`). It needs only the object kind's own read permission (`workspace:api` for an endpoint,
 `workspace:function`, `workspace:database` for a table, …), not `workspace:policy`, so the answer leaves out policy
-details (statements, rule settings, other objects' findings, run ids). `-o json` is the platform's answer. It always
-exits 0. Drafts are checked in Studio (on Save, or with Check draft); the CLI reads stored definitions only.
+details (statements, rule settings, other objects' findings, run ids). `-o json` is the platform's answer. It exits 0
+when it answers, and 1 on a refusal or a malformed `type:id`. Drafts are checked in Studio (on Save, or with Check draft); the CLI reads stored definitions only.
 
 A `workspace push` by a credential without `workspace:policy` read is evaluated like anyone's, but its
 `policy_check` (`access: "coverage"`, `scope: "pushed_objects"`) lists only that credential's findings on the objects
@@ -274,7 +274,8 @@ refuses the deploy (and `tenant deploy_release --check` when it would), `1` for 
 `release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live, and `1` for any other failure; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does. `function create` and `function edit` exit `2` when the live-branch publish gate refuses the save (see Functions), and `1` for any other failure. A blank `--policy-override` is refused before any request. A `workspace push`, `branch set_live`, `release deploy --set_live` or `policy delete` refused with `policy_weakening_permission_required` exits `1`, like the other permission refusals: it is a missing permission, not a blocking finding.
 
 Each route needs the `workspace:policy` permission at the request's level, except `policy coverage`, which needs
-the object's own read permission (`policy_object_permission_required` names it). A refusal's `payload.code` names the
+the object's own read permission (`policy_object_permission_required` names it; a role grants it, and a
+Metadata API token needs it among its scopes). A refusal's `payload.code` names the
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
 `policy_permission_required` (an instance admin grants your role the level) or `policy_scope_required` (create a
 Metadata API token that has the scope). A push to the live branch, a set live or a merge is judged by the policies it

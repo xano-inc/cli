@@ -1,6 +1,7 @@
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
 
+import PolicyCoverage from '../../src/commands/policy/coverage/index.js'
 import {coverageChip, parseObjectRef} from '../../src/utils/policy/coverage.js'
 import {json, policyFixture} from '../helpers/policy-fixture.js'
 
@@ -86,7 +87,13 @@ describe('policy coverage', () => {
     const result = await runCommand(['policy', 'coverage', 'function:12'], fixture.config)
     expect(result.error?.oclif?.exit).to.equal(1)
     expect(result.error?.message).to.contain(message)
-    expect(result.error?.message).to.contain('lacks the `workspace:function` read permission for this object').and.to.contain('not `workspace:policy`')
+    expect(result.error?.message).to.contain('Your role or this token lacks the `workspace:function` read permission for this object')
+    expect(result.error?.message).to.contain('An instance admin grants it to your role; a Metadata API token needs that scope')
+    expect(result.error?.message).to.contain('Manage Access Tokens').and.to.contain('not `workspace:policy`')
+  })
+
+  it('names the workspace\'s own id as the workspace object\'s id in its argument help', () => {
+    expect(PolicyCoverage.args.object.description).to.contain('for workspace, the workspace\'s own id (workspace:17)')
   })
 
   it('words every chip state as Studio does', () => {

@@ -8,7 +8,8 @@
  *   policy_object_permission_required
  *                                an object's policy coverage needs the object kind's own read
  *                                permission (`payload.permission`, e.g. `workspace:function`),
- *                                never `workspace:policy`
+ *                                never `workspace:policy`; the role or the token's scope map
+ *                                may be what lacks it
  *   policy_weakening_permission_required
  *                                a push, set-live or merge weakens a policy that is active and
  *                                blocking on the branch, which needs the `update` level;
@@ -63,7 +64,9 @@ export function policyPermissionGuidance(status: number, payload: unknown): stri
 
     case 'policy_object_permission_required': {
       const permission = typeof refusal.permission === 'string' && refusal.permission ? `\`${refusal.permission}\` read` : 'read'
-      return `\nYour role on this workspace lacks the ${permission} permission for this object. An object's policy coverage needs only that, not \`workspace:policy\`. Ask an instance admin to grant it.`
+      // The platform raises this code for a role (or its per-workspace override) and for a Metadata API
+      // token whose scope map lacks the permission alike, so the remedy names both.
+      return `\nYour role or this token lacks the ${permission} permission for this object. An instance admin grants it to your role; a Metadata API token needs that scope, so create one that has it: ${TOKEN_SETTINGS}. An object's policy coverage needs only that, not \`workspace:policy\`.`
     }
 
     case 'policy_permission_required': {

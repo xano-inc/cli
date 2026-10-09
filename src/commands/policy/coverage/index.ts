@@ -8,7 +8,7 @@ import {coverageLines, parseObjectRef} from '../../../utils/policy/coverage.js'
 export default class PolicyCoverage extends PolicyCommand {
   static override args = {
     object: Args.string({
-      description: 'The object, written type:id as findings name it (query:42, function:12, table:7)',
+      description: 'The object, written type:id as findings name it (query:42, function:12, table:7); for workspace, the workspace\'s own id (workspace:17)',
       required: true,
     }),
   }
