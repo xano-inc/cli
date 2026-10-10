@@ -64,4 +64,12 @@ describe('policy template authoring', () => {
     expect(policyFromTemplate(either, [], {overrides: ['hosts=["api.example.com"]']}).rules[0].params).to.deep.equal({existing: true, hosts: ['api.example.com']})
     expect(policyFromTemplate(either, [], {overrides: ['providers=["openai"]']}).rules[0].params).to.deep.equal({existing: true, providers: ['openai']})
   })
+
+  it('names the template example for an unfilled need as a --param to copy', () => {
+    const one = {...template, examples: {fields: ['user_id']}, rules: [{...template.rules[0], needs: ['fields']}]}
+    expect(() => policyFromTemplate(one, [])).to.throw(`Fill the template's required settings with --param 'N.path=JSON': 1.fields. For example: --param 'fields=["user_id"]'.`)
+    const two = {...one, examples: {names: ['audit_log']}, rules: [{...template.rules[0], needs: ['tables']}, {...template.rules[0], needs: ['names']}]}
+    expect(() => policyFromTemplate(two, [], {overrides: ['1.tables=["x"]']})).to.throw(`: 2.names. For example: --param '2.names=["audit_log"]'.`)
+    expect(() => policyFromTemplate({...one, examples: {}}, [])).to.throw(/: 1\.fields\.$/)
+  })
 })

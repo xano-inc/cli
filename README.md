@@ -206,14 +206,14 @@ marks a template on a related topic; it does not make a workspace compliant.
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
 validates them natively and creates an Active, Advisory policy. Required template settings must
 be filled before it saves: every one of a rule's `needs`, or at least one when the rule says `needs_any: true`
-(the refusal names the alternatives, as in `1.hosts or 1.providers`). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
+(the refusal names the alternatives, as in `1.hosts or 1.providers`, and, where the template gives an example for a missing setting, a `--param` to copy, as in `--param '1.names=["audit_log"]'`; use your workspace's own names). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
 prefix is optional for a single-rule template. Nested paths work, for example `--param '1.when.statement="db.edit"'`.
 Values are JSON, including quoted strings, arrays, booleans and numbers. The template key gets a free numeric
 suffix if already taken (case-insensitive); an explicitly taken `--key` is refused. It never updates an
 existing policy. `-m/--message` labels its Version History entry; `-o json` returns the saved policy and
 native rule warnings go to stderr. No continuing link to the template is stored.
 
-A push to the live branch is refused before commit when blocking policies refuse it. The gate judges the branch by the policies it will have after the push, so the pushed policy files count, and a push that weakens a blocking policy of the live branch (demotes, deactivates or deletes it, or loosens one of its rules) needs `workspace:policy` update and is otherwise refused before anything is imported. A 403 `policy_gate` exits **2**, prints the platform's sentence (which names the policies the blocking findings come from, to every caller), says nothing was imported, and lists the blocking findings; a credential without `workspace:policy` read gets the counts and the policy keys, not the findings. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
+A push to the live branch is refused before commit when blocking policies refuse it. The gate judges the branch by the policies it will have after the push, so the pushed policy files count. Changing a policy needs only `workspace:policy` update, an active, blocking one included. A 403 `policy_gate` exits **2**, prints the platform's sentence (which names the policies the blocking findings come from, to every caller), says nothing was imported, and lists the blocking findings; a credential without `workspace:policy` read gets the counts and the policy keys, not the findings. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
@@ -279,7 +279,7 @@ blocks (an active, blocking policy failed), whatever else happened; `1` when a r
 when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
 `tenant_deploy_request set_status` and `tenant_deploy_request bypass` exit `2` when the tenant deploy policy gate
 refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
-`release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live, and `1` for any other failure; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does. `function create` and `function edit` exit `2` when the live-branch publish gate refuses the save (see Functions), and `1` for any other failure. A blank `--policy-override` is refused before any request. A `workspace push`, `branch set_live`, `release deploy --set_live` or `policy delete` refused with `policy_weakening_permission_required` exits `1`, like the other permission refusals: it is a missing permission, not a blocking finding.
+`release deploy --set_live` and `branch set_live` exit `2` when the set-live policy gate refuses to set the branch live, and `1` for any other failure; `branch set_live --policy-override "<reason>"` sets it live past the gate with an audited reason, as `release deploy` does. `function create` and `function edit` exit `2` when the live-branch publish gate refuses the save (see Functions), and `1` for any other failure. A blank `--policy-override` is refused before any request.
 
 Each route needs the `workspace:policy` permission at the request's level, except `policy coverage`, which needs
 the object's own read permission (`policy_object_permission_required` names it; a role grants it, and a
@@ -287,14 +287,10 @@ Metadata API token needs it among its scopes). A refusal's `payload.code` names 
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
 `policy_permission_required` (an instance admin grants your role the level) or `policy_scope_required` (create a
 Metadata API token that has the scope). A push to the live branch, a set live or a merge is judged by the policies it
-leaves, so one that weakens a policy active and blocking on the branch (demotes, deactivates or deletes it, or
-loosens one of its rules; for a set live, a live blocking policy the branch lacks counts as deleted) needs
-`workspace:policy` update, and without it is refused before anything is written with
-`policy_weakening_permission_required`, naming the policies. `--policy-override` does not lift it: the CLI prints the
-platform's sentence and how to go on (a push can leave the policy files out with `-e "policies/*"`), and a push's
-`--dry-run` is refused the same way. `policy delete` of an active, blocking policy needs update too, not only delete,
-and is refused with the same code otherwise. A set live whose check could not read the policies fails closed: only
-update proceeds, and the refusal says so (`unavailable`). A rule naming a check the instance does not have (`policy_unknown_check`)
+leaves. Each change needs only its own `workspace:policy` level: update to edit a policy, delete to delete one (an
+active, blocking one included, by `policy delete` or a merge; a push never deletes a policy), and a set live needs no policy permission. The
+audit log labels a change to an active, blocking policy `blocking_policy_changed`, and its deletion
+`blocking_policy_deleted`. A rule naming a check the instance does not have (`policy_unknown_check`)
 points at `xano policy catalogue`. `policy delete` sends the `updated_at` it listed, so a policy changed since is
 refused (`policy_stale`) rather than deleted; it asks first, and without `--force` in a non-interactive shell it
 exits 1. A create past the plan's per-branch policy cap (lower plans cap the policies on each branch; Pro and above are unlimited) is refused with
@@ -672,11 +668,9 @@ a policy table. Remote tenant pushes still leave them out; remote release deploy
 
 `release deploy --set_live` lands the release as a new branch, then sets it live through the same policy gate as
 `branch set_live`: the branch is checked against its own policies, which live will have once it is set live, and
-blocking findings it introduces compared with the live branch, or leaves on objects it changes, refuse it. A branch
-that weakens a blocking policy of the live branch needs `workspace:policy` update (a release that lands no policy is
-judged by the live branch's policies instead, and nothing is checked for weakening): without it set live is refused
-with `policy_weakening_permission_required`, the branch stays, and the command exits `1`, naming the branch to set
-live or delete. A gate refusal keeps the branch, prints the verdict, says `The branch was
+blocking findings it introduces compared with the live branch, or leaves on objects it changes, refuse it (a release
+that lands no policy is judged by the live branch's policies instead). Setting live needs no `workspace:policy`
+permission. A gate refusal keeps the branch, prints the verdict, says `The branch was
 created; set live was refused` and exits `2`; `-o json` prints `{"branch_created": true, "set_live": false, "branch",
 "message", "policy_gate"}`. Set it live from Studio's Branches panel with a reason, or delete the branch and deploy
 again with `--policy-override "<reason>"`, which sets it live past the gate and is audited. A policy of the release

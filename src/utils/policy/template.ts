@@ -4,6 +4,8 @@ import {POLICY_KEY_PATTERN} from '../document-parser.js'
 export interface PolicyTemplate {
   /** The id of the group the catalogue files the template under (`access_control`…; labels in `template_categories`). */
   category?: string
+  /** Example values that fit this template, by `needs` path: a hint for `--param`, never a value it fills. */
+  examples?: Record<string, unknown>
   /** Framework tag ids (`soc2`…; labels in `template_frameworks`): topics the template relates to, never a compliance claim. */
   frameworks?: string[]
   id: string
@@ -58,8 +60,26 @@ export function policyFromTemplate(template: PolicyTemplate, takenKeys: string[]
   for (const assignment of overrides) applyOverride(rules, assignment)
 
   const missing = template.rules.flatMap((rule, index) => missingNeeds(rule, rules[index].params, index))
-  if (missing.length > 0) throw new Error(`Fill the template's required settings with --param 'N.path=JSON': ${missing.join(', ')}.`)
+  if (missing.length > 0) throw new Error(`Fill the template's required settings with --param 'N.path=JSON': ${missing.join(', ')}.${exampleHint(template, rules, missing)}`)
   return {key: chosen, rules, severity: template.severity, statement: template.summary, title: template.title}
+}
+
+/**
+ * The template's example for the first unfilled need it gives one for, as a `--param` to copy
+ * (` For example: --param '1.names=["audit_log"]'.`), or '' when it gives none. The rule number is
+ * left off for a single-rule template, as `--param` takes it.
+ */
+function exampleHint(template: PolicyTemplate, rules: unknown[], missing: string[]): string {
+  const {examples} = template
+  if (!examples || typeof examples !== 'object' || Array.isArray(examples)) return ''
+  for (const entry of missing.flatMap(item => item.split(' or '))) {
+    const path = entry.slice(entry.indexOf('.') + 1)
+    if (!Object.hasOwn(examples, path)) continue
+    const name = rules.length === 1 ? path : entry
+    return ` For example: --param '${name}=${JSON.stringify(examples[path])}'.`
+  }
+
+  return ''
 }
 
 /** The catalogue's key pattern, or the offline copy when the catalogue serves none (or one that does not compile). */
