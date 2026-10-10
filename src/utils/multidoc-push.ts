@@ -112,26 +112,11 @@ export interface DryRunOperation {
   type: string
 }
 
-/**
- * A warning the platform's dry run gives about one pushed document. One that names what it points at
- * (`target_type`/`target`, a table the push names that exists nowhere) is an unresolved reference;
- * an older platform sends none of these, or no `warnings` at all.
- */
-export interface DryRunWarning {
-  message: string
-  name: string
-  target?: string
-  target_type?: string
-  type: string
-}
-
 export interface DryRunResult {
   operations: DryRunOperation[]
   /** True when the sandbox currently holds a different source workspace than the one being pushed. */
   source_workspace_mismatch?: boolean
   summary: Record<string, DryRunSummary>
-  /** The platform's warnings about pushed documents; absent on an older platform. */
-  warnings?: DryRunWarning[]
   workspace_name?: string
 }
 
@@ -484,36 +469,13 @@ export function findWorkspaceEntries(
 
 // ── Validation Rendering ────────────────────────────────────────────────────
 
-/** One reference's identity: the document that makes it and what it points at. */
-const referenceKey = (type: string, name: string, targetType: string, target: string) => JSON.stringify([type, name, targetType, target])
-
-/**
- * The dry run's reference warnings (those naming a `target_type` and `target`) that the client's own
- * check did not already list for the same document and target. Anything else in `warnings`, or a
- * malformed entry, is left out.
- */
-export function serverReferenceWarnings(warnings: unknown, badRefs: BadReference[]): DryRunWarning[] {
-  if (!Array.isArray(warnings)) return []
-  const listed = new Set(badRefs.map(ref => referenceKey(ref.sourceType, ref.source, ref.targetType, ref.target)))
-  const seen = new Set<string>()
-  return warnings.filter((warning): warning is DryRunWarning => {
-    if (!warning || typeof warning !== 'object') return false
-    const {message, name, target, target_type: targetType, type} = warning as Record<string, unknown>
-    if (![message, name, target, targetType, type].every(value => typeof value === 'string' && value !== '')) return false
-    const id = referenceKey(type as string, name as string, targetType as string, target as string)
-    if (listed.has(id) || seen.has(id)) return false
-    seen.add(id)
-    return true
-  })
-}
-
-export function renderBadReferences(badRefs: BadReference[], log: (msg: string) => void, serverWarnings: DryRunWarning[] = []): void {
+export function renderBadReferences(badRefs: BadReference[], log: (msg: string) => void): void {
   log(ux.colorize('yellow', ux.colorize('bold', '=== Unresolved References ===')))
   log('')
   log(
     ux.colorize('yellow', "The following references point to objects that don't exist in this push or on the server."),
   )
-  log(ux.colorize('yellow', 'A missing table fails the push; any other missing object becomes a placeholder statement after import.'))
+  log(ux.colorize('yellow', 'These will become placeholder statements after import.'))
   log('')
 
   for (const ref of badRefs) {
@@ -521,12 +483,6 @@ export function renderBadReferences(badRefs: BadReference[], log: (msg: string) 
     log(
       `  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', `${ref.statementType} → ${ref.targetType} "${ref.target}" does not exist`)}`,
     )
-  }
-
-  // What the platform's dry run found that the client could not see, in its own words.
-  for (const warning of serverWarnings) {
-    log(`  ${ux.colorize('yellow', 'WARNING'.padEnd(16))} ${warning.type.padEnd(18)} ${warning.name}`)
-    log(`  ${' '.repeat(16)} ${' '.repeat(18)} ${ux.colorize('dim', warning.message)}`)
   }
 
   log('')
@@ -1246,9 +1202,8 @@ export async function executePush(
 
           // Check for bad cross-references using dry-run operations to avoid false positives
           const badRefs = checkReferences(documentEntries, preview.operations)
-          const serverRefs = serverReferenceWarnings(preview.warnings, badRefs)
-          if (badRefs.length > 0 || serverRefs.length > 0) {
-            renderBadReferences(badRefs, log, serverRefs)
+          if (badRefs.length > 0) {
+            renderBadReferences(badRefs, log)
           }
 
           // Check for indexes referencing non-existent schema fields
