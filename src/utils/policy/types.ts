@@ -6,9 +6,18 @@ export interface PolicyCatalogueEntry {
   /** The check's human name. */
   label: string
   object_kinds?: string[]
-  params?: Record<string, {required?: boolean; type?: string}>
+  params?: Record<string, PolicyParamSchema>
   /** Params of which a rule must set at least one. */
   requires_one_of?: string[]
+}
+
+/** One param as the catalogue describes it: a nested object's parts are its `properties`. */
+export interface PolicyParamSchema {
+  /** A value that fits the param, shown as a hint; never filled in. */
+  example?: unknown
+  properties?: Record<string, PolicyParamSchema>
+  required?: boolean
+  type?: string
 }
 
 /** One rule as a run snapshot records it: the settings the check ran with, plus the check's label. */

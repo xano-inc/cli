@@ -206,7 +206,7 @@ marks a template on a related topic; it does not make a workspace compliant.
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
 validates them natively and creates an Active, Advisory policy. Required template settings must
 be filled before it saves: every one of a rule's `needs`, or at least one when the rule says `needs_any: true`
-(the refusal names the alternatives, as in `1.hosts or 1.providers`, and, where the template gives an example for a missing setting, a `--param` to copy, as in `--param '1.names=["audit_log"]'`; use your workspace's own names). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
+(the refusal names the alternatives, as in `1.hosts or 1.providers`, and a `--param` to copy for a missing setting, from the template's example or else the check's own, as in `--param '1.names=["audit_log"]'`; use your workspace's own names). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
 prefix is optional for a single-rule template. Nested paths work, for example `--param '1.when.statement="db.edit"'`.
 Values are JSON, including quoted strings, arrays, booleans and numbers. The template key gets a free numeric
 suffix if already taken (case-insensitive); an explicitly taken `--key` is refused. It never updates an

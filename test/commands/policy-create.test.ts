@@ -39,6 +39,16 @@ describe('policy create from a platform template', () => {
     expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
   })
 
+  it('gives the check\'s own example for a need the template has no example for', async () => {
+    const owner = {...readyTemplate, examples: {}, id: 'owner_team_tagged', key: 'CONV-022', rules: [{check: 'object.tag_required', needs: ['tag_set'], params: {object_kinds: ['api_group', 'query', 'function', 'task']}, title: ''}]}
+    fixture.route(url => url.pathname.endsWith('/check')
+      ? json({items: [{id: 'object.tag_required', label: 'Objects carry a required tag', params: {tag_set: {example: ['team-billing'], required: true, type: 'string[]'}}}], templates: [owner]})
+      : json({items: [], nextPage: null}))
+    const refused = await captureOutput(() => PolicyCreate.run(['--template', 'owner_team_tagged'], fixture.config))
+    expect(refused.error?.message).to.contain(`1.tag_set. For example: --param 'tag_set=["team-billing"]'.`)
+    expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
+  })
+
   it('takes one need of a needs_any rule, and names the alternatives when none is filled', async () => {
     const vendors = {...readyTemplate, id: 'vendors', rules: [{check: 'outbound.vendor_allowlist', needs: ['hosts', 'providers'], needs_any: true, params: {}, title: ''}]}
     fixture.route((url, method) => {
