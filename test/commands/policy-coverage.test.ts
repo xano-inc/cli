@@ -2,7 +2,7 @@ import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
 
 import PolicyCoverage from '../../src/commands/policy/coverage/index.js'
-import {coverageChip, parseObjectRef} from '../../src/utils/policy/coverage.js'
+import {coverageChip, coverageCounts, parseObjectRef} from '../../src/utils/policy/coverage.js'
 import {json, policyFixture} from '../helpers/policy-fixture.js'
 
 const note = 'Full policy details need the workspace:policy read permission.'
@@ -39,7 +39,7 @@ const answer = {
     {blocking: false, enforcement: 'advisory', key: 'LOG-002', reasons: ['every endpoint'], status: 'passing', title: ''},
   ],
   run: {started_at: '2026-10-08T14:02:11.000Z', status: 'fail'},
-  summary: {advisory: 1, applies: 2, blocking: 1, not_checked: 0, passing: 1, state: 'findings'},
+  summary: {advisory: 1, applies: 2, blocking: 1, could_not_check: 0, not_checked: 0, passing: 1, state: 'findings'},
 }
 
 describe('policy coverage', () => {
@@ -57,7 +57,7 @@ describe('policy coverage', () => {
     expect(result.stdout).to.contain('Latest run: 2026-10-08T14:02:11.000Z (fail)')
     expect(result.stdout).to.contain('Blocking findings (1):\n  Endpoint requires authentication (AUTH-010 Endpoints require login)  query orders: query "orders" (GET) has no authentication\n    Fix: Set auth on the endpoint.')
     expect(result.stdout).to.contain('Advisory findings (1):\n  Logs leave out request input (LOG-003)  query orders: query "orders" logs its input\n')
-    expect(result.stdout).to.contain('Policies that apply (2):\n  AUTH-010  Blocking  failing  Endpoints require login\n    Applies: every endpoint in API group public\n  LOG-002  Advisory  passing\n    Applies: every endpoint')
+    expect(result.stdout).to.contain('Policies that apply (2): 1 passing\n  AUTH-010  Blocking  failing  Endpoints require login\n    Applies: every endpoint in API group public\n  LOG-002  Advisory  passing\n    Applies: every endpoint')
     expect(result.stdout.trimEnd().endsWith(note)).to.equal(true)
     expect(process.exitCode ?? 0).to.equal(0)
   })
@@ -102,6 +102,33 @@ describe('policy coverage', () => {
     expect(coverageChip({applies: 3, state: 'not_checked'})).to.equal('Policies · 3 apply · not checked yet')
     expect(coverageChip({state: 'check_failed'})).to.equal('Policies · Last check failed')
     expect(coverageChip({passing: 6, state: 'pass'})).to.equal('Policies ✓ 6 pass')
+  })
+
+  it('says which policies that apply here the latest run could not check, and still passes the others', async () => {
+    fixture.route(() => json({
+      ...answer,
+      findings: [],
+      policies: [
+        {blocking: true, enforcement: 'blocking', key: 'COV-ERR', reasons: ['every endpoint'], status: 'could_not_check', title: 'Errors here'},
+        {blocking: false, enforcement: 'advisory', key: 'COV-PASS', reasons: ['every endpoint'], status: 'passing', title: ''},
+        {blocking: false, enforcement: 'advisory', key: 'COV-NEW', reasons: ['every endpoint'], status: 'not_checked', title: ''},
+      ],
+      run: {started_at: '2026-10-08T14:02:11.000Z', status: 'error'},
+      summary: {advisory: 0, applies: 3, blocking: 0, could_not_check: 1, not_checked: 1, passing: 1, state: 'check_failed'},
+    }))
+    const result = await runCommand(['policy', 'coverage', 'query:42'], fixture.config)
+    expect(result.stdout).to.contain('query orders (id 42): Policies · Last check failed')
+    expect(result.stdout).to.contain("Policies that apply (3): 1 passing · 1 couldn't check · 1 not checked yet\n"
+      + "  COV-ERR  Blocking  couldn't check  Errors here\n    Applies: every endpoint\n"
+      + '  COV-PASS  Advisory  passing\n    Applies: every endpoint\n'
+      + '  COV-NEW  Advisory  not checked yet\n')
+    expect(process.exitCode ?? 0).to.equal(0)
+  })
+
+  it('counts the policies with no finding here as Studio\'s panel does, leaving out a count of none', () => {
+    expect(coverageCounts({could_not_check: 1, not_checked: 0, passing: 6, state: 'findings'})).to.equal("6 passing · 1 couldn't check")
+    expect(coverageCounts({not_checked: 2, passing: 0, state: 'not_checked'})).to.equal('2 not checked yet')
+    expect(coverageCounts({state: 'findings'})).to.equal('')
   })
 
   it('reads an object reference as findings write one', () => {

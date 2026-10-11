@@ -251,9 +251,12 @@ shape (plus the release's `shipped` policies), and a release with no check says 
 `--release` and `--branch`.
 
 `policy coverage <type>:<id>` shows one object as Studio's object panel does: the chip (`Policies 1 blocking · 1
-advisory`, `Policies ✓ 6 pass`, `Policies · 3 apply · not checked yet`, …), the object's findings in the branch's latest run,
-Blocking then Advisory, each with its policy key and title, rule, message and fix hint, then the policies that apply
-with whether each passes and why it applies. The object is written as findings name it (`query:42`,
+advisory`, `Policies ✓ 6 pass`, `Policies · 3 apply · not checked yet`, `Policies · Last check failed` when a policy that
+applies here could not be checked, …), the object's findings in the branch's latest run,
+Blocking then Advisory, each with its policy key and title, rule, message and fix hint, then the policies that apply,
+counted as the panel counts those with no finding here (`6 passing · 1 couldn't check · 1 not checked yet`), each
+failing, passing, couldn't check or not checked yet, and why it applies. A policy the run passed still reads passing
+when the run errored on another policy. The object is written as findings name it (`query:42`,
 `function:12`); the workspace object's id is the workspace's own id (`workspace:17`). It needs only the object kind's own read permission (`workspace:api` for an endpoint,
 `workspace:function`, `workspace:database` for a table, …), not `workspace:policy`, so the answer leaves out policy
 details (statements, rule settings, other objects' findings, run ids). `-o json` is the platform's answer. It exits 0
