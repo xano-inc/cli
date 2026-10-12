@@ -1,9 +1,13 @@
+import type {PolicyCatalogueEntry, PolicyParamSchema} from './types.js'
+
 import {POLICY_KEY_PATTERN} from '../document-parser.js'
 
 /** Templates and sparse parameter seeds come from the instance's catalogue. */
 export interface PolicyTemplate {
   /** The id of the group the catalogue files the template under (`access_control`…; labels in `template_categories`). */
   category?: string
+  /** Example values that fit this template, by `needs` path: a hint for `--param`, never a value it fills. */
+  examples?: Record<string, unknown>
   /** Framework tag ids (`soc2`…; labels in `template_frameworks`): topics the template relates to, never a compliance claim. */
   frameworks?: string[]
   id: string
@@ -24,6 +28,8 @@ export interface PolicyKeyRule {
 
 /** How a template becomes a policy: the key, the catalogue's key rule and the `--param` assignments. */
 export interface TemplatePolicyOptions {
+  /** The fetched catalogue's checks: a need the template gives no example for shows its check's own `example`. */
+  checks?: PolicyCatalogueEntry[]
   /** `--key`: the new policy's key; refused when a policy already holds it. */
   key?: string
   /** The fetched catalogue's `document.key`; the offline pattern stands in for an instance that serves none. */
@@ -48,7 +54,7 @@ export interface TemplatePolicyDocument {
  * malformed `--key` is refused.
  */
 export function policyFromTemplate(template: PolicyTemplate, takenKeys: string[], options: TemplatePolicyOptions = {}): TemplatePolicyDocument {
-  const {key, keyRule, overrides = []} = options
+  const {checks = [], key, keyRule, overrides = []} = options
   const taken = new Set(takenKeys.map(value => value.toLowerCase()))
   let chosen = key ?? template.key
   if (!keyPattern(keyRule).test(chosen)) throw new Error(keyRefusal(keyRule, chosen))
@@ -58,8 +64,42 @@ export function policyFromTemplate(template: PolicyTemplate, takenKeys: string[]
   for (const assignment of overrides) applyOverride(rules, assignment)
 
   const missing = template.rules.flatMap((rule, index) => missingNeeds(rule, rules[index].params, index))
-  if (missing.length > 0) throw new Error(`Fill the template's required settings with --param 'N.path=JSON': ${missing.join(', ')}.`)
+  if (missing.length > 0) throw new Error(`Fill the template's required settings with --param 'N.path=JSON': ${missing.join(', ')}.${exampleHint(template, checks, missing)}`)
   return {key: chosen, rules, severity: template.severity, statement: template.summary, title: template.title}
+}
+
+/**
+ * An example for the first unfilled need that has one, as a `--param` to copy
+ * (` For example: --param '1.names=["audit_log"]'.`), or '' when none has: the template's own example
+ * for the path, else the example its check's catalogue entry gives for that param, as Studio shows it.
+ * The rule number is left off for a single-rule template, as `--param` takes it.
+ */
+function exampleHint(template: PolicyTemplate, checks: PolicyCatalogueEntry[], missing: string[]): string {
+  const examples = template.examples && typeof template.examples === 'object' && !Array.isArray(template.examples) ? template.examples : {}
+  for (const entry of missing.flatMap(item => item.split(' or '))) {
+    const dot = entry.indexOf('.')
+    const path = entry.slice(dot + 1)
+    const rule = template.rules[Number(entry.slice(0, dot)) - 1]
+    const example = Object.hasOwn(examples, path) ? examples[path] : checkExample(checks.find(check => check.id === rule?.check), path)
+    if (example === undefined) continue
+    const name = template.rules.length === 1 ? path : entry
+    return ` For example: --param '${name}=${JSON.stringify(example)}'.`
+  }
+
+  return ''
+}
+
+/** The catalogue's `example` for a param path of a check (`table_selector.has_field` reads a part's), or undefined. */
+function checkExample(check: PolicyCatalogueEntry | undefined, path: string): unknown {
+  let schemas = check?.params
+  let schema: PolicyParamSchema | undefined
+  for (const part of path.split('.')) {
+    if (!schemas || typeof schemas !== 'object' || !Object.hasOwn(schemas, part)) return undefined
+    schema = schemas[part]
+    schemas = schema?.properties
+  }
+
+  return schema?.example
 }
 
 /** The catalogue's key pattern, or the offline copy when the catalogue serves none (or one that does not compile). */

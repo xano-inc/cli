@@ -3,7 +3,6 @@ import type {PolicyFinding} from './types.js'
 
 import {describePolicyError} from './errors.js'
 import {findingLine} from './findings.js'
-import {WEAKENING_REFUSAL} from './permission.js'
 
 /** The release the tenant deploy gate judges. */
 export interface GateRelease {
@@ -214,24 +213,6 @@ export async function gateRefusal(response: Response): Promise<GateRefused | nul
   if (!refused) return null
   const answer = refused.payload as PolicyGateAnswer
   return {answer, message: refused.message || (answer.message ?? 'Refused by the policy gate.')}
-}
-
-/**
- * A change refused because it weakens a policy active and blocking on the branch, from a caller
- * without the `workspace:policy` update permission (`policy_weakening_permission_required`). A
- * release deploy or archive import with set live adds the branch it landed, which stays.
- */
-export interface WeakeningRefused {
-  message: string
-  /** `unavailable`: the policies could not be read to check it, so only the permission proceeds (`policies` is empty). */
-  payload: {branch?: {id?: number; label?: string}; code: string; gate?: string; level?: string; permission?: string; policies?: string[]; unavailable?: boolean}
-}
-
-/** The weakening refusal read from a failed response, or `null` for any other failure. */
-export async function weakeningRefusal(response: Response): Promise<null | WeakeningRefused> {
-  const refused = await coded403(response, WEAKENING_REFUSAL)
-  if (!refused) return null
-  return {message: refused.message || 'Refused: the change weakens a blocking policy.', payload: refused.payload as WeakeningRefused['payload']}
 }
 
 /** What a gate preview needs from the command that asks for it. */

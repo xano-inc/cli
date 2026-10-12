@@ -1,7 +1,7 @@
 import {Flags} from '@oclif/core'
 
 import type {PolicyKeyRule, PolicyTemplate} from '../../../utils/policy/template.js'
-import type {Policy} from '../../../utils/policy/types.js'
+import type {Policy, PolicyCatalogueEntry} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {listAllPolicies} from '../../../utils/policy/request.js'
@@ -25,12 +25,13 @@ export default class PolicyCreate extends PolicyCommand {
     const {flags} = await this.parse(PolicyCreate)
     const target = this.policyTarget(flags)
     const {request} = target
-    const catalogue = await request('/check') as {document?: {key?: PolicyKeyRule}; templates?: PolicyTemplate[]}
+    const catalogue = await request('/check') as {document?: {key?: PolicyKeyRule}; items?: PolicyCatalogueEntry[]; templates?: PolicyTemplate[]}
     const template = catalogue.templates?.find(item => item.id === flags.template)
     if (!template) this.error(`Unknown template "${flags.template}". Run xano policy catalogue to see this instance's templates.`)
     const keys = (await listAllPolicies(request)).map(policy => policy.key)
-    // The key is checked against the pattern this instance's catalogue serves.
-    const document = policyFromTemplate(template, keys, {key: flags.key, keyRule: catalogue.document?.key, overrides: flags.param})
+    // The key is checked against the pattern this instance's catalogue serves, and an unfilled need's
+    // example falls back to its check's own.
+    const document = policyFromTemplate(template, keys, {checks: catalogue.items, key: flags.key, keyRule: catalogue.document?.key, overrides: flags.param})
     const parsed = await this.parseSource(request, {data: document})
     const saved = await request('', 'POST', {data: {source: parsed.source}, ...(flags.message ? {message: flags.message} : {})}) as Policy
     if (typeof saved?.id !== 'number') this.error('The platform did not return the saved policy. Check xano policy list before retrying.')

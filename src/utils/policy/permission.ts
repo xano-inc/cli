@@ -10,36 +10,19 @@
  *                                permission (`payload.permission`, e.g. `workspace:function`),
  *                                never `workspace:policy`; the role or the token's scope map
  *                                may be what lacks it
- *   policy_weakening_permission_required
- *                                a push, set-live or merge weakens a policy that is active and
- *                                blocking on the branch, which needs the `update` level;
- *                                deleting one (gate `delete`), or an archive import that would
- *                                remove one, too
  *
  * `payload.level` is the level the request needed, and a refused push lists the policy files it
  * carried in `payload.policies`. A refusal without a code gets no advice beyond its own message.
  */
 interface Refusal {
   code?: unknown
-  /** The gate a weakening refusal names: `push`, `set_live`, `merge`, `archive_import` or `delete`. */
-  gate?: unknown
   level?: unknown
   /** The permission an object coverage refusal names, e.g. `workspace:function`. */
   permission?: unknown
   policies?: unknown
-  /** A weakening refusal whose check could not read the policies (it fails closed). */
-  unavailable?: unknown
 }
 
 const TOKEN_SETTINGS = 'Instance settings → Metadata API & MCP Server → Manage Access Tokens'
-
-/**
- * The refusal of a change that weakens a policy active and blocking on the branch (demotes,
- * deactivates or deletes it, or loosens one of its rules; for a set-live, a live policy the branch
- * lacks) from a caller without the `workspace:policy` update permission. It is a permission refusal,
- * not a blocking finding, so a command exits 1 on it. `payload.policies` names the policies.
- */
-export const WEAKENING_REFUSAL = 'policy_weakening_permission_required'
 
 function refusalOf(payload: unknown): Refusal {
   return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload as Refusal : {}
@@ -78,10 +61,6 @@ export function policyPermissionGuidance(status: number, payload: unknown): stri
       return `\nThis Metadata API token was created without the ${permissionAt(refusal)} scope. Create a token that has it: ${TOKEN_SETTINGS}.`
     }
 
-    case WEAKENING_REFUSAL: {
-      return policyWeakeningGuidance(payload)
-    }
-
     default: {
       return ''
     }
@@ -90,18 +69,10 @@ export function policyPermissionGuidance(status: number, payload: unknown): stri
 
 /**
  * Guidance for a `workspace push` (or its preview) refused because it would change policies, or
- * because its policy files weaken a blocking policy of the live branch, or `undefined` for any
- * other refusal.
+ * `undefined` for any other refusal.
  */
 export function policyFilePushGuidance(payload: unknown): string | undefined {
   const refusal = refusalOf(payload)
-  if (refusal.code === WEAKENING_REFUSAL) {
-    return policyWeakeningGuidance(payload, [
-      'To push everything else, leave the policy files out:  xano workspace push -e "policies/*"',
-      'To discard your local policy edits, pull again:        xano workspace pull',
-    ], true)
-  }
-
   if (!Array.isArray(refusal.policies) || refusal.policies.length === 0) return undefined
   const remedy = {
     policy_permission_required: '\n  - To change a policy, ask someone with that permission to push it or to run xano policy publish.',
@@ -115,26 +86,5 @@ export function policyFilePushGuidance(payload: unknown): string | undefined {
     '\n  - To push everything else, leave the policy files out:  xano workspace push -e "policies/*"' +
     '\n  - To discard your local policy edits, pull again:        xano workspace pull' +
     remedy
-  )
-}
-
-/**
- * Guidance for a change refused with `policy_weakening_permission_required`. The platform's sentence
- * already names the policies and what was left alone; this says why (a delete of a blocking policy,
- * or a check that could not read the policies and so fails closed), that `--policy-override` does
- * not stand in for the permission when the command has that flag (`overrideFlag`), and how to go on:
- * `ways` are the command's own, before the fallback of asking someone who holds the permission.
- */
-export function policyWeakeningGuidance(payload: unknown, ways: string[] = [], overrideFlag = false): string {
-  const refusal = refusalOf(payload)
-  const permission = `${permissionAt({level: refusal.level ?? 'update'})} permission`
-  const why = refusal.unavailable === true
-    ? `The policies could not be read to check this, so only someone with the ${permission} may proceed.`
-    : refusal.gate === 'delete'
-      ? `Deleting a policy that is active and blocking weakens it, so it needs the ${permission}, not only delete.`
-      : `Weakening means demoting, deactivating or deleting a blocking policy, or loosening one of its rules, and it needs the ${permission}.`
-  return (
-    `\n${why}${overrideFlag ? ' --policy-override does not stand in for it.' : ''}` +
-    [...ways, `${ways.length > 0 ? 'Or ask' : 'Ask'} someone who holds that permission to make this change, or an instance admin to grant it to your role.`].map(way => `\n  - ${way}`).join('')
   )
 }
