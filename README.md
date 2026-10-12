@@ -906,8 +906,8 @@ and a warning names any policy of the release the tenant could not take (its key
 When a tenant has `required_reviewers` set above 0 and `allow_quick_deploy` is off (see
 `tenant create`/`tenant edit` above), a release may only be deployed to it through an
 **approved deploy request**, requiring that many distinct reviewer approvals. An author
-with no deploy permission opens a request; a named reviewer who does hold deploy
-permission on the tenant votes to approve it, and once enough reviewers have approved,
+with no deploy permission opens a request; any user other than the author who holds
+deploy permission on the tenant may vote to approve it, and once enough reviewers have approved,
 it deploys as part of that action. `allow_deploy_bypass` (set at `tenant create` time
 only) additionally allows an authorized user to skip a specific request's gate via
 `tenant_deploy_request bypass`, audited with a required reason.
@@ -923,12 +923,11 @@ xano tenant_deploy_request list --to-review
 xano tenant_deploy_request get <id>
 
 # Open a deploy request (submits for review immediately unless --draft is passed)
-xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --reviewers 12,45
+xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2
 xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --draft
 
-# Edit a deploy request's title, description or reviewers
+# Edit a deploy request's title or description
 xano tenant_deploy_request edit <id> --title "Deploy v1.2.1 to prod"
-xano tenant_deploy_request edit <id> --reviewers 12,45,67
 
 # Change status: draft, submit, approve, request_changes, close, or reopen
 # (approve records one reviewer's vote; once enough votes are in it deploys the
@@ -965,7 +964,7 @@ CI example (e.g. a GitHub Action step):
 
 ```bash
 xano tenant_deploy_request create "$PR_TITLE" --tenant prod --release v1.2 \
-  --description "$PR_BODY" --reviewers 12,45 -o json
+  --description "$PR_BODY" -o json
 ```
 
 #### Tenant License
