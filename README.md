@@ -926,7 +926,7 @@ xano tenant_deploy_request get <id>
 xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --reviewers 12,45
 xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --draft
 
-# Edit a deploy request's title, description or reviewers
+# Edit a deploy request's title/description, and/or ask users to review it
 xano tenant_deploy_request edit <id> --title "Deploy v1.2.1 to prod"
 xano tenant_deploy_request edit <id> --reviewers 12,45,67
 
@@ -949,6 +949,13 @@ xano tenant_deploy_request revision <id> --release v1.2.1 --note "Added the miss
 xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavailable"
 xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavailable" --override-policy
 ```
+
+`--reviewers` on `create` and `edit` **asks** the listed users to review, by sending each one a review request — the
+notification. It does not grant permission and there is no stored reviewer list: anyone holding deploy permission on
+the target tenant (other than the author) may review regardless. So `edit --reviewers` *adds* requests rather than
+replacing a set, and a `create --draft` saves the request without asking anyone (reviewers are notified only once it
+is submitted — ask them with `edit --reviewers` afterwards). If the request is created/edited but asking the reviewers
+then fails, the command reports that explicitly instead of printing bare success.
 
 `tenant_deploy_request get` always names the tenant and release. For requests that are neither approved nor closed,
 it also prints what the policy gate would decide now for the request's release on its

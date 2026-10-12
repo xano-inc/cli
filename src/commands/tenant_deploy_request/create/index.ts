@@ -1,6 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 
 import BaseCommand from '../../../base-command.js'
+import {parseReviewerIds, requestApprovalReview} from '../../../utils/approval-request.js'
 
 interface ApprovalRequest {
   id: number
@@ -49,7 +50,7 @@ Created deploy request #12: "Deploy v1.2 to prod" [pending]
       required: true,
     }),
     reviewers: Flags.string({
-      description: 'Comma-separated user IDs to request review from',
+      description: 'Comma-separated user IDs to ask to review (a notification; anyone with deploy permission may review regardless)',
       required: false,
     }),
     tenant: Flags.string({
@@ -74,13 +75,13 @@ Created deploy request #12: "Deploy v1.2 to prod" [pending]
       this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
-    const reviewerIds = flags.reviewers
-      ? flags.reviewers.split(',').map((id) => Number.parseInt(id.trim(), 10))
-      : []
+    // Validate up front, before creating anything, so a bad id fails fast.
+    const reviewerIds = parseReviewerIds(flags.reviewers, (message) => this.error(message))
 
+    // The create route declares no reviewer list and silently drops reviewer_ids;
+    // reviewers are asked below via the review_request route (DEV-8757).
     const body: Record<string, unknown> = {
       release_name: flags.release,
-      reviewer_ids: reviewerIds,
       status: flags.draft ? 'draft' : 'pending',
       tenant_name: flags.tenant,
       title: args.title,
@@ -89,6 +90,7 @@ Created deploy request #12: "Deploy v1.2 to prod" [pending]
 
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/approval_request`
 
+    let item: ApprovalRequest
     try {
       const response = await this.verboseFetch(
         apiUrl,
@@ -110,19 +112,42 @@ Created deploy request #12: "Deploy v1.2 to prod" [pending]
         this.error(message)
       }
 
-      const item = (await response.json()) as ApprovalRequest
-
-      if (flags.output === 'json') {
-        this.log(JSON.stringify(item, null, 2))
-      } else {
-        this.log(`Created deploy request #${item.id}: "${item.title}" [${item.status}]`)
-      }
+      item = (await response.json()) as ApprovalRequest
     } catch (error) {
-      if (error instanceof Error) {
-        this.error(`Failed to create tenant deploy request: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      this.error(`Failed to create tenant deploy request: ${message}`)
+    }
+
+    // Ask the named reviewers — but only for a submitted request. A draft is
+    // "not notified until submitted", and asking IS the notification, so a draft
+    // never asks (nor is there anywhere to persist the intent for submit-time).
+    if (reviewerIds.length > 0) {
+      if (flags.draft) {
+        this.warn(
+          `Draft deploy request #${item.id} saved without asking reviewers; ` +
+            `ask them with \`xano tenant_deploy_request edit ${item.id} --reviewers ${flags.reviewers}\` after submitting.`,
+        )
       } else {
-        this.error(`Failed to create tenant deploy request: ${String(error)}`)
+        try {
+          await requestApprovalReview(
+            {
+              parseApiError: (...a) => this.parseApiError(...a),
+              verboseFetch: (...a) => this.verboseFetch(...a),
+            },
+            profile,
+            {approvalId: item.id, targets: reviewerIds, verbose: flags.verbose, workspaceId},
+          )
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          this.error(`Created deploy request #${item.id}, but failed to ask reviewers: ${message}`)
+        }
       }
+    }
+
+    if (flags.output === 'json') {
+      this.log(JSON.stringify(item, null, 2))
+    } else {
+      this.log(`Created deploy request #${item.id}: "${item.title}" [${item.status}]`)
     }
   }
 }
