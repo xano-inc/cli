@@ -6,9 +6,18 @@ export interface PolicyCatalogueEntry {
   /** The check's human name. */
   label: string
   object_kinds?: string[]
-  params?: Record<string, {required?: boolean; type?: string}>
+  params?: Record<string, PolicyParamSchema>
   /** Params of which a rule must set at least one. */
   requires_one_of?: string[]
+}
+
+/** One param as the catalogue describes it: a nested object's parts are its `properties`. */
+export interface PolicyParamSchema {
+  /** A value that fits the param, shown as a hint; never filled in. */
+  example?: unknown
+  properties?: Record<string, PolicyParamSchema>
+  required?: boolean
+  type?: string
 }
 
 /** One rule as a run snapshot records it: the settings the check ran with, plus the check's label. */
@@ -137,7 +146,11 @@ export interface ObjectCoveragePolicy {
   key?: string
   /** Why it applies here, one plain sentence per rule. */
   reasons?: string[]
-  /** `failing`, `passing` or `not_checked`. */
+  /**
+   * `failing` (a finding of it here), `not_checked` (no run, or the run did not evaluate it as it now
+   * stands), `could_not_check` (the run could not check it: a rule of it could not run, or the run
+   * stopped on an error before it) or `passing`, which a run that errored on another policy still gives.
+   */
   status?: string
   title?: string
 }
@@ -159,9 +172,14 @@ export interface ObjectCoverage {
     advisory?: number
     applies?: number
     blocking?: number
+    /** The policies that apply whose status is `could_not_check`; an older platform does not send it. */
+    could_not_check?: number
     not_checked?: number
     passing?: number
-    /** `none_apply`, `findings`, `not_checked`, `check_failed` or `pass`. */
+    /**
+     * `none_apply`, `findings`, `not_checked`, `check_failed` (only when a policy that applies here
+     * could not be checked) or `pass`.
+     */
     state?: string
   }
 }

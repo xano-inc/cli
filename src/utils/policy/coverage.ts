@@ -41,7 +41,28 @@ export function coverageChip(summary: ObjectCoverage['summary']): string {
   }
 }
 
-const STATUS: Record<string, string> = {failing: 'failing', not_checked: 'not checked yet', passing: 'passing'}
+const STATUS: Record<string, string> = {
+  could_not_check: "couldn't check",
+  failing: 'failing',
+  not_checked: 'not checked yet',
+  passing: 'passing',
+}
+
+/**
+ * The policies that apply with no finding here, counted from the summary as Studio's panel words its
+ * line under the findings: "6 passing · 1 couldn't check · 1 not checked yet". Empty when it counts none.
+ */
+export function coverageCounts(summary: ObjectCoverage['summary']): string {
+  const counted: Array<[number | undefined, string]> = [
+    [summary?.passing, 'passing'],
+    [summary?.could_not_check, "couldn't check"],
+    [summary?.not_checked, 'not checked yet'],
+  ]
+  return counted
+    .filter(([value]) => count(value) > 0)
+    .map(([value, label]) => `${value} ${label}`)
+    .join(' · ')
+}
 
 function policyLines(policy: ObjectCoveragePolicy): string[] {
   const enforcement = policy.blocking ? 'Blocking' : 'Advisory'
@@ -60,7 +81,8 @@ function objectName(object: ObjectCoverage['object']): string {
 
 /**
  * An object's coverage on stdout: the chip, the run it reads, the findings Blocking then Advisory,
- * each with its fix, the policies that apply with why, and the platform's note.
+ * each with its fix, the policies that apply (counted, then each with its status and why), and the
+ * platform's note.
  */
 export function coverageLines(answer: ObjectCoverage): string[] {
   const lines = [`${objectName(answer.object)}: ${coverageChip(answer.summary)}`]
@@ -73,7 +95,8 @@ export function coverageLines(answer: ObjectCoverage): string[] {
   if (blocking.length > 0) lines.push(`Blocking findings (${blocking.length}):`, ...blocking.flatMap(finding => coverageFindingLines(finding)))
   if (advisory.length > 0) lines.push(`Advisory findings (${advisory.length}):`, ...advisory.flatMap(finding => coverageFindingLines(finding)))
   const policies = answer.policies ?? []
-  if (policies.length > 0) lines.push(`Policies that apply (${policies.length}):`, ...policies.flatMap(policy => policyLines(policy)))
+  const counts = coverageCounts(answer.summary)
+  if (policies.length > 0) lines.push(`Policies that apply (${policies.length}):${counts ? ` ${counts}` : ''}`, ...policies.flatMap(policy => policyLines(policy)))
   if (answer.note?.trim()) lines.push(answer.note.trim())
   return lines
 }
