@@ -10,12 +10,17 @@ export const LOCAL_PROFILE_FILENAME = 'profile.yaml'
 export interface LocalProfileConfig {
   account_origin?: string
   branch?: string
+  fast?: boolean
   instance_origin?: string
   profile?: string
   workspace?: string
+  writeback?: boolean
+  writeback_object_limit?: number
 }
 
-const RECOGNIZED_KEYS = ['profile', 'workspace', 'instance_origin', 'account_origin', 'branch'] as const
+const RECOGNIZED_STRING_KEYS = ['profile', 'workspace', 'instance_origin', 'account_origin', 'branch'] as const
+const RECOGNIZED_BOOLEAN_KEYS = ['fast', 'writeback'] as const
+const RECOGNIZED_NON_NEGATIVE_INTEGER_KEYS = ['writeback_object_limit'] as const
 
 /**
  * Fields that may be layered onto a resolved profile (everything except the profile pointer).
@@ -46,10 +51,29 @@ export function parseLocalProfile(raw: string): LocalProfileConfig | null {
   }
 
   const config: LocalProfileConfig = {}
-  for (const key of RECOGNIZED_KEYS) {
+  for (const key of RECOGNIZED_STRING_KEYS) {
     if (obj[key] !== undefined && obj[key] !== null) {
       config[key] = String(obj[key])
     }
+  }
+
+  for (const key of RECOGNIZED_BOOLEAN_KEYS) {
+    if (obj[key] === undefined || obj[key] === null) continue
+    if (typeof obj[key] !== 'boolean') {
+      throw new TypeError(`profile.yaml: ${key} must be a boolean`)
+    }
+
+    config[key] = obj[key]
+  }
+
+  for (const key of RECOGNIZED_NON_NEGATIVE_INTEGER_KEYS) {
+    if (obj[key] === undefined || obj[key] === null) continue
+    const value = obj[key]
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+      throw new TypeError(`profile.yaml: ${key} must be a non-negative integer`)
+    }
+
+    config[key] = value
   }
 
   if (Object.keys(config).length === 0) {
@@ -96,6 +120,47 @@ export function resolveProfileSelection(params: {
   return {applyLocal: false, profileName: params.defaultProfile}
 }
 
+export type WorkspacePushDefaultKey = 'fast' | 'writeback'
+
+/**
+ * Resolve push --fast/--writeback from the explicit flag, then
+ * profile.yaml, then false. `--sync` ignores a profile.yaml `fast: true`
+ * instead of erroring; an explicit `--fast --sync` is left as-is for executePush.
+ * Used by both workspace push and sandbox push.
+ */
+export function resolvePushDefaults(args: {
+  flagFast?: boolean
+  flagWriteback?: boolean
+  localFast?: boolean
+  localWriteback?: boolean
+  sync: boolean
+}): {fast: boolean; fromLocal: WorkspacePushDefaultKey[]; writeback: boolean} {
+  const fromLocal: WorkspacePushDefaultKey[] = []
+  let fast: boolean
+  if (args.flagFast !== undefined) {
+    fast = args.flagFast
+  } else if (args.sync) {
+    fast = false
+  } else if (args.localFast === undefined) {
+    fast = false
+  } else {
+    fast = args.localFast
+    if (args.localFast) fromLocal.push('fast')
+  }
+
+  let writeback: boolean
+  if (args.flagWriteback !== undefined) {
+    writeback = args.flagWriteback
+  } else if (args.localWriteback === undefined) {
+    writeback = false
+  } else {
+    writeback = args.localWriteback
+    if (args.localWriteback) fromLocal.push('writeback')
+  }
+
+  return {fast, fromLocal, writeback}
+}
+
 /** Format the one-line banner shown when a local profile.yaml is in effect. */
 export function formatLocalProfileBanner(
   profileName: string,
@@ -104,6 +169,14 @@ export function formatLocalProfileBanner(
 ): string {
   const workspaceClause = workspace ? ` (workspace ${workspace})` : ''
   return `Using profile '${profileName}'${workspaceClause} · ${relativePath}`
+}
+
+/** Format the one-line banner when profile.yaml turns on workspace push flags. */
+export function formatWorkspacePushDefaultsBanner(
+  fromLocal: WorkspacePushDefaultKey[],
+  relativePath: string,
+): string {
+  return `Using ${fromLocal.map((key) => `--${key}`).join(' ')} · ${relativePath}`
 }
 
 /**

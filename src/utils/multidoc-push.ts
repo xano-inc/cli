@@ -4,6 +4,13 @@ import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
 import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
+import {
+  compareLocalToExport,
+  indexLocalDocuments,
+  parseExportDocuments,
+  resolveMatchedPath,
+  selectWritebacks,
+} from './export-compare.js'
 import {flattenBundleFile} from './flatten.js'
 import {
   collectKnowledgeObjects,
@@ -15,7 +22,31 @@ import {
   syncGuidToFrontmatter,
   toPushItems,
 } from './knowledge-sync.js'
+import {
+  fetchFormattedObjects,
+  type ObjectGet,
+} from './object-fetch.js'
 import {type BadIndex, type BadReference, checkReferences, checkTableIndexes} from './reference-checker.js'
+import {
+  invalidateSandboxMarkerForOrigin,
+  readMarkerToken,
+  sandboxMarkerExists,
+  writeMarkerToken,
+} from './sandbox-marker.js'
+import {
+  hashFile,
+  instanceHost,
+  loadSyncState,
+  recordEntriesForPaths,
+  resolveTarget,
+  sandboxTargetIdentity,
+  saveSyncState,
+  type SyncFileEntry,
+  syncStateExists,
+  type SyncTargetIdentity,
+  type SyncTargetState,
+  toRelPath,
+} from './sync-state.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -24,14 +55,19 @@ export interface PushFlags {
   'dry-run': boolean
   env: boolean
   exclude?: string[]
+  fast?: boolean
   force: boolean
   guids: boolean
   include?: string[]
   records: boolean
+  refresh?: boolean
   sync: boolean
   transaction: boolean
   truncate: boolean
   verbose: boolean
+  writeback?: boolean
+  writebackDiff?: string
+  writebackObjectLimit?: number
 }
 
 export interface PushTarget {
@@ -69,6 +105,10 @@ export interface KnowledgeConfig {
   rootDir: string
 }
 
+export type PushSyncTarget =
+  | {instanceOrigin: string; kind: 'sandbox'; markerDir: string}
+  | {instanceOrigin: string; kind: 'workspace'; workspace: string}
+
 export interface PushContext {
   accessToken: string
   branch: string
@@ -76,7 +116,16 @@ export interface PushContext {
   inputDir: string
   /** Optional knowledge sync config. Only workspace push sets this. */
   knowledge?: KnowledgeConfig
+  /** Optional sync-record target. Workspace and sandbox push set this when they want a record. */
+  syncTarget?: PushSyncTarget
   verboseFetch: (url: string, options: RequestInit, verbose: boolean, authToken?: string) => Promise<Response>
+}
+
+/** The fetch fields writeback reads. */
+export interface WritebackHttpResponse {
+  ok: boolean
+  status: number
+  text: () => Promise<string>
 }
 
 interface GuidMapEntry {
@@ -359,6 +408,175 @@ export function deletesHittingFilteredOut(
   }
 
   return hits
+}
+
+export function pathMatchesFilters(
+  relPath: string,
+  inputDir: string,
+  include: string[] | undefined,
+  exclude: string[] | undefined,
+): boolean {
+  if (include && include.length > 0) {
+    const patterns = include.map((pattern) => normalizeFilterPattern(pattern, inputDir))
+    if (!patterns.some((pattern) => minimatch(relPath, pattern, {matchBase: true}))) {
+      return false
+    }
+  }
+
+  if (exclude && exclude.length > 0) {
+    const patterns = exclude.map((pattern) => normalizeFilterPattern(pattern, inputDir))
+    if (patterns.some((pattern) => minimatch(relPath, pattern, {matchBase: true}))) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function fileEntryFor(inputDir: string, filePath: string): null | {entry: SyncFileEntry; relPath: string;} {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const parsed = parseDocument(content)
+    if (!parsed) return null
+    return {
+      entry: {
+        key: buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup),
+        sha256: hashFile(filePath),
+      },
+      relPath: toRelPath(inputDir, filePath),
+    }
+  } catch {
+    return null
+  }
+}
+
+function recordEntriesFromPaths(inputDir: string, filePaths: string[]): Record<string, SyncFileEntry> {
+  return recordEntriesForPaths(inputDir, filePaths)
+}
+
+function commitSyncRecord(
+  inputDir: string,
+  target: null | SyncTargetIdentity,
+  extra: Record<string, SyncFileEntry>,
+  filePaths: string[],
+  options: {pruneMissing?: boolean; replace?: boolean; sandboxToken?: string},
+  warn: (message: string) => void,
+): void {
+  if (!target) return
+  trySaveSyncState(inputDir, target, {...extra, ...recordEntriesFromPaths(inputDir, filePaths)}, options, warn)
+}
+
+function commitSyncRecordWithSandbox(
+  ctx: PushContext,
+  inputDir: string,
+  target: null | SyncTargetIdentity,
+  extra: Record<string, SyncFileEntry>,
+  filePaths: string[],
+  options: {pruneMissing?: boolean; replace?: boolean},
+  warn: (message: string) => void,
+): void {
+  if (!target) {
+    warn('Skipped writing sync record; could not resolve sandbox/workspace identity')
+    return
+  }
+
+  let sandboxToken: string | undefined
+  if (ctx.syncTarget?.kind === 'sandbox') {
+    try {
+      sandboxToken = writeMarkerToken(ctx.syncTarget.markerDir, target.instance_host, target.branch_created_at)
+    } catch (error) {
+      warn(`Skipped writing sandbox sync marker: ${(error as Error).message}`)
+    }
+  }
+
+  commitSyncRecord(inputDir, target, extra, filePaths, {...options, sandboxToken}, warn)
+}
+
+function trySaveSyncState(
+  inputDir: string,
+  target: SyncTargetIdentity,
+  entries: Record<string, SyncFileEntry>,
+  options: {pruneMissing?: boolean; replace?: boolean; sandboxToken?: string},
+  warn: (message: string) => void,
+): void {
+  try {
+    saveSyncState(inputDir, target, entries, options)
+  } catch (error) {
+    warn(`Skipped writing .xano/sync_state.json: ${(error as Error).message}`)
+  }
+}
+
+async function resolveSyncTarget(
+  ctx: PushContext,
+  flags: PushFlags,
+): Promise<{isLiveBranch: boolean; liveBranch: string; target: null | SyncTargetIdentity}> {
+  if (!ctx.syncTarget) {
+    return {isLiveBranch: !ctx.branch, liveBranch: ctx.branch, target: null}
+  }
+
+  const origin = ctx.syncTarget.instanceOrigin.replace(/\/$/, '')
+  const fetchJson = async (pathname: string): Promise<unknown> => {
+    const response = await ctx.verboseFetch(
+      `${origin}/api:meta${pathname}`,
+      {
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${ctx.accessToken}`,
+        },
+        method: 'GET',
+      },
+      flags.verbose,
+      ctx.accessToken,
+    )
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  if (ctx.syncTarget.kind === 'sandbox') {
+    try {
+      const me = await fetchJson('/sandbox/me')
+      if (
+        !me ||
+        typeof me !== 'object' ||
+        Array.isArray(me) ||
+        typeof (me as {created_at?: unknown}).created_at !== 'string' ||
+        typeof (me as {id?: unknown}).id !== 'number'
+      ) {
+        return {isLiveBranch: true, liveBranch: '', target: null}
+      }
+
+      return {
+        isLiveBranch: true,
+        liveBranch: '',
+        target: sandboxTargetIdentity(instanceHost(ctx.syncTarget.instanceOrigin), {
+          created_at: (me as {created_at: string}).created_at,
+          id: (me as {id: number}).id,
+        }),
+      }
+    } catch {
+      return {isLiveBranch: true, liveBranch: '', target: null}
+    }
+  }
+
+  const target = await resolveTarget(ctx.syncTarget.instanceOrigin, ctx.syncTarget.workspace, ctx.branch, fetchJson)
+  return {
+    isLiveBranch: Boolean(target && target.branch === target.live_branch),
+    liveBranch: target?.live_branch ?? ctx.branch,
+    target,
+  }
+}
+
+function maybeInvalidateSandboxMarker(ctx: PushContext, persistRecord: boolean, warn: (message: string) => void): void {
+  if (ctx.syncTarget?.kind !== 'sandbox') return
+  if (!persistRecord && !sandboxMarkerExists(ctx.syncTarget.markerDir)) return
+  try {
+    invalidateSandboxMarkerForOrigin(ctx.syncTarget.markerDir, ctx.syncTarget.instanceOrigin)
+  } catch (error) {
+    warn(`Skipped invalidating sandbox sync marker: ${(error as Error).message}`)
+  }
 }
 
 /**
@@ -862,6 +1080,14 @@ export async function executePush(
   const {accessToken, command, inputDir, verboseFetch} = ctx
   const log = command.log.bind(command)
 
+  if (flags.fast && flags.sync) {
+    command.error('--fast cannot be used with --sync')
+  }
+
+  if (flags.refresh && !flags.fast) {
+    command.error('--refresh requires --fast')
+  }
+
   // ── Collect knowledge entries (before file check so knowledge-only push works) ─
 
   let knowledgeObjects: LocalKnowledgeObject[] = []
@@ -1017,6 +1243,177 @@ export async function executePush(
     }
   }
 
+  const allDocumentEntries = [...documentEntries]
+  let recordSourceEntries = [...documentEntries]
+  let exportRebuild = false
+  const pendingRecordEntries: Record<string, SyncFileEntry> = {}
+  const persistRecord = !flags['dry-run'] && Boolean(ctx.syncTarget) && (Boolean(flags.fast) || syncStateExists(inputDir))
+  const resolved =
+    flags.fast || flags.writeback || persistRecord
+      ? await resolveSyncTarget(ctx, flags)
+      : {isLiveBranch: !ctx.branch, liveBranch: ctx.branch, target: null}
+  const resolvedTarget = resolved.target
+  let loadedState: null | SyncTargetState = null
+  if (resolvedTarget) {
+    loadedState = loadSyncState(inputDir, resolvedTarget, (message) => command.warn(message))
+  } else if (ctx.syncTarget && flags.fast) {
+    command.warn('Could not resolve sync target fingerprints; comparing against the server export')
+  }
+
+  let sandboxUntrusted = false
+  if (ctx.syncTarget?.kind === 'sandbox' && resolvedTarget && loadedState) {
+    const markerToken = readMarkerToken(
+      ctx.syncTarget.markerDir,
+      resolvedTarget.instance_host,
+      resolvedTarget.branch_created_at,
+    )
+    if (!loadedState.sandbox_token || loadedState.sandbox_token !== markerToken) {
+      sandboxUntrusted = true
+      loadedState = null
+    }
+  }
+
+  if (flags.fast && ctx.syncTarget && !knowledgeOnly) {
+    const useExport = Boolean(flags.refresh) || !resolvedTarget || !loadedState
+    if (useExport) {
+      let exportReason = 'No sync record for this workspace/branch; comparing against the server export'
+      if (flags.refresh) {
+        exportReason = 'Refreshing sync record from the server export'
+      } else if (sandboxUntrusted) {
+        exportReason =
+          'Sandbox changed since this directory\'s last push (reset, delete, or another directory); comparing against the sandbox export'
+      }
+
+      log(exportReason)
+      const exportParams = new URLSearchParams({
+        env: 'false',
+        include_draft: 'false',
+        records: flags.records.toString(),
+      })
+      if (target.supportsBranches) {
+        exportParams.set('branch', ctx.branch)
+      }
+
+      try {
+        const exportResponse = await verboseFetch(
+          target.buildPushUrl(exportParams),
+          {
+            headers: {
+              accept: 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            method: 'GET',
+          },
+          flags.verbose,
+          accessToken,
+        )
+        if (!exportResponse.ok) {
+          throw new Error(`HTTP ${exportResponse.status}`)
+        }
+
+        const exported = parseExportDocuments(await exportResponse.text())
+        const compared = compareLocalToExport(
+          allDocumentEntries.map((entry) => ({
+            ...entry,
+            relPath: toRelPath(inputDir, entry.filePath),
+          })),
+          exported,
+        )
+
+        if (compared.serverOnly.length > 0) {
+          log(
+            ux.colorize(
+              'dim',
+              `${compared.serverOnly.length} object${compared.serverOnly.length === 1 ? '' : 's'} exist on the server but not locally; pull to get them, or --sync --delete to remove them`,
+            ),
+          )
+        }
+
+        exportRebuild = true
+        for (const entry of compared.identical) {
+          const recorded = fileEntryFor(inputDir, entry.filePath)
+          if (recorded) pendingRecordEntries[recorded.relPath] = recorded.entry
+        }
+
+        if (compared.candidates.length === 0 && knowledgeObjects.length === 0) {
+          if (resolvedTarget && !flags['dry-run']) {
+            commitSyncRecordWithSandbox(
+              ctx,
+              inputDir,
+              resolvedTarget,
+              pendingRecordEntries,
+              [],
+              {replace: true},
+              (message) => command.warn(message),
+            )
+          }
+
+          log('')
+          log('No changes to push.')
+          return
+        }
+
+        documentEntries = compared.candidates
+        recordSourceEntries = [...documentEntries]
+        multidoc = documentEntries.map((entry) => entry.content).join('\n---\n')
+        documentFileMap.clear()
+        for (const entry of documentEntries) {
+          const parsed = parseDocument(entry.content)
+          if (parsed) {
+            documentFileMap.set(buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup), entry.filePath)
+          }
+        }
+      } catch (error) {
+        command.warn(
+          `Failed to download the server export for --fast (${(error as Error).message}); falling back to a full dry-run`,
+        )
+        exportRebuild = false
+      }
+    } else if (resolvedTarget && loadedState) {
+      const allHashes = collectFiles(inputDir).map((filePath) => ({
+        relPath: toRelPath(inputDir, filePath),
+        sha256: hashFile(filePath),
+      }))
+      const {candidates, deletedLocally} = {
+        candidates: allHashes.filter((file) => {
+          const recorded = loadedState.files[file.relPath]
+          return !recorded || recorded.sha256 !== file.sha256
+        }),
+        deletedLocally: Object.entries(loadedState.files)
+          .filter(([relPath]) => !allHashes.some((file) => file.relPath === relPath))
+          .filter(([relPath]) => pathMatchesFilters(relPath, inputDir, flags.include, flags.exclude))
+          .map(([relPath, entry]) => ({key: entry.key, relPath})),
+      }
+
+      if (deletedLocally.length > 0) {
+        log(
+          ux.colorize(
+            'dim',
+            `${deletedLocally.length} file${deletedLocally.length === 1 ? '' : 's'} deleted locally since last sync; use --sync --delete to remove them remotely`,
+          ),
+        )
+      }
+
+      const candidatePaths = new Set(candidates.map((file) => file.relPath))
+      documentEntries = allDocumentEntries.filter((entry) => candidatePaths.has(toRelPath(inputDir, entry.filePath)))
+      recordSourceEntries = [...documentEntries]
+
+      if (documentEntries.length === 0 && knowledgeObjects.length === 0) {
+        log('No local changes since last sync')
+        return
+      }
+
+      multidoc = documentEntries.map((entry) => entry.content).join('\n---\n')
+      documentFileMap.clear()
+      for (const entry of documentEntries) {
+        const parsed = parseDocument(entry.content)
+        if (parsed) {
+          documentFileMap.set(buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup), entry.filePath)
+        }
+      }
+    }
+  }
+
   // ── Resolve push mode ─────────────────────────────────────────────────
 
   const isPartial = !flags.sync
@@ -1026,6 +1423,7 @@ export async function executePush(
   }
 
   const shouldDelete = isPartial ? false : flags.delete
+  const pruneMissing = shouldDelete && !knowledgeOnly
 
   // ── Build query params ────────────────────────────────────────────────
 
@@ -1169,7 +1567,7 @@ export async function executePush(
           }
 
           // Check for bad cross-references using dry-run operations to avoid false positives
-          const badRefs = checkReferences(documentEntries, preview.operations)
+          const badRefs = checkReferences(allDocumentEntries, preview.operations, documentEntries)
           if (badRefs.length > 0) {
             renderBadReferences(badRefs, log)
           }
@@ -1246,6 +1644,18 @@ export async function executePush(
           if (!hasChanges && !hasLocalRecords) {
             log('')
             log('No changes to push.')
+            if (persistRecord) {
+              commitSyncRecordWithSandbox(
+                ctx,
+                inputDir,
+                resolvedTarget,
+                pendingRecordEntries,
+                recordSourceEntries.map((entry) => entry.filePath),
+                {pruneMissing, replace: exportRebuild},
+                (message) => command.warn(message),
+              )
+            }
+
             return
           }
 
@@ -1398,7 +1808,7 @@ export async function executePush(
   // ── Show bad references in force mode (preview mode shows them inline) ─
 
   if (flags.force && !knowledgeOnly) {
-    const badRefs = checkReferences(documentEntries)
+    const badRefs = checkReferences(allDocumentEntries, undefined, documentEntries)
     if (badRefs.length > 0) {
       log('')
       renderBadReferences(badRefs, log)
@@ -1407,18 +1817,55 @@ export async function executePush(
 
   // ── Partial push: filter to changed documents only ────────────────────
 
+  let pushedEntries = documentEntries
   if (!knowledgeOnly && isPartial && dryRunPreview) {
-    const filteredEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
+    pushedEntries = filterChangedEntries(documentEntries, dryRunPreview.operations, flags.records)
 
-    if (filteredEntries.length === 0 && knowledgeObjects.length === 0) {
+    if (pushedEntries.length === 0 && knowledgeObjects.length === 0) {
       log('No changes to push.')
+      if (persistRecord) {
+        commitSyncRecordWithSandbox(
+          ctx,
+          inputDir,
+          resolvedTarget,
+          pendingRecordEntries,
+          recordSourceEntries.map((entry) => entry.filePath),
+          {pruneMissing: false, replace: exportRebuild},
+          (message) => command.warn(message),
+        )
+      }
+
       return
     }
 
-    multidoc = filteredEntries.length > 0 ? filteredEntries.map((d) => d.content).join('\n---\n') : '';
+    multidoc = pushedEntries.length > 0 ? pushedEntries.map((d) => d.content).join('\n---\n') : ''
+  }
+
+  const persist = (): void => {
+    if (!persistRecord || !ctx.syncTarget) return
+    const paths = [
+      ...recordSourceEntries.map((entry) => entry.filePath),
+      ...pushedEntries.map((entry) => entry.filePath),
+    ]
+    commitSyncRecordWithSandbox(
+      ctx,
+      inputDir,
+      resolvedTarget,
+      pendingRecordEntries,
+      paths,
+      {pruneMissing, replace: exportRebuild},
+      (message) => command.warn(message),
+    )
   }
 
   // ── Execute the actual push ───────────────────────────────────────────
+
+  const willMutate =
+    (!knowledgeOnly && Boolean(multidoc)) ||
+    Boolean(ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete))
+  if (willMutate && !flags['dry-run']) {
+    maybeInvalidateSandboxMarker(ctx, persistRecord, (message) => command.warn(message))
+  }
 
   const startTime = Date.now()
   let pushedDocCount = 0
@@ -1529,6 +1976,32 @@ export async function executePush(
     }
   }
 
+  // Write the marker/record before writeback. Writeback is another full export, and
+  // a failure or Ctrl+C there must not drop --fast state from an already-successful push.
+  persist()
+
+  let writebackMs = 0
+  if (flags.writeback && pushedDocCount > 0) {
+    writebackMs = await writeBackFormattedDocuments({
+      accessToken,
+      branch: ctx.branch,
+      command,
+      includeEnv: flags.env,
+      includeRecords: flags.records,
+      inputDir,
+      isLiveBranch: resolved.isLiveBranch,
+      pushedEntries,
+      resolvedTarget,
+      syncState: loadedState,
+      target,
+      verbose: flags.verbose,
+      verboseFetch,
+      workspaceId: ctx.syncTarget?.kind === 'workspace' ? ctx.syncTarget.workspace : undefined,
+      writebackDiff: flags.writebackDiff,
+      writebackObjectLimit: flags.writebackObjectLimit,
+    })
+  }
+
   // ── Push knowledge ────────────────────────────────────────────────────
 
   let knowledgeImported = 0
@@ -1572,7 +2045,7 @@ export async function executePush(
     }
   }
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+  const elapsed = (Math.max(0, Date.now() - startTime - writebackMs) / 1000).toFixed(1)
   const parts: string[] = []
   if (!knowledgeOnly) parts.push(`${pushedDocCount} documents`)
   if (ctx.knowledge && (knowledgeObjects.length > 0 || shouldDelete)) {
@@ -1581,7 +2054,229 @@ export async function executePush(
     parts.push(kParts.join(', '))
   }
 
+  persist()
+
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
+}
+
+export async function writeBackFormattedDocuments(args: {
+  accessToken: string
+  branch: string
+  command: Command
+  includeEnv: boolean
+  includeRecords: boolean
+  inputDir?: string
+  isLiveBranch?: boolean
+  pushedEntries: Array<{content: string; filePath: string}>
+  resolvedTarget?: null | SyncTargetIdentity
+  syncState?: null | SyncTargetState
+  target: PushTarget
+  verbose: boolean
+  verboseFetch: (
+    url: string,
+    options: {headers?: Record<string, string>; method?: string},
+    verbose: boolean,
+    authToken?: string,
+  ) => Promise<WritebackHttpResponse>
+  workspaceId?: string
+  writebackDiff?: string
+  writebackObjectLimit?: number
+}): Promise<number> {
+  const started = Date.now()
+  const {
+    accessToken,
+    branch,
+    command,
+    includeEnv,
+    includeRecords,
+    inputDir,
+    isLiveBranch = !branch,
+    pushedEntries,
+    resolvedTarget,
+    syncState,
+    target,
+    verbose,
+    verboseFetch,
+    workspaceId,
+    writebackDiff,
+    writebackObjectLimit,
+  } = args
+  const log = command.log.bind(command)
+  const elapsedLabel = () => ` (${((Date.now() - started) / 1000).toFixed(1)}s)`
+
+  const localContents = new Map<string, string>()
+  const pushedFiles = new Map<string, string>()
+  for (const entry of pushedEntries) {
+    const parsed = parseDocument(entry.content)
+    if (!parsed) continue
+    const key = buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup)
+    pushedFiles.set(key, entry.filePath)
+    try {
+      localContents.set(entry.filePath, fs.readFileSync(entry.filePath, 'utf8'))
+    } catch {
+      localContents.set(entry.filePath, entry.content)
+    }
+  }
+
+  let exportedDocs: ReturnType<typeof parseExportDocuments> = []
+  let pathLabel = 'export'
+
+  if (resolvedTarget && workspaceId && pushedEntries.length > 0 && writebackObjectLimit !== 0) {
+    const get: ObjectGet = async (pathname, query = {}) => {
+        const params = new URLSearchParams(query)
+        const origin = target.instanceOrigin.replace(/\/$/, '')
+        const url = `${origin}/api:meta${pathname}${params.toString() ? `?${params.toString()}` : ''}`
+        const response = await verboseFetch(
+          url,
+          {
+            headers: {
+              accept: 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            method: 'GET',
+          },
+          verbose,
+          accessToken,
+        )
+        const text = await response.text()
+        let json: unknown = text
+        try {
+          json = JSON.parse(text)
+        } catch {
+          // keep text
+        }
+
+        return {json, ok: response.ok, status: response.status}
+    }
+
+    const fetched = await fetchFormattedObjects({
+      get,
+      isLiveBranch,
+      limit: writebackObjectLimit,
+      pushed: pushedEntries.map((entry) => ({
+        content: localContents.get(entry.filePath) ?? entry.content,
+        filePath: entry.filePath,
+        relPath: inputDir ? toRelPath(inputDir, entry.filePath) : entry.filePath,
+      })),
+      state: syncState ?? null,
+      target: resolvedTarget,
+      workspaceId,
+    })
+
+    if (fetched.ok) {
+      exportedDocs = []
+      for (const result of fetched.results) {
+        const parsed = parseDocument(result.content)
+        if (!parsed) {
+          command.warn(`Writeback: skipped ${result.filePath}; fetched document did not parse`)
+          continue
+        }
+
+        exportedDocs.push({...parsed, content: result.content})
+      }
+
+      pathLabel = 'per-object'
+    } else {
+      command.warn(`Per-object writeback unavailable (${fetched.reason}); using full export`)
+    }
+  }
+
+  if (exportedDocs.length === 0) {
+    const exportParams = new URLSearchParams({
+      env: includeEnv.toString(),
+      records: includeRecords.toString(),
+    })
+    exportParams.set('include_draft', 'false')
+    if (target.supportsBranches) {
+      exportParams.set('branch', branch)
+    }
+
+    const exportUrl = target.buildPushUrl(exportParams)
+    let response: WritebackHttpResponse
+    try {
+      response = await verboseFetch(
+        exportUrl,
+        {
+          headers: {
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          method: 'GET',
+        },
+        verbose,
+        accessToken,
+      )
+    } catch (error) {
+      command.warn(`Failed to fetch server-formatted documents for writeback: ${(error as Error).message}`)
+      return Date.now() - started
+    }
+
+    if (!response.ok) {
+      command.warn(`Failed to fetch server-formatted documents for writeback (${response.status})`)
+      return Date.now() - started
+    }
+
+    const responseText = await response.text()
+    exportedDocs = parseExportDocuments(responseText)
+    pathLabel = 'export'
+    if (exportedDocs.length === 0) {
+      const preview = responseText.trim().slice(0, 200).replaceAll('\n', String.raw`\n`)
+      command.warn(
+        `Writeback: export contained no XanoScript documents (${pushedFiles.size} pushed). Response starts with: ${preview || '(empty)'}`,
+      )
+      return Date.now() - started
+    }
+  }
+
+  const matcher = indexLocalDocuments(pushedFiles, localContents)
+  const matched = new Set<string>()
+  for (const doc of exportedDocs) {
+    const filePath = resolveMatchedPath(doc, matcher)
+    if (filePath) matched.add(filePath)
+  }
+
+  const writebacks = selectWritebacks(exportedDocs, pushedFiles, localContents, {includeRecords})
+
+  if (writebackDiff) {
+    for (const {content, filePath} of writebacks) {
+      const local = localContents.get(filePath) ?? ''
+      const rel = inputDir ? toRelPath(inputDir, filePath) : filePath.split(/[\\/]/).pop() || 'file.xs'
+      const destBase = join(writebackDiff, rel)
+      try {
+        fs.mkdirSync(join(destBase, '..'), {recursive: true})
+        fs.writeFileSync(`${destBase}.local.xs`, local, 'utf8')
+        fs.writeFileSync(`${destBase}.server.xs`, content.trim(), 'utf8')
+      } catch (error) {
+        command.warn(`Failed to write writeback-diff for ${filePath}: ${(error as Error).message}`)
+      }
+    }
+  }
+
+  let written = 0
+  for (const {content, filePath} of writebacks) {
+    try {
+      // Same bytes `pull` writes: the trimmed document, no trailing newline.
+      fs.writeFileSync(filePath, content.trim(), 'utf8')
+      written++
+    } catch (error) {
+      command.warn(`Failed to write formatted document to ${filePath}: ${(error as Error).message}`)
+    }
+  }
+
+  if (written > 0) {
+    log(`Wrote ${written} formatted file${written === 1 ? '' : 's'} (${pathLabel}${elapsedLabel()})`)
+    return Date.now() - started
+  }
+
+  if (matched.size === 0) {
+    command.warn(
+      `Writeback: fetched ${exportedDocs.length} documents, but none matched the ${pushedFiles.size} pushed file${pushedFiles.size === 1 ? '' : 's'}${elapsedLabel()}`,
+    )
+    return Date.now() - started
+  }
+
+  log(`Writeback: ${matched.size} pushed file${matched.size === 1 ? '' : 's'} already match the server export${elapsedLabel()}`)
+  return Date.now() - started
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────
@@ -1821,3 +2516,5 @@ function handlePushError(
 
   command.error(errorMessage)
 }
+
+export {parseExportDocuments, preserveLocalTableRecords, selectWritebacks} from './export-compare.js'

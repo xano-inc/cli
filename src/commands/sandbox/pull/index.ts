@@ -12,6 +12,18 @@ import {
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
+import {writeMarkerToken} from '../../../utils/sandbox-marker.js'
+import {
+  instanceHost,
+  recordEntriesForPaths,
+  sandboxTargetIdentity,
+  saveSyncState,
+  syncStateExists,
+} from '../../../utils/sync-state.js'
+
+export function shouldWriteSyncState(flag: boolean, dir: string): boolean {
+  return flag || syncStateExists(dir)
+}
 
 export default class SandboxPull extends BaseCommand {
   static override description = 'Pull documents from your sandbox environment and split into individual files'
@@ -23,6 +35,9 @@ Pulled 42 documents from sandbox environment to current directory
 Pulled 42 documents from sandbox environment to ./my-sandbox
 `,
     `$ xano sandbox pull --env --records`,
+    `$ xano sandbox pull --sync-state
+Write .xano/sync_state.json after pulling; later pulls keep it current while it exists
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -45,6 +60,12 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
     records: Flags.boolean({
       default: false,
       description: 'Include records',
+      required: false,
+    }),
+    'sync-state': Flags.boolean({
+      default: false,
+      description:
+        'Write .xano/sync_state.json after a successful pull. Needed only the first time; later pulls keep the record current while it exists.',
       required: false,
     }),
   }
@@ -123,6 +144,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
     let writtenCount = 0
+    const writtenPaths: string[] = []
     for (const doc of documents) {
       const {baseName, typeDir} = resolveDocumentPath(doc, outputDir, {
         getApiGroupFolder,
@@ -146,6 +168,7 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')
+      writtenPaths.push(filePath)
       writtenCount++
     }
 
@@ -168,5 +191,33 @@ Pulled 42 documents from sandbox environment to ./my-sandbox
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} from sandbox environment to ${flags.directory}`)
+
+    if (!shouldWriteSyncState(flags['sync-state'], outputDir)) {
+      return
+    }
+
+    try {
+      const tenant = await this.getOrCreateSandbox(profile, flags.verbose)
+      if (typeof tenant.created_at !== 'string') {
+        this.warn('Could not resolve sandbox fingerprints; skipped writing .xano/sync_state.json')
+        return
+      }
+
+      const target = sandboxTargetIdentity(instanceHost(profile.instance_origin), {
+        created_at: tenant.created_at,
+        id: tenant.id,
+      })
+      const sandboxToken = writeMarkerToken(
+        path.dirname(this.getCredentialsPath()),
+        target.instance_host,
+        target.branch_created_at,
+      )
+      saveSyncState(outputDir, target, recordEntriesForPaths(outputDir, writtenPaths), {
+        replace: true,
+        sandboxToken,
+      })
+    } catch (error) {
+      this.warn(`Skipped writing .xano/sync_state.json: ${(error as Error).message}`)
+    }
   }
 }
