@@ -93,6 +93,20 @@ describe('policy create from a platform template', () => {
     expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
   })
 
+  it('refuses a recipe id, naming its templates in order, since a recipe has no create action', async () => {
+    const recipe = {id: 'protect_card_data', rules: [{check: 'table.field_attribute_required', needs: [], params: {forbidden: true}, title: 'Card numbers are never stored'}], templates: ['safe_calls', 'custom'], title: 'Protect payment card data'}
+    fixture.route(url => url.pathname.endsWith('/check') ? json({items: [], recipes: [recipe], templates: [readyTemplate, needsTemplate]}) : json({items: [], nextPage: null}))
+    const result = await runCommand(['policy', 'create', '--template', 'protect_card_data'], fixture.config)
+    expect(result.error).to.have.nested.property('oclif.exit', 1)
+    const message = result.error?.message.replaceAll(/\s+/g, ' ')
+    expect(message).to.contain('"protect_card_data" is a recipe (Protect payment card data), not a template, and a recipe has no create action.')
+    expect(message).to.contain('Create its templates in order with --template, one policy each: safe_calls, custom.')
+    expect(message).to.contain('The rule no template covers goes in a policy of your own')
+    expect(message).to.contain('`xano policy catalogue --recipe protect_card_data`')
+    expect(message).not.to.contain('Unknown template')
+    expect(fixture.calls.map(call => call.url.pathname)).to.satisfy((paths: string[]) => paths.every(pathname => pathname.endsWith('/check')))
+  })
+
   it('checks every list page for case-insensitive key collisions and chooses a free suffix', async () => {
     fixture.route((url, method) => {
       if (url.pathname.endsWith('/check')) return json({templates: [readyTemplate]})

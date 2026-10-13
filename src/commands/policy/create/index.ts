@@ -1,11 +1,12 @@
 import {Flags} from '@oclif/core'
 
+import type {PolicyRecipe} from '../../../utils/policy/catalogue.js'
 import type {PolicyKeyRule, PolicyTemplate} from '../../../utils/policy/template.js'
 import type {Policy, PolicyCatalogueEntry} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {listAllPolicies} from '../../../utils/policy/request.js'
-import {policyFromTemplate} from '../../../utils/policy/template.js'
+import {policyFromTemplate, recipeRefusal} from '../../../utils/policy/template.js'
 
 export default class PolicyCreate extends PolicyCommand {
   static override description = 'Create an independent policy from a platform template'
@@ -25,8 +26,11 @@ export default class PolicyCreate extends PolicyCommand {
     const {flags} = await this.parse(PolicyCreate)
     const target = this.policyTarget(flags)
     const {request} = target
-    const catalogue = await request('/check') as {document?: {key?: PolicyKeyRule}; items?: PolicyCatalogueEntry[]; templates?: PolicyTemplate[]}
+    const catalogue = await request('/check') as {document?: {key?: PolicyKeyRule}; items?: PolicyCatalogueEntry[]; recipes?: PolicyRecipe[]; templates?: PolicyTemplate[]}
     const template = catalogue.templates?.find(item => item.id === flags.template)
+    // A recipe is data with no create action: name the templates it points at instead.
+    const recipe = template || !Array.isArray(catalogue.recipes) ? undefined : catalogue.recipes.find(item => item.id === flags.template)
+    if (recipe) this.error(recipeRefusal(recipe))
     if (!template) this.error(`Unknown template "${flags.template}". Run xano policy catalogue to see this instance's templates.`)
     const keys = (await listAllPolicies(request)).map(policy => policy.key)
     // The key is checked against the pattern this instance's catalogue serves, and an unfilled need's

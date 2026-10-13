@@ -174,6 +174,117 @@ describe('policy reporting', () => {
     expect(result.stdout.split('\n').every(line => line.length <= 144)).to.equal(true)
   })
 
+  it('catalogue lists each check\'s uses under its row: the goal, its params as one line of JSON, and its note', async () => {
+    const uses = [
+      {goal: 'Endpoints that touch invoices require login.', note: 'tables judges the endpoints reaching the tables the user names.', params: {tables: ['invoices']}},
+      {goal: 'Every endpoint requires login.', params: []},
+    ]
+    fixture.route(() => json({items: [{...checks[1], uses}, checks[0]], templates: []}))
+    const lines = (await command('policy catalogue')).stdout.split('\n')
+    const row = lines.findIndex(line => line.startsWith('table.auth_table_rules'))
+    const use = lines.indexOf('  Use: Endpoints that touch invoices require login.')
+    expect(use).to.be.greaterThan(row)
+    expect(lines[use + 1]).to.equal('       {"tables":["invoices"]}')
+    expect(lines[use + 2]).to.equal('       Note: tables judges the endpoints reaching the tables the user names.')
+    expect(lines[use + 3]).to.equal('  Use: Every endpoint requires login.')
+    expect(lines[use + 4]).to.equal('       {}')
+    expect(lines[use + 5]).to.match(/^stack\.statement_forbidden/)
+  })
+
+  const recipeCatalogue = {
+    items: checks,
+    not_checkable: [
+      {id: 'people_and_training', keywords: ['training'], topic: 'People and training', why: 'Policies read object definitions only.'},
+      {id: 'spend_caps', keywords: ['cost'], topic: 'Spend caps', why: 'No check reads what AI calls cost yet.'},
+    ],
+    recipes: [{
+      frameworks: ['pci_dss'], id: 'protect_card_data', keywords: ['card'], limits: ['people_and_training', 'retired_topic'],
+      prerequisites: ['Approve your processor\'s hosts for VND-001.'],
+      rules: [{check: 'table.field_attribute_required', needs: [], params: {field_names: ['card_number'], forbidden: true}, title: 'Card numbers are never stored'}],
+      summary: 'No table stores a card number.', templates: ['approved_vendors_only', 'from_a_newer_instance'], title: 'Protect payment card data',
+    }, {
+      frameworks: [], id: 'ai_cost_and_agent_safety', keywords: ['ai'], limits: ['spend_caps'], prerequisites: [],
+      rules: [{check: 'stack.statement_order', needs: ['before.functions'], params: {after: ['db.del']}, title: 'Deletes wait for an approval check'}],
+      summary: 'AI calls stay out of loops.', templates: [], title: 'Keep AI calls affordable and agents safe',
+    }],
+    template_frameworks: [{id: 'pci_dss', label: 'PCI DSS'}],
+    template_frameworks_note: 'Tags point to related topics.',
+    templates: [{category: 'integrations', frameworks: [], id: 'approved_vendors_only', key: 'VND-001', rules: [{check: 'outbound.vendor_allowlist', needs: [], params: {}, title: ''}], severity: 'high', summary: '', title: 'Data only goes to approved vendors'}],
+  }
+
+  it('catalogue lists the recipes after the templates: tags, what to do first, templates in order, rules and limits by topic', async () => {
+    fixture.route(() => json(recipeCatalogue))
+    const result = await command('policy catalogue')
+    expect(result.error).to.equal(undefined)
+    const lines = result.stdout.split('\n')
+    const heading = lines.findIndex(line => line.startsWith('Recipes ('))
+    expect(heading).to.be.greaterThan(lines.findIndex(line => line.startsWith('Templates (')))
+    expect(lines[heading]).to.contain('nothing creates a recipe')
+    expect(lines[heading + 1]).to.equal('Tags point to related topics.')
+    const recipe = lines.indexOf('  protect_card_data  Protect payment card data [PCI DSS]')
+    expect(recipe).to.be.greaterThan(heading)
+    expect(lines.slice(recipe + 1, recipe + 14)).to.deep.equal([
+      '    No table stores a card number.',
+      '    First:',
+      '      - Approve your processor\'s hosts for VND-001.',
+      '    Templates, in order (xano policy create --template <id>, one policy each):',
+      '      1. approved_vendors_only  Data only goes to approved vendors (VND-001)',
+      '      2. from_a_newer_instance',
+      '    Rules no template covers, together in one policy of your own:',
+      '      - Card numbers are never stored: table.field_attribute_required',
+      '        {"field_names":["card_number"],"forbidden":true}',
+      '    No rule here can see: People and training; retired_topic.',
+      '',
+      '  ai_cost_and_agent_safety  Keep AI calls affordable and agents safe',
+      '    AI calls stay out of loops.',
+    ])
+    expect(lines).to.include('        You fill in: before.functions')
+    expect(lines).to.include('    No rule here can see: Spend caps.')
+  })
+
+  it('catalogue ends with what no check can see, each topic by id with why', async () => {
+    fixture.route(() => json(recipeCatalogue))
+    const lines = (await command('policy catalogue')).stdout.trimEnd().split('\n')
+    const heading = lines.findIndex(line => line.startsWith('What no check can see'))
+    expect(heading).to.be.greaterThan(lines.findIndex(line => line.startsWith('Recipes (')))
+    expect(lines.slice(heading + 1)).to.deep.equal([
+      '', '  people_and_training  People and training', '    Policies read object definitions only.',
+      '', '  spend_caps  Spend caps', '    No check reads what AI calls cost yet.',
+    ])
+  })
+
+  it('catalogue shows no recipe framework tags without the served note', async () => {
+    fixture.route(() => json({...recipeCatalogue, template_frameworks_note: undefined}))
+    const {stdout} = await command('policy catalogue')
+    expect(stdout).to.contain('  protect_card_data  Protect payment card data\n').and.not.to.contain('PCI DSS')
+  })
+
+  it('catalogue prints no recipe or not-checkable section when the instance serves none', async () => {
+    fixture.route(() => json(catalogue))
+    const {stdout} = await command('policy catalogue')
+    expect(stdout).not.to.contain('Recipes').and.not.to.contain('What no check can see')
+  })
+
+  it('catalogue --recipe narrows both output modes to the one recipe, the summary with the topics it cannot see', async () => {
+    fixture.route(() => json(recipeCatalogue))
+    const summary = await command('policy catalogue', ['--recipe', 'ai_cost_and_agent_safety'])
+    expect(summary.error).to.equal(undefined)
+    expect(summary.stdout).to.contain('ai_cost_and_agent_safety').and.not.to.contain('protect_card_data')
+    expect(summary.stdout).not.to.contain('Check ID').and.not.to.contain('Templates (')
+    expect(summary.stdout).to.contain('  spend_caps  Spend caps').and.not.to.contain('people_and_training')
+    const asJson = await command('policy catalogue', ['--recipe', 'ai_cost_and_agent_safety', '-o', 'json'])
+    expect(JSON.parse(asJson.stdout)).to.deep.equal([recipeCatalogue.recipes[1]])
+  })
+
+  it('catalogue --recipe names the near miss, and is exclusive with --check', async () => {
+    fixture.route(() => json(recipeCatalogue))
+    const near = await command('policy catalogue', ['--recipe', 'protect_card'])
+    expect(near.error?.message).to.contain('"protect_card" is not a recipe. Did you mean protect_card_data?')
+    expect(near.stdout).to.equal('')
+    const both = await command('policy catalogue', ['--recipe', 'protect_card_data', '--check', 'table.auth_table_rules'])
+    expect(both.error?.message).to.contain('cannot also be provided')
+  })
+
   it('list prints the version beside its activation state, and JSON is the native body', async () => {
     const body = {curPage: 1, items: [{...policy, title: 'Auth', version: 5}], nextPage: null, prevPage: null}
     fixture.route(() => json(body))
