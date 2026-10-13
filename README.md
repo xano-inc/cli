@@ -177,8 +177,9 @@ them. `xano policy <command> --help` gives each command's flags and output, and 
 the rest: the `policies` topic of `xano_xanoscript_docs` (the language) and the `policy` topic of `xano_cli_docs`.
 
 ```bash
-xano policy catalogue                                # The checks a rule can use, then the templates by category
-xano policy catalogue --check object.auth_required   # One check and its parameters
+xano policy catalogue                                # The checks and their uses, the templates by category, the recipes and what no check can see
+xano policy catalogue --check object.auth_required   # One check, its parameters and its uses
+xano policy catalogue --recipe protect_card_data     # One recipe and the topics it cannot see
 xano policy create --template endpoints_need_login -b dev # Create an independent policy from a platform template
 xano policy create --template no_pii_in_responses --key DATA-020 --param 'fields=["email","ssn"]'
 xano policy list                                     # Policies on the branch
@@ -199,9 +200,14 @@ xano policy delete TMP-001                           # Remove a policy; its Vers
 xano policy coverage query:42                        # Which policies apply to one object, why, and its findings
 ```
 
-`policy catalogue` lists the templates by category, each row ending with its framework tags in brackets
-(`[SOC 2, HIPAA]`), and prints the instance's own sentence on what the tags mean under the heading. A tag
-marks a template on a related topic; it does not make a workspace compliant.
+`policy catalogue` lists each check with its uses under its row: a goal in a customer's words, the params that
+achieve it as one line of JSON (scope params included) and, when it has one, a note. It then lists the templates by
+category, each row ending with its framework tags in brackets (`[SOC 2, HIPAA]`), and prints the instance's own
+sentence on what the tags mean under the heading. A tag marks a template on a related topic; it does not make a
+workspace compliant. The recipes follow: goals that span several templates, each with what to set up first, its
+templates in the order to create them, the rules no template covers (created together in a policy of your own) and
+what no rule in it can see. The catalogue ends with what no check can see, each topic with why. `--check` and `--recipe` narrow
+both output modes to one entry; `-o json` is the whole catalogue as served.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
 validates them natively and creates an Active, Advisory policy. Required template settings must
