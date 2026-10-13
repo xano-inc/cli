@@ -1,11 +1,12 @@
 import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
-import {resolve} from 'node:path'
+import {basename, relative, resolve} from 'node:path'
 
 import type {PushPolicyCheck} from '../../../utils/policy/types.js'
 
 import BaseCommand from '../../../base-command.js'
 import {parseDocument} from '../../../utils/document-parser.js'
+import {formatWorkspacePushDefaultsBanner, resolvePushDefaults} from '../../../utils/local-config.js'
 import {
   executePush,
   FailedAfterImportError,
@@ -66,6 +67,18 @@ Preview changes without pushing
 `,
     `$ xano workspace push --force
 Skip preview and push immediately (for CI/CD)
+`,
+    `$ xano workspace push --fast
+Push only files that changed since the last sync, and write .xano/sync_state.json
+`,
+    `$ xano workspace push --fast --refresh
+Re-compare local files against the server export, then push changes
+`,
+    `$ xano workspace push --no-fast
+Push without --fast even when profile.yaml sets fast: true
+`,
+    `$ xano workspace push --writeback
+Push and write server-formatted XanoScript back to local files
 `,
     `$ xano workspace push -d ./output -w 40
 Pushed 15 documents from ./output
@@ -143,6 +156,12 @@ Full sync including knowledge files; removes server objects not present locally
       multiple: true,
       required: false,
     }),
+    fast: Flags.boolean({
+      allowNo: true,
+      description:
+        'Skip files whose contents match .xano/sync_state.json, and write or update that record. Without a record, compares against the server export once. Can be set as `fast: true` in profile.yaml.',
+      required: false,
+    }),
     force: Flags.boolean({
       default: false,
       description:
@@ -181,6 +200,11 @@ Full sync including knowledge files; removes server objects not present locally
         '[CRITICAL] STOP and ALWAYS run --dry-run first to show the user a preview before pushing live table records. Includes table records in import.',
       required: false,
     }),
+    refresh: Flags.boolean({
+      default: false,
+      description: 'With --fast, re-compare local files against the server export even when a sync record exists',
+      required: false,
+    }),
     sync: Flags.boolean({
       default: false,
       description: 'Full push — send all files, not just changed ones. Required for --delete.',
@@ -201,6 +225,16 @@ Full sync including knowledge files; removes server objects not present locally
     workspace: Flags.string({
       char: 'w',
       description: 'Workspace ID (optional if set in profile)',
+      required: false,
+    }),
+    writeback: Flags.boolean({
+      allowNo: true,
+      description:
+        'After a successful push, write server-formatted XanoScript back to the files that were pushed. Can be set as `writeback: true` in profile.yaml.',
+      required: false,
+    }),
+    'writeback-diff': Flags.string({
+      description: 'With --writeback, save local vs server copies of rewritten files under this directory',
       required: false,
     }),
   }
@@ -249,6 +283,20 @@ Full sync including knowledge files; removes server objects not present locally
     const json = flags.output === 'json'
     // Only the import writes Version History entries, so only the import carries the message.
     const message = flags.message?.trim()
+    const pushDefaults = resolvePushDefaults({
+      flagFast: flags.fast,
+      flagWriteback: flags.writeback,
+      localFast: this.localProfile?.config.fast,
+      localWriteback: this.localProfile?.config.writeback,
+      sync: flags.sync,
+    })
+    if (pushDefaults.fromLocal.length > 0 && this.localProfile) {
+      const relativePath = relative(process.cwd(), this.localProfile.path) || basename(this.localProfile.path)
+      // Under `-o json` stdout carries one JSON document, so the banner goes to stderr.
+      const banner = formatWorkspacePushDefaultsBanner(pushDefaults.fromLocal, relativePath)
+      if (json) this.logToStderr(banner)
+      else this.log(banner)
+    }
 
     const target: PushTarget = {
       buildDryRunUrl: (params) => `${baseUrl}/multidoc/dry-run?${params.toString()}`,
@@ -271,14 +319,19 @@ Full sync including knowledge files; removes server objects not present locally
       'dry-run': flags['dry-run'],
       env: flags.env,
       exclude: flags.exclude,
+      fast: pushDefaults.fast,
       force: flags.force,
       guids: flags.guids,
       include: flags.include,
       records: flags.records,
+      refresh: flags.refresh,
       sync: flags.sync,
       transaction: flags.transaction,
       truncate: flags.truncate,
       verbose: flags.verbose,
+      writeback: pushDefaults.writeback,
+      writebackDiff: flags['writeback-diff'],
+      writebackObjectLimit: this.localProfile?.config.writeback_object_limit,
     }
 
     const result = await executePush(
@@ -293,6 +346,11 @@ Full sync including knowledge files; removes server objects not present locally
         },
         // Under `-o json` stdout carries one JSON document, so progress goes to stderr.
         log: json ? this.logToStderr.bind(this) : undefined,
+        syncTarget: {
+          instanceOrigin: profile.instance_origin,
+          kind: 'workspace',
+          workspace: workspaceId,
+        },
         verboseFetch: this.verboseFetch.bind(this),
       },
       target,

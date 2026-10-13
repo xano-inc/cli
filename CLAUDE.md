@@ -132,6 +132,10 @@ test/
 | `src/utils/document-parser.ts` | XanoScript document parsing — type/name/verb/guid extraction, document key building |
 | `src/utils/reference-checker.ts` | Cross-reference validation and table index checking |
 | `src/utils/policy/` | Policy helpers for `policy *`, `skills pull` and the gated commands: `request` (policy route requests, every list page), `feedback` (`policy_check` exit code and summary), `status`, `runs`, `findings`, `coverage` (one object's coverage), `catalogue`, `errors`, `permission`, `types`, `gate` (gate previews and refusals), `push-gate` (push gate refusal), `template` (template → policy document) and `release` (stored release checks, and the `release list` tag). Which pushes carry policy files is in the README. |
+| `src/utils/sync-state.ts` | `.xano/sync_state.json` load/validate, hashing, candidate detection, atomic save |
+| `src/utils/sandbox-marker.ts` | Per-user `sandbox_sync.json` token next to credentials; invalidates on reset, delete, and sandbox push |
+| `src/utils/export-compare.ts` | Multidoc export parse/match/compare shared by `--fast` fallback and `--writeback` |
+| `src/utils/object-fetch.ts` | Per-object Metadata API fetch, GUID restoration, and writeback ID lookup |
 
 ## Coding Conventions
 

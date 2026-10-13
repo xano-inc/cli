@@ -1,7 +1,9 @@
 import {Flags} from '@oclif/core'
+import {dirname} from 'node:path'
 
 import BaseCommand from '../../../base-command.js'
 import {pushKnowledge} from '../../../utils/knowledge-sync.js'
+import {invalidateSandboxMarkerForOrigin} from '../../../utils/sandbox-marker.js'
 
 export default class SandboxReset extends BaseCommand {
   static description =
@@ -75,6 +77,11 @@ Sandbox environment has been reset.
       }
 
       this.log('Sandbox environment has been reset.')
+      try {
+        invalidateSandboxMarkerForOrigin(dirname(this.getCredentialsPath()), profile.instance_origin)
+      } catch (error) {
+        this.warn(`Skipped invalidating sandbox sync marker: ${(error as Error).message}`)
+      }
     } catch (error) {
       if (error instanceof Error && 'oclif' in error) throw error
       if (error instanceof Error) {
