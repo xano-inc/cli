@@ -1,9 +1,10 @@
 import {Flags} from '@oclif/core'
 import * as fs from 'node:fs'
-import {resolve} from 'node:path'
+import {basename, dirname, relative, resolve} from 'node:path'
 import open from 'open'
 
 import BaseCommand from '../../../base-command.js'
+import {formatWorkspacePushDefaultsBanner, resolvePushDefaults} from '../../../utils/local-config.js'
 import {executePush, type PushFlags, type PushTarget} from '../../../utils/multidoc-push.js'
 import {policiesSkippedNotice} from '../../../utils/policy/feedback.js'
 
@@ -28,6 +29,18 @@ Preview changes without pushing
 `,
     `$ xano sandbox push --force
 Skip preview and push immediately
+`,
+    `$ xano sandbox push --fast
+Push only files that changed since the last sync, and write .xano/sync_state.json
+`,
+    `$ xano sandbox push --fast --refresh
+Re-compare local files against the sandbox export, then push changes
+`,
+    `$ xano sandbox push --no-fast
+Push without --fast even when profile.yaml sets fast: true
+`,
+    `$ xano sandbox push --writeback
+Push and write server-formatted XanoScript back to local files
 `,
     `$ xano sandbox push --records --env`,
     `$ xano sandbox push --truncate`,
@@ -58,6 +71,12 @@ Push and open sandbox review in the browser
       description: 'Include environment variables in import',
       required: false,
     }),
+    fast: Flags.boolean({
+      allowNo: true,
+      description:
+        'Skip files whose contents match .xano/sync_state.json, and write or update that record. Without a record, compares against the sandbox export once. Can be set as `fast: true` in profile.yaml.',
+      required: false,
+    }),
     force: Flags.boolean({
       default: false,
       description: 'Skip preview and confirmation prompt (for CI/CD pipelines)',
@@ -72,6 +91,11 @@ Push and open sandbox review in the browser
     records: Flags.boolean({
       default: false,
       description: 'Include records in import',
+      required: false,
+    }),
+    refresh: Flags.boolean({
+      default: false,
+      description: 'With --fast, re-compare local files against the sandbox export even when a sync record exists',
       required: false,
     }),
     review: Flags.boolean({
@@ -96,6 +120,16 @@ Push and open sandbox review in the browser
       description: '[CRITICAL] STOP and confirm with the user; this truncates live tables before importing.',
       required: false,
     }),
+    writeback: Flags.boolean({
+      allowNo: true,
+      description:
+        'After a successful push, write server-formatted XanoScript back to the files that were pushed. Can be set as `writeback: true` in profile.yaml.',
+      required: false,
+    }),
+    'writeback-diff': Flags.string({
+      description: 'With --writeback, save local vs server copies of rewritten files under this directory',
+      required: false,
+    }),
   }
 
   async run(): Promise<void> {
@@ -113,6 +147,17 @@ Push and open sandbox review in the browser
     }
 
     const baseUrl = `${profile.instance_origin}/api:meta/sandbox`
+    const pushDefaults = resolvePushDefaults({
+      flagFast: flags.fast,
+      flagWriteback: flags.writeback,
+      localFast: this.localProfile?.config.fast,
+      localWriteback: this.localProfile?.config.writeback,
+      sync: flags.sync,
+    })
+    if (pushDefaults.fromLocal.length > 0 && this.localProfile) {
+      const relativePath = relative(process.cwd(), this.localProfile.path) || basename(this.localProfile.path)
+      this.log(formatWorkspacePushDefaultsBanner(pushDefaults.fromLocal, relativePath))
+    }
 
     const target: PushTarget = {
       buildDryRunUrl: (params) => `${baseUrl}/multidoc/dry-run?${params.toString()}`,
@@ -130,13 +175,17 @@ Push and open sandbox review in the browser
       delete: flags.delete,
       'dry-run': flags['dry-run'],
       env: flags.env,
+      fast: pushDefaults.fast,
       force: flags.force,
       guids: flags.guids,
       records: flags.records,
+      refresh: flags.refresh,
       sync: flags.sync,
       transaction: flags.transaction,
       truncate: flags.truncate,
       verbose: flags.verbose,
+      writeback: pushDefaults.writeback,
+      writebackDiff: flags['writeback-diff'],
     }
 
     const result = await executePush(
@@ -148,6 +197,11 @@ Push and open sandbox review in the browser
         knowledge: {
           listUrl: () => `${baseUrl}/knowledge/sync`,
           rootDir: inputDir,
+        },
+        syncTarget: {
+          instanceOrigin: profile.instance_origin,
+          kind: 'sandbox',
+          markerDir: dirname(this.getCredentialsPath()),
         },
         verboseFetch: this.verboseFetch.bind(this),
       },
