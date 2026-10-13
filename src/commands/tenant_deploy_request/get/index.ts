@@ -13,7 +13,6 @@ interface ApprovalRequest {
   description?: string
   id: number
   is_author?: boolean
-  reviewers?: Array<{id: number}>
   status: string
   title: string
 }
@@ -98,7 +97,6 @@ Policy gate: pass
         this.log(`  Tenant: ${item._tenant?.name || (item.deployment?.tenant?.id ? `#${item.deployment.tenant.id}` : 'unavailable')}`)
         this.log(`  Release: ${item._release?.name || (item.deployment?.release?.id ? `#${item.deployment.release.id}` : 'unavailable')}`)
         if (item.description) this.log(`  Description: ${item.description}`)
-        if (item.reviewers?.length) this.log(`  Reviewers: ${item.reviewers.map((r) => r.id).join(', ')}`)
         if (item.can_review !== undefined) this.log(`  Can review: ${item.can_review}`)
         if (policyCheck.answer) {
           this.log(`Policy check of release "${item._release?.name}" on tenant "${item._tenant?.name}":`)

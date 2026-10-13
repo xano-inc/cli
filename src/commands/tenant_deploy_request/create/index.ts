@@ -16,13 +16,13 @@ export default class TenantDeployRequestCreate extends BaseCommand {
     }),
   }
   static description =
-    'Open a tenant deploy request asking named reviewers to approve deploying a release to a tenant. Submits for review immediately unless --draft is passed.'
+    'Open a tenant deploy request to deploy a release to a tenant. Anyone with deploy permission on the tenant, other than the author, may review it. Submits for review immediately unless --draft is passed.'
   static examples = [
-    `$ xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --reviewers 12,45
+    `$ xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2
 Created deploy request #12: "Deploy v1.2 to prod" [pending]
 `,
     `$ xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release v1.2 --draft`,
-    `$ xano tenant_deploy_request create "$PR_TITLE" --tenant prod --release v1.2 --description "$PR_BODY" --reviewers 12,45 -o json`,
+    `$ xano tenant_deploy_request create "$PR_TITLE" --tenant prod --release v1.2 --description "$PR_BODY" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -33,7 +33,7 @@ Created deploy request #12: "Deploy v1.2 to prod" [pending]
     }),
     draft: Flags.boolean({
       default: false,
-      description: 'Save as a draft instead of submitting immediately (reviewers are not notified until submitted)',
+      description: 'Save as a draft instead of submitting immediately (not open for review until submitted)',
       required: false,
     }),
     output: Flags.string({
@@ -47,10 +47,6 @@ Created deploy request #12: "Deploy v1.2 to prod" [pending]
       char: 'r',
       description: 'Name of the release to deploy',
       required: true,
-    }),
-    reviewers: Flags.string({
-      description: 'Comma-separated user IDs to request review from',
-      required: false,
     }),
     tenant: Flags.string({
       char: 't',
@@ -74,13 +70,8 @@ Created deploy request #12: "Deploy v1.2 to prod" [pending]
       this.error('No workspace ID provided. Use --workspace flag or set one in your profile.')
     }
 
-    const reviewerIds = flags.reviewers
-      ? flags.reviewers.split(',').map((id) => Number.parseInt(id.trim(), 10))
-      : []
-
     const body: Record<string, unknown> = {
       release_name: flags.release,
-      reviewer_ids: reviewerIds,
       status: flags.draft ? 'draft' : 'pending',
       tenant_name: flags.tenant,
       title: args.title,
