@@ -4,14 +4,14 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
-import Pull, {shouldWriteSyncState} from '../../../src/commands/workspace/pull/index.js'
+import Pull, {syncStateAction} from '../../../src/commands/workspace/pull/index.js'
 
 describe('workspace pull --sync-state', () => {
   it('does not write .xano/sync_state.json unless --sync-state is passed', () => {
     expect(Pull.flags['sync-state'].default).to.equal(false)
   })
 
-  describe('shouldWriteSyncState', () => {
+  describe('syncStateAction', () => {
     let dir: string
 
     beforeEach(() => {
@@ -22,24 +22,38 @@ describe('workspace pull --sync-state', () => {
       fs.rmSync(dir, {force: true, recursive: true})
     })
 
-    it('is false when the flag is off and the file is missing', () => {
-      expect(shouldWriteSyncState(false, dir)).to.equal(false)
+    it('skips when the flag is off and the file is missing', () => {
+      expect(syncStateAction(false, dir, false)).to.equal('skip')
     })
 
-    it('is true when the flag is on and the file is missing', () => {
-      expect(shouldWriteSyncState(true, dir)).to.equal(true)
+    it('writes when the flag is on and the file is missing', () => {
+      expect(syncStateAction(true, dir, false)).to.equal('write')
     })
 
-    it('is true when the flag is off and the file exists', () => {
+    it('writes when the flag is off and the file exists', () => {
       fs.mkdirSync(join(dir, '.xano'))
       fs.writeFileSync(join(dir, '.xano', 'sync_state.json'), '{}')
-      expect(shouldWriteSyncState(false, dir)).to.equal(true)
+      expect(syncStateAction(false, dir, false)).to.equal('write')
     })
 
-    it('is true when the flag is on and the file exists', () => {
+    it('writes when the flag is on and the file exists', () => {
       fs.mkdirSync(join(dir, '.xano'))
       fs.writeFileSync(join(dir, '.xano', 'sync_state.json'), '{}')
-      expect(shouldWriteSyncState(true, dir)).to.equal(true)
+      expect(syncStateAction(true, dir, false)).to.equal('write')
+    })
+
+    it('refuses to write for --draft when the flag is on', () => {
+      expect(syncStateAction(true, dir, true)).to.equal('draft')
+    })
+
+    it('refuses to write for --draft when the file exists', () => {
+      fs.mkdirSync(join(dir, '.xano'))
+      fs.writeFileSync(join(dir, '.xano', 'sync_state.json'), '{}')
+      expect(syncStateAction(false, dir, true)).to.equal('draft')
+    })
+
+    it('stays silent for --draft when there is nothing to write', () => {
+      expect(syncStateAction(false, dir, true)).to.equal('skip')
     })
   })
 })

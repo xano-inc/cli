@@ -14,8 +14,14 @@ import {
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
 import {recordEntriesForPaths, resolveTarget, saveSyncState, syncStateExists} from '../../../utils/sync-state.js'
 
-export function shouldWriteSyncState(flag: boolean, dir: string): boolean {
-  return flag || syncStateExists(dir)
+/**
+ * Whether pull should write `.xano/sync_state.json`: only when asked to, or to keep an existing
+ * record current. A `--draft` pull never writes it, because `--fast` compares against published
+ * versions and recording draft bodies as synced would stop those drafts from being pushed.
+ */
+export function syncStateAction(flag: boolean, dir: string, draft: boolean): 'draft' | 'skip' | 'write' {
+  if (!flag && !syncStateExists(dir)) return 'skip'
+  return draft ? 'draft' : 'write'
 }
 
 export default class Pull extends BaseCommand {
@@ -235,7 +241,13 @@ Write .xano/sync_state.json after pulling; later pulls keep it current while it 
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
 
-    if (!shouldWriteSyncState(flags['sync-state'], outputDir)) {
+    const syncState = syncStateAction(flags['sync-state'], outputDir, flags.draft)
+    if (syncState === 'skip') {
+      return
+    }
+
+    if (syncState === 'draft') {
+      this.warn('Skipped writing .xano/sync_state.json: --draft pulls draft versions, which --fast does not compare against')
       return
     }
 
