@@ -9,6 +9,17 @@ export interface PolicyCatalogueEntry {
   params?: Record<string, PolicyParamSchema>
   /** Params of which a rule must set at least one. */
   requires_one_of?: string[]
+  /** Goals in a customer's words, each with the complete params (scope params included) that achieve it. */
+  uses?: PolicyCheckUse[]
+}
+
+/** One of a check's `uses`: a goal and a rule's params its check accepts as written. */
+export interface PolicyCheckUse {
+  goal: string
+  /** What to know before using it, when the goal alone could mislead. */
+  note?: string
+  /** PHP sends an empty map as `[]`. */
+  params: Record<string, unknown> | unknown[]
 }
 
 /** One param as the catalogue describes it: a nested object's parts are its `properties`. */
