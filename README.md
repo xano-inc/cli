@@ -262,7 +262,9 @@ The record is created by `workspace pull --sync-state`, `sandbox pull --sync-sta
 Once it exists, every successful workspace or sandbox push or pull updates it. A successful
 `workspace push --sync --delete` or `sandbox push --sync --delete` also removes entries for
 files deleted locally, which clears the "deleted locally" note. A default push or pull does
-not create it. `--dry-run` never writes it. Delete the file to turn this off; the next
+not create it. `--dry-run` never writes it, and neither does `pull --draft`, because
+`--fast` compares against published versions. Push records the exact bytes it sent, so a
+file edited while a push runs is sent again by the next `--fast` push. Delete the file to turn this off; the next
 `--fast` push compares against the server export once (~99 seconds on a
 ~1,100-document workspace) and rebuilds it. If that export fails, the CLI falls
 back to a full dry-run.
@@ -282,6 +284,9 @@ without `--fast` still will.
 
 `--fast` cannot be combined with `--sync`. It works with `--force` and still
 sends only the files the record (or export comparison) marked as changed.
+With `--records`, tables that have `items` are always sent, as they are without
+`--fast`. With `--env`, `--fast` compares every file with the dry-run, because the
+record does not track environment variables.
 
 ### Flatten
 
@@ -1033,8 +1038,9 @@ e.g. `Using profile 'staging' (workspace 110) · profile.yaml` (suppressed for
 has at most `writeback_object_limit` documents (default 25), and otherwise downloads
 the full workspace export. Per-object requests grow with the number of documents;
 the export costs about the same no matter how many you pushed. Raise the limit for a
-large workspace where the export is slow; `0` always uses the export. Sandbox push
-always uses the export.
+large workspace where the export is slow; `0` always uses the export. If a per-object
+request fails, writeback falls back to the export. Sandbox push always uses the export.
+Writeback skips, with a warning, any file that changed on disk after the push read it.
 
 An explicit `-p/--profile` or `XANO_PROFILE` ignores `profile.yaml` entirely,
 including `fast`, `writeback`, and `writeback_object_limit`.

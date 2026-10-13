@@ -119,18 +119,33 @@ function parseTarget(value: unknown): null | SyncTargetState {
 }
 
 export function recordEntriesForPaths(dir: string, filePaths: string[]): Record<string, SyncFileEntry> {
-  const entries: Record<string, SyncFileEntry> = {}
+  const files: Array<{content: string; filePath: string}> = []
   for (const filePath of filePaths) {
     try {
-      const content = fs.readFileSync(filePath, 'utf8')
-      const parsed = parseDocument(content)
-      if (!parsed) continue
-      entries[toRelPath(dir, filePath)] = {
-        key: buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup),
-        sha256: hashFile(filePath),
-      }
+      files.push({content: fs.readFileSync(filePath, 'utf8'), filePath})
     } catch {
       // Skip unreadable files.
+    }
+  }
+
+  return recordEntriesForContents(dir, files)
+}
+
+/**
+ * Build record entries from file bytes the caller already holds. Push uses this to record
+ * exactly what it sent, so an edit made while the push ran is not recorded as synced.
+ */
+export function recordEntriesForContents(
+  dir: string,
+  files: Array<{content: string; filePath: string}>,
+): Record<string, SyncFileEntry> {
+  const entries: Record<string, SyncFileEntry> = {}
+  for (const {content, filePath} of files) {
+    const parsed = parseDocument(content)
+    if (!parsed) continue
+    entries[toRelPath(dir, filePath)] = {
+      key: buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup),
+      sha256: hashBytes(content),
     }
   }
 

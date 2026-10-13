@@ -34,10 +34,11 @@ import {
   writeMarkerToken,
 } from './sandbox-marker.js'
 import {
+  hashBytes,
   hashFile,
   instanceHost,
   loadSyncState,
-  recordEntriesForPaths,
+  recordEntriesForContents,
   resolveTarget,
   sandboxTargetIdentity,
   saveSyncState,
@@ -200,6 +201,11 @@ export function filterChangedEntries(
     if (includeRecords && parsed.type === 'table' && /\bitems\s*=\s*\[/m.test(entry.content)) return true
     return false
   })
+}
+
+/** True for a table document carrying an `items = [...]` block (records). */
+function isTableWithRecords(content: string): boolean {
+  return /^table\s+/m.test(content) && /\bitems\s*=\s*\[/m.test(content)
 }
 
 // ── File Collection ─────────────────────────────────────────────────────────
@@ -433,45 +439,11 @@ export function pathMatchesFilters(
   return true
 }
 
-function fileEntryFor(inputDir: string, filePath: string): null | {entry: SyncFileEntry; relPath: string;} {
-  try {
-    const content = fs.readFileSync(filePath, 'utf8')
-    const parsed = parseDocument(content)
-    if (!parsed) return null
-    return {
-      entry: {
-        key: buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup),
-        sha256: hashFile(filePath),
-      },
-      relPath: toRelPath(inputDir, filePath),
-    }
-  } catch {
-    return null
-  }
-}
-
-function recordEntriesFromPaths(inputDir: string, filePaths: string[]): Record<string, SyncFileEntry> {
-  return recordEntriesForPaths(inputDir, filePaths)
-}
-
-function commitSyncRecord(
-  inputDir: string,
-  target: null | SyncTargetIdentity,
-  extra: Record<string, SyncFileEntry>,
-  filePaths: string[],
-  options: {pruneMissing?: boolean; replace?: boolean; sandboxToken?: string},
-  warn: (message: string) => void,
-): void {
-  if (!target) return
-  trySaveSyncState(inputDir, target, {...extra, ...recordEntriesFromPaths(inputDir, filePaths)}, options, warn)
-}
-
 function commitSyncRecordWithSandbox(
   ctx: PushContext,
   inputDir: string,
   target: null | SyncTargetIdentity,
-  extra: Record<string, SyncFileEntry>,
-  filePaths: string[],
+  entries: Record<string, SyncFileEntry>,
   options: {pruneMissing?: boolean; replace?: boolean},
   warn: (message: string) => void,
 ): void {
@@ -489,7 +461,7 @@ function commitSyncRecordWithSandbox(
     }
   }
 
-  commitSyncRecord(inputDir, target, extra, filePaths, {...options, sandboxToken}, warn)
+  trySaveSyncState(inputDir, target, entries, {...options, sandboxToken}, warn)
 }
 
 function trySaveSyncState(
@@ -580,14 +552,20 @@ function maybeInvalidateSandboxMarker(ctx: PushContext, persistRecord: boolean, 
 }
 
 /**
- * Read .xs files into document entries, skipping empty files.
+ * Read .xs files into document entries, skipping empty files. When `raw` is given, the
+ * untrimmed bytes of each returned file are stored in it, keyed by file path.
  */
-export function readDocuments(files: string[]): Array<{content: string; filePath: string}> {
+export function readDocuments(
+  files: string[],
+  raw?: Map<string, string>,
+): Array<{content: string; filePath: string}> {
   const entries: Array<{content: string; filePath: string}> = []
   for (const filePath of files) {
-    const content = fs.readFileSync(filePath, 'utf8').trim()
+    const bytes = fs.readFileSync(filePath, 'utf8')
+    const content = bytes.trim()
     if (content) {
       entries.push({content, filePath})
+      raw?.set(filePath, bytes)
     }
   }
 
@@ -937,17 +915,24 @@ const GUID_REGEX = /guid\s*=\s*(["'])([^"']*)\1/
  * Sync a GUID into a local .xs file. Returns true if the file was modified.
  */
 function syncGuidToFile(filePath: string, guid: string): boolean {
-  const content = fs.readFileSync(filePath, 'utf8')
+  const updated = withGuid(fs.readFileSync(filePath, 'utf8'), guid)
+  if (updated === null) return false
+  fs.writeFileSync(filePath, updated, 'utf8')
+  return true
+}
+
+/**
+ * Return `content` with its GUID set to `guid`, or null when nothing changes.
+ */
+function withGuid(content: string, guid: string): null | string {
   const existingMatch = content.match(GUID_REGEX)
 
   if (existingMatch) {
     if (existingMatch[2] === guid) {
-      return false
+      return null
     }
 
-    const updated = content.replace(GUID_REGEX, `guid = "${guid}"`)
-    fs.writeFileSync(filePath, updated, 'utf8')
-    return true
+    return content.replace(GUID_REGEX, `guid = "${guid}"`)
   }
 
   // No GUID line exists — insert before the final closing brace
@@ -962,7 +947,7 @@ function syncGuidToFile(filePath: string, guid: string): boolean {
   }
 
   if (insertIndex === -1) {
-    return false
+    return null
   }
 
   let indent = '  '
@@ -978,8 +963,7 @@ function syncGuidToFile(filePath: string, guid: string): boolean {
   }
 
   lines.splice(insertIndex, 0, `${indent}guid = "${guid}"`)
-  fs.writeFileSync(filePath, lines.join('\n'), 'utf8')
-  return true
+  return lines.join('\n')
 }
 
 const CANONICAL_REGEX = /canonical\s*=\s*(["'])([^"']*)\1/
@@ -1001,15 +985,34 @@ const CANONICAL_REGEX = /canonical\s*=\s*(["'])([^"']*)\1/
  * has no canonical" rather than "not yet assigned".
  */
 function syncCanonicalToFile(filePath: string, canonical: string): boolean {
-  const content = fs.readFileSync(filePath, 'utf8')
-  const existingMatch = content.match(CANONICAL_REGEX)
+  const updated = withCanonical(fs.readFileSync(filePath, 'utf8'), canonical)
+  if (updated === null) return false
+  fs.writeFileSync(filePath, updated, 'utf8')
+  return true
+}
 
+/**
+ * Return `content` with its canonical set to `canonical`, or null when nothing changes.
+ */
+function withCanonical(content: string, canonical: string): null | string {
+  const existingMatch = content.match(CANONICAL_REGEX)
   if (!existingMatch || existingMatch[2] === canonical) {
-    return false
+    return null
   }
 
-  fs.writeFileSync(filePath, content.replace(CANONICAL_REGEX, `canonical = "${canonical}"`), 'utf8')
-  return true
+  return content.replace(CANONICAL_REGEX, `canonical = "${canonical}"`)
+}
+
+/** Apply a GUID/canonical rewrite to the in-memory copy of what was pushed. */
+function updateSnapshot(
+  snapshots: Map<string, string>,
+  filePath: string,
+  rewrite: (content: string) => null | string,
+): void {
+  const content = snapshots.get(filePath)
+  if (content === undefined) return
+  const updated = rewrite(content)
+  if (updated !== null) snapshots.set(filePath, updated)
 }
 
 // ── Knowledge Preview Helpers ─────────────────────────────────────────────────
@@ -1117,9 +1120,13 @@ export async function executePush(
   let documentEntries: Array<{content: string; filePath: string}> = []
   let multidoc = ''
   const documentFileMap = new Map<string, string>()
+  // The exact bytes of each document as read for this push (then as rewritten by GUID sync
+  // and writeback). The sync record hashes these, never a later re-read of the file, so an
+  // edit made while the push runs is not recorded as synced.
+  const pushedBytes = new Map<string, string>()
 
   if (!knowledgeOnly) {
-    documentEntries = readDocuments(files)
+    documentEntries = readDocuments(files, pushedBytes)
 
     if (documentEntries.length === 0) {
       command.error(`All .xs files in ${inputDir} are empty`)
@@ -1191,7 +1198,11 @@ export async function executePush(
 
       // Re-collect and re-read: the bundle files are gone, replaced by the split
       // per-document tree, so the rest of the push sees a clean one-doc-per-file set.
-      const refreshed = readDocuments(applyFilters(collectFiles(inputDir), inputDir, flags.include, flags.exclude, () => {}))
+      pushedBytes.clear()
+      const refreshed = readDocuments(
+        applyFilters(collectFiles(inputDir), inputDir, flags.include, flags.exclude, () => {}),
+        pushedBytes,
+      )
       documentEntries = refreshed
 
       if (documentEntries.length === 0) {
@@ -1247,6 +1258,31 @@ export async function executePush(
   let recordSourceEntries = [...documentEntries]
   let exportRebuild = false
   const pendingRecordEntries: Record<string, SyncFileEntry> = {}
+  // Filled after writeback; the second persist() picks up the ids through recordEntriesFor.
+  const writebackIds: Record<string, SyncFileEntry> = {}
+  const recordEntriesFor = (filePaths: string[]): Record<string, SyncFileEntry> => {
+    const snapshots = filePaths.flatMap((filePath) => {
+      const content = pushedBytes.get(filePath)
+      return content === undefined ? [] : [{content, filePath}]
+    })
+    const entries = {...pendingRecordEntries, ...recordEntriesForContents(inputDir, snapshots)}
+    for (const [relPath, found] of Object.entries(writebackIds)) {
+      const entry = entries[relPath]
+      if (entry && entry.key === found.key && found.id !== undefined) {
+        entries[relPath] = {...entry, id: found.id}
+      }
+    }
+
+    return entries
+  }
+
+  // An export rebuild re-derives the whole record, unless -i/-e limited it to part of the tree.
+  // An untrusted sandbox record is always replaced: entries outside the filter describe a
+  // sandbox that may since have been reset, and the new token would vouch for them.
+  const replaceRecord = (): boolean => exportRebuild && (sandboxUntrusted || (!flags.include && !flags.exclude))
+  // Under --records a table with items is always sent, as filterChangedEntries does without
+  // --fast: the record does not say whether its rows were imported.
+  const alwaysSend = (content: string): boolean => flags.records && isTableWithRecords(content)
   const persistRecord = !flags['dry-run'] && Boolean(ctx.syncTarget) && (Boolean(flags.fast) || syncStateExists(inputDir))
   const resolved =
     flags.fast || flags.writeback || persistRecord
@@ -1273,7 +1309,11 @@ export async function executePush(
     }
   }
 
-  if (flags.fast && ctx.syncTarget && !knowledgeOnly) {
+  if (flags.fast && flags.env && ctx.syncTarget && !knowledgeOnly) {
+    log(ux.colorize('dim', '--env: the sync record does not track environment variables; comparing every file with the dry-run'))
+  }
+
+  if (flags.fast && !flags.env && ctx.syncTarget && !knowledgeOnly) {
     const useExport = Boolean(flags.refresh) || !resolvedTarget || !loadedState
     if (useExport) {
       let exportReason = 'No sync record for this workspace/branch; comparing against the server export'
@@ -1330,20 +1370,23 @@ export async function executePush(
         }
 
         exportRebuild = true
+        const candidates = [...compared.candidates]
+        const identical: typeof compared.identical = []
         for (const entry of compared.identical) {
-          const recorded = fileEntryFor(inputDir, entry.filePath)
-          if (recorded) pendingRecordEntries[recorded.relPath] = recorded.entry
+          if (alwaysSend(entry.content)) candidates.push(entry)
+          else identical.push(entry)
         }
 
-        if (compared.candidates.length === 0 && knowledgeObjects.length === 0) {
+        Object.assign(pendingRecordEntries, recordEntriesFor(identical.map((entry) => entry.filePath)))
+
+        if (candidates.length === 0 && knowledgeObjects.length === 0) {
           if (resolvedTarget && !flags['dry-run']) {
             commitSyncRecordWithSandbox(
               ctx,
               inputDir,
               resolvedTarget,
               pendingRecordEntries,
-              [],
-              {replace: true},
+              {replace: replaceRecord()},
               (message) => command.warn(message),
             )
           }
@@ -1353,7 +1396,7 @@ export async function executePush(
           return
         }
 
-        documentEntries = compared.candidates
+        documentEntries = candidates
         recordSourceEntries = [...documentEntries]
         multidoc = documentEntries.map((entry) => entry.content).join('\n---\n')
         documentFileMap.clear()
@@ -1370,14 +1413,18 @@ export async function executePush(
         exportRebuild = false
       }
     } else if (resolvedTarget && loadedState) {
-      const allHashes = collectFiles(inputDir).map((filePath) => ({
-        relPath: toRelPath(inputDir, filePath),
-        sha256: hashFile(filePath),
-      }))
+      const allHashes = collectFiles(inputDir).map((filePath) => {
+        const content = pushedBytes.get(filePath)
+        return {
+          alwaysSend: content !== undefined && alwaysSend(content),
+          relPath: toRelPath(inputDir, filePath),
+          sha256: content === undefined ? hashFile(filePath) : hashBytes(content),
+        }
+      })
       const {candidates, deletedLocally} = {
         candidates: allHashes.filter((file) => {
           const recorded = loadedState.files[file.relPath]
-          return !recorded || recorded.sha256 !== file.sha256
+          return file.alwaysSend || !recorded || recorded.sha256 !== file.sha256
         }),
         deletedLocally: Object.entries(loadedState.files)
           .filter(([relPath]) => !allHashes.some((file) => file.relPath === relPath))
@@ -1618,7 +1665,7 @@ export async function executePush(
           // Detect local records
           const tablesWithRecords = flags.records
             ? documentEntries
-                .filter((d) => /^table\s+/m.test(d.content) && /\bitems\s*=\s*\[/m.test(d.content))
+                .filter((d) => isTableWithRecords(d.content))
                 .map((d) => {
                   const nameMatch = d.content.match(/^table\s+(\S+)/m)
                   const itemsMatch = d.content.match(/\bitems\s*=\s*\[([\s\S]*?)\n\s*\]/)
@@ -1649,9 +1696,8 @@ export async function executePush(
                 ctx,
                 inputDir,
                 resolvedTarget,
-                pendingRecordEntries,
-                recordSourceEntries.map((entry) => entry.filePath),
-                {pruneMissing, replace: exportRebuild},
+                recordEntriesFor(recordSourceEntries.map((entry) => entry.filePath)),
+                {pruneMissing, replace: replaceRecord()},
                 (message) => command.warn(message),
               )
             }
@@ -1828,9 +1874,8 @@ export async function executePush(
           ctx,
           inputDir,
           resolvedTarget,
-          pendingRecordEntries,
-          recordSourceEntries.map((entry) => entry.filePath),
-          {pruneMissing: false, replace: exportRebuild},
+          recordEntriesFor(recordSourceEntries.map((entry) => entry.filePath)),
+          {pruneMissing: false, replace: replaceRecord()},
           (message) => command.warn(message),
         )
       }
@@ -1851,9 +1896,8 @@ export async function executePush(
       ctx,
       inputDir,
       resolvedTarget,
-      pendingRecordEntries,
-      paths,
-      {pruneMissing, replace: exportRebuild},
+      recordEntriesFor(paths),
+      {pruneMissing, replace: replaceRecord()},
       (message) => command.warn(message),
     )
   }
@@ -1945,14 +1989,17 @@ export async function executePush(
           try {
             const updated = syncGuidToFile(filePath, entry.guid)
             if (updated) updatedCount++
+            updateSnapshot(pushedBytes, filePath, (content) => withGuid(content, entry.guid))
           } catch (error) {
             command.warn(`Failed to sync GUID to ${filePath}: ${(error as Error).message}`)
           }
 
           if (entry.canonical) {
+            const {canonical} = entry
             try {
-              const updated = syncCanonicalToFile(filePath, entry.canonical)
+              const updated = syncCanonicalToFile(filePath, canonical)
               if (updated) canonicalCount++
+              updateSnapshot(pushedBytes, filePath, (content) => withCanonical(content, canonical))
             } catch (error) {
               command.warn(`Failed to sync canonical to ${filePath}: ${(error as Error).message}`)
             }
@@ -1982,7 +2029,7 @@ export async function executePush(
 
   let writebackMs = 0
   if (flags.writeback && pushedDocCount > 0) {
-    writebackMs = await writeBackFormattedDocuments({
+    const writeback = await writeBackFormattedDocuments({
       accessToken,
       branch: ctx.branch,
       command,
@@ -1990,6 +2037,7 @@ export async function executePush(
       includeRecords: flags.records,
       inputDir,
       isLiveBranch: resolved.isLiveBranch,
+      pushedBytes,
       pushedEntries,
       resolvedTarget,
       syncState: loadedState,
@@ -2000,6 +2048,11 @@ export async function executePush(
       writebackDiff: flags.writebackDiff,
       writebackObjectLimit: flags.writebackObjectLimit,
     })
+    writebackMs = writeback.elapsedMs
+    Object.assign(writebackIds, writeback.ids)
+    for (const {content, filePath} of writeback.written) {
+      pushedBytes.set(filePath, content)
+    }
   }
 
   // ── Push knowledge ────────────────────────────────────────────────────
@@ -2059,6 +2112,14 @@ export async function executePush(
   log(`Pushed ${parts.join(' + ')} to ${target.label} from ${relative(process.cwd(), inputDir) || inputDir} in ${elapsed}s`)
 }
 
+export interface WritebackResult {
+  elapsedMs: number
+  /** Object ids resolved by per-object writeback, keyed by relative path. */
+  ids: Record<string, SyncFileEntry>
+  /** The exact bytes written to each rewritten file. */
+  written: Array<{content: string; filePath: string}>
+}
+
 export async function writeBackFormattedDocuments(args: {
   accessToken: string
   branch: string
@@ -2067,6 +2128,11 @@ export async function writeBackFormattedDocuments(args: {
   includeRecords: boolean
   inputDir?: string
   isLiveBranch?: boolean
+  /**
+   * The bytes each file held when it was pushed (after GUID sync). A file whose disk content
+   * no longer matches was edited during the push, so writeback leaves it alone.
+   */
+  pushedBytes?: Map<string, string>
   pushedEntries: Array<{content: string; filePath: string}>
   resolvedTarget?: null | SyncTargetIdentity
   syncState?: null | SyncTargetState
@@ -2081,7 +2147,7 @@ export async function writeBackFormattedDocuments(args: {
   workspaceId?: string
   writebackDiff?: string
   writebackObjectLimit?: number
-}): Promise<number> {
+}): Promise<WritebackResult> {
   const started = Date.now()
   const {
     accessToken,
@@ -2091,7 +2157,7 @@ export async function writeBackFormattedDocuments(args: {
     includeRecords,
     inputDir,
     isLiveBranch = !branch,
-    pushedEntries,
+    pushedBytes,
     resolvedTarget,
     syncState,
     target,
@@ -2103,25 +2169,42 @@ export async function writeBackFormattedDocuments(args: {
   } = args
   const log = command.log.bind(command)
   const elapsedLabel = () => ` (${((Date.now() - started) / 1000).toFixed(1)}s)`
+  const ids: Record<string, SyncFileEntry> = {}
+  const written: WritebackResult['written'] = []
+  const done = (): WritebackResult => ({elapsedMs: Date.now() - started, ids, written})
+  const relPathOf = (filePath: string): string => (inputDir ? toRelPath(inputDir, filePath) : filePath)
 
   const localContents = new Map<string, string>()
   const pushedFiles = new Map<string, string>()
-  for (const entry of pushedEntries) {
+  const unchangedEntries: Array<{content: string; filePath: string}> = []
+  for (const entry of args.pushedEntries) {
     const parsed = parseDocument(entry.content)
     if (!parsed) continue
+    let local: string
+    try {
+      local = fs.readFileSync(entry.filePath, 'utf8')
+    } catch {
+      local = entry.content
+    }
+
+    const sent = pushedBytes?.get(entry.filePath)
+    if (sent !== undefined && local !== sent) {
+      command.warn(`Writeback: skipped ${relPathOf(entry.filePath)}; it changed after it was read for the push`)
+      continue
+    }
+
     const key = buildDocumentKey(parsed.type, parsed.name, parsed.verb, parsed.apiGroup)
     pushedFiles.set(key, entry.filePath)
-    try {
-      localContents.set(entry.filePath, fs.readFileSync(entry.filePath, 'utf8'))
-    } catch {
-      localContents.set(entry.filePath, entry.content)
-    }
+    localContents.set(entry.filePath, local)
+    unchangedEntries.push(entry)
   }
+
+  if (unchangedEntries.length === 0) return done()
 
   let exportedDocs: ReturnType<typeof parseExportDocuments> = []
   let pathLabel = 'export'
 
-  if (resolvedTarget && workspaceId && pushedEntries.length > 0 && writebackObjectLimit !== 0) {
+  if (resolvedTarget && workspaceId && writebackObjectLimit !== 0) {
     const get: ObjectGet = async (pathname, query = {}) => {
         const params = new URLSearchParams(query)
         const origin = target.instanceOrigin.replace(/\/$/, '')
@@ -2149,21 +2232,27 @@ export async function writeBackFormattedDocuments(args: {
         return {json, ok: response.ok, status: response.status}
     }
 
-    const fetched = await fetchFormattedObjects({
-      get,
-      isLiveBranch,
-      limit: writebackObjectLimit,
-      pushed: pushedEntries.map((entry) => ({
-        content: localContents.get(entry.filePath) ?? entry.content,
-        filePath: entry.filePath,
-        relPath: inputDir ? toRelPath(inputDir, entry.filePath) : entry.filePath,
-      })),
-      state: syncState ?? null,
-      target: resolvedTarget,
-      workspaceId,
-    })
+    let fetched: Awaited<ReturnType<typeof fetchFormattedObjects>>
+    try {
+      fetched = await fetchFormattedObjects({
+        get,
+        isLiveBranch,
+        limit: writebackObjectLimit,
+        pushed: unchangedEntries.map((entry) => ({
+          content: localContents.get(entry.filePath) ?? entry.content,
+          filePath: entry.filePath,
+          relPath: relPathOf(entry.filePath),
+        })),
+        state: syncState ?? null,
+        target: resolvedTarget,
+        workspaceId,
+      })
+    } catch (error) {
+      fetched = {ok: false, reason: (error as Error).message}
+    }
 
     if (fetched.ok) {
+      Object.assign(ids, fetched.ids)
       exportedDocs = []
       for (const result of fetched.results) {
         const parsed = parseDocument(result.content)
@@ -2208,12 +2297,12 @@ export async function writeBackFormattedDocuments(args: {
       )
     } catch (error) {
       command.warn(`Failed to fetch server-formatted documents for writeback: ${(error as Error).message}`)
-      return Date.now() - started
+      return done()
     }
 
     if (!response.ok) {
       command.warn(`Failed to fetch server-formatted documents for writeback (${response.status})`)
-      return Date.now() - started
+      return done()
     }
 
     const responseText = await response.text()
@@ -2224,7 +2313,7 @@ export async function writeBackFormattedDocuments(args: {
       command.warn(
         `Writeback: export contained no XanoScript documents (${pushedFiles.size} pushed). Response starts with: ${preview || '(empty)'}`,
       )
-      return Date.now() - started
+      return done()
     }
   }
 
@@ -2240,7 +2329,7 @@ export async function writeBackFormattedDocuments(args: {
   if (writebackDiff) {
     for (const {content, filePath} of writebacks) {
       const local = localContents.get(filePath) ?? ''
-      const rel = inputDir ? toRelPath(inputDir, filePath) : filePath.split(/[\\/]/).pop() || 'file.xs'
+      const rel = inputDir ? relPathOf(filePath) : filePath.split(/[\\/]/).pop() || 'file.xs'
       const destBase = join(writebackDiff, rel)
       try {
         fs.mkdirSync(join(destBase, '..'), {recursive: true})
@@ -2252,31 +2341,44 @@ export async function writeBackFormattedDocuments(args: {
     }
   }
 
-  let written = 0
   for (const {content, filePath} of writebacks) {
+    // Same bytes `pull` writes: the trimmed document, no trailing newline.
+    const bytes = content.trim()
+    // Re-check right before writing: the fetch above can take minutes.
+    let current: null | string = null
     try {
-      // Same bytes `pull` writes: the trimmed document, no trailing newline.
-      fs.writeFileSync(filePath, content.trim(), 'utf8')
-      written++
+      current = fs.readFileSync(filePath, 'utf8')
+    } catch {
+      // Treated as changed below.
+    }
+
+    if (current !== localContents.get(filePath)) {
+      command.warn(`Writeback: skipped ${relPathOf(filePath)}; it changed after it was read for the push`)
+      continue
+    }
+
+    try {
+      fs.writeFileSync(filePath, bytes, 'utf8')
+      written.push({content: bytes, filePath})
     } catch (error) {
       command.warn(`Failed to write formatted document to ${filePath}: ${(error as Error).message}`)
     }
   }
 
-  if (written > 0) {
-    log(`Wrote ${written} formatted file${written === 1 ? '' : 's'} (${pathLabel}${elapsedLabel()})`)
-    return Date.now() - started
+  if (written.length > 0) {
+    log(`Wrote ${written.length} formatted file${written.length === 1 ? '' : 's'} (${pathLabel}${elapsedLabel()})`)
+    return done()
   }
 
   if (matched.size === 0) {
     command.warn(
       `Writeback: fetched ${exportedDocs.length} documents, but none matched the ${pushedFiles.size} pushed file${pushedFiles.size === 1 ? '' : 's'}${elapsedLabel()}`,
     )
-    return Date.now() - started
+    return done()
   }
 
   log(`Writeback: ${matched.size} pushed file${matched.size === 1 ? '' : 's'} already match the server export${elapsedLabel()}`)
-  return Date.now() - started
+  return done()
 }
 
 // ── Error Handlers ──────────────────────────────────────────────────────────

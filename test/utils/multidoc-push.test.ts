@@ -417,7 +417,7 @@ describe('multidoc-push helpers', () => {
       fs.writeFileSync(filePath, local, 'utf8')
 
       const {command, logs} = stubCommand()
-      const elapsedMs = await writeBackFormattedDocuments({
+      const {elapsedMs} = await writeBackFormattedDocuments({
         accessToken: 'token',
         branch: '',
         command,
@@ -601,6 +601,35 @@ describe('multidoc-push helpers', () => {
 
       expect(fs.readFileSync(join(diffDir, 'function/foo.xs.local.xs'), 'utf8')).to.equal(local)
       expect(fs.readFileSync(join(diffDir, 'function/foo.xs.server.xs'), 'utf8')).to.equal(server)
+    })
+
+    it('does not overwrite a file edited while the server copy was being fetched', async () => {
+      const filePath = join(tmpDir, 'foo.xs')
+      const local = 'function foo {\n  var $x = 1\n}'
+      const edited = 'function foo {\n  var $x = 2\n}'
+      fs.writeFileSync(filePath, local, 'utf8')
+
+      const {command, warns} = stubCommand()
+      const {written} = await writeBackFormattedDocuments({
+        accessToken: 'token',
+        branch: '',
+        command,
+        includeEnv: false,
+        includeRecords: false,
+        inputDir: tmpDir,
+        pushedBytes: new Map([[filePath, local]]),
+        pushedEntries: [{content: local, filePath}],
+        target: workspaceTarget(),
+        verbose: false,
+        async verboseFetch() {
+          fs.writeFileSync(filePath, edited, 'utf8')
+          return jsonResponse(200, 'function foo {\n  var $x = 1\n  // formatted\n}')
+        },
+      })
+
+      expect(fs.readFileSync(filePath, 'utf8')).to.equal(edited)
+      expect(written).to.deep.equal([])
+      expect(warns.some((line) => line.includes('foo.xs') && line.includes('changed'))).to.equal(true)
     })
   })
 
@@ -832,6 +861,135 @@ describe('multidoc-push helpers', () => {
     await runPush(tmpDir, {dryRun: true, exportBody: 'function foo {\n  guid = "x"\n}', fast: true})
     expect(fs.existsSync(join(tmpDir, '.xano', 'sync_state.json'))).to.equal(false)
   })
+
+  it('records the bytes that were pushed, not an edit made while the push ran', async () => {
+    const fooPath = writeXs(tmpDir, 'function/foo.xs', 'function foo {\n  var $x = 1\n}')
+    const edited = 'function foo {\n  var $x = 2\n}'
+    await runPush(tmpDir, {
+      fast: true,
+      force: true,
+      onPost() {
+        fs.writeFileSync(fooPath, edited, 'utf8')
+      },
+    })
+    expect(loadedFiles(tmpDir)['function/foo.xs'].sha256).to.equal(hashBytes('function foo {\n  var $x = 1\n}'))
+
+    const {calls} = await runPush(tmpDir, {fast: true, force: true})
+    const post = calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))
+    expect(post?.body).to.include('var $x = 2')
+  })
+
+  it('records the post-GUID bytes of what was pushed when the file changed during the push', async () => {
+    const fooPath = writeXs(tmpDir, 'function/foo.xs', 'function foo {\n}')
+    await runPush(tmpDir, {
+      fast: true,
+      force: true,
+      guid: 'abc',
+      onPost() {
+        fs.writeFileSync(fooPath, 'function foo {\n  var $x = 2\n}', 'utf8')
+      },
+    })
+    expect(loadedFiles(tmpDir)['function/foo.xs'].sha256).to.equal(hashBytes('function foo {\n  guid = "abc"\n}'))
+  })
+
+  it('writeback skips a file edited while the push ran', async () => {
+    const fooPath = writeXs(tmpDir, 'function/foo.xs', 'function foo {\n  var $x = 1\n}')
+    const edited = 'function foo {\n  var $x = 2\n}'
+    const {warns} = await runPush(tmpDir, {
+      exportBody: 'function foo {\n  var $x = 1\n  // formatted\n}',
+      fast: true,
+      force: true,
+      onPost() {
+        fs.writeFileSync(fooPath, edited, 'utf8')
+      },
+      writeback: true,
+    })
+    expect(fs.readFileSync(fooPath, 'utf8')).to.equal(edited)
+    expect(warns.some((line) => line.includes('function/foo.xs') && line.includes('changed'))).to.equal(true)
+  })
+
+  it('writeback updates the record to the rewritten bytes', async () => {
+    const fooPath = writeXs(tmpDir, 'function/foo.xs', 'function foo {\n  var $x = 1\n}')
+    const server = 'function foo {\n  var $x = 1\n  // formatted\n}'
+    await runPush(tmpDir, {exportBody: server, fast: true, force: true, writeback: true})
+    expect(fs.readFileSync(fooPath, 'utf8')).to.equal(server)
+    expect(loadedFiles(tmpDir)['function/foo.xs'].sha256).to.equal(hashBytes(server))
+  })
+
+  it('--records sends a table with items even when its hash matches a record written without --records', async () => {
+    const table = 'table users {\n  schema {\n    int id\n  }\n\n  items = [\n    {"id": 1}\n  ]\n}'
+    writeXs(tmpDir, 'table/users.xs', table)
+    await runPush(tmpDir, {fast: true, force: true, unchanged: true})
+    expect(loadedFiles(tmpDir)['table/users.xs'].sha256).to.equal(hashBytes(table))
+
+    const {calls} = await runPush(tmpDir, {fast: true, force: true, records: true, unchanged: true})
+    const post = calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))
+    expect(post?.body).to.include('table users')
+    expect(post?.url).to.include('records=true')
+  })
+
+  it('--records adds tables with items to the export-comparison candidates', async () => {
+    const table = 'table users {\n  schema {\n    int id\n  }\n\n  items = [\n    {"id": 1}\n  ]\n}'
+    writeXs(tmpDir, 'table/users.xs', table)
+    const {calls} = await runPush(tmpDir, {exportBody: table, fast: true, force: true, records: true, unchanged: true})
+    const post = calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))
+    expect(post?.body).to.include('table users')
+  })
+
+  it('--env sends every file to the dry-run even when the record matches', async () => {
+    writeXs(tmpDir, 'function/foo.xs', 'function foo {\n}')
+    seedRecord(tmpDir, {'function/foo.xs': hashFile(join(tmpDir, 'function/foo.xs'))})
+    const {calls} = await runPush(tmpDir, {env: true, fast: true, force: true})
+    const post = calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))
+    expect(post?.body).to.include('function foo')
+    expect(post?.url).to.include('env=true')
+  })
+
+  it('a filtered --refresh keeps record entries outside the filter', async () => {
+    writeXs(tmpDir, 'function/foo.xs', 'function foo {\n  var $x = 1\n}')
+    writeXs(tmpDir, 'function/bar.xs', 'function bar {\n}')
+    seedRecord(tmpDir, {
+      'function/bar.xs': hashFile(join(tmpDir, 'function/bar.xs')),
+      'function/foo.xs': hashFile(join(tmpDir, 'function/foo.xs')),
+    })
+    const {calls} = await runPush(tmpDir, {
+      exportBody: 'function foo {\n  var $x = 2\n}',
+      fast: true,
+      force: true,
+      include: ['function/foo.xs'],
+      refresh: true,
+    })
+    const post = calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))
+    expect(post?.body).to.include('function foo')
+    expect(post?.body).to.not.include('function bar')
+    expect(loadedFiles(tmpDir)['function/bar.xs']).to.not.equal(undefined)
+    expect(loadedFiles(tmpDir)['function/foo.xs'].sha256).to.equal(hashFile(join(tmpDir, 'function/foo.xs')))
+  })
+
+  it('a thrown per-object fetch falls back to the export and the push still finishes', async () => {
+    writeXs(tmpDir, 'function/foo.xs', 'function foo {\n}')
+    const server = 'function foo {\n  // formatted\n}'
+    const {logs, warns} = await runPush(tmpDir, {
+      exportBody: server,
+      fast: true,
+      force: true,
+      perObject: 'throw',
+      writeback: true,
+    })
+    expect(warns.some((line) => line.includes('Per-object writeback unavailable') && line.includes('socket hang up'))).to.equal(true)
+    expect(fs.readFileSync(join(tmpDir, 'function/foo.xs'), 'utf8')).to.equal(server)
+    expect(logs.some((line) => line.includes('Pushed'))).to.equal(true)
+  })
+
+  it('saves object ids found during per-object writeback', async () => {
+    writeXs(tmpDir, 'function/foo.xs', 'function foo {\n}')
+    await runPush(tmpDir, {fast: true, force: true, perObject: 'ok', writeback: true})
+    const raw = JSON.parse(fs.readFileSync(join(tmpDir, '.xano', 'sync_state.json'), 'utf8')) as {
+      targets: Array<{files: Record<string, {id?: number; sha256: string}>}>
+    }
+    expect(raw.targets[0].files['function/foo.xs'].id).to.equal(7)
+    expect(raw.targets[0].files['function/foo.xs'].sha256).to.equal(hashBytes('function foo {\n  // formatted\n}'))
+  })
   })
 
   describe('executePush --sync --delete prune', () => {
@@ -907,10 +1065,23 @@ describe('multidoc-push helpers', () => {
       expect(readMarkerToken(markerDir, identity.instance_host, identity.branch_created_at)).to.be.a('string')
     })
 
-    it('writes the marker before writeback so a later writeback still has --fast state', async () => {
+    it('writes the marker and record before writeback so a failed writeback keeps --fast state', async () => {
       writeXs(tmpDir, 'function/foo.xs', 'function foo {\n}')
-      await runPush(tmpDir, {fast: true, force: true, kind: 'sandbox', markerDir, writeback: true})
-      expect(sandboxMarkerExists(markerDir)).to.equal(true)
+      try {
+        await runPush(tmpDir, {exportTextThrows: true, fast: true, force: true, kind: 'sandbox', markerDir, writeback: true})
+        expect.fail('expected writeback to throw')
+      } catch (error) {
+        expect((error as Error).message).to.include('connection reset')
+      }
+
+      const identity = sandboxFingerprint()
+      const token = readMarkerToken(markerDir, identity.instance_host, identity.branch_created_at)
+      expect(token).to.be.a('string')
+      const raw = JSON.parse(fs.readFileSync(join(tmpDir, '.xano', 'sync_state.json'), 'utf8')) as {
+        targets: Array<{files: Record<string, unknown>; sandbox_token?: string}>
+      }
+      expect(raw.targets[0].sandbox_token).to.equal(token)
+      expect(raw.targets[0].files['function/foo.xs']).to.not.equal(undefined)
     })
 
     it('sends only candidates when the marker token matches', async () => {
@@ -931,28 +1102,32 @@ describe('multidoc-push helpers', () => {
     it('compares against the export when the marker token does not match', async () => {
       writeXs(tmpDir, 'function/foo.xs', 'function foo {\n  var $x = 1\n}')
       seedSandboxRecord(tmpDir, markerDir, {'function/foo.xs': hashFile(join(tmpDir, 'function/foo.xs'))}, 'old-token')
-      const {logs} = await runPush(tmpDir, {
-        exportBody: 'function foo {\n  var $x = 1\n}',
+      const {calls, logs} = await runPush(tmpDir, {
+        exportBody: 'function foo {\n  var $x = 0\n}',
         fast: true,
         force: true,
         kind: 'sandbox',
         markerDir,
       })
       expect(logs.some((line) => line.includes('Sandbox changed since this directory'))).to.equal(true)
+      const post = calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))
+      expect(post?.body).to.include('var $x = 1')
     })
 
     it('compares against the export when the marker is missing', async () => {
       writeXs(tmpDir, 'function/foo.xs', 'function foo {\n}')
       seedSandboxRecord(tmpDir, markerDir, {'function/foo.xs': hashFile(join(tmpDir, 'function/foo.xs'))})
       fs.rmSync(join(markerDir, 'sandbox_sync.json'))
-      const {logs} = await runPush(tmpDir, {
-        exportBody: 'function foo {\n}',
+      const {calls, logs} = await runPush(tmpDir, {
+        exportBody: 'function foo {\n  var $x = 0\n}',
         fast: true,
         force: true,
         kind: 'sandbox',
         markerDir,
       })
       expect(logs.some((line) => line.includes('Sandbox changed since this directory'))).to.equal(true)
+      const post = calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))
+      expect(post?.body).to.include('function foo')
     })
 
     it('rotates the token in the marker and the record after a successful push', async () => {
@@ -980,6 +1155,31 @@ describe('multidoc-push helpers', () => {
       }
 
       expect(readMarkerToken(markerDir, 'example.test', 3)).to.equal(null)
+      expect(loadedFiles(tmpDir)['function/foo.xs'].sha256).to.equal(hashBytes('stale'))
+    })
+
+    it('a filtered rebuild of an untrusted sandbox record drops entries outside the filter', async () => {
+      writeXs(tmpDir, 'function/foo.xs', 'function foo {\n  var $x = 1\n}')
+      writeXs(tmpDir, 'function/bar.xs', 'function bar {\n}')
+      seedSandboxRecord(
+        tmpDir,
+        markerDir,
+        {
+          'function/bar.xs': hashFile(join(tmpDir, 'function/bar.xs')),
+          'function/foo.xs': hashFile(join(tmpDir, 'function/foo.xs')),
+        },
+        'old-token',
+      )
+      await runPush(tmpDir, {
+        exportBody: 'function foo {\n  var $x = 0\n}',
+        fast: true,
+        force: true,
+        include: ['function/foo.xs'],
+        kind: 'sandbox',
+        markerDir,
+      })
+      expect(loadedFiles(tmpDir)['function/bar.xs']).to.equal(undefined)
+      expect(loadedFiles(tmpDir)['function/foo.xs']).to.not.equal(undefined)
     })
 
     it('a default push with no record and no marker does not call /sandbox/me or write files', async () => {
@@ -1141,17 +1341,23 @@ async function runPush(
     branch?: string
     delete?: boolean
     dryRun?: boolean
+    env?: boolean
     exclude?: string[]
     exportBody?: string
     exportStatus?: number
+    exportTextThrows?: boolean
     fast?: boolean
     force?: boolean
     guid?: string
     guids?: boolean
+    include?: string[]
     kind?: 'sandbox' | 'workspace'
     live?: string
     markerDir?: string
+    onPost?: () => void
+    perObject?: 'ok' | 'throw'
     postStatus?: number
+    records?: boolean
     refresh?: boolean
     sync?: boolean
     unchanged?: boolean
@@ -1167,12 +1373,13 @@ async function runPush(
   const flags: PushFlags = {
     delete: Boolean(options.delete),
     'dry-run': Boolean(options.dryRun),
-    env: false,
+    env: Boolean(options.env),
     exclude: options.exclude,
     fast: options.fast,
     force: options.force ?? false,
     guids: options.guids ?? true,
-    records: false,
+    include: options.include,
+    records: Boolean(options.records),
     refresh: options.refresh,
     sync: Boolean(options.sync),
     transaction: true,
@@ -1242,13 +1449,37 @@ async function runPush(
           })
         }
 
+        const objectMatch = /\/workspace\/1\/function(?:\/(\d+))?$/.exec(path)
+        if (options.perObject && objectMatch && method === 'GET') {
+          if (options.perObject === 'throw') throw new Error('socket hang up')
+          if (!objectMatch[1]) {
+            return jsonApi({items: [{id: 7, name: new URL(url).searchParams.get('search')}]})
+          }
+
+          return jsonApi({branch: 'v1', xanoscript: {status: 'ok', value: 'function foo {\n  // formatted\n}'}})
+        }
+
         if (path.includes('/multidoc') && method === 'GET') {
           bodies.export = options.exportBody
           const status = options.exportStatus ?? 200
+          if (options.exportTextThrows) {
+            return {
+              async json() {
+                throw new Error('connection reset')
+              },
+              ok: true,
+              status: 200,
+              async text() {
+                throw new Error('connection reset')
+              },
+            } as unknown as Response
+          }
+
           return jsonApi(options.exportBody ?? '', status, false)
         }
 
         if (path.includes('/multidoc') && method === 'POST') {
+          options.onPost?.()
           const status = options.postStatus ?? 200
           if (status >= 400) {
             return jsonApi({message: `Push failed (${status})`}, status)
