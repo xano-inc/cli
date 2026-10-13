@@ -163,6 +163,7 @@ export function buildServerRegistry(operations: Array<{name: string; type: strin
 export function checkReferences(
   documents: Array<{content: string; filePath: string}>,
   serverOperations?: Array<{name: string; type: string}>,
+  scanDocuments?: Array<{content: string; filePath: string}>,
 ): BadReference[] {
   const registry = buildRegistry(documents)
 
@@ -181,8 +182,9 @@ export function checkReferences(
   }
 
   const badRefs: BadReference[] = []
+  const toScan = scanDocuments ?? documents
 
-  for (const doc of documents) {
+  for (const doc of toScan) {
     const parsed = parseDocument(doc.content)
     if (!parsed) continue
 
