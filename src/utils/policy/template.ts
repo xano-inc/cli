@@ -1,3 +1,4 @@
+import type {PolicyRecipe} from './catalogue.js'
 import type {PolicyCatalogueEntry, PolicyParamSchema} from './types.js'
 
 import {POLICY_KEY_PATTERN} from '../document-parser.js'
@@ -18,6 +19,21 @@ export interface PolicyTemplate {
   summary: string
   /** Becomes the policy title. */
   title: string
+}
+
+/**
+ * The refusal of a recipe id given to `--template`: recipes have no create action, so it names the
+ * recipe's templates in the order to create them and, when it has rules no template covers, where
+ * they are shown.
+ */
+export function recipeRefusal(recipe: PolicyRecipe): string {
+  const templates = Array.isArray(recipe.templates) ? recipe.templates : []
+  const rules = Array.isArray(recipe.rules) ? recipe.rules.length : 0
+  const steps = templates.length > 0
+    ? ` Create its templates in order with --template, one policy each: ${templates.join(', ')}.`
+    : ''
+  const own = rules > 0 ? ` ${rules === 1 ? 'The rule' : `The ${rules} rules`} no template covers ${rules === 1 ? 'goes' : 'go'} in a policy of your own (\`xano policy publish\`).` : ''
+  return `"${recipe.id}" is a recipe (${recipe.title}), not a template, and a recipe has no create action.${steps}${own} Run \`xano policy catalogue --recipe ${recipe.id}\` for what to set up first and the rules.`
 }
 
 /** The catalogue's `document.key`: the platform's key pattern, and its refusal with `%s` for the key. */

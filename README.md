@@ -206,7 +206,8 @@ category, each row ending with its framework tags in brackets (`[SOC 2, HIPAA]`)
 sentence on what the tags mean under the heading. A tag marks a template on a related topic; it does not make a
 workspace compliant. The recipes follow: goals that span several templates, each with what to set up first, its
 templates in the order to create them, the rules no template covers (created together in a policy of your own) and
-what no rule in it can see. The catalogue ends with what no check can see, each topic with why. `--check` and `--recipe` narrow
+what no rule in it can see. A recipe is not created itself: `policy create --template` refuses a recipe id and names
+its templates. The catalogue ends with what no check can see, each topic with why. `--check` and `--recipe` narrow
 both output modes to one entry; `-o json` is the whole catalogue as served.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
