@@ -199,6 +199,7 @@ xano workspace pull -d ./my-workspace                    # Specify output direct
 xano workspace pull -b dev                               # Specific branch
 xano workspace pull --env --records                      # Include env vars and table records
 xano workspace pull --draft                              # Include draft changes
+xano workspace pull --sync-state                         # Write .xano/sync_state.json; later pulls keep it current
 
 # Push local files to workspace (defaults to current directory, only changed files)
 xano workspace push
@@ -212,6 +213,11 @@ xano workspace push --env                                # Include environment v
 xano workspace push --truncate                           # Truncate tables before import
 xano workspace push --no-transaction                     # Disable database transaction wrapping
 xano workspace push --no-guids                           # Skip writing GUIDs back to local files
+xano workspace push --fast                               # Push only files that changed since last sync
+xano workspace push --fast --refresh                     # Re-compare against the server export, then push
+xano workspace push --no-fast                            # Skip --fast even when profile.yaml sets fast: true
+xano workspace push --writeback                          # Write server-formatted XanoScript back to pushed files
+xano workspace push --writeback --writeback-diff ./diffs # Also save local vs server copies for linter work
 xano workspace push --force                              # Skip preview and confirmation (for CI/CD)
 xano workspace push -i "function/*"                      # Push only matching files
 xano workspace push -e "table/*"                         # Push all files except tables
@@ -243,6 +249,44 @@ itself (`workspace/{name}.xs`), so pulling a different workspace into the same
 directory *adds* a file rather than overwriting, and renaming a workspace leaves
 the old-name file behind. Delete the stale ones, keeping the single document that
 matches your target workspace.
+
+### `.xano/sync_state.json`
+
+`--fast` skips files whose contents still match a local sync
+record at `<push dir>/.xano/sync_state.json`. The file is per-working-copy
+state: it should not be committed. Ignoring it is up to you (the CLI never
+edits `.gitignore` or any other VCS ignore file).
+
+The record is created by `workspace pull --sync-state`, `sandbox pull --sync-state`,
+`workspace push --fast`, or `sandbox push --fast`.
+Once it exists, every successful workspace or sandbox push or pull updates it. A successful
+`workspace push --sync --delete` or `sandbox push --sync --delete` also removes entries for
+files deleted locally, which clears the "deleted locally" note. A default push or pull does
+not create it. `--dry-run` never writes it, and neither does `pull --draft`, because
+`--fast` compares against published versions. Push records the exact bytes it sent, so a
+file edited while a push runs is sent again by the next `--fast` push. Delete the file to turn this off; the next
+`--fast` push compares against the server export once (~99 seconds on a
+~1,100-document workspace) and rebuilds it. If that export fails, the CLI falls
+back to a full dry-run.
+
+Sandbox `--fast` also keeps a per-user marker at `sandbox_sync.json` next to your
+credentials file (normally `~/.xano/sandbox_sync.json`). A successful sandbox push
+or `sandbox pull --sync-state` writes a new token there and into the directory's
+record. `sandbox reset` and `sandbox delete` clear the host's entries, as does a
+sandbox push from another directory. If the tokens do not match, `--fast` compares
+against the sandbox export once instead of trusting the record. After a reset or
+push done outside this CLI or on another machine, use `--refresh`.
+
+`--refresh` (requires `--fast`) runs that export comparison even when a record
+already exists. Use it after edits in the Xano UI, a teammate's push, or when
+the record looks wrong. `--fast` will not overwrite remote-only changes; a push
+without `--fast` still will.
+
+`--fast` cannot be combined with `--sync`. It works with `--force` and still
+sends only the files the record (or export comparison) marked as changed.
+With `--records`, tables that have `items` are always sent, as they are without
+`--fast`. With `--env`, `--fast` compares every file with the dry-run, because the
+record does not track environment variables.
 
 ### Flatten
 
@@ -820,6 +864,7 @@ xano sandbox get -o json
 xano sandbox pull
 xano sandbox pull -d ./my-sandbox
 xano sandbox pull --env --records
+xano sandbox pull --sync-state                           # Write .xano/sync_state.json; later pulls keep it current
 
 # Push local files to sandbox (defaults to current directory, only changed files)
 xano sandbox push
@@ -827,6 +872,11 @@ xano sandbox push -d ./my-workspace                      # Push from a specific 
 xano sandbox push --sync                                 # Full push — send all files
 xano sandbox push --sync --delete                        # Full push + delete remote objects not included
 xano sandbox push --dry-run                              # Preview changes without pushing
+xano sandbox push --fast                                 # Skip unchanged files using .xano/sync_state.json
+xano sandbox push --fast --refresh                       # Re-compare against the sandbox export, then push
+xano sandbox push --no-fast                              # Push without --fast even when profile.yaml sets fast: true
+xano sandbox push --writeback                            # Write server-formatted XanoScript back after push
+xano sandbox push --writeback --writeback-diff ./diffs   # Also save local vs server copies
 xano sandbox push --records --env                        # Include records and environment variables
 xano sandbox push --truncate                             # Truncate tables before import
 xano sandbox push --no-guids                             # Skip writing GUIDs back to local files
@@ -972,11 +1022,28 @@ workspace: 110            # optional override
 instance_origin: https://your-instance.xano.io        # optional override
 account_origin: https://app.xano.com                  # optional override
 branch: main              # optional override
+fast: true                # optional: default workspace/sandbox push --fast
+writeback: true           # optional: default workspace/sandbox push --writeback
+writeback_object_limit: 50  # optional: workspace push --writeback per-object fetch limit (default 25)
 ```
 
 When a `profile.yaml` is in effect, every command prints the active target,
 e.g. `Using profile 'staging' (workspace 110) · profile.yaml` (suppressed for
-`--output json`).
+`--output json`). `workspace push` and `sandbox push` also log
+`Using --fast --writeback · profile.yaml` when those keys turn the flags on.
+`--no-fast` and `--no-writeback` override them for one run. `--sync` ignores a
+`fast: true` rather than erroring.
+
+`workspace push --writeback` fetches each pushed object individually when the push
+has at most `writeback_object_limit` documents (default 25), and otherwise downloads
+the full workspace export. Per-object requests grow with the number of documents;
+the export costs about the same no matter how many you pushed. Raise the limit for a
+large workspace where the export is slow; `0` always uses the export. If a per-object
+request fails, writeback falls back to the export. Sandbox push always uses the export.
+Writeback skips, with a warning, any file that changed on disk after the push read it.
+
+An explicit `-p/--profile` or `XANO_PROFILE` ignores `profile.yaml` entirely,
+including `fast`, `writeback`, and `writeback_object_limit`.
 
 Generate one with `xano profile use`. It writes a self-documenting
 `profile.yaml` (every overridable field is included as a commented example, so

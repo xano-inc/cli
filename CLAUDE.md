@@ -128,6 +128,10 @@ test/
 | `src/utils/multidoc-push.ts` | Shared push logic for both `sandbox push` and `workspace push` — file collection, glob filtering, dry-run preview, confirmation, partial push, GUID sync, validation rendering |
 | `src/utils/document-parser.ts` | XanoScript document parsing — type/name/verb/guid extraction, document key building |
 | `src/utils/reference-checker.ts` | Cross-reference validation and table index checking |
+| `src/utils/sync-state.ts` | `.xano/sync_state.json` load/validate, hashing, candidate detection, atomic save |
+| `src/utils/sandbox-marker.ts` | Per-user `sandbox_sync.json` token next to credentials; invalidates on reset, delete, and sandbox push |
+| `src/utils/export-compare.ts` | Multidoc export parse/match/compare shared by `--fast` fallback and `--writeback` |
+| `src/utils/object-fetch.ts` | Per-object Metadata API fetch, GUID restoration, and writeback ID lookup |
 
 ## Coding Conventions
 

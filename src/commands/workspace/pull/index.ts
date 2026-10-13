@@ -12,6 +12,17 @@ import {
   resolveDocumentPath,
 } from '../../../utils/document-parser.js'
 import {fetchKnowledge, writeKnowledge} from '../../../utils/knowledge-sync.js'
+import {recordEntriesForPaths, resolveTarget, saveSyncState, syncStateExists} from '../../../utils/sync-state.js'
+
+/**
+ * Whether pull should write `.xano/sync_state.json`: only when asked to, or to keep an existing
+ * record current. A `--draft` pull never writes it, because `--fast` compares against published
+ * versions and recording draft bodies as synced would stop those drafts from being pushed.
+ */
+export function syncStateAction(flag: boolean, dir: string, draft: boolean): 'draft' | 'skip' | 'write' {
+  if (!flag && !syncStateExists(dir)) return 'skip'
+  return draft ? 'draft' : 'write'
+}
 
 export default class Pull extends BaseCommand {
   static description = 'Pull a workspace multidoc from the Xano Metadata API and split into individual files'
@@ -30,6 +41,9 @@ Pulled 58 documents
 `,
     `$ xano workspace pull --draft`,
     `$ xano workspace pull -b dev`,
+    `$ xano workspace pull --sync-state
+Write .xano/sync_state.json after pulling; later pulls keep it current while it exists
+`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -57,6 +71,12 @@ Pulled 58 documents
     records: Flags.boolean({
       default: false,
       description: 'Include records',
+      required: false,
+    }),
+    'sync-state': Flags.boolean({
+      default: false,
+      description:
+        'Write .xano/sync_state.json after a successful pull. Needed only the first time; later pulls keep the record current while it exists.',
       required: false,
     }),
     workspace: Flags.string({
@@ -171,6 +191,7 @@ Pulled 58 documents
     const filenameCounters: Map<string, Map<string, number>> = new Map()
 
     let writtenCount = 0
+    const writtenPaths: string[] = []
     for (const doc of documents) {
       const {baseName, typeDir} = resolveDocumentPath(doc, outputDir, {
         getApiGroupFolder,
@@ -196,6 +217,7 @@ Pulled 58 documents
 
       const filePath = path.join(typeDir, filename)
       fs.writeFileSync(filePath, doc.content, 'utf8')
+      writtenPaths.push(filePath)
       writtenCount++
     }
 
@@ -218,5 +240,53 @@ Pulled 58 documents
     const parts: string[] = [`${writtenCount} documents`]
     if (knowledgeCount > 0) parts.push(`${knowledgeCount} knowledge file${knowledgeCount === 1 ? '' : 's'}`)
     this.log(`Pulled ${parts.join(' + ')} to ${flags.directory}`)
+
+    const syncState = syncStateAction(flags['sync-state'], outputDir, flags.draft)
+    if (syncState === 'skip') {
+      return
+    }
+
+    if (syncState === 'draft') {
+      this.warn('Skipped writing .xano/sync_state.json: --draft pulls draft versions, which --fast does not compare against')
+      return
+    }
+
+    const origin = profile.instance_origin.replace(/\/$/, '')
+    try {
+      const target = await resolveTarget(
+        profile.instance_origin,
+        workspaceId,
+        branch,
+        async (pathname) => {
+          const response = await this.verboseFetch(
+            `${origin}/api:meta${pathname}`,
+            {
+              headers: {
+                accept: 'application/json',
+                Authorization: `Bearer ${profile.access_token}`,
+              },
+              method: 'GET',
+            },
+            flags.verbose,
+            profile.access_token,
+          )
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`)
+          }
+
+          return response.json()
+        },
+      )
+      if (!target) {
+        this.warn('Could not resolve workspace/branch fingerprints; skipped writing .xano/sync_state.json')
+        return
+      }
+
+      const entries = recordEntriesForPaths(outputDir, writtenPaths)
+
+      saveSyncState(outputDir, target, entries, {replace: true})
+    } catch (error) {
+      this.warn(`Skipped writing .xano/sync_state.json: ${(error as Error).message}`)
+    }
   }
 }
