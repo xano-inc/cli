@@ -182,6 +182,8 @@ xano policy catalogue --check object.auth_required   # One check, its parameters
 xano policy catalogue --recipe protect_card_data     # One recipe and the topics it cannot see
 xano policy create --template endpoints_need_login -b dev # Create an independent policy from a platform template
 xano policy create --template no_pii_in_responses --key DATA-020 --param 'fields=["email","ssn"]'
+xano policy create --template admin_endpoints_check_role --param 'functions=["require_admin"]' --param 'paths=["admin"]'
+xano policy create --template retained_data_has_age_limit --param 'tags=["retained"]' --param 'referenced_by.max_age_days=730'
 xano policy list                                     # Policies on the branch
 xano policy parse policies/AUTH-001.xs               # Validate and print canonical XanoScript (or --file, --stdin)
 xano policy publish policies/AUTH-001.xs -m "Why"    # Create or update by key; -m labels the Version History entry
@@ -214,9 +216,10 @@ both output modes to one entry; `-o json` is the whole catalogue as served.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
 validates them natively and creates an Active, Advisory policy. Required template settings must
-be filled before it saves: every one of a rule's `needs`, or at least one when the rule says `needs_any: true`
-(the refusal names the alternatives, as in `1.hosts or 1.providers`, and a `--param` to copy for a missing setting, from the template's example or else the check's own, as in `--param '1.names=["audit_log"]'`; use your workspace's own names). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
-prefix is optional for a single-rule template. Nested paths work, for example `--param '1.when.statement="db.edit"'`.
+be filled before it saves: every one of a rule's `needs` outside its `needs_any` group, and at least one of the group
+(the refusal names a missing need, as in `1.functions`, and an empty group by its options, as in `1.tags or 1.paths`, and a `--param` to copy for a missing setting, from the template's example or else the check's own, as in `--param '1.names=["audit_log"]'`; use your workspace's own names). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
+prefix is optional for a single-rule template. Nested paths work, for example `--param '1.when.statement="db.edit"'`,
+and a need written with a dot names a property of an object param, filled the same way (`--param '1.referenced_by.max_age_days=730'`).
 Values are JSON, including quoted strings, arrays, booleans and numbers. The template key gets a free numeric
 suffix if already taken (case-insensitive); an explicitly taken `--key` is refused. It never updates an
 existing policy. `-m/--message` labels its Version History entry; `-o json` returns the saved policy and

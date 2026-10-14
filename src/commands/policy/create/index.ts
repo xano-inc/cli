@@ -13,6 +13,8 @@ export default class PolicyCreate extends PolicyCommand {
   static override examples = [
     '$ xano policy create --template endpoints_need_login -b dev',
     `$ xano policy create --template no_pii_in_responses --key DATA-020 --param 'fields=["email","ssn"]'`,
+    `$ xano policy create --template admin_endpoints_check_role --param 'functions=["require_admin"]' --param 'paths=["admin"]'`,
+    `$ xano policy create --template retained_data_has_age_limit --param 'tags=["retained"]' --param 'referenced_by.max_age_days=730'`,
   ]
   static override flags = {
     ...PolicyCommand.policyFlags,

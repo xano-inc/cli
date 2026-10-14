@@ -52,15 +52,41 @@ describe('policy template authoring', () => {
     expect(policyFromTemplate(required, [], {overrides: ['flag=false']}).rules[0].params.flag).to.equal(false)
   })
 
-  it('requires every need of a rule unless it says needs_any', () => {
+  it('requires every need of a rule outside its needs_any group', () => {
     const both = {...template, rules: [{...template.rules[0], needs: ['tables', 'functions']}]}
     expect(() => policyFromTemplate(both, [], {overrides: ['tables=["audit_log"]']})).to.throw(/: 1\.functions\.$/)
     expect(() => policyFromTemplate({...both, rules: [{...both.rules[0], needs_any: false}]}, [], {overrides: ['tables=["audit_log"]']})).to.throw(/: 1\.functions\.$/)
+    expect(() => policyFromTemplate({...both, rules: [{...both.rules[0], needs_any: []}]}, [], {overrides: ['tables=["audit_log"]']})).to.throw(/: 1\.functions\.$/)
     expect(policyFromTemplate(both, [], {overrides: ['tables=["audit_log"]', 'functions=["write_audit"]']}).rules[0].params).to.include.keys('tables', 'functions')
   })
 
-  it('accepts one filled need of a needs_any rule and names the alternatives when none is', () => {
+  it('takes needs_any: true from an older instance as its whole needs', () => {
     const either = {...template, rules: [{...template.rules[0], needs: ['hosts', 'providers'], needs_any: true}]}
+    expect(() => policyFromTemplate(either, [])).to.throw(/: 1\.hosts or 1\.providers\.$/)
+    expect(policyFromTemplate(either, [], {overrides: ['providers=["openai"]']}).rules[0].params).to.deep.equal({existing: true, providers: ['openai']})
+  })
+
+  it('requires the needs outside a needs_any group and one of the group, naming the group as one choice', () => {
+    const admin = {...template, rules: [{...template.rules[0], needs: ['functions', 'tags', 'paths'], needs_any: ['tags', 'paths']}]}
+    expect(() => policyFromTemplate(admin, [])).to.throw(/: 1\.functions, and 1\.tags or 1\.paths\.$/)
+    expect(() => policyFromTemplate(admin, [], {overrides: ['functions=["require_admin"]']})).to.throw(/: 1\.tags or 1\.paths\.$/)
+    expect(() => policyFromTemplate(admin, [], {overrides: ['paths=["admin"]']})).to.throw(/: 1\.functions\.$/)
+    expect(policyFromTemplate(admin, [], {overrides: ['functions=["require_admin"]', 'paths=["admin"]']}).rules[0].params)
+      .to.deep.equal({existing: true, functions: ['require_admin'], paths: ['admin']})
+    const second = {...admin, rules: [admin.rules[0], {...template.rules[0], needs: ['names']}]}
+    expect(() => policyFromTemplate(second, [], {overrides: ['1.functions=["f"]']})).to.throw(/: 1\.tags or 1\.paths, and 2\.names\.$/)
+  })
+
+  it('fills a dotted need inside its object param, keeping the seeded properties', () => {
+    const retention = {...template, examples: {'referenced_by.max_age_days': 730}, rules: [{...template.rules[0], needs: ['tags', 'referenced_by.max_age_days'], needs_any: [], params: {referenced_by: {object_kinds: ['task']}}}]}
+    expect(() => policyFromTemplate(retention, [], {overrides: ['tags=["retained"]']}))
+      .to.throw(`: 1.referenced_by.max_age_days. For example: --param 'referenced_by.max_age_days=730'.`)
+    expect(policyFromTemplate(retention, [], {overrides: ['tags=["retained"]', '1.referenced_by.max_age_days=730']}).rules[0].params)
+      .to.deep.equal({referenced_by: {max_age_days: 730, object_kinds: ['task']}, tags: ['retained']})
+  })
+
+  it('accepts one filled need of a needs_any rule and names the alternatives when none is', () => {
+    const either = {...template, rules: [{...template.rules[0], needs: ['hosts', 'providers'], needs_any: ['hosts', 'providers']}]}
     expect(() => policyFromTemplate(either, [])).to.throw(/: 1\.hosts or 1\.providers\.$/)
     expect(() => policyFromTemplate(either, [], {overrides: ['hosts=[]']})).to.throw('1.hosts or 1.providers')
     expect(policyFromTemplate(either, [], {overrides: ['hosts=["api.example.com"]']}).rules[0].params).to.deep.equal({existing: true, hosts: ['api.example.com']})
