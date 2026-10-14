@@ -549,6 +549,18 @@ describe('policy reporting', () => {
     expect(fixture.calls.at(-1)?.body).to.equal(undefined)
   })
 
+  it('parse summary always shows the severity, medium included, where the platform writes every other; JSON keeps the served source', async () => {
+    const canonical = 'policy AUTH-001 {\n  title = "Auth"\n  active = true\n  enforcement = "advisory"\n\n  rule {\n    check = "object.auth_required"\n  }\n}'
+    fixture.route(() => json({policy: {active: true, enforcement: 'advisory', key: 'AUTH-001', severity: 'medium'}, rule_warnings: [], source: canonical}))
+    const summary = await command('policy parse')
+    expect(summary.stdout.split('\n').slice(0, 5)).to.deep.equal(['policy AUTH-001 {', '  title = "Auth"', '  severity = "medium"', '  active = true', '  enforcement = "advisory"'])
+    expect(JSON.parse((await command('policy parse', ['-o', 'json'])).stdout).source).to.equal(canonical)
+    // A severity the platform already wrote is left as it is.
+    const high = canonical.replace('  active', '  severity = "high"\n  active')
+    fixture.route(() => json({policy: {key: 'AUTH-001', severity: 'high'}, rule_warnings: [], source: high}))
+    expect((await command('policy parse')).stdout.trimEnd()).to.equal(high)
+  })
+
   it('names a rule refused for its name with the platform sentence and where the name is', async () => {
     const message = 'rule[1]: A rule cannot be named. Write "rule {" — rules are identified by position (KEY.R1, KEY.R2…).'
     fixture.route(() => json({code: 'ERROR_CODE_BAD_REQUEST', message, payload: {char: 61, col: 8, error_line: '  rule foo {', error_snippet: 'foo {', line: 5}}, 400))

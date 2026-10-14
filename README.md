@@ -324,7 +324,8 @@ A create or publish whose rules exactly match a policy the branch has (`policy_d
 (`policy_key_taken`), is refused with a sentence naming the key it tried and the policy that has the rules or the key,
 and what to change: a parameter or scope for a copy, another key (`--key`) for a taken one.
 `policy parse` and `policy publish` print rule warnings (a part of a rule that would do nothing or allow too much on
-that branch) on stderr; `-o json` keeps stdout the JSON.
+that branch) on stderr; `-o json` keeps stdout the JSON. `policy parse`'s summary always shows the policy's severity,
+the default `medium` included, which the platform's canonical source leaves out (`-o json` keeps that source as served).
 
 ### Workspaces
 

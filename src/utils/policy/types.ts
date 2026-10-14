@@ -226,6 +226,8 @@ export interface Policy {
   key: string
   latest_run?: PolicyCoverage
   rules?: Array<{id: string}>
+  /** `critical`, `high`, `medium` or `low`; the parse route always answers it, its default included. */
+  severity?: string
   title?: string
   /** When the policy was last written, as served; sent back as `last_updated_at` to refuse acting on a stale read. */
   updated_at?: number | string
