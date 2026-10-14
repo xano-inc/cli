@@ -1,5 +1,7 @@
 /** The shapes the policy routes answer with. Policy grammar belongs to the platform. */
 export interface PolicyCatalogueEntry {
+  /** The catalogue's group for the check (`security`, `data_access`…), served as an id with no label. */
+  category?: string
   description?: string
   fix_hint?: string
   id: string
@@ -9,6 +11,8 @@ export interface PolicyCatalogueEntry {
   params?: Record<string, PolicyParamSchema>
   /** Params of which a rule must set at least one. */
   requires_one_of?: string[]
+  /** The shared scope params that can narrow this check; each is described in `params`. */
+  scope_fields?: Array<{applies_when?: Record<string, unknown>; name: string}>
   /** Goals in a customer's words, each with the complete params (scope params included) that achieve it. */
   uses?: PolicyCheckUse[]
 }
@@ -24,6 +28,7 @@ export interface PolicyCheckUse {
 
 /** One param as the catalogue describes it: a nested object's parts are its `properties`. */
 export interface PolicyParamSchema {
+  description?: string
   /** A value that fits the param, shown as a hint; never filled in. */
   example?: unknown
   properties?: Record<string, PolicyParamSchema>

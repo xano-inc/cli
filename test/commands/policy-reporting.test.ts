@@ -1,3 +1,4 @@
+import {Config} from '@oclif/core'
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
 import path from 'node:path'
@@ -89,9 +90,11 @@ describe('policy reporting', () => {
     ]}))
     const result = await command('policy catalogue')
     expect(result.error).to.equal(undefined)
-    const lines = result.stdout.split('\n')
+    const all = result.stdout.split('\n')
+    // The index at the head names the templates too; the list itself follows the checks.
+    const lines = all.slice(all.indexOf('Templates (xano policy create --template <id>):'))
     const at = (text: string) => lines.findIndex(line => line.includes(text))
-    expect(at('Templates (xano policy create --template <id>):')).to.be.greaterThan(at('stack.statement_forbidden'))
+    expect(all.indexOf('Templates (xano policy create --template <id>):')).to.be.greaterThan(all.findIndex(line => line.startsWith('stack.statement_forbidden')))
     expect(lines.filter(line => line === 'Access control')).to.have.length(1)
     expect(lines).not.to.include('Secrets')
     expect(at('Access control')).to.be.lessThan(at('endpoints_need_login'))
@@ -112,13 +115,84 @@ describe('policy reporting', () => {
       {category: 'access_control', frameworks: [], id: 'one_auth_table', key: 'AUTH-050', rules: [rule], severity: 'medium', summary: '', title: 'Users sign in through one auth table'},
       {category: 'access_control', frameworks: ['newer'], id: 'tagged_later', key: 'N-001', rules: [rule], severity: 'low', summary: '', title: 'Tagged by a newer instance'},
     ]}))
-    const lines = (await command('policy catalogue')).stdout.split('\n')
-    const heading = lines.indexOf('Templates (xano policy create --template <id>):')
+    const all = (await command('policy catalogue')).stdout.split('\n')
+    const lines = all.slice(all.indexOf('Templates (xano policy create --template <id>):'))
+    const heading = 0
     expect(lines[heading + 1]).to.equal(note)
     expect(lines.filter(line => line === note)).to.have.length(1)
     expect(lines.find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\) \[SOC 2, HIPAA\]$/)
     expect(lines.find(line => line.includes('one_auth_table'))).to.match(/\(AUTH-050, medium, 1 rule\)$/)
     expect(lines.find(line => line.includes('tagged_later'))).to.match(/\[newer\]$/)
+  })
+
+  it('catalogue shows each template\'s rules: number, title and check, preset params, and what to fill with its needs_any group as one choice', async () => {
+    fixture.route(() => json({items: checks, templates: [
+      {category: 'access_control', id: 'admin_endpoints_check_role', key: 'AUTH-002', rules: [{check: 'object.statement_required', needs: ['functions', 'tags', 'paths'], needs_any: ['tags', 'paths'], params: {placement: 'first'}, title: 'Admin endpoints call the role check first'}], severity: 'critical', summary: '', title: 'Admin endpoints check the caller\'s role'},
+      {category: 'integrations', id: 'approved_vendors_only', key: 'VND-001', rules: [{check: 'outbound.vendor_allowlist', needs: ['hosts', 'providers'], needs_any: ['hosts', 'providers'], params: [], title: ''}], severity: 'high', summary: '', title: 'Data only goes to approved vendors'},
+      {category: 'data_protection', id: 'retained_data_has_age_limit', key: 'RET-003', rules: [{check: 'table.coverage_required', needs: ['tags', 'referenced_by.max_age_days'], needs_any: [], params: {referenced_by: {object_kinds: ['task']}}, title: ''}, {check: 'object.naming', needs: [], params: {}, title: ''}], severity: 'medium', summary: '', title: 'Retained data is deleted after a set number of days'},
+    ]}))
+    const lines = (await command('policy catalogue')).stdout.split('\n')
+    const row = (id: string) => lines.findIndex(line => line.startsWith(`  ${id} `))
+    expect(lines.slice(row('admin_endpoints_check_role') + 1, row('admin_endpoints_check_role') + 4)).to.deep.equal([
+      '      1. Admin endpoints call the role check first: object.statement_required',
+      '         {"placement":"first"}',
+      '         Fill: functions, and tags or paths',
+    ])
+    expect(lines.slice(row('approved_vendors_only') + 1, row('approved_vendors_only') + 4)).to.deep.equal([
+      '      1. outbound.vendor_allowlist', '         {}', '         Fill: hosts or providers',
+    ])
+    expect(lines.slice(row('retained_data_has_age_limit') + 1, row('retained_data_has_age_limit') + 6)).to.deep.equal([
+      '      1. table.coverage_required', '         {"referenced_by":{"object_kinds":["task"]}}', '         Fill: tags, referenced_by.max_age_days',
+      '      2. object.naming', '         {}',
+    ])
+  })
+
+  it('catalogue opens with an index by category, an example policy file and the scope fields as the catalogue words them', async () => {
+    const paths = 'Endpoints whose path inside their API group starts with any listed path, compared segment by segment.'
+    fixture.route(() => json({...recipeCatalogue, items: [
+      {category: 'authentication', id: 'object.auth_required', label: 'Endpoints require login', params: {paths: {description: paths, type: 'string[]'}, tags: {description: 'Objects with a listed tag.', type: 'string[]'}}, scope_fields: [{name: 'tags'}, {name: 'paths'}]},
+      {category: 'structure', id: 'object.statement_required', label: 'Objects call a statement', params: {tags: {type: 'string[]'}}, scope_fields: [{name: 'tags'}]},
+      {id: 'from.older_instance', label: 'No category', params: {}},
+    ], template_categories: [{id: 'integrations', label: 'Integrations'}]}))
+    const result = await command('policy catalogue')
+    expect(result.error).to.equal(undefined)
+    const lines = result.stdout.split('\n')
+    expect(lines.slice(0, 10)).to.deep.equal([
+      'Index (each entry is detailed below):',
+      '  Checks by category (xano policy catalogue --check <id>):',
+      '    authentication: object.auth_required',
+      '    structure: object.statement_required',
+      '    other: from.older_instance',
+      '  Templates by category (xano policy create --template <id>):',
+      '    Integrations: approved_vendors_only',
+      '  Recipes (xano policy catalogue --recipe <id>):',
+      '    protect_card_data, ai_cost_and_agent_safety',
+      '  What no check can see: 2 topics, at the end.',
+    ])
+    const example = lines.findIndex(line => line.startsWith('A policy file'))
+    expect(lines.slice(example + 2, example + 4)).to.deep.equal(['  policy "AUTH-010" {', '    title = "Admin endpoints check the caller\'s role"'])
+    expect(lines).to.include('        paths: ["admin"]')
+    const scope = lines.findIndex(line => line.startsWith('Scope fields'))
+    expect(scope).to.be.greaterThan(example)
+    expect(lines.slice(scope + 1, scope + 7)).to.deep.equal([
+      '', '  tags', '    Objects with a listed tag.', '', '  paths', `    ${paths}`,
+    ])
+    expect(lines.findIndex(line => line.startsWith('Check ID'))).to.be.greaterThan(scope)
+  })
+
+  it('catalogue --check prints only the check, without the index or the example', async () => {
+    fixture.route(() => json(recipeCatalogue))
+    const {stdout} = await command('policy catalogue', ['--check', 'stack.statement_forbidden'])
+    expect(stdout).not.to.contain('Index (').and.not.to.contain('A policy file').and.not.to.contain('Scope fields')
+  })
+
+  it('parse --help shows a policy file with its indentation kept', async () => {
+    // Help rewrites the command ids of the config it is given, so it gets one of its own.
+    const {stdout} = await runCommand(['policy', 'parse', '--help'], await Config.load({root: process.cwd()}))
+    const lines = stdout.split('\n')
+    const section = lines.indexOf('POLICY FILE')
+    expect(section).to.be.greaterThan(lines.indexOf('DESCRIPTION'))
+    expect(lines).to.include('    policy "AUTH-010" {').and.to.include('      rule {').and.to.include('          paths: ["admin"]')
   })
 
   it('catalogue prints no framework note when no template carries a tag', async () => {
@@ -135,7 +209,7 @@ describe('policy reporting', () => {
       {category: 'access_control', frameworks: ['soc2'], id: 'endpoints_need_login', key: 'AUTH-010', rules: [rule], severity: 'critical', summary: '', title: 'Endpoints require login'},
     ]}))
     const {stdout} = await command('policy catalogue')
-    expect(stdout.split('\n').find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\)$/)
+    expect(stdout.split('\n').find(line => line.startsWith('  endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\)$/)
     expect(stdout).not.to.contain('SOC 2')
   })
 

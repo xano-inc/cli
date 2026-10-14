@@ -185,7 +185,7 @@ xano policy create --template no_pii_in_responses --key DATA-020 --param 'fields
 xano policy create --template admin_endpoints_check_role --param 'functions=["require_admin"]' --param 'paths=["admin"]'
 xano policy create --template retained_data_has_age_limit --param 'tags=["retained"]' --param 'referenced_by.max_age_days=730'
 xano policy list                                     # Policies on the branch
-xano policy parse policies/AUTH-001.xs               # Validate and print canonical XanoScript (or --file, --stdin)
+xano policy parse policies/AUTH-001.xs               # Validate and print canonical XanoScript (or --file, --stdin); --help shows a policy file
 xano policy publish policies/AUTH-001.xs -m "Why"    # Create or update by key; -m labels the Version History entry
 xano policy evaluate                                 # Evaluate the branch now
 xano policy evaluate --summary                       # The same, answering the run summary and its first 50 findings
@@ -202,9 +202,13 @@ xano policy delete TMP-001                           # Remove a policy; its Vers
 xano policy coverage query:42                        # Which policies apply to one object, why, and its findings
 ```
 
-`policy catalogue` lists each check with its uses under its row: a goal in a customer's words, the params that
-achieve it as one line of JSON (scope params included) and, when it has one, a note. It then lists the templates by
-category, each row ending with its framework tags in brackets (`[SOC 2, HIPAA]`), and prints the instance's own
+`policy catalogue` opens with an index (the check ids by category, the template ids by category, the recipe ids and
+how many topics no check can see), an example policy file (the same one `policy parse --help` shows) and the scope
+fields, each with the instance's own description of it (how `paths` matches, for one). It lists each check with its
+uses under its row: a goal in a customer's words, the params that achieve it as one line of JSON (scope params
+included) and, when it has one, a note. It then lists the templates by category, each row ending with its framework
+tags in brackets (`[SOC 2, HIPAA]`) and followed by its rules (number, title and check, the preset params as JSON, and
+`Fill: functions, and tags or paths`: the needs, with a `needs_any` group as one choice), and prints the instance's own
 sentence on what the tags mean under the heading. A tag marks a template on a related topic; it does not make a
 workspace compliant. The recipes follow: goals that span several templates, each with the enforcement objects to
 build (each object's kind, name and role, and the rule params its name fills, as `<template id>.<param>` or

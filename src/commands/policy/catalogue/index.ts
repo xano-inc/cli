@@ -5,17 +5,20 @@ import type {PolicyCatalogueEntry} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {
+  policyCatalogueIndex,
   policyCatalogueSummary,
   type PolicyNotCheckable,
   policyNotCheckableSummary,
   type PolicyRecipe,
   policyRecipeSummary,
+  policyScopeSummary,
   type PolicyTemplateCategory,
   type PolicyTemplateFramework,
   policyTemplateSummary,
   selectCatalogueCheck,
   selectCatalogueRecipe,
 } from '../../../utils/policy/catalogue.js'
+import {examplePolicyLines} from '../../../utils/policy/example.js'
 import {listItems} from '../../../utils/policy/request.js'
 
 /** A served list, or none when the instance serves something else (an older one serves no recipes). */
@@ -31,7 +34,7 @@ interface CatalogueSections {
 }
 
 export default class PolicyCatalogue extends PolicyCommand {
-  static override description = 'List built-in policy checks with their uses and parameter schemas, the templates a policy can start from, the recipes that combine them and what no check can see'
+  static override description = 'List built-in policy checks with their uses and parameter schemas, the templates a policy can start from, the recipes that combine them and what no check can see. The summary opens with an index by category, an example policy file and the scope fields'
   static override examples = [
     '$ xano policy catalogue -o json',
     '$ xano policy catalogue --check object.auth_required',
@@ -72,7 +75,12 @@ export default class PolicyCatalogue extends PolicyCommand {
     } else if (flags.output === 'json') {
       this.log(JSON.stringify(result, null, 2))
     } else {
-      for (const line of policyCatalogueSummary(listItems<PolicyCatalogueEntry>(result))) this.log(line)
+      // The head says what is here and what a policy file looks like, before the checks it can use.
+      const checks = listItems<PolicyCatalogueEntry>(result)
+      const index = policyCatalogueIndex(checks, {categories: array(sections.template_categories), notCheckable: recipeContext.notCheckable, recipes: array(sections.recipes), templates: recipeContext.templates})
+      const example = examplePolicyLines('A policy file (policies/<KEY>.xs; check it with `xano policy parse`, save it with `xano policy publish`):')
+      this.log([...index, '', ...example, ...(checks.length > 0 ? ['', ...policyScopeSummary(checks)] : []), ''].join('\n'))
+      for (const line of policyCatalogueSummary(checks)) this.log(line)
       const templates = policyTemplateSummary(recipeContext.templates, array(sections.template_categories), recipeContext.frameworks, recipeContext.frameworksNote)
       const recipes = policyRecipeSummary(array(sections.recipes), recipeContext)
       const notCheckable = policyNotCheckableSummary(recipeContext.notCheckable)

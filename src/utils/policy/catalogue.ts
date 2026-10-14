@@ -149,12 +149,104 @@ export function policyTemplateSummary(templates: PolicyTemplate[], categories: P
     ...[...groups].filter(([, members]) => members.length > 0).flatMap(([category, members]) => [
       '',
       labels.get(category) ?? (category || 'Other'),
-      ...members.map(template => {
+      ...members.flatMap(template => {
         const rules = template.rules.length === 1 ? '1 rule' : `${template.rules.length} rules`
         const tagged = tags(template).length > 0 ? ` [${tags(template).join(', ')}]` : ''
-        return `  ${template.id.padEnd(width)}  ${template.title} (${template.key}, ${template.severity}, ${rules})${tagged}`
+        return [`  ${template.id.padEnd(width)}  ${template.title} (${template.key}, ${template.severity}, ${rules})${tagged}`, ...templateRuleLines(template)]
       }),
     ]),
+  ]
+}
+
+/**
+ * A template's rules under its row: each rule's number (as `--param N.path` takes it), title and check,
+ * its preset params as one line of JSON, and what the author fills (`Fill: functions, and tags or paths`).
+ */
+function templateRuleLines(template: PolicyTemplate): string[] {
+  const rules = Array.isArray(template.rules) ? template.rules : []
+  return rules.flatMap((rule, index) => {
+    const needs = needsSentence(rule.needs, rule.needs_any)
+    return [
+      ...hanging(`      ${index + 1}. `, `${rule.title ? `${rule.title}: ` : ''}${rule.check}`, '         '),
+      `         ${JSON.stringify(Array.isArray(rule.params) ? {} : rule.params ?? {})}`,
+      ...(needs ? hanging('         Fill: ', needs, '           ') : []),
+    ]
+  })
+}
+
+/**
+ * A rule's `needs` as one sentence: every need outside its `needs_any` group, then the group as one
+ * choice (`functions, and tags or paths`; `hosts or providers` when the group is every need). An older
+ * instance's `needs_any: true` groups every need.
+ */
+export function needsSentence(needs: unknown, needsAny: unknown): string {
+  const all = Array.isArray(needs) ? needs.filter((need): need is string => typeof need === 'string') : []
+  const listed = needsAny === true ? all : Array.isArray(needsAny) ? all.filter(need => needsAny.includes(need)) : []
+  const group = listed.length > 1 ? listed : []
+  const required = all.filter(need => !group.includes(need))
+  const choice = group.length > 0 ? `${group.slice(0, -1).join(', ')} or ${group.at(-1)}` : ''
+  if (!choice) return required.join(', ')
+  return required.length > 0 ? `${required.join(', ')}, and ${choice}` : choice
+}
+
+/**
+ * The scope fields the catalogue serves, each with the description its first check gives it: the
+ * shared params that narrow which objects a rule inspects, written at the top level of `params` beside
+ * the check's own. Worded by the platform (path matching included), never here; a field served
+ * without a description is listed by name.
+ */
+export function policyScopeSummary(checks: PolicyCatalogueEntry[]): string[] {
+  const fields = new Map<string, string>()
+  // The check with the most scope fields sets the order, so the fields read as one list rather than in first-seen order.
+  const ordered = [...checks].sort((a, b) => (Array.isArray(b.scope_fields) ? b.scope_fields.length : 0) - (Array.isArray(a.scope_fields) ? a.scope_fields.length : 0))
+  for (const check of ordered) {
+    for (const field of Array.isArray(check.scope_fields) ? check.scope_fields : []) {
+      const name = field?.name
+      if (typeof name !== 'string' || name === '') continue
+      const description = check.params?.[name]?.description?.trim() ?? ''
+      if (!fields.has(name) || (fields.get(name) === '' && description !== '')) fields.set(name, description)
+    }
+  }
+
+  if (fields.size === 0) return []
+  return [
+    'Scope fields (top level of a rule\'s params, beside the check\'s own; a check takes those its --check entry lists):',
+    ...[...fields].flatMap(([name, description]) => ['', `  ${name}`, ...(description ? hanging('    ', description) : [])]),
+  ]
+}
+
+/** What the index names beside the checks: the templates and their categories, the recipes and the not-checkable topics. */
+export interface PolicyCatalogueIndexSections {
+  categories?: PolicyTemplateCategory[]
+  notCheckable?: PolicyNotCheckable[]
+  recipes?: PolicyRecipe[]
+  templates?: PolicyTemplate[]
+}
+
+/**
+ * A short index at the head of the summary: the check ids by their category, the template ids by
+ * category label, the recipe ids and how many topics no check can see, each detailed further down.
+ */
+export function policyCatalogueIndex(checks: PolicyCatalogueEntry[], sections: PolicyCatalogueIndexSections = {}): string[] {
+  const {categories = [], notCheckable = [], recipes = [], templates = []} = sections
+  const byCategory = <T>(entries: T[], category: (entry: T) => string): Map<string, T[]> => {
+    const groups = new Map<string, T[]>()
+    for (const entry of entries) groups.set(category(entry), [...(groups.get(category(entry)) ?? []), entry])
+    return groups
+  }
+
+  const labels = new Map(categories.map(category => [category.id, category.label]))
+  const checkGroups = byCategory(checks, check => check.category?.trim() || 'other')
+  const templateGroups = byCategory(templates, template => template.category?.trim() || '')
+  const templateOrder = [...categories.map(category => category.id).filter(id => templateGroups.has(id)), ...[...templateGroups.keys()].filter(id => !labels.has(id))]
+  return [
+    'Index (each entry is detailed below):',
+    ...(checks.length > 0 ? ['  Checks by category (xano policy catalogue --check <id>):', ...[...checkGroups].flatMap(([category, members]) =>
+      hanging(`    ${category}: `, members.map(check => check.id).join(', '), '      '))] : []),
+    ...(templates.length > 0 ? ['  Templates by category (xano policy create --template <id>):', ...templateOrder.flatMap(category =>
+      hanging(`    ${labels.get(category) ?? (category || 'Other')}: `, (templateGroups.get(category) ?? []).map(template => template.id).join(', '), '      '))] : []),
+    ...(recipes.length > 0 ? ['  Recipes (xano policy catalogue --recipe <id>):', ...hanging('    ', recipes.map(recipe => recipe.id).join(', '))] : []),
+    ...(notCheckable.length > 0 ? [`  What no check can see: ${notCheckable.length} ${notCheckable.length === 1 ? 'topic' : 'topics'}, at the end.`] : []),
   ]
 }
 
