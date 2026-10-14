@@ -204,10 +204,12 @@ xano policy coverage query:42                        # Which policies apply to o
 achieve it as one line of JSON (scope params included) and, when it has one, a note. It then lists the templates by
 category, each row ending with its framework tags in brackets (`[SOC 2, HIPAA]`), and prints the instance's own
 sentence on what the tags mean under the heading. A tag marks a template on a related topic; it does not make a
-workspace compliant. The recipes follow: goals that span several templates, each with what to set up first, its
-templates in the order to create them, the rules no template covers (created together in a policy of your own) and
-what no rule in it can see. A recipe is not created itself: `policy create --template` refuses a recipe id and names
-its templates. The catalogue ends with what no check can see, each topic with why. `--check` and `--recipe` narrow
+workspace compliant. The recipes follow: goals that span several templates, each with the enforcement objects to
+build (each object's kind, name and role, and the rule params its name fills, as `<template id>.<param>` or
+`rules[<n>].<param>`), the params your own objects and choices fill, its templates in the order to create them, the
+rules no template covers (numbered `rules[0]`… as the fills name them, and created together in a policy of your own)
+and what no rule in it can see. An agent shows the whole plan, builds the objects and creates the policies in one
+change. A recipe is not created itself: `policy create --template` refuses a recipe id and names its templates. The catalogue ends with what no check can see, each topic with why. `--check` and `--recipe` narrow
 both output modes to one entry; `-o json` is the whole catalogue as served.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,

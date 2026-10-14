@@ -168,26 +168,42 @@ function frameworkTags(frameworks: PolicyTemplateFramework[], frameworksNote: st
 }
 
 /**
+ * One of a recipe's `builds`: an enforcement object to build, or a change to existing objects, in words.
+ * `fills` are the rule params that name it, each `<template id>.<param>` or `rules[<n>].<param>`.
+ */
+export interface PolicyRecipeBuild {
+  fills?: string[]
+  /** An object to build (`table`, `function`, `middleware`, `task`, `tool`, `endpoint`) or a change (`tag`, `field`, `field_attribute`, `attach_middleware`). */
+  kind: string
+  /** The suggested name. */
+  name: string
+  /** What it does, where it attaches, the statements it uses and which rule checks it. */
+  role?: string
+}
+
+/**
  * One of the catalogue's `recipes`: a goal spanning several templates, served as data. There is no
- * recipe object and no create action: an author creates its `templates` in order, one policy each,
- * then its `rules` together in a policy of their own.
+ * recipe object and no create action: an agent builds its `builds` and creates its `templates` in
+ * order, one policy each, then its `rules` together in a policy of their own, in the same change.
  */
 export interface PolicyRecipe {
+  /** The enforcement objects and changes to existing objects the rules point at. */
+  builds?: PolicyRecipeBuild[]
   /** Framework tag ids, as a template's: topics it relates to, never a compliance claim. */
   frameworks?: string[]
   id: string
   keywords?: string[]
   /** `not_checkable` ids: what no rule in the recipe can see. */
   limits?: string[]
-  /** What the author does first: the tags, fields and functions the rules depend on. */
-  prerequisites?: string[]
-  /** Rules no template covers, shaped like a template's; `needs` are the params the author fills. */
+  /** Rules no template covers, shaped like a template's; a build or `user_fills` fills their `needs`. */
   rules?: Array<{check: string; needs?: string[]; params?: Record<string, unknown> | unknown[]; title: string}>
   summary?: string
   /** Template ids, in the order to create them. */
   templates?: string[]
   /** The goal, never a framework name. */
   title: string
+  /** The params the user's own objects and choices fill, in the same form as a build's `fills`. */
+  user_fills?: string[]
 }
 
 /** One of the catalogue's `not_checkable` entries: a topic no check can see, and why. */
@@ -207,10 +223,11 @@ export interface PolicyRecipeContext {
 }
 
 /**
- * The catalogue's recipes, each with its title, tags, summary, what to do first, its templates in
- * order (each with its key and title, so `policy create --template` can take it from here), the rules
- * no template covers (their params as JSON and what the author fills in) and the topics no rule in it
- * can see. The framework note follows the heading when any recipe shows a tag, as for templates.
+ * The catalogue's recipes, each with its title, tags, summary, the objects to build (kind, name, role
+ * and the params each fills), the params the user's own objects fill, its templates in order (each with
+ * its key and title, so `policy create --template` can take it from here), the rules no template covers
+ * (numbered as the fills name them, `rules[0]`, with their params as JSON and needs) and the topics no
+ * rule in it can see. The framework note follows the heading when any recipe shows a tag, as for templates.
  */
 export function policyRecipeSummary(recipes: PolicyRecipe[], context: PolicyRecipeContext = {}): string[] {
   if (recipes.length === 0) return []
@@ -220,26 +237,32 @@ export function policyRecipeSummary(recipes: PolicyRecipe[], context: PolicyReci
   const byId = new Map(templates.map(template => [template.id, template]))
   const topics = new Map(notCheckable.map(entry => [entry.id, entry.topic]))
   return [
-    'Recipes (goals that span several templates; nothing creates a recipe: create its templates, then its rules):',
+    'Recipes (goals that span several templates; nothing creates a recipe: build its objects, then create its templates and rules, in one change):',
     ...note,
     ...recipes.flatMap(recipe => {
       const tagged = tags(recipe).length > 0 ? ` [${tags(recipe).join(', ')}]` : ''
       const steps = recipe.templates ?? []
       const rules = recipe.rules ?? []
       const limits = recipe.limits ?? []
+      const builds = Array.isArray(recipe.builds) ? recipe.builds : []
+      const userFills = Array.isArray(recipe.user_fills) ? recipe.user_fills : []
       return [
         '',
         `  ${recipe.id}  ${recipe.title}${tagged}`,
         ...(recipe.summary ? hanging('    ', recipe.summary) : []),
-        ...((recipe.prerequisites ?? []).length > 0 ? ['    First:', ...(recipe.prerequisites ?? []).flatMap(step => hanging('      - ', step))] : []),
+        ...(builds.length > 0 ? ['    Build (the enforcement; the rules point at it):', ...builds.flatMap(build => [
+          ...hanging('      - ', `${build.kind} ${build.name}${build.role ? `: ${build.role}` : ''}`, '        '),
+          ...(Array.isArray(build.fills) && build.fills.length > 0 ? hanging('        Fills: ', build.fills.join(', '), '          ') : []),
+        ])] : []),
+        ...(userFills.length > 0 ? hanging('    You fill in: ', userFills.join(', '), '      ') : []),
         ...(steps.length > 0 ? ['    Templates, in order (xano policy create --template <id>, one policy each):', ...steps.map((id, index) => {
           const template = byId.get(id)
           return `      ${index + 1}. ${id}${template ? `  ${template.title} (${template.key})` : ''}`
         })] : []),
-        ...(rules.length > 0 ? ['    Rules no template covers, together in one policy of your own:', ...rules.flatMap(rule => [
-          ...hanging('      - ', `${rule.title}: ${rule.check}`),
+        ...(rules.length > 0 ? ['    Rules no template covers, together in one policy of your own:', ...rules.flatMap((rule, index) => [
+          ...hanging(`      rules[${index}] `, `${rule.title}: ${rule.check}`, '        '),
           `        ${JSON.stringify(Array.isArray(rule.params) ? {} : rule.params ?? {})}`,
-          ...((rule.needs ?? []).length > 0 ? [`        You fill in: ${(rule.needs ?? []).join(', ')}`] : []),
+          ...((rule.needs ?? []).length > 0 ? [`        Needs: ${(rule.needs ?? []).join(', ')}`] : []),
         ])] : []),
         ...(limits.length > 0 ? hanging('    No rule here can see: ', `${limits.map(id => topics.get(id) ?? id).join('; ')}.`, '      ') : []),
       ]

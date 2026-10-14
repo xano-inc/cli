@@ -198,47 +198,55 @@ describe('policy reporting', () => {
       {id: 'spend_caps', keywords: ['cost'], topic: 'Spend caps', why: 'No check reads what AI calls cost yet.'},
     ],
     recipes: [{
+      builds: [
+        {fills: ['approved_vendors_only.providers'], kind: 'function', name: 'charge_card', role: 'Sends the card to the processor and keeps only its token.'},
+        {kind: 'field_attribute', name: 'sensitive', role: 'Set on each card field.'},
+      ],
       frameworks: ['pci_dss'], id: 'protect_card_data', keywords: ['card'], limits: ['people_and_training', 'retired_topic'],
-      prerequisites: ['Approve your processor\'s hosts for VND-001.'],
       rules: [{check: 'table.field_attribute_required', needs: [], params: {field_names: ['card_number'], forbidden: true}, title: 'Card numbers are never stored'}],
       summary: 'No table stores a card number.', templates: ['approved_vendors_only', 'from_a_newer_instance'], title: 'Protect payment card data',
+      user_fills: ['approved_vendors_only.hosts', 'rules[0].field_names'],
     }, {
-      frameworks: [], id: 'ai_cost_and_agent_safety', keywords: ['ai'], limits: ['spend_caps'], prerequisites: [],
+      builds: [], frameworks: [], id: 'ai_cost_and_agent_safety', keywords: ['ai'], limits: ['spend_caps'],
       rules: [{check: 'stack.statement_order', needs: ['before.functions'], params: {after: ['db.del']}, title: 'Deletes wait for an approval check'}],
-      summary: 'AI calls stay out of loops.', templates: [], title: 'Keep AI calls affordable and agents safe',
+      summary: 'AI calls stay out of loops.', templates: [], title: 'Keep AI calls affordable and agents safe', user_fills: [],
     }],
     template_frameworks: [{id: 'pci_dss', label: 'PCI DSS'}],
     template_frameworks_note: 'Tags point to related topics.',
     templates: [{category: 'integrations', frameworks: [], id: 'approved_vendors_only', key: 'VND-001', rules: [{check: 'outbound.vendor_allowlist', needs: [], params: {}, title: ''}], severity: 'high', summary: '', title: 'Data only goes to approved vendors'}],
   }
 
-  it('catalogue lists the recipes after the templates: tags, what to do first, templates in order, rules and limits by topic', async () => {
+  it('catalogue lists the recipes after the templates: tags, what to build, what you fill, templates in order, rules and limits by topic', async () => {
     fixture.route(() => json(recipeCatalogue))
     const result = await command('policy catalogue')
     expect(result.error).to.equal(undefined)
     const lines = result.stdout.split('\n')
     const heading = lines.findIndex(line => line.startsWith('Recipes ('))
     expect(heading).to.be.greaterThan(lines.findIndex(line => line.startsWith('Templates (')))
-    expect(lines[heading]).to.contain('nothing creates a recipe')
+    expect(lines[heading]).to.contain('nothing creates a recipe: build its objects')
     expect(lines[heading + 1]).to.equal('Tags point to related topics.')
     const recipe = lines.indexOf('  protect_card_data  Protect payment card data [PCI DSS]')
     expect(recipe).to.be.greaterThan(heading)
-    expect(lines.slice(recipe + 1, recipe + 14)).to.deep.equal([
+    expect(lines.slice(recipe + 1, recipe + 17)).to.deep.equal([
       '    No table stores a card number.',
-      '    First:',
-      '      - Approve your processor\'s hosts for VND-001.',
+      '    Build (the enforcement; the rules point at it):',
+      '      - function charge_card: Sends the card to the processor and keeps only its token.',
+      '        Fills: approved_vendors_only.providers',
+      '      - field_attribute sensitive: Set on each card field.',
+      '    You fill in: approved_vendors_only.hosts, rules[0].field_names',
       '    Templates, in order (xano policy create --template <id>, one policy each):',
       '      1. approved_vendors_only  Data only goes to approved vendors (VND-001)',
       '      2. from_a_newer_instance',
       '    Rules no template covers, together in one policy of your own:',
-      '      - Card numbers are never stored: table.field_attribute_required',
+      '      rules[0] Card numbers are never stored: table.field_attribute_required',
       '        {"field_names":["card_number"],"forbidden":true}',
       '    No rule here can see: People and training; retired_topic.',
       '',
       '  ai_cost_and_agent_safety  Keep AI calls affordable and agents safe',
       '    AI calls stay out of loops.',
     ])
-    expect(lines).to.include('        You fill in: before.functions')
+    expect(lines).to.include('        Needs: before.functions')
+    expect(result.stdout).not.to.contain('First:')
     expect(lines).to.include('    No rule here can see: Spend caps.')
   })
 
