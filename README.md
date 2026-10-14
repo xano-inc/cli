@@ -179,6 +179,7 @@ the rest: the `policies` topic of `xano_xanoscript_docs` (the language) and the 
 ```bash
 xano policy catalogue                                # The checks and their uses, the templates by category, the recipes and what no check can see
 xano policy catalogue --check object.auth_required   # One check, its parameters and its uses
+xano policy catalogue --template retained_data_has_age_limit # One template: statement, rules, examples and the create command
 xano policy catalogue --recipe protect_card_data     # One recipe and the topics it cannot see
 xano policy create --template endpoints_need_login -b dev # Create an independent policy from a platform template
 xano policy create --template no_pii_in_responses --key DATA-020 --param 'fields=["email","ssn"]'
@@ -203,9 +204,12 @@ xano policy coverage query:42                        # Which policies apply to o
 ```
 
 `policy catalogue` opens with an index (the check ids by category, the template ids by category, the recipe ids and
-how many topics no check can see), an example policy file (the same one `policy parse --help` shows) and the scope
-fields, each with the instance's own description of it (how `paths` matches, for one). It lists each check with its
-uses under its row: a goal in a customer's words, the params that achieve it as one line of JSON (scope params
+how many topics no check can see), an example policy file (the same one `policy parse --help` shows) followed by the
+values `severity` and `enforcement` take and what they do (advisory only reports; an active blocking policy's findings
+stop a gated change), as the instance's policy document words them, and the scope fields, each with the instance's own
+description of it (how `paths` matches, `*` beside `{param}`, for one). It lists each check with its own params under
+its row (each with its type, values, default, example and description, an object param's parts by their dotted path,
+as in `referenced_by.age_field`), the scope fields it takes by name, and its uses: a goal in a customer's words, the params that achieve it as one line of JSON (scope params
 included) and, when it has one, a note. It then lists the templates by category, each row ending with its framework
 tags in brackets (`[SOC 2, HIPAA]`) and followed by its rules (number, title and check, the preset params as JSON, and
 `Fill: functions, and tags or paths`: the needs, with a `needs_any` group as one choice), and prints the instance's own
@@ -215,8 +219,10 @@ build (each object's kind, name and role, and the rule params its name fills, as
 `rules[<n>].<param>`), the params your own objects and choices fill, its templates in the order to create them, the
 rules no template covers (numbered `rules[0]`… as the fills name them, and created together in a policy of your own)
 and what no rule in it can see. An agent shows the whole plan, builds the objects and creates the policies in one
-change. A recipe is not created itself: `policy create --template` refuses a recipe id and names its templates. The catalogue ends with what no check can see, each topic with why. `--check` and `--recipe` narrow
-both output modes to one entry; `-o json` is the whole catalogue as served.
+change. A recipe is not created itself: `policy create --template` refuses a recipe id and names its templates. The catalogue ends with what no check can see, each topic with why. `--check`, `--template` and `--recipe` narrow
+both output modes to one entry (an unknown id names the closest matches, and an id of another kind names the flag that
+shows it); `--template` adds the template's statement, its example values, what it cannot see and the
+`policy create --template` command with those examples to edit. `-o json` is the whole catalogue as served.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
 validates them natively and creates an Active, Advisory policy. Required template settings must

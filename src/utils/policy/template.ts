@@ -13,6 +13,8 @@ export interface PolicyTemplate {
   frameworks?: string[]
   id: string
   key: string
+  /** One sentence on what the template's rules cannot see. */
+  limits?: string
   /**
    * `needs`: the param paths the author fills (a dotted path names an object param's property, as in
    * `referenced_by.max_age_days`). Every one is required except those `needs_any` groups: of the group,
@@ -116,6 +118,26 @@ function exampleHint(template: PolicyTemplate, checks: PolicyCatalogueEntry[], m
   }
 
   return ''
+}
+
+/**
+ * The `policy create` command for a template, with a `--param` for each need it requires (of a
+ * `needs_any` group, its first option): the template's example for the path, else its check's, else
+ * `<JSON>` to replace. The rule number is left off for a single-rule template, as `--param` takes it.
+ */
+export function templateCreateCommand(template: PolicyTemplate, checks: PolicyCatalogueEntry[] = []): string {
+  const examples = template.examples && typeof template.examples === 'object' && !Array.isArray(template.examples) ? template.examples : {}
+  const rules = Array.isArray(template.rules) ? template.rules : []
+  const params = rules.flatMap((rule, index) => {
+    const needs = Array.isArray(rule.needs) ? rule.needs : []
+    const group = needsAnyGroup(rule.needs_any, needs)
+    return needs.filter(need => !group.includes(need) || need === group[0]).map(path => {
+      const example = Object.hasOwn(examples, path) ? examples[path] : checkExample(checks.find(check => check.id === rule.check), path)
+      const value = example === undefined ? '<JSON>' : JSON.stringify(example)
+      return ` --param '${rules.length === 1 ? path : `${index + 1}.${path}`}=${value}'`
+    })
+  })
+  return `xano policy create --template ${template.id}${params.join('')}`
 }
 
 /** The catalogue's `example` for a param path of a check (`table_selector.has_field` reads a part's), or undefined. */

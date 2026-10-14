@@ -28,12 +28,19 @@ export interface PolicyCheckUse {
 
 /** One param as the catalogue describes it: a nested object's parts are its `properties`. */
 export interface PolicyParamSchema {
+  /** The value an unset param takes; PHP sends an empty map as `[]`. */
+  default?: unknown
   description?: string
   /** A value that fits the param, shown as a hint; never filled in. */
   example?: unknown
+  /** The smallest whole number an `integer` param takes. */
+  minimum?: number
+  /** A nested object's parts; a `<name>` key stands for a key the author chooses. */
   properties?: Record<string, PolicyParamSchema>
   required?: boolean
   type?: string
+  /** The values a `string` param takes, or a `string[]` param's entries. */
+  values?: unknown[]
 }
 
 /** One rule as a run snapshot records it: the settings the check ran with, plus the check's label. */

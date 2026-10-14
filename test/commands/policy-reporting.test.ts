@@ -163,7 +163,7 @@ describe('policy reporting', () => {
       '    authentication: object.auth_required',
       '    structure: object.statement_required',
       '    other: from.older_instance',
-      '  Templates by category (xano policy create --template <id>):',
+      '  Templates by category (xano policy catalogue --template <id>):',
       '    Integrations: approved_vendors_only',
       '  Recipes (xano policy catalogue --recipe <id>):',
       '    protect_card_data, ai_cost_and_agent_safety',
@@ -178,6 +178,131 @@ describe('policy reporting', () => {
       '', '  tags', '    Objects with a listed tag.', '', '  paths', `    ${paths}`,
     ])
     expect(lines.findIndex(line => line.startsWith('Check ID'))).to.be.greaterThan(scope)
+  })
+
+  it('catalogue head says what severity and enforcement take and do, as the served document words them', async () => {
+    const document = {fields: {
+      enforcement: {default: 'advisory', description: 'Advisory reports. Blocking stops a gated change.', type: 'string', values: ['advisory', 'blocking']},
+      severity: {default: 'medium', description: 'Orders findings; never blocks.', type: 'string', values: ['critical', 'high', 'medium', 'low']},
+    }}
+    fixture.route(() => json({...catalogue, document}))
+    const served = (await command('policy catalogue')).stdout
+    expect(served).to.contain('severity is "critical", "high", "medium" (default) or "low". Orders findings; never blocks.')
+    expect(served).to.contain('enforcement is "advisory" (default) or "blocking". Advisory reports. Blocking stops a gated change.')
+    // An instance that serves no document gets the offline copy, worded as the platform words it.
+    fixture.route(() => json(catalogue))
+    const offline = (await command('policy catalogue')).stdout.replaceAll('\n', ' ')
+    expect(offline).to.contain('severity is "critical", "high", "medium" (default) or "low". How much a violation')
+    expect(offline).to.contain('enforcement is "advisory" (default) or "blocking". An advisory policy only reports its findings.')
+      .and.to.contain('a merge, a set-live, a publish or push to the live branch, an archive import or a tenant deploy')
+  })
+
+  it('catalogue lists each check\'s own params with type, default, example and description, an object param\'s parts by dotted path, and its scope fields by name', async () => {
+    const coverage = {
+      category: 'coverage', description: 'Tables are covered.', id: 'table.coverage_required', label: 'Tables are referenced by a required object', object_kinds: ['table'],
+      params: {
+        placement: {default: 'any', description: 'Where the match counts.', example: 'first', type: 'string', values: ['any', 'first']},
+        referenced_by: {default: [], description: 'Objects that provide coverage.', example: {object_kinds: ['task']}, properties: {
+          age_field: {description: 'The field a row\'s age is measured from; default created_at.', example: 'expires_at', type: 'string'},
+          max_age_days: {description: 'Delete rows older than this.', example: 730, minimum: 1, type: 'integer'},
+        }, required: false, type: 'object'},
+        tags: {description: 'Objects with a listed tag.', type: 'string[]'},
+      },
+      scope_fields: [{name: 'tags'}],
+      uses: [{goal: 'Logs go after two years.', params: {referenced_by: {max_age_days: 730}}}],
+    }
+    fixture.route(() => json({items: [coverage, checks[1]], templates: []}))
+    const lines = (await command('policy catalogue', ['--check', 'table.coverage_required'])).stdout.split('\n')
+    const params = lines.indexOf('  Params:')
+    expect(params).to.be.greaterThan(0)
+    expect(lines.slice(params, params + 8)).to.deep.equal([
+      '  Params:',
+      // A head longer than 60 characters puts the description under it.
+      '    placement (string, one of: "any" | "first", default "any", e.g. "first"):',
+      '      Where the match counts.',
+      '    referenced_by (object, e.g. {"object_kinds":["task"]}): Objects that provide coverage.',
+      '    referenced_by.age_field (string, e.g. "expires_at"): The field a row\'s age is measured from; default created_at.',
+      '    referenced_by.max_age_days (integer, min 1, e.g. 730): Delete rows older than this.',
+      '  Scope fields: tags',
+      '  Use: Logs go after two years.',
+    ])
+    expect(lines.join('\n')).not.to.contain('    tags (')
+    // A check with no params of its own and no scope fields adds nothing.
+    const plain = (await command('policy catalogue', ['--check', 'table.auth_table_rules'])).stdout
+    expect(plain).not.to.contain('Params:').and.not.to.contain('Scope fields:')
+  })
+
+  const templateCatalogue = {
+    items: [{...checks[0], params: {...checks[0].params, statements: {example: ['db.del'], required: true, type: 'string[]'}}}],
+    recipes: [{id: 'protect_card_data', templates: ['retained_data_has_age_limit'], title: 'Protect payment card data'}],
+    template_categories: [{id: 'data_protection', label: 'Data protection'}],
+    template_frameworks: [{id: 'gdpr', label: 'GDPR'}],
+    template_frameworks_note: 'Tags point to related topics.',
+    templates: [
+      {
+        category: 'data_protection', examples: {'referenced_by.max_age_days': 730, tags: ['retained']}, frameworks: ['gdpr'], id: 'retained_data_has_age_limit', key: 'RET-003',
+        limits: 'Reads the cutoff each cleanup task\'s delete filters on.',
+        rules: [{check: 'table.coverage_required', needs: ['tags', 'referenced_by.max_age_days'], needs_any: [], params: {referenced_by: {object_kinds: ['task']}}, title: 'Retained rows are deleted once they are too old'}],
+        severity: 'medium', summary: 'Every retained table is cleaned up by a task.', title: 'Retained data is deleted after a set number of days',
+      },
+      {
+        category: 'access_control', examples: {functions: ['require_admin']}, id: 'admin_endpoints_check_role', key: 'AUTH-002',
+        rules: [
+          {check: 'object.statement_required', needs: ['functions', 'tags', 'paths'], needs_any: ['tags', 'paths'], params: {placement: 'first'}, title: ''},
+          {check: 'stack.statement_forbidden', needs: ['statements'], needs_any: [], params: {}, title: ''},
+        ],
+        severity: 'critical', summary: '', title: 'Admin endpoints check the caller\'s role',
+      },
+    ],
+  }
+
+  it('catalogue --template narrows both output modes to the one template: its statement, rules, examples, what it cannot see and the create command', async () => {
+    fixture.route(() => json(templateCatalogue))
+    const summary = await command('policy catalogue', ['--template', 'retained_data_has_age_limit'])
+    expect(summary.error).to.equal(undefined)
+    const lines = summary.stdout.split('\n')
+    const row = lines.indexOf('  retained_data_has_age_limit  Retained data is deleted after a set number of days (RET-003, medium, 1 rule) [GDPR]')
+    expect(row).to.be.greaterThan(0)
+    expect(lines).to.include('Tags point to related topics.').and.to.include('Data protection')
+    expect(lines.slice(row + 1, row + 12)).to.deep.equal([
+      '    Statement: Every retained table is cleaned up by a task.',
+      '    Severity medium; a policy created from it starts active and advisory.',
+      '    Rules:',
+      '      1. Retained rows are deleted once they are too old: table.coverage_required',
+      '         {"referenced_by":{"object_kinds":["task"]}}',
+      '         Fill: tags, referenced_by.max_age_days',
+      '    Examples: referenced_by.max_age_days=730, tags=["retained"]',
+      '    Cannot see: Reads the cutoff each cleanup task\'s delete filters on.',
+      '    Create it (edit the example values):',
+      `      xano policy create --template retained_data_has_age_limit --param 'tags=["retained"]' --param 'referenced_by.max_age_days=730'`,
+      '',
+    ])
+    expect(summary.stdout).not.to.contain('admin_endpoints_check_role').and.not.to.contain('Index (').and.not.to.contain('Check ID')
+    const asJson = await command('policy catalogue', ['--template', 'retained_data_has_age_limit', '-o', 'json'])
+    expect(JSON.parse(asJson.stdout)).to.deep.equal([templateCatalogue.templates[0]])
+  })
+
+  it('catalogue --template numbers a multi-rule template\'s params, takes the first of a needs_any group and the check\'s example where the template gives none', async () => {
+    fixture.route(() => json(templateCatalogue))
+    const {stdout} = await command('policy catalogue', ['--template', 'admin_endpoints_check_role'])
+    expect(stdout).to.contain(`      xano policy create --template admin_endpoints_check_role --param '1.functions=["require_admin"]' --param '1.tags=<JSON>' --param '2.statements=["db.del"]'\n`)
+    expect(stdout).to.contain('    Examples: functions=["require_admin"]\n')
+    expect(stdout, 'a template with no summary has no statement line').not.to.contain('Statement:')
+  })
+
+  it('catalogue --template names the near miss, points a recipe or check id at its own flag, and is exclusive with --check and --recipe', async () => {
+    fixture.route(() => json(templateCatalogue))
+    const near = await command('policy catalogue', ['--template', 'retained_data'])
+    expect(near.error?.message).to.contain('"retained_data" is not a template. Did you mean retained_data_has_age_limit?')
+    expect(near.stdout).to.equal('')
+    const recipe = await command('policy catalogue', ['--template', 'protect_card_data'])
+    expect(recipe.error?.message).to.contain('"protect_card_data" is not a template; it is a recipe: run `xano policy catalogue --recipe protect_card_data`.')
+    const check = await command('policy catalogue', ['--recipe', 'stack.statement_forbidden'])
+    expect(check.error?.message).to.contain('"stack.statement_forbidden" is not a recipe; it is a policy check: run `xano policy catalogue --check stack.statement_forbidden`.')
+    const withCheck = await command('policy catalogue', ['--template', 'retained_data_has_age_limit', '--check', 'stack.statement_forbidden'])
+    expect(withCheck.error?.message).to.contain('cannot also be provided')
+    const withRecipe = await command('policy catalogue', ['--template', 'retained_data_has_age_limit', '--recipe', 'protect_card_data'])
+    expect(withRecipe.error?.message).to.contain('cannot also be provided')
   })
 
   it('catalogue --check prints only the check, without the index or the example', async () => {

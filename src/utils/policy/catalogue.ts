@@ -1,23 +1,47 @@
-import type {PolicyTemplate} from './template.js'
-import type {PolicyCatalogueEntry, PolicyCheckUse} from './types.js'
+import type {PolicyCatalogueEntry, PolicyCheckUse, PolicyParamSchema} from './types.js'
+
+import {type PolicyTemplate, templateCreateCommand} from './template.js'
+
+/**
+ * The catalogue's other kinds of entry, by the flag that shows one: an id given to the wrong flag
+ * (a recipe id to `--template`) is pointed at the right one.
+ */
+export interface CatalogueIds {
+  check?: string[]
+  recipe?: string[]
+  template?: string[]
+}
+
+const NOUNS = {check: 'a policy check', recipe: 'a recipe', template: 'a template'} as const
 
 /**
  * `--check` narrows the catalogue to one check. An id that is not in it names the closest matches
  * instead of reprinting the whole list: the usual mistake is a typo one character from a real id.
  */
-export function selectCatalogueCheck(checks: PolicyCatalogueEntry[], id: string): PolicyCatalogueEntry[] {
-  return selectById(checks, id, 'a policy check')
+export function selectCatalogueCheck(checks: PolicyCatalogueEntry[], id: string, others: CatalogueIds = {}): PolicyCatalogueEntry[] {
+  return selectById(checks, id, 'check', others)
 }
 
 /** `--recipe` narrows the catalogue's recipes to one, refusing an unknown id as `--check` does. */
-export function selectCatalogueRecipe(recipes: PolicyRecipe[], id: string): PolicyRecipe[] {
-  return selectById(recipes, id, 'a recipe')
+export function selectCatalogueRecipe(recipes: PolicyRecipe[], id: string, others: CatalogueIds = {}): PolicyRecipe[] {
+  return selectById(recipes, id, 'recipe', others)
 }
 
-function selectById<T extends {id: string}>(entries: T[], id: string, noun: string): T[] {
+/** `--template` narrows the catalogue's templates to one, refusing an unknown id as `--check` does. */
+export function selectCatalogueTemplate(templates: PolicyTemplate[], id: string, others: CatalogueIds = {}): PolicyTemplate[] {
+  return selectById(templates, id, 'template', others)
+}
+
+function selectById<T extends {id: string}>(entries: T[], id: string, flag: keyof typeof NOUNS, others: CatalogueIds): T[] {
+  const noun = NOUNS[flag]
   const wanted = id.trim().toLowerCase()
   const exact = entries.filter(entry => entry.id.toLowerCase() === wanted)
   if (exact.length > 0) return exact
+  for (const other of ['check', 'template', 'recipe'] as const) {
+    const known = other === flag ? undefined : others[other]?.find(entry => entry.toLowerCase() === wanted)
+    if (known) throw new Error(`"${id}" is not ${noun}; it is ${NOUNS[other]}: run \`xano policy catalogue --${other} ${known}\`.`)
+  }
+
   const near = entries.map(entry => entry.id).filter(known => {
     const lower = known.toLowerCase()
     return lower.includes(wanted) || wanted.includes(lower) || editDistanceWithin(lower, wanted, 2)
@@ -51,8 +75,9 @@ const LINE_WIDTH = 120
 
 /**
  * The checks as a table of id, label and description, object kinds and required params, each row
- * followed by the check's `uses`: a goal, the params that achieve it (one line of JSON to copy) and
- * its note.
+ * followed by the check's own params (each with its type, default, example and description, an
+ * object param's parts under it), the scope fields it takes, and its `uses`: a goal, the params that
+ * achieve it (one line of JSON to copy) and its note.
  */
 export function policyCatalogueSummary(checks: PolicyCatalogueEntry[]): string[] {
   if (checks.length === 0) return ['No policy checks found.']
@@ -70,8 +95,44 @@ export function policyCatalogueSummary(checks: PolicyCatalogueEntry[]): string[]
     const cells = row.map((cell, column) => cell.split('\n').flatMap(paragraph => wrap(paragraph, widths[column])))
     const lines = Array.from({length: Math.max(...cells.map(cell => cell.length))}, (_, line) =>
       cells.map((cell, column) => (cell[line] ?? '').padEnd(widths[column])).join('  ').trimEnd())
-    return index === 0 ? lines : [...lines, ...useLines(checks[index - 1].uses)]
+    return index === 0 ? lines : [...lines, ...paramLines(checks[index - 1]), ...useLines(checks[index - 1].uses)]
   })
+}
+
+/**
+ * A check's own params under its row, the scope fields left to the scope section and named on one
+ * line: `    name (type, required, one of: …, default …, min …, e.g. …): description`, then an object
+ * param's parts by their dotted path (`referenced_by.age_field`), as a template's needs name them.
+ */
+function paramLines(check: PolicyCatalogueEntry): string[] {
+  const scope = (Array.isArray(check.scope_fields) ? check.scope_fields : []).map(field => field?.name).filter((name): name is string => typeof name === 'string' && name !== '')
+  const own = Object.entries(check.params && !Array.isArray(check.params) ? check.params : {}).filter(([name]) => !scope.includes(name))
+  return [
+    ...(own.length > 0 ? ['  Params:', ...own.flatMap(([name, schema]) => paramEntry(name, schema))] : []),
+    ...(scope.length > 0 ? hanging('  Scope fields: ', scope.join(', '), '    ') : []),
+  ]
+}
+
+/** One param, or one part of an object param by its dotted path, and its parts after it. */
+function paramEntry(path: string, schema: PolicyParamSchema): string[] {
+  const facts = [schema.type ?? 'any']
+  if (schema.required) facts.push('required')
+  if (Array.isArray(schema.values) && schema.values.length > 0) facts.push(`one of: ${schema.values.map(value => JSON.stringify(value)).join(' | ')}`)
+  if (shown(schema.default)) facts.push(`default ${JSON.stringify(schema.default)}`)
+  if (typeof schema.minimum === 'number') facts.push(`min ${schema.minimum}`)
+  if (schema.example !== undefined) facts.push(`e.g. ${JSON.stringify(schema.example)}`)
+  const head = `    ${path} (${facts.join(', ')})`
+  const description = schema.description?.trim() ?? ''
+  const parts = schema.properties && typeof schema.properties === 'object' && !Array.isArray(schema.properties) ? Object.entries(schema.properties) : []
+  // A long head (a list of values, an object example) puts the description on the lines below it.
+  const described = description === '' ? [head] : head.length > 60 ? [`${head}:`, ...hanging('      ', description)] : flow(`${head}: `, description, '      ')
+  return [...described, ...parts.flatMap(([part, partSchema]) => paramEntry(`${path}.${part}`, partSchema ?? {}))]
+}
+
+/** A default worth printing: not absent and not an empty list, map or text. */
+function shown(value: unknown): boolean {
+  if (value === undefined || value === null || value === '') return false
+  return typeof value !== 'object' || Object.keys(value).length > 0
 }
 
 /** A check's uses under its row: `Use: goal`, the params as JSON, then `Note: …` when it has one. */
@@ -99,6 +160,19 @@ function wrap(text: string, width: number): string[] {
 /** `text` after `first`, wrapped at the line width, its later lines indented as `rest` (default: as wide as `first`). */
 function hanging(first: string, text: string, rest = ' '.repeat(first.length)): string[] {
   return wrap(text, LINE_WIDTH - first.length).map((line, index) => `${index === 0 ? first : rest}${line}`)
+}
+
+/** `text` after `first`, each line filled to the line width, its later lines indented as `rest`. */
+function flow(first: string, text: string, rest: string): string[] {
+  const lines = [first]
+  for (const word of text.split(/\s+/)) {
+    const last = lines.length - 1
+    const bare = lines[last] === first || lines[last] === rest
+    if (!bare && lines[last].length + word.length + 1 > LINE_WIDTH) lines.push(`${rest}${word}`)
+    else lines[last] += `${bare ? '' : ' '}${word}`
+  }
+
+  return lines
 }
 
 /** The params a rule must set: each required one, and any "one of" group. */
@@ -131,7 +205,8 @@ export interface PolicyTemplateFramework {
  * `template_frameworks_note` follows the heading, worded by the platform rather than here; an
  * instance that serves no note gets no tags, since a tag must never show without it.
  */
-export function policyTemplateSummary(templates: PolicyTemplate[], categories: PolicyTemplateCategory[] = [], frameworks: PolicyTemplateFramework[] = [], frameworksNote = ''): string[] {
+export function policyTemplateSummary(templates: PolicyTemplate[], context: PolicyTemplateContext = {}): string[] {
+  const {categories = [], detail, frameworks = [], frameworksNote = ''} = context
   if (templates.length === 0) return []
   const labels = new Map(categories.map(category => [category.id, category.label]))
   const tags = frameworkTags(frameworks, frameworksNote)
@@ -152,9 +227,44 @@ export function policyTemplateSummary(templates: PolicyTemplate[], categories: P
       ...members.flatMap(template => {
         const rules = template.rules.length === 1 ? '1 rule' : `${template.rules.length} rules`
         const tagged = tags(template).length > 0 ? ` [${tags(template).join(', ')}]` : ''
-        return [`  ${template.id.padEnd(width)}  ${template.title} (${template.key}, ${template.severity}, ${rules})${tagged}`, ...templateRuleLines(template)]
+        const row = `  ${template.id.padEnd(width)}  ${template.title} (${template.key}, ${template.severity}, ${rules})${tagged}`
+        return detail ? [row, ...templateDetailLines(template, detail)] : [row, ...templateRuleLines(template)]
       }),
     ]),
+  ]
+}
+
+/** What the template section reads beside the templates; `detail` shows each in full, as `--template` does. */
+export interface PolicyTemplateContext {
+  categories?: PolicyTemplateCategory[]
+  detail?: PolicyTemplateDetail
+  frameworks?: PolicyTemplateFramework[]
+  frameworksNote?: string
+}
+
+/** What `--template` adds to one template's row: the fetched checks, for examples the template gives none of. */
+export interface PolicyTemplateDetail {
+  checks?: PolicyCatalogueEntry[]
+}
+
+/**
+ * One template in full under its row (`--template`): its summary, which becomes the policy's
+ * statement, its rules, the example values it suggests for what you fill, what its rules cannot see
+ * (`limits`), and the `policy create` command with those examples to edit.
+ */
+function templateDetailLines(template: PolicyTemplate, detail: PolicyTemplateDetail): string[] {
+  const examples = template.examples && typeof template.examples === 'object' && !Array.isArray(template.examples) ? Object.entries(template.examples) : []
+  const limits = typeof template.limits === 'string' ? template.limits.trim() : ''
+  return [
+    ...(template.summary?.trim() ? hanging('    Statement: ', template.summary.trim(), '      ') : []),
+    `    Severity ${template.severity}; a policy created from it starts active and advisory.`,
+    '    Rules:',
+    ...templateRuleLines(template),
+    ...(examples.length > 0 ? hanging('    Examples: ', examples.map(([path, value]) => `${path}=${JSON.stringify(value)}`).join(', '), '      ') : []),
+    ...(limits ? hanging('    Cannot see: ', limits, '      ') : []),
+    // Never wrapped: it is copied whole.
+    '    Create it (edit the example values):',
+    `      ${templateCreateCommand(template, detail.checks ?? [])}`,
   ]
 }
 
@@ -243,7 +353,7 @@ export function policyCatalogueIndex(checks: PolicyCatalogueEntry[], sections: P
     'Index (each entry is detailed below):',
     ...(checks.length > 0 ? ['  Checks by category (xano policy catalogue --check <id>):', ...[...checkGroups].flatMap(([category, members]) =>
       hanging(`    ${category}: `, members.map(check => check.id).join(', '), '      '))] : []),
-    ...(templates.length > 0 ? ['  Templates by category (xano policy create --template <id>):', ...templateOrder.flatMap(category =>
+    ...(templates.length > 0 ? ['  Templates by category (xano policy catalogue --template <id>):', ...templateOrder.flatMap(category =>
       hanging(`    ${labels.get(category) ?? (category || 'Other')}: `, (templateGroups.get(category) ?? []).map(template => template.id).join(', '), '      '))] : []),
     ...(recipes.length > 0 ? ['  Recipes (xano policy catalogue --recipe <id>):', ...hanging('    ', recipes.map(recipe => recipe.id).join(', '))] : []),
     ...(notCheckable.length > 0 ? [`  What no check can see: ${notCheckable.length} ${notCheckable.length === 1 ? 'topic' : 'topics'}, at the end.`] : []),
