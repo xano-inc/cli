@@ -141,6 +141,16 @@ read-modify-write on a tenant the same way.
   "status": "approved",
   "resolution": { "deploy_status": "failed", "deploy_error": "Settings does not have an entry: k8s.storage.private_cloud.provider" }
   ```
+  > **Behavior-change note (DEV-8728 / DEV-8819).** Since this pass, approving no
+  > longer deploys inline on its own: a quorum-completing approve only *authorizes*
+  > the release, and the backend deploys in the same call only when the request body
+  > carries `auto_deploy: true` (the UI's "approve and deploy") on a quick-deploy
+  > tenant. The CLI now opts into that with `set_status --status approve --deploy`
+  > (DEV-8819); a bare approve leaves `resolution.deploy_status: ""` and the command
+  > reports "The release is approved but not yet deployed", naming `tenant
+  > deploy_release` as the next step. The transcript above (a bare approve that
+  > attempted a deploy) reflects the pre-DEV-8728 behavior and is kept as the record
+  > of what was observed at the time.
 - **Double-approve correctly rejected**: re-running `set_status --status approve`
   on an already-approved request returns `Invalid approval request transition:
   approved -> approved` rather than double-deploying.

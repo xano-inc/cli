@@ -21,7 +21,7 @@ export default class TenantDeployRequestSetStatus extends BaseCommand {
     }),
   }
   static description =
-    "[CRITICAL] STOP and confirm with the user before running --status approve; if this is the vote that completes the tenant's required reviewer count, it deploys the release to the tenant immediately as part of approving. Change a tenant deploy request's status (draft, submit, approve, request_changes, close, or reopen). That deploy is gated on the release's policy check: a refusal exits 2 and leaves the request approved; --override-policy with --reason proceeds past it."
+    "Change a tenant deploy request's status (draft, submit, approve, request_changes, close, or reopen). Approving records one reviewer's vote and, once the required reviewer count is met, authorizes the release; by default it does NOT deploy. Pass --deploy to also deploy the release inline (the UI's \"approve and deploy\"), which the backend honors only on a quick-deploy tenant; otherwise the release is left for `xano tenant deploy_release`. An inline deploy is gated on the release's policy check: a refusal exits 2 and leaves the request approved; --deploy --override-policy with --reason proceeds past it."
   static examples = [
     `$ xano tenant_deploy_request set_status 12 --status submit
 Deploy request #12 is now: pending
@@ -31,15 +31,24 @@ Vote recorded on deploy request #12: 1/2 required reviewers.
 `,
     `$ xano tenant_deploy_request set_status 12 --status approve
 Deploy request #12 is now: approved (2/2 required reviewers)
+The release is approved but not yet deployed. Deploy it with: xano tenant deploy_release <tenant> --release <release> (\`xano tenant_deploy_request get 12\` names the tenant and release).
+`,
+    `$ xano tenant_deploy_request set_status 12 --status approve --deploy
+Deploy request #12 is now: approved (2/2 required reviewers)
 Deployed to tenant as part of this approval.
 `,
-    `$ xano tenant_deploy_request set_status 12 --status approve --override-policy --reason "Finding accepted; fix tracked in JIRA-12"`,
+    `$ xano tenant_deploy_request set_status 12 --status approve --deploy --override-policy --reason "Finding accepted; fix tracked in JIRA-12"`,
     `$ xano tenant_deploy_request set_status 12 --status request_changes --reason "Needs a migration note"`,
     `$ xano tenant_deploy_request set_status 12 --status close --reason "Superseded by #14"`,
     `$ xano tenant_deploy_request set_status 12 --status reopen`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
+    deploy: Flags.boolean({
+      default: false,
+      description:
+        "With --status approve: also deploy the release inline (sends auto_deploy: true), reproducing the UI's \"approve and deploy\". The backend deploys inline only on a quick-deploy tenant; otherwise the approve is recorded and the release is left for `xano tenant deploy_release`. Default: approve only, no deploy.",
+    }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
@@ -49,7 +58,7 @@ Deployed to tenant as part of this approval.
     }),
     'override-policy': Flags.boolean({
       default: false,
-      description: 'With --status approve: if this vote deploys, proceed past a blocking policy gate, recording --reason as the override reason (needs the workspace:policy update permission; audited)',
+      description: 'With --status approve --deploy: proceed past a blocking policy gate on the inline deploy, recording --reason as the override reason (needs the workspace:policy update permission; audited). Has effect only with --deploy — only an inline deploy hits the gate.',
     }),
     reason: Flags.string({
       description: 'Reason for this status change. Required for request_changes and close, and with --override-policy.',
@@ -89,12 +98,17 @@ Deployed to tenant as part of this approval.
       this.error(`--reason is required when --status is "${flags.status}"`)
     }
 
+    if (flags.deploy && flags.status !== 'approve') {
+      this.error('--deploy applies only to --status approve, the vote that can deploy.')
+    }
+
     if (flags['override-policy']) this.checkOverride(flags)
 
     const body: Record<string, unknown> = {
       action: flags.status,
       reason: flags.reason ?? '',
       ...(flags['override-policy'] ? {override_policy: true} : {}),
+      ...(flags.deploy ? {auto_deploy: true} : {}),
     }
 
     // A refusal by the policy gate exits 2 with its verdict; the catch that rewords other failures keeps it.
@@ -144,6 +158,11 @@ Deployed to tenant as part of this approval.
             this.log('Deployed to tenant as part of this approval.')
           } else if (item.resolution?.deploy_status === 'failed') {
             this.log(`Approved, but the deploy failed: ${item.resolution.deploy_error ?? 'unknown error'}`)
+          } else {
+            // deploy_status "" or absent: the quorum is complete and the release is authorized, but it
+            // was not deployed (a bare approve, or --deploy on a tenant without quick deploy). Say so and
+            // name the next step, rather than printing nothing.
+            this.log(`The release is approved but not yet deployed. Deploy it with: xano tenant deploy_release <tenant> --release <release> (\`xano tenant_deploy_request get ${item.id}\` names the tenant and release).`)
           }
         }
       }
@@ -157,9 +176,13 @@ Deployed to tenant as part of this approval.
     }
   }
 
-  /** `--override-policy` overrides the deploy an approve can trigger, and its reason is `--reason`. */
-  private checkOverride(flags: {reason?: string; status: string}): void {
+  /**
+   * `--override-policy` overrides the policy gate on the inline deploy a `--deploy` approve triggers, and
+   * its reason is `--reason`. Post-DEV-8728 only an inline deploy hits the gate, so it requires `--deploy`.
+   */
+  private checkOverride(flags: {deploy: boolean; reason?: string; status: string}): void {
     if (flags.status !== 'approve') this.error('--override-policy applies only to --status approve, the vote that can deploy.')
+    if (!flags.deploy) this.error('--override-policy has effect only with --deploy: only an inline deploy hits the policy gate.')
     if (!flags.reason?.trim()) this.error('--override-policy needs --reason: say why this deploy may proceed past the policy gate.')
   }
 
