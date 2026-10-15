@@ -971,12 +971,15 @@ xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release 
 xano tenant_deploy_request edit <id> --title "Deploy v1.2.1 to prod"
 xano tenant_deploy_request edit <id> --reviewers 12,45,67
 
-# Change status: draft, submit, approve, request_changes, close, or reopen
-# (approve records one reviewer's vote; once enough votes are in it deploys the
-# release as part of that same call)
+# Change status: draft, submit, approve, request_changes, close, or reopen.
+# Approving records one reviewer's vote and authorizes the release once enough
+# votes are in; a bare approve does NOT deploy (it names `tenant deploy_release`
+# as the next step). Pass --deploy to also deploy inline (the UI's "approve and
+# deploy"), which the backend honors only on a quick-deploy tenant.
 xano tenant_deploy_request set_status <id> --status submit
 xano tenant_deploy_request set_status <id> --status approve
-xano tenant_deploy_request set_status <id> --status approve --override-policy --reason "Accepted; fix tracked in JIRA-12"
+xano tenant_deploy_request set_status <id> --status approve --deploy   # also deploy inline (quick-deploy tenants)
+xano tenant_deploy_request set_status <id> --status approve --deploy --override-policy --reason "Accepted; fix tracked in JIRA-12"
 xano tenant_deploy_request set_status <id> --status request_changes --reason "Needs a migration note"
 xano tenant_deploy_request set_status <id> --status close --reason "Superseded by a newer request"
 xano tenant_deploy_request set_status <id> --status reopen
@@ -995,12 +998,16 @@ xano tenant_deploy_request bypass <id> --reason "Prod incident, reviewer unavail
 it also prints what the policy gate would decide now for the request's release on its
 tenant (under `-o json`, as `policy_gate`). It needs `workspace:policy` read; without it, or with the Policies
 feature off, it prints `Policy checks: not available (<why>)` (`policy_gate: null` and `policy_gate_unavailable`
-under `-o json`) and the command still succeeds. The deploy an approval triggers, and a bypass deploy, are gated like
-`tenant deploy_release`: a refusal prints the verdict and exits `2`. An approval refused this way is still recorded
-and the request stays approved; deploy it with `tenant deploy_release --override-reason`. `--override-policy`
-(with `--reason` as the override reason, and the `workspace:policy` update permission) proceeds past the gate on
-`set_status --status approve` and on `bypass`. Approval bypass and policy override are separate permissions:
-neither implies the other.
+under `-o json`) and the command still succeeds. Approving authorizes the release; by default it does not deploy.
+Pass `--deploy` to also deploy the release inline (the UI's "approve and deploy"), which the backend honors only on a
+quick-deploy tenant; a bare approve (or `--deploy` on a tenant without quick deploy) that completes the quorum leaves
+the release authorized but not deployed, and the output names `tenant deploy_release` as the next step. The inline
+deploy a `--deploy` approval triggers, and a bypass deploy, are gated like `tenant deploy_release`: a refusal prints
+the verdict and exits `2`. An approval refused this way is still recorded and the request stays approved; deploy it
+with `tenant deploy_release --override-reason`. `--override-policy` (with `--reason` as the override reason, and the
+`workspace:policy` update permission) proceeds past the gate; on `set_status --status approve` it rides with `--deploy`
+(only an inline deploy hits the gate), and it also applies on `bypass`. Approval bypass and policy override are
+separate permissions: neither implies the other.
 
 CI example (e.g. a GitHub Action step):
 

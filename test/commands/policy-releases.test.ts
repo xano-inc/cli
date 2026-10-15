@@ -434,7 +434,8 @@ describe('release policy checks', () => {
     }
 
     for (const command of ['set_status', 'bypass']) {
-      const args = command === 'set_status' ? ['--status', 'approve'] : ['--reason', 'Incident']
+      // Post-DEV-8728 only an inline deploy (--deploy) hits the tenant deploy gate from an approve.
+      const args = command === 'set_status' ? ['--status', 'approve', '--deploy'] : ['--reason', 'Incident']
       it(`${command} emits a JSON policy refusal and exits 2`, async () => {
         fixture.route(() => refusal(blocked, command === 'set_status' ? 'tenant_approve' : 'tenant_deploy'))
         const result = await runCommand(['tenant_deploy_request', command, '7', ...args, '-o', 'json'], fixture.config)
@@ -489,9 +490,9 @@ describe('release policy checks', () => {
       expect(output.policy_gate_unavailable).to.contain('workspace:policy')
     })
 
-    it('an approve whose deploy the gate refuses prints the verdict, says the request is approved, and exits 2', async () => {
+    it('an approve whose inline deploy the gate refuses prints the verdict, says the request is approved, and exits 2', async () => {
       fixture.route(() => refusal(blocked, 'tenant_approve'))
-      const result = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'approve'], fixture.config)
+      const result = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'approve', '--deploy'], fixture.config)
       expect(result.stdout).to.contain('Policy gate: blocked')
       const message = oneLine(result.error!.message)
       expect(message).to.contain('Your approval was recorded and the request is approved, but its release was not deployed.')
@@ -499,15 +500,17 @@ describe('release policy checks', () => {
       expect(result.error).to.have.nested.property('oclif.exit', 2)
     })
 
-    it('set_status --override-policy sends the override with the reason, only for approve', async () => {
+    it('set_status --deploy --override-policy sends auto_deploy and the override with the reason, only for an approve', async () => {
       fixture.route(() => json({approvals_count: 2, fully_approved: true, id: 7, required_reviewers: 2, resolution: {deploy_status: 'deployed'}, status: 'approved'}))
-      const result = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'approve', '--override-policy', '--reason', '"Accepted risk"'], fixture.config)
+      const result = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'approve', '--deploy', '--override-policy', '--reason', '"Accepted risk"'], fixture.config)
       expect(result.error).to.equal(undefined)
-      expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({action: 'approve', override_policy: true, reason: 'Accepted risk'})
+      expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({action: 'approve', auto_deploy: true, override_policy: true, reason: 'Accepted risk'})
 
       const close = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'close', '--override-policy', '--reason', 'x'], fixture.config)
       expect(close.error?.message).to.contain('--override-policy applies only to --status approve')
-      const reasonless = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'approve', '--override-policy'], fixture.config)
+      const deployless = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'approve', '--override-policy', '--reason', 'x'], fixture.config)
+      expect(deployless.error?.message).to.contain('--override-policy has effect only with --deploy')
+      const reasonless = await runCommand(['tenant_deploy_request', 'set_status', '7', '--status', 'approve', '--deploy', '--override-policy'], fixture.config)
       expect(reasonless.error?.message).to.contain('--override-policy needs --reason')
       expect(fixture.calls).to.have.length(1)
     })
