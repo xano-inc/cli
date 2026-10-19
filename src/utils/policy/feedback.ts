@@ -11,7 +11,7 @@ import {coverageFindingLines, findingLine, hasNoObjects, policyResultSummary, sn
 
 /**
  * Feedback printed as a headline: a pass or fail that says whether its findings block, or a branch
- * with no active policy to evaluate. Everything else is reported by `policyCheckWarning`.
+ * with no policy that is on to evaluate. Everything else is reported by `policyCheckWarning`.
  */
 function isHeadlined(check: PolicyVerdict): boolean {
   if (check.status === 'not_applicable') return true
@@ -204,13 +204,13 @@ export function policySummary(check: PolicyVerdict | undefined, evidence: Policy
     const blocked = findings.filter(finding => blocking.has(finding.id ?? ''))
     const advisory = findings.filter(finding => !blocking.has(finding.id ?? ''))
     lines.push(
-      `Blocking findings (${listed(blocked.length, allBlocking)}) — active blocking policies; a gate refuses a change that introduces one or changes its object:`,
+      `Blocking findings (${listed(blocked.length, allBlocking)}) — blocking policies; a gate refuses a change that introduces one or changes its object:`,
       ...blocked.flatMap(finding => render(finding)),
       `Advisory findings (${listed(advisory.length, allAdvisory)}) — reported, not blocking:`,
       ...advisory.flatMap(finding => render(finding)),
     )
   } else {
-    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${listed(findings.length, allBlocking)}) — active blocking policies; a gate refuses a change that introduces one or changes its object:`)
+    if (blocking.size > 0 && findings.length > 0) lines.push(`Blocking findings (${listed(findings.length, allBlocking)}) — blocking policies; a gate refuses a change that introduces one or changes its object:`)
     // Without a headline (an `error` status, say) nothing else says what these findings are.
     else if (findings.length > 0 && !isHeadlined(check)) lines.push(`Advisory findings (${listed(findings.length, allAdvisory)}) — reported, not blocking:`)
     lines.push(...findings.flatMap(finding => render(finding)))

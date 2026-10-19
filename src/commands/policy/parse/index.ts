@@ -4,16 +4,16 @@ import {examplePolicyLines} from '../../../utils/policy/example.js'
 /**
  * The canonical source with its severity always written. The platform leaves `severity` out at its
  * default (medium), and a reader took the missing line for a dropped one, so the summary puts it back
- * where the platform writes every other severity: before `active`, which it always writes. `-o json`
+ * where the platform writes every other severity: before `mode`, which it always writes. `-o json`
  * keeps the platform's source as served.
  */
 export function sourceWithSeverity(source: string, severity: unknown): string {
   if (typeof severity !== 'string' || severity === '') return source
   const lines = source.split('\n')
   if (lines.some(line => /^ {2}severity = /.test(line))) return source
-  const active = lines.findIndex(line => /^ {2}active = (true|false)$/.test(line))
-  if (active === -1) return source
-  lines.splice(active, 0, `  severity = ${JSON.stringify(severity)}`)
+  const mode = lines.findIndex(line => /^ {2}mode = "[^"]*"$/.test(line))
+  if (mode === -1) return source
+  lines.splice(mode, 0, `  severity = ${JSON.stringify(severity)}`)
   return lines.join('\n')
 }
 

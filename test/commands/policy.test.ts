@@ -179,8 +179,8 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls[0].body).to.contain('policy AUTH-001')
     expect(fs.readFileSync(policyFile, 'utf8')).to.equal(source)
   })
-  const covered = {enforcement: 'blocking', included: true, run_id: 1674, stale: false, version: 1}
-  const active = {active: true, enforcement: 'blocking', id: 1, key: 'AUTH-001', latest_run: covered, rules: [{id: 'R1'}], version: 1}
+  const covered = {included: true, mode: 'blocking', run_id: 1674, stale: false, version: 1}
+  const active = {id: 1, key: 'AUTH-001', latest_run: covered, mode: 'blocking', rules: [{id: 'R1'}], version: 1}
   for (const [results, expected] of [[[], 'not_evaluated'], [[{check_id: 'R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}], 'no_objects_checked']] as const) {
     it(`status reports ${expected} without presenting coverage`, async () => {
       fixture.route(url => url.pathname.includes('/run/') ? json({id: 1674, results}) : json({curPage: 1, items: [active], nextPage: null, prevPage: null}))
@@ -200,7 +200,7 @@ describe('official policy commands and workspace carriage', () => {
     expect(JSON.parse(current.stdout).status[0]).to.include({stale: false, status: 'pass'})
 
     fixture.calls.length = 0
-    fixture.route(() => json({items: [{...active, latest_run: {...covered, enforcement: null, included: false, run_id: 0, version: null}}]}))
+    fixture.route(() => json({items: [{...active, latest_run: {...covered, included: false, mode: null, run_id: 0, version: null}}]}))
     const none = await runCommand(['policy', 'status', '-o', 'json'], fixture.config)
     expect(fixture.calls).to.have.length(1)
     expect(JSON.parse(none.stdout)).to.include({run: null})
@@ -208,7 +208,7 @@ describe('official policy commands and workspace carriage', () => {
   })
 
   it('status counts findings from the run summary exactly as it counted them from the whole run', async () => {
-    const second = {...active, id: 2, key: 'SEC-100', latest_run: {...covered, enforcement: 'advisory'}}
+    const second = {...active, id: 2, key: 'SEC-100', latest_run: {...covered, mode: 'advisory'}}
     const results = [{check_id: 'R1', checked: 4, policy_key: 'AUTH-001', status: 'fail'}, {check_id: 'R1', checked: 4, policy_key: 'SEC-100', status: 'fail'}]
     const whole = {findings: ['AUTH-001', 'AUTH-001', 'SEC-100'].map(key => ({message: 'found', object: {name: 'GET /x', type: 'query'}, policy_key: key, rule_id: 'R1'})), id: 1674, results}
     // The summary lists no finding: each policy's verdict counts its findings.
@@ -258,7 +258,7 @@ describe('official policy commands and workspace carriage', () => {
       expect(fixture.calls[0].method).to.equal('POST')
       expect(fixture.calls[0].body).to.equal(undefined)
       expect(result.stdout).to.contain('Policy check: fail (blocking findings)\nActive policies reported findings.')
-      expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: no auth')
+      expect(result.stdout).to.contain('Blocking findings (1) — blocking policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: no auth')
       expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:\n  SEC-100.R1 (SEC-100)  table account: stale tag')
       expect(result.stdout).not.to.contain('Not stored')
       expect(process.exitCode).to.equal(2)
@@ -614,7 +614,7 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('Pushed 1 documents to')
     expect(result.stdout).to.contain('Policy documents: 1 sent without a preview, so which of them changed is not known')
-    expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
+    expect(result.stdout).to.contain('Blocking findings (1) — blocking policies; a gate refuses a change that introduces one or changes its object:')
     expect(result.stdout).to.contain('SEC-100.R1 (SEC-100)  query GET /x: no auth')
     expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:')
     expect(result.stdout).to.contain('SEC-100.R2 (SEC-100)  table account: stale tag')

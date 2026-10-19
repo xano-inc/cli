@@ -80,7 +80,7 @@ describe('workspace push policy feedback', () => {
       const first = Array.from({length: 100}, (_, n) => blocked(n))
       fixture.route(() => json({guid_map: [], policy_check: capped(first, first, {blocking: 150, errors: 0, findings: 400})}))
       const result = await push()
-      expect(result.stdout).to.contain('Active policies reported findings.\nFindings: 400 (150 blocking, 250 advisory)\nBlocking findings (first 100 of 150) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
+      expect(result.stdout).to.contain('Active policies reported findings.\nFindings: 400 (150 blocking, 250 advisory)\nBlocking findings (first 100 of 150) — blocking policies; a gate refuses a change that introduces one or changes its object:')
       expect(result.stdout).to.contain('Listed: the first 100 of 400; `xano policy runs 88` has them all.')
       expect(result.stdout.split('\n').filter(line => line.includes('GET /b'))).to.have.length(100)
       expect(process.exitCode).to.equal(2)
@@ -90,7 +90,7 @@ describe('workspace push policy feedback', () => {
       const first = [...Array.from({length: 30}, (_, n) => blocked(n)), ...Array.from({length: 70}, (_, n) => advisory(n))]
       fixture.route(() => json({guid_map: [], policy_check: capped(first.slice(0, 30), first, {blocking: 30, errors: 0, findings: 400})}))
       const result = await push()
-      expect(result.stdout).to.contain('Blocking findings (30) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
+      expect(result.stdout).to.contain('Blocking findings (30) — blocking policies; a gate refuses a change that introduces one or changes its object:')
       expect(result.stdout).to.contain('Advisory findings (first 70 of 370) — reported, not blocking:')
     })
 
@@ -98,7 +98,7 @@ describe('workspace push policy feedback', () => {
       const all = [blocked(0), advisory(0)]
       fixture.route(() => json({guid_map: [], policy_check: capped([all[0]], all, {blocking: 1, errors: 0, findings: 2})}))
       const result = await push()
-      expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
+      expect(result.stdout).to.contain('Blocking findings (1) — blocking policies; a gate refuses a change that introduces one or changes its object:')
       expect(result.stdout).not.to.contain('Findings: 2').and.not.to.contain('Listed:')
     })
 
@@ -128,7 +128,7 @@ describe('workspace push policy feedback', () => {
       expect(result.error).to.equal(undefined)
       expect(process.exitCode).to.equal(2)
       expect(result.stdout).to.contain('Policy check: fail (blocking findings)\nPolicies reported findings.')
-      expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:\n'
+      expect(result.stdout).to.contain('Blocking findings (1) — blocking policies; a gate refuses a change that introduces one or changes its object:\n'
         + '  Endpoint requires authentication (AUTH-010 Endpoints require login)  query orders1: query "orders1" (GET) has no authentication\n'
         + '    Fix: Set auth on the endpoint.')
       expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:\n'

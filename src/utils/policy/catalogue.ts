@@ -257,7 +257,7 @@ function templateDetailLines(template: PolicyTemplate, detail: PolicyTemplateDet
   const limits = typeof template.limits === 'string' ? template.limits.trim() : ''
   return [
     ...(template.summary?.trim() ? hanging('    Statement: ', template.summary.trim(), '      ') : []),
-    `    Severity ${template.severity}; a policy created from it starts active and advisory.`,
+    `    Severity ${template.severity}; a policy created from it starts in mode advisory.`,
     '    Rules:',
     ...templateRuleLines(template),
     ...(examples.length > 0 ? hanging('    Examples: ', examples.map(([path, value]) => `${path}=${JSON.stringify(value)}`).join(', '), '      ') : []),

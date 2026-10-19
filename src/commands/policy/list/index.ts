@@ -2,6 +2,7 @@ import type {Policy} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {listItems} from '../../../utils/policy/request.js'
+import {modeLabel} from '../../../utils/policy/status.js'
 
 export default class PolicyList extends PolicyCommand {
   static override description = 'List workspace policies and their descriptions'
@@ -20,6 +21,6 @@ export default class PolicyList extends PolicyCommand {
     const policies = listItems<Policy>(result)
     if (policies.length === 0) this.log('No policies found.')
     for (const policy of policies)
-      this.log(`${policy.key}  ${policy.active ? `Active, ${policy.enforcement === 'blocking' ? 'Blocking' : 'Advisory'}` : 'Inactive'}  ${policy.title ?? ''} (ID: ${policy.id}, Version ${policy.version})`)
+      this.log(`${policy.key}  ${modeLabel(policy.mode)}  ${policy.title ?? ''} (ID: ${policy.id}, Version ${policy.version})`)
   }
 }

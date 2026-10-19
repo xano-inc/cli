@@ -100,7 +100,7 @@ export interface CoverageFinding extends PolicyFinding {
 
 /** The verdict every `policy_check` carries. */
 export interface PolicyVerdict {
-  /** True when an active, blocking policy failed; it decides the exit code whatever the status. */
+  /** True when a blocking policy failed; it decides the exit code whatever the status. */
   blocking?: boolean
   /** The platform's verdict, including the names of rules that checked no objects. */
   message?: string
@@ -164,9 +164,9 @@ export interface PushPolicyCheck extends PolicyVerdict {
 /** One policy that applies to an object, as the coverage route serves it. */
 export interface ObjectCoveragePolicy {
   blocking?: boolean
-  /** `blocking` or `advisory`. */
-  enforcement?: string
   key?: string
+  /** `blocking` or `advisory`: an off policy is never evaluated, so it applies nowhere. */
+  mode?: string
   /** Why it applies here, one plain sentence per rule. */
   reasons?: string[]
   /**
@@ -179,7 +179,7 @@ export interface ObjectCoveragePolicy {
 }
 
 /**
- * `GET policy/object/coverage`: which active policies apply to one object, and its findings in the
+ * `GET policy/object/coverage`: which policies that are on apply to one object, and its findings in the
  * branch's newest run, trimmed for anyone who may read the object (`workspace:policy` read is not
  * needed). The same trimmed shape for every caller.
  */
@@ -209,9 +209,10 @@ export interface ObjectCoverage {
 
 /** A policy's place in its branch's newest run, as the platform serves it on every policy. */
 export interface PolicyCoverage {
-  enforcement: null | string
   /** Whether the newest run evaluated this policy at all. */
   included: boolean
+  /** The mode the newest run evaluated this policy with; `null` when it did not. */
+  mode: null | string
   /** 0 when the branch has no run. */
   run_id: number
   /** True only when the newest run evaluated a different version of this policy. */
@@ -220,11 +221,11 @@ export interface PolicyCoverage {
 }
 
 export interface Policy {
-  active: boolean
-  enforcement: string
   id: number
   key: string
   latest_run?: PolicyCoverage
+  /** `off` (never evaluated), `advisory` (reports only) or `blocking` (its findings gate changes). */
+  mode: string
   rules?: Array<{id: string}>
   /** `critical`, `high`, `medium` or `low`; the parse route always answers it, its default included. */
   severity?: string
@@ -264,7 +265,7 @@ export interface PolicyRun {
 
 /**
  * What `policy evaluate` answers: the run as `GET run/{id}` serves it, whether it was stored, and the verdict.
- * With no active policy on the branch it is no run at all: `id` 0, `status` `not_applicable`, nothing evaluated.
+ * With no policy that is on in the branch it is no run at all: `id` 0, `status` `not_applicable`, nothing evaluated.
  */
 export interface PolicyEvaluation extends PolicyRun {
   /** The summary answer's counts (`--summary`). */

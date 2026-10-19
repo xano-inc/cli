@@ -13,7 +13,7 @@ import {policyRequest, type PolicyRequestHost, type PolicyRequestRoute} from './
 export interface ReleasePolicyCheck {
   counts?: {advisory?: number; blocking?: number; errors?: number; findings?: number}
   finished_at?: string
-  /** How many policies the release ships, inactive ones included. */
+  /** How many policies the release ships, off ones included. */
   policies?: number
   release_id?: number
   run_id?: number
@@ -105,8 +105,8 @@ export interface ReleasePolicyRun {
 /** A release's stored run, as `GET release/{id}/policy_run` serves it: a run summary plus the release's own keys. */
 export interface ReleaseRunHead extends PolicyRunHead {
   release?: {branch?: {id?: number; label?: string}; id?: number}
-  /** Every policy the release carries, inactive ones included. */
-  shipped?: Array<{active?: boolean; enforcement?: string; key?: string; title?: string}>
+  /** Every policy the release carries, off ones included. */
+  shipped?: Array<{key?: string; mode?: string; title?: string}>
 }
 
 /**

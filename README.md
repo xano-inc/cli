@@ -205,8 +205,8 @@ xano policy coverage query:42                        # Which policies apply to o
 
 `policy catalogue` opens with an index (the check ids by category, the template ids by category, the recipe ids and
 how many topics no check can see), an example policy file (the same one `policy parse --help` shows) followed by the
-values `severity` and `enforcement` take and what they do (advisory only reports; an active blocking policy's findings
-stop a gated change), as the instance's policy document words them, and the scope fields, each with the instance's own
+values `severity` and `mode` take and what they do (off is never evaluated; advisory only reports; a blocking policy's
+findings stop a gated change), as the instance's policy document words them, and the scope fields, each with the instance's own
 description of it (how `paths` matches, `*` beside `{param}`, for one). It lists each check with its own params under
 its row (each with its type, values, default, example and description, an object param's parts by their dotted path,
 as in `referenced_by.age_field`), the scope fields it takes by name, and its uses: a goal in a customer's words, the params that achieve it as one line of JSON (scope params
@@ -225,7 +225,7 @@ shows it); `--template` adds the template's statement, its example values, what 
 `policy create --template` command with those examples to edit. `-o json` is the whole catalogue as served.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
-validates them natively and creates an Active, Advisory policy. Required template settings must
+validates them natively and creates a policy in mode `advisory`. Required template settings must
 be filled before it saves: every one of a rule's `needs` outside its `needs_any` group, and at least one of the group
 (the refusal names a missing need, as in `1.functions`, and an empty group by its options, as in `1.tags or 1.paths`, and a `--param` to copy for a missing setting, from the template's example or else the check's own, as in `--param '1.names=["audit_log"]'`; use your workspace's own names). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
 prefix is optional for a single-rule template. Nested paths work, for example `--param '1.when.statement="db.edit"'`,
@@ -235,13 +235,14 @@ suffix if already taken (case-insensitive); an explicitly taken `--key` is refus
 existing policy. `-m/--message` labels its Version History entry; `-o json` returns the saved policy and
 native rule warnings go to stderr. No continuing link to the template is stored.
 
-A push to the live branch is refused before commit when blocking policies refuse it. The gate judges the branch by the policies it will have after the push, so the pushed policy files count. Changing a policy needs only `workspace:policy` update, an active, blocking one included. A 403 `policy_gate` exits **2**, prints the platform's sentence (which names the policies the blocking findings come from, to every caller), says nothing was imported, and lists the blocking findings; a credential without `workspace:policy` read gets the counts and the policy keys, not the findings. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
+A push to the live branch is refused before commit when blocking policies refuse it. The gate judges the branch by the policies it will have after the push, so the pushed policy files count. Changing a policy needs only `workspace:policy` update, a blocking one included. A 403 `policy_gate` exits **2**, prints the platform's sentence (which names the policies the blocking findings come from, to every caller), says nothing was imported, and lists the blocking findings; a credential without `workspace:policy` read gets the counts and the policy keys, not the findings. With `-o json` it prints `{imported: false, refused: <payload>}`. `--policy-override "reason"` sends an audited override, requiring `workspace:policy` update permission. This gate requires transactions: remove `--no-transaction` if the server refuses it (exit 1).
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
-Policies use `active = true|false` before `enforcement`; authored `lifecycle` is refused. The list shows
-`Active, Blocking`, `Active, Advisory` or `Inactive`. Inactive policies are saved directly and skipped by
-branch checks; `policy status` reports `inactive`. An inactive policy may have no rules.
+Policies use `mode = "off"|"advisory"|"blocking"` (default `"advisory"`) after `severity`; authored `active`,
+`enforcement` or `lifecycle` is refused. The list shows `Blocking`, `Advisory` or `Off`, and `-o json` names the
+field `mode`. Off policies are saved directly and skipped by branch checks; `policy status` reports `off`. An off
+policy may have no rules.
 `release push` carries them too, for a credential holding `workspace:policy` create and update: a release ships its
 policies like its code, and a tenant deploy lands them (see Releases). Tier1 tenant, sandbox and ephemeral pushes
 carry them as well; a remote tenant push, or a tenant created before policies, leaves them out and prints the
@@ -254,15 +255,15 @@ the run's summary and one page of its findings; a page that is not every finding
 the next. `-o json` is the summary with `findings`, the page's findings as an array, and
 `findings_page: {total, offset, limit, next_offset}`. `--all` reads every page (500 a request, saying so on stderr
 when there are more) and returns every matching finding in `findings`. In `policy status` a policy the latest run did
-not count reads `not checked yet` (`not checked` when inactive) where its findings would be. `policy status` reads the latest run's
+not count reads `not checked yet` (`not checked` when off) where its findings would be. `policy status` reads the latest run's
 summary, so its `-o json` `run` carries each policy's finding count rather than the findings. The `policy_check` a
 `workspace push` prints lists the first 100 findings; when there are more it prints their counts and
 `Listed: the first 100 of N; \`xano policy runs <run_id>\` has them all.` `policy evaluate --summary` does the same
 with the first 50, and `policy evaluate` without it still answers the whole run.
 
-`policy evaluate --policy AUTH-001` tries that one policy alone, even if inactive. It never stores or audits
+`policy evaluate --policy AUTH-001` tries that one policy alone, even if it is off. It never stores or audits
 the trial, replaces the latest run or gates anything. The output names each rule's clear objects (up to five
-names, with the rest counted). Combine it with `--summary`, `--run-detail` or `-o json`; an inactive trial
+names, with the rest counted). Combine it with `--summary`, `--run-detail` or `-o json`; an off trial
 does not exit 2. A blank key is refused before any request, and an unknown key gets the platform's 404.
 
 `policy runs --release <name>` reads a release's check: the run stored when the release was cut, evaluated on what
@@ -300,7 +301,7 @@ the platform's note, and no `xano policy runs` hint. An older platform answers `
 as one warning line.
 
 **Exit codes** of `policy evaluate`, `workspace push` and `policy status --fail-on-findings`: `2` when a finding
-blocks (an active, blocking policy failed), whatever else happened; `1` when a request or the import failed, or
+blocks (a blocking policy failed), whatever else happened; `1` when a request or the import failed, or
 when `status --fail-on-findings` finds stale, missing or errored evidence; otherwise `0`. `tenant deploy_release`,
 `tenant_deploy_request set_status` and `tenant_deploy_request bypass` exit `2` when the tenant deploy policy gate
 refuses the deploy (and `tenant deploy_release --check` when it would), `1` for any other failure, otherwise `0`.
@@ -312,9 +313,9 @@ Metadata API token needs it among its scopes). A refusal's `payload.code` names 
 gate and the CLI prints its remedy: `policy_feature_disabled` (Policies are off on the instance),
 `policy_permission_required` (an instance admin grants your role the level) or `policy_scope_required` (create a
 Metadata API token that has the scope). A push to the live branch, a set live or a merge is judged by the policies it
-leaves. Each change needs only its own `workspace:policy` level: update to edit a policy, delete to delete one (an
-active, blocking one included, by `policy delete` or a merge; a push never deletes a policy), and a set live needs no policy permission. The
-audit log labels a change to an active, blocking policy `blocking_policy_changed`, and its deletion
+leaves. Each change needs only its own `workspace:policy` level: update to edit a policy, delete to delete one (a
+blocking one included, by `policy delete` or a merge; a push never deletes a policy), and a set live needs no policy permission. The
+audit log labels a change to a policy that is or was blocking `blocking_policy_changed`, and its deletion
 `blocking_policy_deleted`. A rule naming a check the instance does not have (`policy_unknown_check`)
 points at `xano policy catalogue`. `policy delete` sends the `updated_at` it listed, so a policy changed since is
 refused (`policy_stale`) rather than deleted; it asks first, and without `--force` in a non-interactive shell it
@@ -910,7 +911,7 @@ with `allow_quick_deploy` enabled skips the gate entirely, regardless of
 `required_reviewers`.
 
 A release deploy is also gated on policy. The gate judges the release alone, by its own policy check (the one
-stored when it was cut, or checked from its archive on demand): the blocking findings of its active blocking policies
+stored when it was cut, or checked from its archive on demand): the blocking findings of its blocking policies
 refuse the deploy, including findings the tenant's current release already has. It does not compare the release with
 what the tenant runs, so the same release gets the same verdict on every tenant. Ephemeral and sandbox tenants get the
 verdict but are never refused. A release cut before releases carried policies reads `not_carried` and is not gated.

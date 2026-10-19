@@ -26,7 +26,7 @@ import {listItems} from '../../../utils/policy/request.js'
 const array = <T>(value: T[] | undefined): T[] => Array.isArray(value) ? value : []
 
 interface CatalogueSections {
-  /** The policy file's own fields (severity, enforcement…), as editors read them. */
+  /** The policy file's own fields (severity, mode…), as editors read them. */
   document?: {fields?: Record<string, PolicyDocumentField | undefined>}
   not_checkable?: PolicyNotCheckable[]
   recipes?: PolicyRecipe[]
