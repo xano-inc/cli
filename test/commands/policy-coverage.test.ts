@@ -35,8 +35,8 @@ const answer = {
   note,
   object: {app_id: 3, id: 42, name: 'orders', type: 'query'},
   policies: [
-    {blocking: true, key: 'AUTH-010', mode: 'blocking', reasons: ['every endpoint in API group public'], status: 'failing', title: 'Endpoints require login'},
-    {blocking: false, key: 'LOG-002', mode: 'advisory', reasons: ['every endpoint'], status: 'passing', title: ''},
+    {blocking: true, enforcement: 'blocking', key: 'AUTH-010', reasons: ['every endpoint in API group public'], status: 'failing', title: 'Endpoints require login'},
+    {blocking: false, enforcement: 'advisory', key: 'LOG-002', reasons: ['every endpoint'], status: 'passing', title: ''},
   ],
   run: {started_at: '2026-10-08T14:02:11.000Z', status: 'fail'},
   summary: {advisory: 1, applies: 2, blocking: 1, could_not_check: 0, not_checked: 0, passing: 1, state: 'findings'},
@@ -109,9 +109,9 @@ describe('policy coverage', () => {
       ...answer,
       findings: [],
       policies: [
-        {blocking: true, key: 'COV-ERR', mode: 'blocking', reasons: ['every endpoint'], status: 'could_not_check', title: 'Errors here'},
-        {blocking: false, key: 'COV-PASS', mode: 'advisory', reasons: ['every endpoint'], status: 'passing', title: ''},
-        {blocking: false, key: 'COV-NEW', mode: 'advisory', reasons: ['every endpoint'], status: 'not_checked', title: ''},
+        {blocking: true, enforcement: 'blocking', key: 'COV-ERR', reasons: ['every endpoint'], status: 'could_not_check', title: 'Errors here'},
+        {blocking: false, enforcement: 'advisory', key: 'COV-PASS', reasons: ['every endpoint'], status: 'passing', title: ''},
+        {blocking: false, enforcement: 'advisory', key: 'COV-NEW', reasons: ['every endpoint'], status: 'not_checked', title: ''},
       ],
       run: {started_at: '2026-10-08T14:02:11.000Z', status: 'error'},
       summary: {advisory: 0, applies: 3, blocking: 0, could_not_check: 1, not_checked: 1, passing: 1, state: 'check_failed'},

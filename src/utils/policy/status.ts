@@ -11,16 +11,16 @@ export type PolicyStatus = 'error' | 'fail' | 'no_checks' | 'no_objects_checked'
 export interface PolicyStatusRow {
   /**
    * Whether the latest run's findings on this policy block a merge: the run evaluated it, in its
-   * current version, as blocking (the platform's `latest_run.mode`), and found something.
+   * current version, as blocking (the platform's `latest_run.enforcement`), and found something.
    */
   blocking: boolean
   checked: number
   /** Whether `findings` and `checked` come from the latest run: only for a policy that is on and that it evaluated in its current version. */
   counted: boolean
+  /** The policy's own enforcement (`off` / `advisory` / `blocking`). */
+  enforcement: string
   findings: number
   key: string
-  /** The policy's own mode (`off` / `advisory` / `blocking`). */
-  mode: string
   /** Completed rules that inspected no objects. */
   rules_unchecked: number
   /** The platform's answer: the latest run evaluated a different version of this policy. */
@@ -52,25 +52,25 @@ export function statusLabel(row: PolicyStatusRow): string {
   }
 }
 
-/** Whether a policy is evaluated at all: every mode but `off`. */
-export function isEvaluated(mode?: null | string): boolean {
-  return mode !== 'off'
+/** Whether a policy is evaluated at all: every enforcement but `off`. */
+export function isEvaluated(enforcement?: null | string): boolean {
+  return enforcement !== 'off'
 }
 
-/** Whether a policy's findings block a gated change: mode `blocking`. */
-export function isBlocking(mode?: null | string): boolean {
-  return mode === 'blocking'
+/** Whether a policy's findings block a gated change: enforcement `blocking`. */
+export function isBlocking(enforcement?: null | string): boolean {
+  return enforcement === 'blocking'
 }
 
 /**
- * The policy's own mode, in Studio's words (`Off`, `Advisory`, `Blocking`). Whether its findings block
+ * The policy's own enforcement, in Studio's words (`Off`, `Advisory`, `Blocking`). Whether its findings block
  * is `findingsLabel`'s to say.
  */
-export function modeLabel(mode?: null | string): string {
-  if (mode === 'off') return 'Off'
-  if (mode === 'blocking') return 'Blocking'
-  if (mode === 'advisory') return 'Advisory'
-  return mode?.trim() || '—'
+export function enforcementLabel(enforcement?: null | string): string {
+  if (enforcement === 'off') return 'Off'
+  if (enforcement === 'blocking') return 'Blocking'
+  if (enforcement === 'advisory') return 'Advisory'
+  return enforcement?.trim() || '—'
 }
 
 /**
@@ -110,7 +110,7 @@ function findingCount(run: PolicyRunHead | undefined, key: string): number {
 export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): PolicyStatusRow[] {
   return policies.map((policy) => {
     const ids = new Set((policy.rules ?? []).map((rule) => rule.id))
-    const evaluated = isEvaluated(policy.mode)
+    const evaluated = isEvaluated(policy.enforcement)
     const stale = policy.latest_run?.stale === true
     const counted = evaluated && policy.latest_run?.included === true && !stale
     const results = counted
@@ -121,12 +121,12 @@ export function computeStatusRows(policies: Policy[], run?: PolicyRunHead): Poli
     let status: PolicyStatus = 'off'
     if (evaluated) status = stale ? 'stale' : ruleStatus(results, ids.size, checked)
     return {
-      blocking: counted && isBlocking(policy.latest_run?.mode) && findings > 0,
+      blocking: counted && isBlocking(policy.latest_run?.enforcement) && findings > 0,
       checked,
       counted,
+      enforcement: policy.enforcement,
       findings,
       key: policy.key,
-      mode: policy.mode,
       rules_unchecked: status === 'pass' ? results.filter((result) => hasNoObjects(result)).length : 0,
       stale,
       status,

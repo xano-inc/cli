@@ -15,10 +15,10 @@ import {policyResultSummary, policyRuleName} from '../../src/utils/policy/findin
 import {policyRunDetail, policyRunSummary, policyRunTable, policySettings} from '../../src/utils/policy/runs.js'
 import {
   computeStatusRows,
+  enforcementLabel,
   findingsLabel,
   isBlocking,
   isEvaluated,
-  modeLabel,
   statusExitCode,
   statusExitReason,
   statusLabel,
@@ -28,7 +28,7 @@ const result = (status: string, checked = 1) => ({check_id: 'R1', checked, polic
 /** A push's summary: its `policy_check` carries its own evidence. */
 const policySummary = (check?: Parameters<typeof pushEvidence>[0]) => summarize(check, pushEvidence(check))
 const coverage = (overrides: Record<string, unknown> = {}) =>
-  ({included: true, mode: 'blocking', run_id: 5, stale: false, version: 1, ...overrides})
+  ({enforcement: 'blocking', included: true, run_id: 5, stale: false, version: 1, ...overrides})
 
 describe('policy carriage and feedback', () => {
   it('preserves stable policy keys as safe filenames', () => {
@@ -313,7 +313,7 @@ describe('policy carriage and feedback', () => {
   })
 
   describe('computeStatusRows', () => {
-    const policy = {id: 7, key: 'AUTH-001', latest_run: coverage(), mode: 'blocking', rules: [{id: 'R1'}], version: 1}
+    const policy = {enforcement: 'blocking', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
     const run = {
       findings: [{policy_key: 'AUTH-001'}],
       id: 5,
@@ -344,7 +344,7 @@ describe('policy carriage and feedback', () => {
     it('reports a current failing run', () => {
       const [row] = computeStatusRows([policy], run)
       expect(row).to.deep.equal({
-        blocking: true, checked: 10, counted: true, findings: 1, key: 'AUTH-001', mode: 'blocking',
+        blocking: true, checked: 10, counted: true, enforcement: 'blocking', findings: 1, key: 'AUTH-001',
         rules_unchecked: 0, stale: false, status: 'fail', title: undefined,
       })
       expect(statusExitCode([row])).to.equal(2)
@@ -362,16 +362,16 @@ describe('policy carriage and feedback', () => {
     })
 
     it('calls a policy the run did not evaluate not evaluated, not stale', () => {
-      const [row] = computeStatusRows([{...policy, latest_run: coverage({included: false, mode: null, version: null})}], run)
+      const [row] = computeStatusRows([{...policy, latest_run: coverage({enforcement: null, included: false, version: null})}], run)
       expect(row).to.include({counted: false, findings: 0, stale: false, status: 'not_evaluated'})
       expect(statusExitCode([row])).to.equal(1)
-      const [none] = computeStatusRows([{...policy, latest_run: coverage({included: false, mode: null, run_id: 0, version: null})}])
+      const [none] = computeStatusRows([{...policy, latest_run: coverage({enforcement: null, included: false, run_id: 0, version: null})}])
       expect(none).to.include({counted: false, stale: false, status: 'not_evaluated'})
     })
 
     it('never counts an off policy, and never lets its old evidence fail CI', () => {
-      for (const latest of [coverage({stale: true, version: 0}), coverage({included: false, mode: null, version: null})]) {
-        const [row] = computeStatusRows([{...policy, latest_run: latest, mode: 'off'}], run)
+      for (const latest of [coverage({stale: true, version: 0}), coverage({enforcement: null, included: false, version: null})]) {
+        const [row] = computeStatusRows([{...policy, enforcement: 'off', latest_run: latest}], run)
         expect(row).to.include({checked: 0, counted: false, findings: 0, status: 'off'})
         expect(statusExitCode([row])).to.equal(0)
         expect(statusExitReason([row])).to.equal(null)
@@ -386,7 +386,7 @@ describe('policy carriage and feedback', () => {
       expect(rows([result('pass', 0), {...result('pass', 0), check_id: 'R2'}])[0].status).to.equal('no_objects_checked')
       expect(rows([result('pass'), {...result('pass'), check_id: 'R2'}])[0].status).to.equal('pass')
       expect(computeStatusRows([{...policy, rules: []}], {...run, results: []})[0].status).to.equal('no_checks')
-      const advisory = {...policy, latest_run: coverage({mode: 'advisory'}), mode: 'advisory'}
+      const advisory = {...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}
       expect(statusExitCode(computeStatusRows([advisory], run))).to.equal(0)
       expect(statusExitReason(computeStatusRows([advisory], run))).to.equal(null)
     })
@@ -415,7 +415,7 @@ describe('policy carriage and feedback', () => {
       expect(statusExitReason(rows)).to.equal(
         'The latest run has 3 blocking findings (AUTH-001, SEC-100); the merge gate evaluates the branch again before a merge.')
       // Without a blocking finding, unreliable evidence exits 1.
-      const unchecked = coverage({included: false, mode: null, run_id: 0, version: null})
+      const unchecked = coverage({enforcement: null, included: false, run_id: 0, version: null})
       const stale = computeStatusRows([policy, second].map((each) => ({...each, latest_run: unchecked})))
       expect(statusExitCode(stale)).to.equal(1)
       expect(statusExitReason(stale)).to.equal(
@@ -433,13 +433,13 @@ describe('policy carriage and feedback', () => {
         + ' Evidence is also stale, missing or errored (SEC-100 outdated; evaluate again).')
     })
 
-    it("words mode as Studio does, and calls findings blocking only as the run judged them", () => {
-      expect(modeLabel('off')).to.equal('Off')
-      expect(modeLabel('blocking')).to.equal('Blocking')
-      expect(modeLabel('advisory')).to.equal('Advisory')
-      expect(modeLabel('')).to.equal('—')
-      expect(modeLabel()).to.equal('—')
-      expect(modeLabel('conditional')).to.equal('conditional')
+    it("words enforcement as Studio does, and calls findings blocking only as the run judged them", () => {
+      expect(enforcementLabel('off')).to.equal('Off')
+      expect(enforcementLabel('blocking')).to.equal('Blocking')
+      expect(enforcementLabel('advisory')).to.equal('Advisory')
+      expect(enforcementLabel('')).to.equal('—')
+      expect(enforcementLabel()).to.equal('—')
+      expect(enforcementLabel('conditional')).to.equal('conditional')
       expect(isEvaluated('off')).to.equal(false)
       expect(isEvaluated('advisory')).to.equal(true)
       expect(isBlocking('blocking')).to.equal(true)
@@ -447,10 +447,10 @@ describe('policy carriage and feedback', () => {
       const [blocking] = computeStatusRows([policy], run)
       expect(findingsLabel(blocking)).to.equal('1 findings (blocking)')
       // The run evaluated the policy as advisory: its findings do not block, whatever the row says today.
-      const [advisory] = computeStatusRows([{...policy, latest_run: coverage({mode: 'advisory'})}], run)
+      const [advisory] = computeStatusRows([{...policy, latest_run: coverage({enforcement: 'advisory'})}], run)
       expect(advisory).to.include({blocking: false, findings: 1})
       expect(findingsLabel(advisory)).to.equal('1 findings')
-      const [off] = computeStatusRows([{...policy, mode: 'off'}], run)
+      const [off] = computeStatusRows([{...policy, enforcement: 'off'}], run)
       expect(off).to.include({blocking: false})
       expect(findingsLabel(off)).to.equal('not checked')
       // Never evaluated, or changed since the run: no count to show yet.

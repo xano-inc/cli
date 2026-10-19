@@ -205,7 +205,7 @@ xano policy coverage query:42                        # Which policies apply to o
 
 `policy catalogue` opens with an index (the check ids by category, the template ids by category, the recipe ids and
 how many topics no check can see), an example policy file (the same one `policy parse --help` shows) followed by the
-values `severity` and `mode` take and what they do (off is never evaluated; advisory only reports; a blocking policy's
+values `severity` and `enforcement` take and what they do (off is never evaluated; advisory only reports; a blocking policy's
 findings stop a gated change), as the instance's policy document words them, and the scope fields, each with the instance's own
 description of it (how `paths` matches, `*` beside `{param}`, for one). It lists each check with its own params under
 its row (each with its type, values, default, example and description, an object param's parts by their dotted path,
@@ -225,7 +225,7 @@ shows it); `--template` adds the template's statement, its example values, what 
 `policy create --template` command with those examples to edit. `-o json` is the whole catalogue as served.
 `policy create --template <id>` reads the instance's templates from the check catalogue (`policy catalogue`
 lists them by category; `-o json` has their rules and settings), copies a template's sparse settings,
-validates them natively and creates a policy in mode `advisory`. Required template settings must
+validates them natively and creates a policy with enforcement `advisory`. Required template settings must
 be filled before it saves: every one of a rule's `needs` outside its `needs_any` group, and at least one of the group
 (the refusal names a missing need, as in `1.functions`, and an empty group by its options, as in `1.tags or 1.paths`, and a `--param` to copy for a missing setting, from the template's example or else the check's own, as in `--param '1.names=["audit_log"]'`; use your workspace's own names). Repeat `--param 'N.path=JSON'` for overrides: rule numbers start at 1; the `N.`
 prefix is optional for a single-rule template. Nested paths work, for example `--param '1.when.statement="db.edit"'`,
@@ -239,9 +239,9 @@ A push to the live branch is refused before commit when blocking policies refuse
 
 Every policy command takes `-w/--workspace`, `-b/--branch` (the profile's branch by default; `-b ''` is live)
 and `-o/--output summary|json`. `workspace pull` and `workspace push` carry policies as `policies/<KEY>.xs`.
-Policies use `mode = "off"|"advisory"|"blocking"` (default `"advisory"`) after `severity`; authored `active`,
-`enforcement` or `lifecycle` is refused. The list shows `Blocking`, `Advisory` or `Off`, and `-o json` names the
-field `mode`. Off policies are saved directly and skipped by branch checks; `policy status` reports `off`. An off
+Policies use `enforcement = "off"|"advisory"|"blocking"` (default `"advisory"`) after `severity`; authored `active`
+or `lifecycle` is refused. The list shows `Blocking`, `Advisory` or `Off`, and `-o json` names the
+field `enforcement`. Off policies are saved directly and skipped by branch checks; `policy status` reports `off`. An off
 policy may have no rules.
 `release push` carries them too, for a credential holding `workspace:policy` create and update: a release ships its
 policies like its code, and a tenant deploy lands them (see Releases). Tier1 tenant, sandbox and ephemeral pushes

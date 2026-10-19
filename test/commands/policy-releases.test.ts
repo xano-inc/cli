@@ -542,7 +542,7 @@ describe('release policy checks', () => {
       policies: [{key: 'AUTH-001', rules: [{id: 'R1', label: 'Authentication required'}]}],
       release: {branch: {id: 3, label: 'main'}, id: 12},
       results: [{check_id: 'R1', checked: 40, policy_key: 'AUTH-001', status: 'fail'}],
-      shipped: [{key: 'AUTH-001', mode: 'blocking'}, {key: 'LOG-001', mode: 'advisory'}],
+      shipped: [{enforcement: 'blocking', key: 'AUTH-001'}, {enforcement: 'advisory', key: 'LOG-001'}],
       status: 'fail',
       trigger: 'release',
     }

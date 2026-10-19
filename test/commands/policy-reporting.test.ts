@@ -23,11 +23,11 @@ const backendError = {
   traceId: 'private-trace-id',
 }
 const coverage = (overrides: Record<string, unknown> = {}) =>
-  ({included: true, mode: 'blocking', run_id: 1129, stale: false, version: 1, ...overrides})
-const policy = {id: 7, key: 'AUTH-001', latest_run: coverage(), mode: 'blocking', rules: [{id: 'R1'}], version: 1}
+  ({enforcement: 'blocking', included: true, run_id: 1129, stale: false, version: 1, ...overrides})
+const policy = {enforcement: 'blocking', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
 const staleCoverage = coverage({stale: true, version: 0})
-const notInRun = coverage({included: false, mode: null, version: null})
-const noRun = coverage({included: false, mode: null, run_id: 0, version: null})
+const notInRun = coverage({enforcement: null, included: false, version: null})
+const noRun = coverage({enforcement: null, included: false, run_id: 0, version: null})
 const snapshot = [{
   key: 'AUTH-001',
   rules: [{check: 'object.auth_required', id: 'R1', label: 'Endpoints require authentication', params: {api_groups: ['lab'], except_tags: ['public']}, title: ''}],
@@ -180,20 +180,20 @@ describe('policy reporting', () => {
     expect(lines.findIndex(line => line.startsWith('Check ID'))).to.be.greaterThan(scope)
   })
 
-  it('catalogue head says what severity and mode take and do, as the served document words them', async () => {
+  it('catalogue head says what severity and enforcement take and do, as the served document words them', async () => {
     const document = {fields: {
-      mode: {default: 'advisory', description: 'Off is never evaluated. Advisory reports. Blocking stops a gated change.', type: 'string', values: ['off', 'advisory', 'blocking']},
+      enforcement: {default: 'advisory', description: 'Off is never evaluated. Advisory reports. Blocking stops a gated change.', type: 'string', values: ['off', 'advisory', 'blocking']},
       severity: {default: 'medium', description: 'Orders findings; never blocks.', type: 'string', values: ['critical', 'high', 'medium', 'low']},
     }}
     fixture.route(() => json({...catalogue, document}))
     const served = (await command('policy catalogue')).stdout.replaceAll('\n', ' ')
     expect(served).to.contain('severity is "critical", "high", "medium" (default) or "low". Orders findings; never blocks.')
-    expect(served).to.contain('mode is "off", "advisory" (default) or "blocking". Off is never evaluated. Advisory reports. Blocking stops a gated change.')
+    expect(served).to.contain('enforcement is "off", "advisory" (default) or "blocking". Off is never evaluated. Advisory reports. Blocking stops a gated change.')
     // An instance that serves no document gets the offline copy, worded as the platform words it.
     fixture.route(() => json(catalogue))
     const offline = (await command('policy catalogue')).stdout.replaceAll('\n', ' ')
     expect(offline).to.contain('severity is "critical", "high", "medium" (default) or "low". How much a violation')
-    expect(offline).to.contain('mode is "off", "advisory" (default) or "blocking". Whether the policy is evaluated and whether it blocks. An off policy is never evaluated and reports nothing. An advisory policy only reports its findings.')
+    expect(offline).to.contain('enforcement is "off", "advisory" (default) or "blocking". Whether the policy is evaluated and whether it blocks. An off policy is never evaluated and reports nothing. An advisory policy only reports its findings.')
       .and.to.contain('a merge, a set-live, a publish or push to the live branch, an archive import or a tenant deploy')
   })
 
@@ -266,7 +266,7 @@ describe('policy reporting', () => {
     expect(lines).to.include('Tags point to related topics.').and.to.include('Data protection')
     expect(lines.slice(row + 1, row + 12)).to.deep.equal([
       '    Statement: Every retained table is cleaned up by a task.',
-      '    Severity medium; a policy created from it starts in mode advisory.',
+      '    Severity medium; a policy created from it starts with enforcement advisory.',
       '    Rules:',
       '      1. Retained rows are deleted once they are too old: table.coverage_required',
       '         {"referenced_by":{"object_kinds":["task"]}}',
@@ -492,11 +492,11 @@ describe('policy reporting', () => {
     expect(both.error?.message).to.contain('cannot also be provided')
   })
 
-  it('list prints the version beside its mode, and JSON is the native body', async () => {
+  it('list prints the version beside its enforcement, and JSON is the native body', async () => {
     const body = {curPage: 1, items: [
       {...policy, title: 'Auth', version: 5},
-      {...policy, id: 8, key: 'LOG-001', mode: 'advisory', title: 'Logs', version: 2},
-      {...policy, id: 9, key: 'OLD-001', mode: 'off', title: 'Old', version: 1},
+      {...policy, enforcement: 'advisory', id: 8, key: 'LOG-001', title: 'Logs', version: 2},
+      {...policy, enforcement: 'off', id: 9, key: 'OLD-001', title: 'Old', version: 1},
     ], nextPage: null, prevPage: null}
     fixture.route(() => json(body))
     const result = await command('policy list')
@@ -556,13 +556,13 @@ describe('policy reporting', () => {
   })
 
   it('parse summary always shows the severity, medium included, where the platform writes every other; JSON keeps the served source', async () => {
-    const canonical = 'policy AUTH-001 {\n  title = "Auth"\n  mode = "advisory"\n\n  rule {\n    check = "object.auth_required"\n  }\n}'
-    fixture.route(() => json({policy: {key: 'AUTH-001', mode: 'advisory', severity: 'medium'}, rule_warnings: [], source: canonical}))
+    const canonical = 'policy AUTH-001 {\n  title = "Auth"\n  enforcement = "advisory"\n\n  rule {\n    check = "object.auth_required"\n  }\n}'
+    fixture.route(() => json({policy: {enforcement: 'advisory', key: 'AUTH-001', severity: 'medium'}, rule_warnings: [], source: canonical}))
     const summary = await command('policy parse')
-    expect(summary.stdout.split('\n').slice(0, 4)).to.deep.equal(['policy AUTH-001 {', '  title = "Auth"', '  severity = "medium"', '  mode = "advisory"'])
+    expect(summary.stdout.split('\n').slice(0, 4)).to.deep.equal(['policy AUTH-001 {', '  title = "Auth"', '  severity = "medium"', '  enforcement = "advisory"'])
     expect(JSON.parse((await command('policy parse', ['-o', 'json'])).stdout).source).to.equal(canonical)
     // A severity the platform already wrote is left as it is.
-    const high = canonical.replace('  mode', '  severity = "high"\n  mode')
+    const high = canonical.replace('  enforcement', '  severity = "high"\n  enforcement')
     fixture.route(() => json({policy: {key: 'AUTH-001', severity: 'high'}, rule_warnings: [], source: high}))
     expect((await command('policy parse')).stdout.trimEnd()).to.equal(high)
   })
@@ -628,7 +628,7 @@ describe('policy reporting', () => {
   })
 
   it('off status hides historical counts and diagnostics, and never calls an off policy blocking', async () => {
-    statusRoute({...policy, latest_run: staleCoverage, mode: 'off'}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
+    statusRoute({...policy, enforcement: 'off', latest_run: staleCoverage}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
     const result = await command('policy status')
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('off; not evaluated  Off  not checked  ').and.not.to.contain('OLD ERROR')
@@ -637,13 +637,13 @@ describe('policy reporting', () => {
     expect(process.exitCode ?? 0).to.equal(0)
   })
 
-  it('status words mode as Studio does, and marks only findings the run judged blocking', async () => {
+  it('status words enforcement as Studio does, and marks only findings the run judged blocking', async () => {
     statusRoute(policy, run)
     expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Blocking  1 findings (blocking)')
-    statusRoute({...policy, latest_run: coverage({mode: 'advisory'}), mode: 'advisory'}, run)
+    statusRoute({...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run)
     const advisory = await command('policy status', ['-o', 'json'])
     expect(JSON.parse(advisory.stdout).status[0]).to.include({blocking: false, findings: 1})
-    statusRoute({...policy, latest_run: coverage({mode: 'advisory'}), mode: 'advisory'}, run)
+    statusRoute({...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run)
     expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Advisory  1 findings  ').and.not.to.contain('(blocking)')
   })
 
@@ -690,7 +690,7 @@ describe('policy reporting', () => {
 
     statusRoute(policy, run)
     const asJson = JSON.parse((await command('policy status', ['--fail-on-findings', '-o', 'json'])).stdout)
-    expect(asJson.status[0]).to.include({blocking: true, counted: true, mode: 'blocking'})
+    expect(asJson.status[0]).to.include({blocking: true, counted: true, enforcement: 'blocking'})
     expect(asJson.fail_on_findings).to.deep.equal({exit: 2, reason: 'The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.'})
     expect(process.exitCode).to.equal(2)
   })
@@ -725,8 +725,8 @@ describe('policy reporting', () => {
     [{...policy, latest_run: staleCoverage}, true, 'stale'],
     [{...policy, latest_run: notInRun}, false, 'not_evaluated'],
     [{...policy, latest_run: noRun}, false, 'not_evaluated'],
-    [{...policy, latest_run: staleCoverage, mode: 'off'}, true, 'off'],
-    [{...policy, latest_run: noRun, mode: 'off'}, false, 'off'],
+    [{...policy, enforcement: 'off', latest_run: staleCoverage}, true, 'off'],
+    [{...policy, enforcement: 'off', latest_run: noRun}, false, 'off'],
   ] as const) {
     it(`status JSON carries the served freshness for ${status} stale=${stale}`, async () => {
       statusRoute(current, run)
@@ -739,12 +739,12 @@ describe('policy reporting', () => {
 
   for (const [current, latest, code] of [
     [policy, run, 2],
-    [{...policy, latest_run: coverage({mode: 'advisory'}), mode: 'advisory'}, run, 0],
+    [{...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run, 0],
     [{...policy, latest_run: staleCoverage}, run, 1],
     [{...policy, latest_run: notInRun}, run, 1],
     [{...policy, latest_run: noRun}, run, 1],
-    [{...policy, latest_run: staleCoverage, mode: 'off'}, run, 0],
-    [{...policy, latest_run: noRun, mode: 'off'}, run, 0],
+    [{...policy, enforcement: 'off', latest_run: staleCoverage}, run, 0],
+    [{...policy, enforcement: 'off', latest_run: noRun}, run, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'pass'}]}, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'error'}]}, 1],
     [policy, {...run, findings: [], results: []}, 1],

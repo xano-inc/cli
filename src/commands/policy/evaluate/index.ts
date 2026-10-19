@@ -36,12 +36,12 @@ export function trialLines(key: string, clear: TrialClear[] | undefined): string
 }
 
 export default class PolicyEvaluate extends PolicyCommand {
-  static override description = 'Evaluate the branch policies that are on (mode advisory or blocking) and report their findings; blocking findings exit 2. With --policy, try one policy alone, whatever its mode, without storing a run'
+  static override description = 'Evaluate the branch policies that are on (enforcement advisory or blocking) and report their findings; blocking findings exit 2. With --policy, try one policy alone, whatever its enforcement, without storing a run'
   static override examples = ['$ xano policy evaluate -o json', '$ xano policy evaluate --run-detail', '$ xano policy evaluate --summary -o json', '$ xano policy evaluate --policy AUTH-001']
   static override flags = {
     ...PolicyCommand.policyFlags,
     policy: Flags.string({
-      description: 'Try this one policy (its key) alone, whatever its mode: nothing is stored, and the answer lists each rule\'s clear objects',
+      description: 'Try this one policy (its key) alone, whatever its enforcement: nothing is stored, and the answer lists each rule\'s clear objects',
     }),
     'run-detail': Flags.boolean({
       default: false,

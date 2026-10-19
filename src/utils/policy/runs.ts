@@ -32,7 +32,7 @@ export interface PolicyRunPage {
 }
 
 /**
- * One stored run. A run records its findings, results and the mode each policy had;
+ * One stored run. A run records its findings, results and the enforcement each policy had;
  * `policy_check.blocking` is the gate's verdict at the time and is not stored. With `page`, the
  * run's findings are one page of them (`GET run/{id}/findings`) and its counts are the summary's.
  */

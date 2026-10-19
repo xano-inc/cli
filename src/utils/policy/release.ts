@@ -106,7 +106,7 @@ export interface ReleasePolicyRun {
 export interface ReleaseRunHead extends PolicyRunHead {
   release?: {branch?: {id?: number; label?: string}; id?: number}
   /** Every policy the release carries, off ones included. */
-  shipped?: Array<{key?: string; mode?: string; title?: string}>
+  shipped?: Array<{enforcement?: string; key?: string; title?: string}>
 }
 
 /**

@@ -164,9 +164,9 @@ export interface PushPolicyCheck extends PolicyVerdict {
 /** One policy that applies to an object, as the coverage route serves it. */
 export interface ObjectCoveragePolicy {
   blocking?: boolean
-  key?: string
   /** `blocking` or `advisory`: an off policy is never evaluated, so it applies nowhere. */
-  mode?: string
+  enforcement?: string
+  key?: string
   /** Why it applies here, one plain sentence per rule. */
   reasons?: string[]
   /**
@@ -209,10 +209,10 @@ export interface ObjectCoverage {
 
 /** A policy's place in its branch's newest run, as the platform serves it on every policy. */
 export interface PolicyCoverage {
+  /** The enforcement the newest run evaluated this policy with; `null` when it did not. */
+  enforcement: null | string
   /** Whether the newest run evaluated this policy at all. */
   included: boolean
-  /** The mode the newest run evaluated this policy with; `null` when it did not. */
-  mode: null | string
   /** 0 when the branch has no run. */
   run_id: number
   /** True only when the newest run evaluated a different version of this policy. */
@@ -221,11 +221,11 @@ export interface PolicyCoverage {
 }
 
 export interface Policy {
+  /** `off` (never evaluated), `advisory` (reports only) or `blocking` (its findings gate changes). */
+  enforcement: string
   id: number
   key: string
   latest_run?: PolicyCoverage
-  /** `off` (never evaluated), `advisory` (reports only) or `blocking` (its findings gate changes). */
-  mode: string
   rules?: Array<{id: string}>
   /** `critical`, `high`, `medium` or `low`; the parse route always answers it, its default included. */
   severity?: string
