@@ -193,7 +193,7 @@ describe('policy reporting', () => {
     fixture.route(() => json(catalogue))
     const offline = (await command('policy catalogue')).stdout.replaceAll('\n', ' ')
     expect(offline).to.contain('severity is "critical", "high", "medium" (default) or "low". How much a violation')
-    expect(offline).to.contain('mode is "off", "advisory" (default) or "blocking". An off policy is never evaluated, so it reports and blocks nothing. An advisory policy only reports its findings.')
+    expect(offline).to.contain('mode is "off", "advisory" (default) or "blocking". Whether the policy is evaluated and whether it blocks. An off policy is never evaluated and reports nothing. An advisory policy only reports its findings.')
       .and.to.contain('a merge, a set-live, a publish or push to the live branch, an archive import or a tenant deploy')
   })
 

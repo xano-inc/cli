@@ -40,7 +40,7 @@ export interface PolicyDocumentField {
 const OFFLINE_FIELDS: Record<'mode' | 'severity', PolicyDocumentField> = {
   mode: {
     default: 'advisory',
-    description: 'An off policy is never evaluated, so it reports and blocks nothing. An advisory policy only reports its findings. A blocking policy\'s findings also stop a gated change that introduces them or changes the objects they are on: a merge, a set-live, a publish or push to the live branch, an archive import or a tenant deploy, unless someone allowed to override gives a reason.',
+    description: 'Whether the policy is evaluated and whether it blocks. An off policy is never evaluated and reports nothing. An advisory policy only reports its findings. A blocking policy\'s findings also stop a gated change that introduces them or changes the objects they are on: a merge, a set-live, a publish or push to the live branch, an archive import or a tenant deploy, unless someone allowed to override gives a reason.',
     values: ['off', 'advisory', 'blocking'],
   },
   severity: {
