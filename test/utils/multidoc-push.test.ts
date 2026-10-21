@@ -379,7 +379,22 @@ describe('multidoc-push helpers', () => {
       fs.rmSync(triggerDir, {force: true, recursive: true})
     })
 
-it('declares protect_guids up to exactly the 4,000-char cap, and not one char past it', () => {
+    it('describes every document of a filtered-out multi-document file', () => {
+      const bundleDir = mkdtempSync(join(tmpdir(), 'xano-guard-bundle-'))
+      writeFileSync(join(bundleDir, 'bundle.xs'), 'table a {\n  guid = "GA"\n}\n---\ntable b {\n  guid = "GB"\n}\n---\ntable c {\n}')
+      const filteredOut = describeFilteredOut([join(bundleDir, 'bundle.xs')], [], bundleDir)
+
+      expect(filteredOut.map((d) => [d.key, d.guid, d.relPath])).to.deep.equal([
+        ['table:a', 'GA', 'bundle.xs'],
+        ['table:b', 'GB', 'bundle.xs'],
+        ['table:c', undefined, 'bundle.xs'],
+      ])
+      expect(protectGuidsFor(filteredOut)).to.equal('GA,GB')
+      expect(deletesHittingFilteredOut([{action: 'delete', name: 'b', type: 'table'}], filteredOut)).to.have.lengthOf(1)
+      fs.rmSync(bundleDir, {force: true, recursive: true})
+    })
+
+    it('declares protect_guids up to exactly the 4,000-char cap, and not one char past it', () => {
       // 100 guids of 39 chars plus 99 commas = 3,999; one more char on the last guid reaches 4,000.
       expect(protectGuidsFor(cappedDocs('')).length).to.equal(3999)
       expect(unprotectableFilteredOut(cappedDocs('x'))).to.deep.equal([])
@@ -1439,7 +1454,7 @@ it('declares protect_guids up to exactly the 4,000-char cap, and not one char pa
       expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
     })
 
-it('refuses --force the same way when --include is the filter', async () => {
+    it('refuses --force the same way when --include is the filter', async () => {
       writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
 
       const {calls, error} = await runFilteredPush(tmpDir, {delete: true, force: true, include: ['function/*']})
@@ -1470,6 +1485,65 @@ it('refuses --force the same way when --include is the filter', async () => {
       })
 
       expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('protects and checks every document of a filtered-out multi-document file under --force', async () => {
+      writeXs(tmpDir, 'table/bundle.xs', 'table a {\n  guid = "GA"\n}\n---\ntable b {\n  guid = "GB"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        exclude: ['table/*'],
+        force: true,
+        operations: [
+          {action: 'unchanged', details: '', name: 'foo', type: 'function'},
+          {action: 'delete', details: '', name: 'b', type: 'table'},
+        ],
+      })
+
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(new URL(previews(calls)[0].url).searchParams.get('protect_guids')).to.equal('GA,GB')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('refuses --force before any request when a later document of a filtered-out file has no guid', async () => {
+      writeXs(tmpDir, 'table/bundle.xs', 'table a {\n  guid = "GA"\n}\n---\ntable b {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('1 filtered-out document(s) have no guid yet')
+      expect(calls).to.deep.equal([])
+    })
+
+    it('protects and checks a document the --force flatten moves outside the filter', async () => {
+      writeXs(tmpDir, 'table/other.xs', 'table other {\n  guid = "GUID_OTHER"\n}')
+      writeXs(tmpDir, 'bundle.xs', 'function bar {\n  guid = "GUID_BAR"\n}\n---\ntable book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        exclude: ['table/*'],
+        force: true,
+        operations: [
+          {action: 'unchanged', details: '', name: 'foo', type: 'function'},
+          {action: 'unchanged', details: '', name: 'bar', type: 'function'},
+          {action: 'delete', details: '', name: 'book', type: 'table'},
+        ],
+      })
+
+      expect(fs.existsSync(join(tmpDir, 'table', 'book.xs'))).to.equal(true)
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      const protectGuids = new URL(previews(calls)[0].url).searchParams.get('protect_guids')
+      expect(protectGuids?.split(',').sort()).to.deep.equal(['GUID_BOOK', 'GUID_OTHER'])
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('checks under --force when only the flatten leaves a document outside the filter', async () => {
+      writeXs(tmpDir, 'bundle.xs', 'function bar {\n  guid = "GUID_BAR"\n}\n---\ntable book {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('1 filtered-out document(s) have no guid yet')
+      expect(previews(calls)).to.deep.equal([])
       expect(pushes(calls)).to.deep.equal([])
     })
 

@@ -3,7 +3,7 @@ import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
-import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
+import {buildDocumentKey, findFilesWithGuid, parseDocument, splitMultidoc} from './document-parser.js'
 import {
   compareLocalToExport,
   indexLocalDocuments,
@@ -380,7 +380,8 @@ export interface FilteredOutDocument {
  * ones a `--delete` sweep would remove: a filtered-out document never reaches
  * the payload, so the server reads it as deleted from the tree. Their GUIDs are
  * sent as `protect_guids` so the server spares them, and their keys are used to
- * VERIFY the server actually did.
+ * VERIFY the server actually did. A file holding several documents (a bundle)
+ * describes each of them: push leaves every one out.
  */
 export function describeFilteredOut(allFiles: string[], keptFiles: string[], inputDir: string): FilteredOutDocument[] {
   const kept = new Set(keptFiles)
@@ -398,20 +399,19 @@ export function describeFilteredOut(allFiles: string[], keptFiles: string[], inp
 
     if (!content) continue
 
-    const parsed = parseDocument(content)
-    if (!parsed) continue
-
-    const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
-    out.push({
-      guid: parsed.guid,
-      // The preview buckets every trigger subtype under the generic `trigger`
-      // type, so key triggers that way to match (DEV-7084, same as
-      // filterChangedEntries).
-      key: `${parsed.type.endsWith('_trigger') ? 'trigger' : parsed.type}:${opName}`,
-      name: opName,
-      relPath: relative(inputDir, filePath),
-      type: parsed.type,
-    })
+    for (const parsed of splitMultidoc(content)) {
+      const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
+      out.push({
+        guid: parsed.guid,
+        // The preview buckets every trigger subtype under the generic `trigger`
+        // type, so key triggers that way to match (DEV-7084, same as
+        // filterChangedEntries).
+        key: `${parsed.type.endsWith('_trigger') ? 'trigger' : parsed.type}:${opName}`,
+        name: opName,
+        relPath: relative(inputDir, filePath),
+        type: parsed.type,
+      })
+    }
   }
 
   return out
@@ -1261,8 +1261,8 @@ export async function executePush(
 
   const allFiles = collectFiles(inputDir)
   const files = applyFilters(allFiles, inputDir, flags.include, flags.exclude, log)
-  const filteredOut = describeFilteredOut(allFiles, files, inputDir)
-  const filteredOutCount = allFiles.length - files.length
+  let filteredOut = describeFilteredOut(allFiles, files, inputDir)
+  let filteredOutCount = allFiles.length - files.length
 
   const knowledgeOnly = files.length === 0 && (knowledgeObjects.length > 0 || ctx.knowledge !== undefined)
 
@@ -1357,11 +1357,15 @@ export async function executePush(
 
       // Re-collect and re-read: the bundle files are gone, replaced by the split
       // per-document tree, so the rest of the push sees a clean one-doc-per-file set.
+      // The split documents land at new paths that the filter may now leave out,
+      // so the filtered-out set is rebuilt from the new tree too: --delete must
+      // spare those documents, the same as any other filtered-out file.
       pushedBytes.clear()
-      const refreshed = readDocuments(
-        applyFilters(collectFiles(inputDir), inputDir, flags.include, flags.exclude, () => {}),
-        pushedBytes,
-      )
+      const refreshedFiles = collectFiles(inputDir)
+      const refreshedKept = applyFilters(refreshedFiles, inputDir, flags.include, flags.exclude, () => {})
+      filteredOut = describeFilteredOut(refreshedFiles, refreshedKept, inputDir)
+      filteredOutCount = refreshedFiles.length - refreshedKept.length
+      const refreshed = readDocuments(refreshedKept, pushedBytes)
       documentEntries = refreshed
 
       if (documentEntries.length === 0) {
