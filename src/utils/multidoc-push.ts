@@ -3,7 +3,7 @@ import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
-import {buildDocumentKey, findFilesWithGuid, parseDocument, splitMultidoc} from './document-parser.js'
+import {buildDocumentKey, findFilesWithGuid, parseDocument, splitMultidocFragments} from './document-parser.js'
 import {
   compareLocalToExport,
   indexLocalDocuments,
@@ -371,6 +371,8 @@ export interface FilteredOutDocument {
   name: string
   relPath: string
   type: string
+  /** Set when the file could not be opened or the document does not parse: it cannot be declared or matched. */
+  unreadable?: true
 }
 
 /**
@@ -381,7 +383,9 @@ export interface FilteredOutDocument {
  * the payload, so the server reads it as deleted from the tree. Their GUIDs are
  * sent as `protect_guids` so the server spares them, and their keys are used to
  * VERIFY the server actually did. A file holding several documents (a bundle)
- * describes each of them: push leaves every one out.
+ * describes each of them, split as the server splits it: push leaves every one
+ * out. A file that can't be opened, or a document in it that doesn't parse, is
+ * described as `unreadable` so the guard refuses rather than skip it.
  */
 export function describeFilteredOut(allFiles: string[], keptFiles: string[], inputDir: string): FilteredOutDocument[] {
   const kept = new Set(keptFiles)
@@ -390,16 +394,24 @@ export function describeFilteredOut(allFiles: string[], keptFiles: string[], inp
   for (const filePath of allFiles) {
     if (kept.has(filePath)) continue
 
+    const relPath = relative(inputDir, filePath)
+    const unreadable = {key: '', name: '', relPath, type: '', unreadable: true} as const
     let content: string
     try {
-      content = fs.readFileSync(filePath, 'utf8').trim()
+      content = fs.readFileSync(filePath, 'utf8')
     } catch {
+      out.push(unreadable)
       continue
     }
 
-    if (!content) continue
+    for (const fragment of splitMultidocFragments(content)) {
+      const parsed = parseDocument(fragment)
+      if (!parsed) {
+        // Only comments: nothing the server could hold, so nothing to spare.
+        if (fragment.split('\n').some((line) => line.trim() && !line.trim().startsWith('//'))) out.push(unreadable)
+        continue
+      }
 
-    for (const parsed of splitMultidoc(content)) {
       const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
       out.push({
         guid: parsed.guid,
@@ -408,7 +420,7 @@ export function describeFilteredOut(allFiles: string[], keptFiles: string[], inp
         // filterChangedEntries).
         key: `${parsed.type.endsWith('_trigger') ? 'trigger' : parsed.type}:${opName}`,
         name: opName,
-        relPath: relative(inputDir, filePath),
+        relPath,
         type: parsed.type,
       })
     }
@@ -463,7 +475,12 @@ export function protectGuidsFor(filteredOut: FilteredOutDocument[]): string {
  */
 export function unprotectableFilteredOut(filteredOut: FilteredOutDocument[]): string[] {
   const reasons: string[] = []
-  const missingGuids = filteredOut.filter((d) => !d.guid && d.type !== 'policy').length
+  const unreadable = filteredOut.filter((d) => d.unreadable).length
+  if (unreadable > 0) {
+    reasons.push(`${unreadable} filtered-out document(s) could not be read, so the server cannot be told to spare them.`)
+  }
+
+  const missingGuids = filteredOut.filter((d) => !d.guid && !d.unreadable && d.type !== 'policy').length
   if (missingGuids > 0) {
     reasons.push(`${missingGuids} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`)
   }
@@ -1978,7 +1995,7 @@ export async function executePush(
     } else {
       command.error('Non-interactive environment detected. Use --force to skip confirmation.')
     }
-  } else if (shouldDelete && !knowledgeOnly && filteredOut.length > 0) {
+  } else if (shouldDelete && !knowledgeOnly && filteredOutCount > 0) {
     // ── --force with --delete and a filter: no preview, but still the guard ─
     await verifyFilteredOutSpared({
       accessToken,

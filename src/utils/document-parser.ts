@@ -462,20 +462,46 @@ export function findFilesWithGuid(entries: Array<{content: string; filePath: str
 }
 
 /**
- * Split a multi-document XanoScript blob (documents joined by `\n---\n`) into
+ * Split a multi-document XanoScript blob into its trimmed, non-empty document
+ * texts, by the same rule the server applies to a pushed multidoc
+ * (`Convert::parseMultiDoc`): CRLF becomes LF, and any line that is `---` once
+ * trailing whitespace is removed separates documents (so a leading `---` and a
+ * `--- ` count; an indented `  ---` does not). Fragments that don't parse are
+ * kept, for callers that must account for every document the server would see.
+ */
+export function splitMultidocFragments(blob: string): string[] {
+  const fragments: string[] = []
+  let buffer: string[] = []
+  const flush = (): void => {
+    const fragment = buffer.join('\n').trim()
+    if (fragment) fragments.push(fragment)
+    buffer = []
+  }
+
+  for (const line of blob.replaceAll('\r\n', '\n').split('\n')) {
+    // PHP rtrim()'s default set, so the separator test matches the server's.
+    if (line.replace(/[ \t\n\r\0\v]+$/, '') === '---') flush()
+    else buffer.push(line)
+  }
+
+  flush()
+  return fragments
+}
+
+/**
+ * Split a multi-document XanoScript blob (documents joined by `---` lines) into
  * parsed documents, skipping empties and any fragment that fails to parse.
  *
- * This is the same split the pull commands apply to the server's multidoc
- * response. A hand-authored bundle is one file of many `---`-separated
- * documents; this turns it back into the per-document units every downstream
- * step (placement, GUID writeback, partial-diff matching) assumes.
+ * It splits where the server does (see splitMultidocFragments), which for the
+ * server's own multidoc response (`\n---\n` joins) is the pull commands' split.
+ * A hand-authored bundle is one file of many `---`-separated documents; this
+ * turns it back into the per-document units every downstream step (placement,
+ * GUID writeback, partial-diff matching) assumes.
  */
 export function splitMultidoc(blob: string): ParsedDocument[] {
   const documents: ParsedDocument[] = []
-  for (const raw of blob.split('\n---\n')) {
-    const trimmed = raw.trim()
-    if (!trimmed) continue
-    const parsed = parseDocument(trimmed)
+  for (const fragment of splitMultidocFragments(blob)) {
+    const parsed = parseDocument(fragment)
     if (parsed) documents.push(parsed)
   }
 
