@@ -348,28 +348,6 @@ This includes:
 6. Run `npm run build` to compile
 7. **Update `README.md`** with the new command and usage examples
 
-### Verifying a push fix live
-
-Point a scratch credentials file at a disposable instance (never your real one) and drive
-`./bin/dev.js` with it. In the dex pipeline the instance is the card tier: `xano-card prepare <ID>`,
-then `eval "$(xano-card env <ID>)"` gives `XANO_CARD_URL`, `XANO_CARD_TOKEN` and workspace `1`.
-
-```bash
-cat > "$SCRATCH/creds.yaml" <<EOF
-profiles:
-  card: {instance_origin: $XANO_CARD_URL, access_token: $XANO_CARD_TOKEN, workspace: '1'}
-default: card
-EOF
-export XANO_CONFIG="$SCRATCH/creds.yaml"
-./bin/dev.js workspace pull -d "$SCRATCH/pull"           # starting tree (workspace/<name>.xs)
-./bin/dev.js workspace push -d "$SCRATCH/tree" --sync --force
-./bin/dev.js workspace pull -d "$SCRATCH/after"          # read the server state back
-```
-
-For a before/after, add a detached worktree of the base branch with its own `node_modules`
-(`cp -al`), and run the same commands from both. In dev mode, `Warning:` lines print a stack
-trace; that is not a failure.
-
 ## Lint & Format
 
 - **ESLint 9** flat config (`eslint.config.mjs`) with oclif + Prettier presets
