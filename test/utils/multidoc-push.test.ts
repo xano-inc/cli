@@ -22,12 +22,23 @@ import {
   type PushFlags,
   type PushTarget,
   selectWritebacks,
-  writeBackFormattedDocuments,
   unprotectableFilteredOut,
+  writeBackFormattedDocuments,
   type WritebackHttpResponse,
 } from '../../src/utils/multidoc-push.js'
 import {readMarkerToken, sandboxMarkerExists, writeMarkerToken} from '../../src/utils/sandbox-marker.js'
 import {hashBytes, hashFile, sandboxTargetIdentity, saveSyncState, type SyncTargetIdentity} from '../../src/utils/sync-state.js'
+
+/** 100 filtered-out tables with 39-char guids; `lastExtra` lengthens the last one. */
+function cappedDocs(lastExtra: string): Array<{guid: string; key: string; name: string; relPath: string; type: string}> {
+  return Array.from({length: 100}, (_, i) => ({
+    guid: `${String(i).padStart(39, '0')}${i === 99 ? lastExtra : ''}`,
+    key: `table:t${i}`,
+    name: `t${i}`,
+    relPath: `table/t${i}.xs`,
+    type: 'table',
+  }))
+}
 
 function keyFor(content: string): string {
   const parsed = parseDocument(content)
@@ -370,19 +381,10 @@ describe('multidoc-push helpers', () => {
 
 it('declares protect_guids up to exactly the 4,000-char cap, and not one char past it', () => {
       // 100 guids of 39 chars plus 99 commas = 3,999; one more char on the last guid reaches 4,000.
-      const docs = (lastExtra: string) =>
-        Array.from({length: 100}, (_, i) => ({
-          guid: `${String(i).padStart(39, '0')}${i === 99 ? lastExtra : ''}`,
-          key: `table:t${i}`,
-          name: `t${i}`,
-          relPath: `table/t${i}.xs`,
-          type: 'table',
-        }))
-
-      expect(protectGuidsFor(docs('')).length).to.equal(3999)
-      expect(unprotectableFilteredOut(docs('x'))).to.deep.equal([])
-      expect(protectGuidsFor(docs('x')).length).to.equal(4000)
-      expect(unprotectableFilteredOut(docs('xy'))).to.deep.equal(['Too many filtered-out documents to declare in one request.'])
+      expect(protectGuidsFor(cappedDocs('')).length).to.equal(3999)
+      expect(unprotectableFilteredOut(cappedDocs('x'))).to.deep.equal([])
+      expect(protectGuidsFor(cappedDocs('x')).length).to.equal(4000)
+      expect(unprotectableFilteredOut(cappedDocs('xy'))).to.deep.equal(['Too many filtered-out documents to declare in one request.'])
     })
 
     it('treats an empty guid as no guid, in the count and in protect_guids', () => {
