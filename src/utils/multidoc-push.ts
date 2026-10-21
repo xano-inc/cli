@@ -446,6 +446,130 @@ export function deletesHittingFilteredOut(
   return hits
 }
 
+/** The comma-joined GUIDs sent as `protect_guids`; documents without a GUID are left out. */
+export function protectGuidsFor(filteredOut: FilteredOutDocument[]): string {
+  return filteredOut
+    .map((d) => d.guid)
+    .filter((g): g is string => typeof g === 'string' && g.length > 0)
+    .join(',')
+}
+
+/**
+ * Why `protect_guids` cannot cover every filtered-out document, one line per
+ * reason; empty when it can. A document that has never been pushed has no GUID
+ * to declare, and past PROTECT_GUIDS_MAX_CHARS the list is not sent at all.
+ */
+export function unprotectableFilteredOut(filteredOut: FilteredOutDocument[]): string[] {
+  const reasons: string[] = []
+  const missingGuids = filteredOut.filter((d) => !d.guid).length
+  if (missingGuids > 0) {
+    reasons.push(`${missingGuids} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`)
+  }
+
+  if (protectGuidsFor(filteredOut).length > PROTECT_GUIDS_MAX_CHARS) {
+    reasons.push('Too many filtered-out documents to declare in one request.')
+  }
+
+  return reasons
+}
+
+/** Stop a --delete push whose preview deletes something the filter excluded. */
+function refuseDeletesHittingFilteredOut(
+  command: Command,
+  log: (msg: string) => void,
+  endangered: Array<{name: string; relPath: string; type: string}>,
+  filteredOut: FilteredOutDocument[],
+): never {
+  log('')
+  log(ux.colorize('red', '--- Refusing to push ---'))
+  log('')
+  log(`  --delete would remove ${endangered.length} object(s) that --include/--exclude filtered out:`)
+  log('')
+  for (const hit of endangered.slice(0, 10)) {
+    log(`  ${ux.colorize('red', 'DELETE'.padEnd(8))} ${hit.type.padEnd(18)} ${hit.name}  ${ux.colorize('dim', `(${hit.relPath})`)}`)
+  }
+
+  if (endangered.length > 10) {
+    log(ux.colorize('dim', `  ... and ${endangered.length - 10} more`))
+  }
+
+  log('')
+  for (const reason of unprotectableFilteredOut(filteredOut)) {
+    log(ux.colorize('dim', `  ${reason}`))
+  }
+
+  log(ux.colorize('dim', '  This instance may also predate protected pushes.'))
+  log('')
+  command.error('Re-run without --delete, or without the --include/--exclude filter.')
+}
+
+/**
+ * The --include/--exclude delete guard for a --force push, which shows no
+ * preview. --force skips the confirmation, never this check: refuse before any
+ * write when `protect_guids` cannot cover the filtered-out documents, otherwise
+ * read the server's preview and refuse if it still deletes one of them (an
+ * instance that ignores `protect_guids`). With nobody there to confirm, a
+ * preview that cannot be read refuses too.
+ */
+async function verifyFilteredOutSpared(args: {
+  accessToken: string
+  command: Command
+  dryRunUrl: null | string
+  filteredOut: FilteredOutDocument[]
+  init: RequestInit
+  log: (msg: string) => void
+  target: PushTarget
+  verbose: boolean
+  verboseFetch: PushContext['verboseFetch']
+}): Promise<void> {
+  const {accessToken, command, dryRunUrl, filteredOut, init, log, target, verbose, verboseFetch} = args
+  const remedy = 'Re-run without --delete, or without the --include/--exclude filter.'
+
+  const reasons = unprotectableFilteredOut(filteredOut)
+  if (reasons.length > 0) {
+    log('')
+    log(ux.colorize('red', '--- Refusing to push ---'))
+    log('')
+    log('  --delete could remove objects that --include/--exclude filtered out, and --force does not skip this check.')
+    log('')
+    command.error(`${reasons.join(' ')} ${remedy}`)
+  }
+
+  function unverified(why: string): never {
+    return command.error(`${why}, so --delete cannot be shown to spare what --include/--exclude filtered out. ${remedy}`)
+  }
+
+  if (!dryRunUrl) unverified('This target has no push preview')
+
+  log(ux.colorize('dim', 'Checking the push preview: --delete must spare what --include/--exclude filtered out.'))
+
+  let response: Response
+  let text: string
+  try {
+    response = await verboseFetch(dryRunUrl, init, verbose, accessToken)
+    text = await response.text()
+  } catch (error) {
+    unverified(`The push preview failed (${(error as Error).message})`)
+  }
+
+  if (!response.ok) {
+    refuseIfExplained(command, target, response.status, text)
+    unverified(`The push preview failed (${response.status})${previewFailureReason(text)}`)
+  }
+
+  let operations: unknown
+  try {
+    operations = (JSON.parse(text) as null | Partial<DryRunResult>)?.operations
+  } catch {
+    // Not JSON
+  }
+
+  if (!Array.isArray(operations)) unverified('This instance returned no push preview')
+
+  const endangered = deletesHittingFilteredOut(operations as DryRunResult['operations'], filteredOut)
+  if (endangered.length > 0) refuseDeletesHittingFilteredOut(command, log, endangered, filteredOut)
+}
+
 export function pathMatchesFilters(
   relPath: string,
   inputDir: string,
@@ -1533,8 +1657,7 @@ export async function executePush(
   // itself), so it has a length ceiling: past PROTECT_GUIDS_MAX_CHARS we send
   // nothing and let the verification below refuse the push rather than issue a
   // request the server may truncate or reject.
-  const protectableGuids = filteredOut.map((d) => d.guid).filter((g): g is string => typeof g === 'string' && g.length > 0)
-  const protectGuidsParam = protectableGuids.join(',')
+  const protectGuidsParam = protectGuidsFor(filteredOut)
 
   if (shouldDelete && protectGuidsParam && protectGuidsParam.length <= PROTECT_GUIDS_MAX_CHARS) {
     queryParams.set('protect_guids', protectGuidsParam)
@@ -1605,44 +1728,11 @@ export async function executePush(
           // instance ignores the parameter, a document that has never been
           // pushed has no GUID to protect, and a very large filter exceeds what
           // the query string can carry. In every one of those cases the push is
-          // refused rather than allowed to delete.
+          // refused rather than allowed to delete. A --force push runs the
+          // same check in verifyFilteredOutSpared below.
           if (shouldDelete) {
             const endangered = deletesHittingFilteredOut(preview.operations, filteredOut)
-            if (endangered.length > 0) {
-              log('')
-              log(ux.colorize('red', '--- Refusing to push ---'))
-              log('')
-              log(
-                `  --delete would remove ${endangered.length} object(s) that --include/--exclude filtered out:`,
-              )
-              log('')
-              for (const hit of endangered.slice(0, 10)) {
-                log(`  ${ux.colorize('red', 'DELETE'.padEnd(8))} ${hit.type.padEnd(18)} ${hit.name}  ${ux.colorize('dim', `(${hit.relPath})`)}`)
-              }
-
-              if (endangered.length > 10) {
-                log(ux.colorize('dim', `  ... and ${endangered.length - 10} more`))
-              }
-
-              log('')
-              const unprotectable = filteredOut.filter((d) => !d.guid).length
-              if (unprotectable > 0) {
-                log(
-                  ux.colorize(
-                    'dim',
-                    `  ${unprotectable} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`,
-                  ),
-                )
-              }
-
-              if (protectGuidsParam.length > PROTECT_GUIDS_MAX_CHARS) {
-                log(ux.colorize('dim', '  Too many filtered-out documents to declare in one request.'))
-              }
-
-              log(ux.colorize('dim', '  This instance may also predate protected pushes.'))
-              log('')
-              command.error('Re-run without --delete, or without the --include/--exclude filter.')
-            }
+            if (endangered.length > 0) refuseDeletesHittingFilteredOut(command, log, endangered, filteredOut)
           }
 
           // Check for bad cross-references using dry-run operations to avoid false positives
@@ -1882,6 +1972,19 @@ export async function executePush(
     } else {
       command.error('Non-interactive environment detected. Use --force to skip confirmation.')
     }
+  } else if (shouldDelete && !knowledgeOnly && filteredOut.length > 0) {
+    // ── --force with --delete and a filter: no preview, but still the guard ─
+    await verifyFilteredOutSpared({
+      accessToken,
+      command,
+      dryRunUrl,
+      filteredOut,
+      init: {body: multidoc, headers: requestHeaders, method: 'POST'},
+      log,
+      target,
+      verbose: flags.verbose,
+      verboseFetch,
+    })
   }
 
   // ── Show bad references in force mode (preview mode shows them inline) ─
@@ -2542,6 +2645,18 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
   if (guidance) command.error(`Push refused (${status}): ${message}${guidance}`)
 }
 
+/** `: <server message>` from a failed preview's JSON body, or '' when it carries none. */
+function previewFailureReason(errorText: string): string {
+  try {
+    const errorJson = JSON.parse(errorText)
+    if (typeof errorJson?.message === 'string' && errorJson.message.trim()) return `: ${errorJson.message.trim().replace(/\.$/, '')}`
+  } catch {
+    // Not JSON
+  }
+
+  return ''
+}
+
 async function handleDryRunError(
   response: Response,
   command: Command,
@@ -2618,15 +2733,7 @@ async function handleDryRunError(
       // Not JSON, fall through
     }
 
-    let reason = ''
-    try {
-      const errorJson = JSON.parse(errorText)
-      if (typeof errorJson?.message === 'string' && errorJson.message.trim()) reason = `: ${errorJson.message.trim().replace(/\.$/, '')}`
-    } catch {
-      // Not JSON
-    }
-
-    command.warn(`Push preview failed (${response.status})${reason}. Skipping preview.`)
+    command.warn(`Push preview failed (${response.status})${previewFailureReason(errorText)}. Skipping preview.`)
     if (verbose) {
       log(ux.colorize('dim', errorText))
     }

@@ -389,6 +389,15 @@ directory *adds* a file rather than overwriting, and renaming a workspace leaves
 the old-name file behind. Delete the stale ones, keeping the single document that
 matches your target workspace.
 
+**Filters never delete what they filter out.** With `--sync --delete`, a file that
+`-i`/`-e` leaves out is missing from the push, so the delete sweep would remove its
+object. The CLI sends the GUIDs of those files as `protect_guids` so the server spares
+them, then checks the server's preview and refuses the push if anything filtered out
+would still be deleted. `--force` skips only the confirmation, not this check. With
+`--force` the push is refused before anything is sent when a filtered-out file has no
+`guid` yet, or when there are too many of them to declare in one request (about 4,000
+characters of GUIDs). To push anyway, drop `--delete` or the filter.
+
 ### `.xano/sync_state.json`
 
 `--fast` skips files whose contents still match a local sync

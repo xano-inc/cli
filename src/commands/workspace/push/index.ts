@@ -165,7 +165,7 @@ Full sync including knowledge files; removes server objects not present locally
     force: Flags.boolean({
       default: false,
       description:
-        '[CRITICAL] NEVER run without explicit user confirmation. Skips preview and confirmation prompt (for CI/CD pipelines).',
+        '[CRITICAL] NEVER run without explicit user confirmation. Skips preview and confirmation prompt (for CI/CD pipelines). With --sync --delete and -i/-e it still checks the server preview, and refuses if a filtered-out object would be deleted.',
       required: false,
     }),
     guids: Flags.boolean({
