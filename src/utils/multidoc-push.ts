@@ -458,10 +458,12 @@ export function protectGuidsFor(filteredOut: FilteredOutDocument[]): string {
  * Why `protect_guids` cannot cover every filtered-out document, one line per
  * reason; empty when it can. A document that has never been pushed has no GUID
  * to declare, and past PROTECT_GUIDS_MAX_CHARS the list is not sent at all.
+ * Policies are not counted: their guid is never read (parseDocument treats the
+ * body as opaque) and a push never deletes a policy.
  */
 export function unprotectableFilteredOut(filteredOut: FilteredOutDocument[]): string[] {
   const reasons: string[] = []
-  const missingGuids = filteredOut.filter((d) => !d.guid).length
+  const missingGuids = filteredOut.filter((d) => !d.guid && d.type !== 'policy').length
   if (missingGuids > 0) {
     reasons.push(`${missingGuids} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`)
   }

@@ -18,10 +18,12 @@ import {
   findWorkspaceEntries,
   normalizeFilterPattern,
   parseExportDocuments,
+  protectGuidsFor,
   type PushFlags,
   type PushTarget,
   selectWritebacks,
   writeBackFormattedDocuments,
+  unprotectableFilteredOut,
   type WritebackHttpResponse,
 } from '../../src/utils/multidoc-push.js'
 import {readMarkerToken, sandboxMarkerExists, writeMarkerToken} from '../../src/utils/sandbox-marker.js'
@@ -364,6 +366,35 @@ describe('multidoc-push helpers', () => {
 
       expect(hits).to.have.lengthOf(1)
       fs.rmSync(triggerDir, {force: true, recursive: true})
+    })
+
+it('declares protect_guids up to exactly the 4,000-char cap, and not one char past it', () => {
+      // 100 guids of 39 chars plus 99 commas = 3,999; one more char on the last guid reaches 4,000.
+      const docs = (lastExtra: string) =>
+        Array.from({length: 100}, (_, i) => ({
+          guid: `${String(i).padStart(39, '0')}${i === 99 ? lastExtra : ''}`,
+          key: `table:t${i}`,
+          name: `t${i}`,
+          relPath: `table/t${i}.xs`,
+          type: 'table',
+        }))
+
+      expect(protectGuidsFor(docs('')).length).to.equal(3999)
+      expect(unprotectableFilteredOut(docs('x'))).to.deep.equal([])
+      expect(protectGuidsFor(docs('x')).length).to.equal(4000)
+      expect(unprotectableFilteredOut(docs('xy'))).to.deep.equal(['Too many filtered-out documents to declare in one request.'])
+    })
+
+    it('treats an empty guid as no guid, in the count and in protect_guids', () => {
+      const docs = [
+        {guid: '', key: 'table:a', name: 'a', relPath: 'table/a.xs', type: 'table'},
+        {guid: 'G', key: 'table:b', name: 'b', relPath: 'table/b.xs', type: 'table'},
+      ]
+
+      expect(protectGuidsFor(docs)).to.equal('G')
+      expect(unprotectableFilteredOut(docs)).to.deep.equal([
+        '1 filtered-out document(s) have no guid yet, so the server cannot be told to spare them.',
+      ])
     })
 
     it('returns nothing when there is no filter at all, so an unfiltered push is never blocked', () => {
@@ -1406,6 +1437,40 @@ describe('multidoc-push helpers', () => {
       expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
     })
 
+it('refuses --force the same way when --include is the filter', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, force: true, include: ['function/*']})
+
+      expect(error?.message).to.contain('1 filtered-out document(s) have no guid yet')
+      expect(calls).to.deep.equal([])
+    })
+
+    it('does not count a filtered-out policy as unprotectable under --force, and still checks the preview', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+      writeXs(tmpDir, 'policy/tmp_001.xs', 'policy tmp_001 {\n  guid = "GUID_POLICY"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, force: true, include: ['function/*']})
+
+      expect(error).to.equal(undefined)
+      expect(previews(calls)).to.have.lengthOf(1)
+      expect(pushes(calls)).to.have.lengthOf(1)
+    })
+
+    it('refuses under --force when the preview deletes a filtered-out policy after all', async () => {
+      writeXs(tmpDir, 'policy/tmp_001.xs', 'policy tmp_001 {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        force: true,
+        include: ['function/*'],
+        operations: [{action: 'delete', details: '', name: 'tmp_001', type: 'policy'}],
+      })
+
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
     it('keeps --dry-run --force on the preview path: no up-front refusal', async () => {
       writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
 
@@ -1754,6 +1819,7 @@ async function runFilteredPush(
     dryRunThrows?: boolean
     exclude?: string[]
     force?: boolean
+    include?: string[]
     operations?: Array<{action: string; details: string; name: string; type: string}>
   },
 ): Promise<{calls: FilteredCall[]; error?: Error; logs: string[]}> {
@@ -1766,6 +1832,7 @@ async function runFilteredPush(
     exclude: options.exclude,
     force: Boolean(options.force),
     guids: false,
+    include: options.include,
     records: false,
     sync: true,
     transaction: true,
