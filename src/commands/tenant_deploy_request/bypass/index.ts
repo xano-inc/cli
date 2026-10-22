@@ -18,12 +18,11 @@ export default class TenantDeployRequestBypass extends BaseCommand {
     }),
   }
   static description =
-    "[CRITICAL] STOP and confirm with the user before running this; it deploys the release immediately, past the review workflow. Deploy the request's release past the approval gate under the tenant_center:deploy:bypass_approval permission. Only available if the tenant has enabled bypass (allow_deploy_bypass), and every use is logged with the given reason. The approval request's own status is left untouched. The deploy is still gated on the release's policy check: a refusal exits 2, and --override-policy proceeds past it with the same --reason (needs the workspace:policy update permission)."
+    "[CRITICAL] STOP and confirm with the user before running this; it deploys the release immediately, past the review workflow. Deploy the request's release past the approval gate under the tenant_center:deploy:bypass_approval permission. Only available if the tenant has enabled bypass (allow_deploy_bypass), and every use is logged with the given reason. The approval request's own status is left untouched."
   static examples = [
     `$ xano tenant_deploy_request bypass 12 --reason "Prod incident, reviewer unavailable"
 Deployed tenant release, bypassing deploy request #12's approval gate.
 `,
-    `$ xano tenant_deploy_request bypass 12 --reason "Prod incident; AUTH-001 finding accepted" --override-policy`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -37,6 +36,7 @@ Deployed tenant release, bypassing deploy request #12's approval gate.
     'override-policy': Flags.boolean({
       default: false,
       description: 'Also proceed past a blocking policy gate, recording --reason as the override reason (needs the workspace:policy update permission; audited)',
+      hidden: true,
     }),
     reason: Flags.string({
       description: 'Reason for bypassing the approval gate (required, audited)',

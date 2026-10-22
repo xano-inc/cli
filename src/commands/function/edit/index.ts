@@ -83,7 +83,6 @@ Name: my_function
   ...
 }
 `,
-    `$ xano function:edit 163 -f function.xs --policy-override "Exception approved; finding tracked in JIRA-12"`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -106,7 +105,7 @@ Name: my_function
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Publish past a blocking live-branch publish policy gate with an audited reason (requires workspace:policy update)'}),
+    'policy-override': Flags.string({description: 'Publish past a blocking live-branch publish policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
     publish: Flags.boolean({
       default: true,
       description: 'Publish the function after editing',

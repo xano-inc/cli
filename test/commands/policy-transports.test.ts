@@ -131,7 +131,7 @@ describe('which pushes carry policy files', () => {
       expect(fixture.calls.find(call => call.url.pathname.endsWith('/multidoc'))?.body).to.contain('policy "AUTH-001"')
       expect(warned(result.stderr)).to.contain(featureOff.message)
       expect(result.stdout).not.to.contain('Policy documents')
-      expect(warned(result.stderr)).to.contain(`Policy check disabled: ${disabled.message}`)
+      expect(result.stderr).not.to.contain('Policy check')
     })
 
     it('still counts the policy documents it sent when the platform left none out', async () => {

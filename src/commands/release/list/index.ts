@@ -18,20 +18,12 @@ interface Release {
 type ReleaseChecks = Map<number, ReleasePolicyCheck> | null
 
 export default class ReleaseList extends BaseCommand {
-  static description =
-    "List all releases in a workspace, each with its stored policy check when the credential can read policies (the release's own check, as Studio's Policies column shows it)"
+  static description = 'List all releases in a workspace'
   static examples = [
     `$ xano release list
 Releases in workspace 5:
   - v1.0 (ID: 10) - main
   - v1.1-hotfix (ID: 11) - main [hotfix]
-`,
-    `$ xano release list
-Releases in workspace 5:
-  - v1.2 (ID: 12) - main (9/28/2026, 4:12:03 PM PDT) [policies: 2 blocking, 1 advisory]
-  - v1.1-hotfix (ID: 11) - main [hotfix] (9/27/2026, 9:40:15 AM PDT) [policies: passed]
-  - v1.0 (ID: 10) - main (9/20/2026, 1:05:44 PM PDT) [policies: not checked]
-Policy check details: xano policy runs --release <name>
 `,
     `$ xano release list -w 5 --output json`,
   ]
