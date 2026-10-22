@@ -21,7 +21,7 @@ export default class TenantDeployRequestSetStatus extends BaseCommand {
     }),
   }
   static description =
-    "[CRITICAL] STOP and confirm with the user before running --status approve; if this is the vote that completes the tenant's required reviewer count, it deploys the release to the tenant immediately as part of approving. Change a tenant deploy request's status (draft, submit, approve, request_changes, close, or reopen). That deploy is gated on the release's policy check: a refusal exits 2 and leaves the request approved; --override-policy with --reason proceeds past it."
+    "[CRITICAL] STOP and confirm with the user before running --status approve; if this is the vote that completes the tenant's required reviewer count, it deploys the release to the tenant immediately as part of approving. Change a tenant deploy request's status (draft, submit, approve, request_changes, close, or reopen)."
   static examples = [
     `$ xano tenant_deploy_request set_status 12 --status submit
 Deploy request #12 is now: pending
@@ -33,7 +33,6 @@ Vote recorded on deploy request #12: 1/2 required reviewers.
 Deploy request #12 is now: approved (2/2 required reviewers)
 Deployed to tenant as part of this approval.
 `,
-    `$ xano tenant_deploy_request set_status 12 --status approve --override-policy --reason "Finding accepted; fix tracked in JIRA-12"`,
     `$ xano tenant_deploy_request set_status 12 --status request_changes --reason "Needs a migration note"`,
     `$ xano tenant_deploy_request set_status 12 --status close --reason "Superseded by #14"`,
     `$ xano tenant_deploy_request set_status 12 --status reopen`,
@@ -50,9 +49,10 @@ Deployed to tenant as part of this approval.
     'override-policy': Flags.boolean({
       default: false,
       description: 'With --status approve: if this vote deploys, proceed past a blocking policy gate, recording --reason as the override reason (needs the workspace:policy update permission; audited)',
+      hidden: true,
     }),
     reason: Flags.string({
-      description: 'Reason for this status change. Required for request_changes and close, and with --override-policy.',
+      description: 'Reason for this status change. Required for request_changes and close.',
       required: false,
     }),
     status: Flags.string({

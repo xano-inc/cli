@@ -118,6 +118,7 @@ export function releasePolicyRunLines(policyRun: unknown, releaseName?: string, 
   if (!policyRun || typeof policyRun !== 'object') return []
   const check = policyRun as ReleasePolicyRun
   const status = check.status?.trim() || 'unknown'
+  if (status === 'disabled') return []
   if (status !== 'recorded') {
     return [`  Policy check ${status}: ${check.message?.trim() || 'no message returned.'}`]
   }

@@ -9,7 +9,7 @@ import {json, policyFixture} from '../../../helpers/policy-fixture.js'
 
 const finding = {id: 'F1', message: 'No auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'AUTH-001.R1'}
 // `forbidden` is what a platform answered before members without policy read got their own findings.
-const warned = ['disabled', 'forbidden', 'unavailable', 'error']
+const warned = ['forbidden', 'unavailable', 'error']
 const blocked = (n: number) => ({...finding, id: `B${n}`, object: {name: `GET /b${n}`, type: 'query'}})
 const advisory = (n: number) => ({...finding, id: `A${n}`, object: {name: `GET /a${n}`, type: 'query'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'})
 /** A push's `policy_check` as the platform caps it: the first findings, and the counts they are out of. */
@@ -49,7 +49,8 @@ describe('workspace push policy feedback', () => {
     ['blocking findings beside an errored check', {blocking: true, blocking_findings: [finding], findings: [finding], message: 'A check could not run.', status: 'error'}, 2,
       'Policy check error: A check could not run.', 'Blocking findings (1)'],
     ['an unknown status', {blocking: false, message: 'Something new.', status: 'partial'}, 0, 'Policy check partial: Something new.', null],
-    ['no feedback', undefined, 0, 'Policy check: no policy feedback returned.', null],
+    ['disabled', {blocking: false, message: 'The server says disabled.', status: 'disabled'}, 0, null, null],
+    ['no feedback', undefined, 0, null, null],
   ]
   for (const [label, check, code, warning, printed] of cases) {
     it(`exits ${code} for ${label}${warning ? ', with one warning line' : ''}`, async () => {

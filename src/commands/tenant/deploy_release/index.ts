@@ -49,18 +49,12 @@ export default class TenantDeployRelease extends BaseCommand {
     }),
   }
   static description =
-    "[CRITICAL] STOP and confirm with the user before deploying a release to a tenant; this mutates the live tenant. Deploys a release to a tenant. A deploy is gated on the release's own policy check: any blocking finding in the release refuses it (exit 2) unless --override-reason is given, whatever the tenant runs today, so the release gets the same verdict on every tenant. --check previews that verdict without deploying."
+    "[CRITICAL] STOP and confirm with the user before deploying a release to a tenant; this mutates the live tenant. Deploys a release to a tenant."
   static examples = [
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0
 Deployed release "v1.0" to tenant: My Tenant (my-tenant)
 `,
     `$ xano tenant deploy_release t1234-abcd-xyz1 --release v1.0 -o json`,
-    `$ xano tenant deploy_release prod --release v1.2 --check
-Checked release "v1.2" for tenant "prod"; nothing was deployed.
-Policy gate: blocked
-  Deploy blocked: this release has 1 blocking policy finding.
-`,
-    `$ xano tenant deploy_release prod --release v1.2 --override-reason "Hotfix; AUTH-001 finding tracked in JIRA-12"`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -68,6 +62,7 @@ Policy gate: blocked
       default: false,
       description: "Preview the release's policy gate on this tenant without deploying; exits 2 when the deploy would be refused",
       exclusive: ['override-reason'],
+      hidden: true,
     }),
     output: Flags.string({
       char: 'o',
@@ -79,6 +74,7 @@ Policy gate: blocked
     'override-reason': Flags.string({
       description: 'Deploy past a blocking policy gate, recording this reason (needs the workspace:policy update permission; audited)',
       exclusive: ['check'],
+      hidden: true,
     }),
     release: Flags.string({
       char: 'r',
@@ -204,7 +200,7 @@ Policy gate: blocked
         this.log(`Deployed release "${releaseName}" to tenant: ${tenant.display || tenant.name} (${tenant.name})`)
         if (tenant.state) this.log(`  State: ${tenant.state}`)
         if (tenant.release?.name) this.log(`  Release: ${tenant.release.name}`)
-        if (tenant.policy_gate?.status) this.log(`  ${deployedGateLine(tenant.policy_gate)}`)
+        if (tenant.policy_gate?.status && tenant.policy_gate.status !== 'disabled') this.log(`  ${deployedGateLine(tenant.policy_gate)}`)
         this.log(`  Time: ${elapsed}s`)
       }
 

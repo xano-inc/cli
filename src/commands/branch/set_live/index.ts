@@ -26,7 +26,7 @@ export default class BranchSetLive extends BaseCommand {
     }),
   }
 static description =
-    '[IMPORTANT] ALWAYS confirm with the user before changing the live branch. Sets a branch as the live (active) branch for API requests. The set-live policy gate checks the branch against its own policies, which live will have once it is set live: when blocking findings refuse it, the command exits 2 unless --policy-override gives a reason. Setting live needs no workspace:policy permission.'
+    '[IMPORTANT] ALWAYS confirm with the user before changing the live branch. Sets a branch as the live (active) branch for API requests.'
 static examples = [
     `$ xano branch set-live staging
 Are you sure you want to set 'staging' as the live branch? (y/N) y
@@ -43,7 +43,6 @@ Branch 'v1' is now live
   "live": true
 }
 `,
-    `$ xano branch set_live rollback --force --policy-override "Rollback approved; finding tracked in JIRA-12"`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
@@ -60,7 +59,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Set the branch live past a blocking set-live policy gate with an audited reason (requires workspace:policy update)'}),
+    'policy-override': Flags.string({description: 'Set the branch live past a blocking set-live policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
     workspace: Flags.integer({
       char: 'w',
       description: 'Workspace ID (uses profile workspace if not provided)',

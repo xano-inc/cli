@@ -38,6 +38,7 @@ interface TargetFlags {
 
 /** Shared flags, request helper and output for the `policy *` commands and `skills pull`. */
 export default abstract class PolicyCommand extends BaseCommand {
+  static override hidden = true
   static policyFlags = {
     ...BaseCommand.baseFlags,
     branch: Flags.string({char: 'b', description: "Branch label (defaults to profile branch or live; -b '' selects live)"}),
