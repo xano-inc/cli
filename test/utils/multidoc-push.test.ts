@@ -5,6 +5,7 @@ import * as fs from 'node:fs'
 import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
+import {stripVTControlCharacters} from 'node:util'
 
 import {buildDocumentKey, parseDocument} from '../../src/utils/document-parser.js'
 import {
@@ -17,14 +18,27 @@ import {
   findWorkspaceEntries,
   normalizeFilterPattern,
   parseExportDocuments,
+  protectGuidsFor,
   type PushFlags,
   type PushTarget,
   selectWritebacks,
+  unprotectableFilteredOut,
   writeBackFormattedDocuments,
   type WritebackHttpResponse,
 } from '../../src/utils/multidoc-push.js'
 import {readMarkerToken, sandboxMarkerExists, writeMarkerToken} from '../../src/utils/sandbox-marker.js'
 import {hashBytes, hashFile, sandboxTargetIdentity, saveSyncState, type SyncTargetIdentity} from '../../src/utils/sync-state.js'
+
+/** 100 filtered-out tables with 39-char guids; `lastExtra` lengthens the last one. */
+function cappedDocs(lastExtra: string): Array<{guid: string; key: string; name: string; relPath: string; type: string}> {
+  return Array.from({length: 100}, (_, i) => ({
+    guid: `${String(i).padStart(39, '0')}${i === 99 ? lastExtra : ''}`,
+    key: `table:t${i}`,
+    name: `t${i}`,
+    relPath: `table/t${i}.xs`,
+    type: 'table',
+  }))
+}
 
 function keyFor(content: string): string {
   const parsed = parseDocument(content)
@@ -363,6 +377,80 @@ describe('multidoc-push helpers', () => {
 
       expect(hits).to.have.lengthOf(1)
       fs.rmSync(triggerDir, {force: true, recursive: true})
+    })
+
+    it('describes every document of a filtered-out multi-document file', () => {
+      const bundleDir = mkdtempSync(join(tmpdir(), 'xano-guard-bundle-'))
+      writeFileSync(join(bundleDir, 'bundle.xs'), 'table a {\n  guid = "GA"\n}\n---\ntable b {\n  guid = "GB"\n}\n---\ntable c {\n}')
+      const filteredOut = describeFilteredOut([join(bundleDir, 'bundle.xs')], [], bundleDir)
+
+      expect(filteredOut.map((d) => [d.key, d.guid, d.relPath])).to.deep.equal([
+        ['table:a', 'GA', 'bundle.xs'],
+        ['table:b', 'GB', 'bundle.xs'],
+        ['table:c', undefined, 'bundle.xs'],
+      ])
+      expect(protectGuidsFor(filteredOut)).to.equal('GA,GB')
+      expect(deletesHittingFilteredOut([{action: 'delete', name: 'b', type: 'table'}], filteredOut)).to.have.lengthOf(1)
+      fs.rmSync(bundleDir, {force: true, recursive: true})
+    })
+
+    it('splits a filtered-out bundle the way the server does (CRLF, `--- `, a leading `---`)', () => {
+      const bundleDir = mkdtempSync(join(tmpdir(), 'xano-guard-split-'))
+      const bundles = {
+        'crlf.xs': 'table a {\r\n  guid = "GA"\r\n}\r\n---\r\ntable b {\r\n  guid = "GB"\r\n}\r\n',
+        'leading.xs': '---\ntable c {\n  guid = "GC"\n}\n---\ntable d {\n  guid = "GD"\n}',
+        'spaced.xs': 'table e {\n  guid = "GE"\n}\n--- \ntable f {\n  guid = "GF"\n}',
+      }
+      for (const [name, content] of Object.entries(bundles)) writeFileSync(join(bundleDir, name), content)
+      const filteredOut = describeFilteredOut(
+        Object.keys(bundles).map((name) => join(bundleDir, name)),
+        [],
+        bundleDir,
+      )
+
+      expect(protectGuidsFor(filteredOut)).to.equal('GA,GB,GC,GD,GE,GF')
+      expect(unprotectableFilteredOut(filteredOut)).to.deep.equal([])
+      fs.rmSync(bundleDir, {force: true, recursive: true})
+    })
+
+    it('counts a filtered-out document it cannot read as unprotectable, but not a comment-only fragment', () => {
+      const bundleDir = mkdtempSync(join(tmpdir(), 'xano-guard-unread-'))
+      writeFileSync(join(bundleDir, 'bundle.xs'), '// header\n---\ntable a {\n  guid = "GA"\n}\n---\n/* table b */ table b {\n}')
+      const filteredOut = describeFilteredOut([join(bundleDir, 'bundle.xs')], [], bundleDir)
+
+      expect(protectGuidsFor(filteredOut)).to.equal('GA')
+      expect(unprotectableFilteredOut(filteredOut)).to.deep.equal([
+        '1 filtered-out document(s) could not be read, so the server cannot be told to spare them.',
+      ])
+      fs.rmSync(bundleDir, {force: true, recursive: true})
+    })
+
+    it('counts a filtered-out file it cannot open as unprotectable', () => {
+      const filteredOut = describeFilteredOut([join(dir, 'table', 'gone.xs')], [], dir)
+
+      expect(unprotectableFilteredOut(filteredOut)).to.deep.equal([
+        '1 filtered-out document(s) could not be read, so the server cannot be told to spare them.',
+      ])
+    })
+
+    it('declares protect_guids up to exactly the 4,000-char cap, and not one char past it', () => {
+      // 100 guids of 39 chars plus 99 commas = 3,999; one more char on the last guid reaches 4,000.
+      expect(protectGuidsFor(cappedDocs('')).length).to.equal(3999)
+      expect(unprotectableFilteredOut(cappedDocs('x'))).to.deep.equal([])
+      expect(protectGuidsFor(cappedDocs('x')).length).to.equal(4000)
+      expect(unprotectableFilteredOut(cappedDocs('xy'))).to.deep.equal(['Too many filtered-out documents to declare in one request.'])
+    })
+
+    it('treats an empty guid as no guid, in the count and in protect_guids', () => {
+      const docs = [
+        {guid: '', key: 'table:a', name: 'a', relPath: 'table/a.xs', type: 'table'},
+        {guid: 'G', key: 'table:b', name: 'b', relPath: 'table/b.xs', type: 'table'},
+      ]
+
+      expect(protectGuidsFor(docs)).to.equal('G')
+      expect(unprotectableFilteredOut(docs)).to.deep.equal([
+        '1 filtered-out document(s) have no guid yet, so the server cannot be told to spare them.',
+      ])
     })
 
     it('returns nothing when there is no filter at all, so an unfiltered push is never blocked', () => {
@@ -1215,6 +1303,360 @@ describe('multidoc-push helpers', () => {
       expect(calls.some((call) => call.url.includes('/workspace/'))).to.equal(false)
     })
   })
+
+  describe('executePush --sync --delete with a filter (DEV-8963)', () => {
+    // A filtered-out document is absent from the payload, so the delete sweep
+    // would remove it. --force skips the preview, and the preview is where the
+    // guard runs, so --force must still refuse or verify before any delete push.
+    let tmpDir: string
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(join(tmpdir(), 'xano-filter-delete-'))
+      writeXs(tmpDir, 'function/foo.xs', 'function foo {\n  guid = "GUID_FOO"\n}')
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, {force: true, recursive: true})
+    })
+
+    it('refuses --force before any request when the filtered-out guids exceed the protect_guids cap', async () => {
+      for (let i = 0; i < 150; i++) {
+        writeXs(tmpDir, `table/t${i}.xs`, `table t${i} {\n  guid = "guid-${String(i).padStart(4, '0')}-${'x'.repeat(26)}"\n}`)
+      }
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('Too many filtered-out documents to declare in one request.')
+      expect(error?.message).to.contain('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(calls).to.deep.equal([])
+    })
+
+    it('refuses --force before any request when a filtered-out document has no guid', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+      writeXs(tmpDir, 'table/order.xs', 'table order {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('2 filtered-out document(s) have no guid yet')
+      expect(error?.message).to.not.contain('Too many')
+      expect(calls).to.deep.equal([])
+    })
+
+    it('checks the preview under --force and refuses when it still deletes a filtered-out object', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error, logs} = await runFilteredPush(tmpDir, {
+        delete: true,
+        exclude: ['table/*'],
+        force: true,
+        operations: [
+          {action: 'unchanged', details: '', name: 'foo', type: 'function'},
+          {action: 'delete', details: '', name: 'book', type: 'table'},
+        ],
+      })
+
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(logs).to.include('--- Refusing to push ---')
+      expect(logs.some((line) => line.includes('DELETE') && line.includes('book'))).to.equal(true)
+      expect(previews(calls)).to.have.lengthOf(1)
+      expect(new URL(previews(calls)[0].url).searchParams.get('protect_guids')).to.equal('GUID_BOOK')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('pushes under --force, without a prompt, when the preview spares every filtered-out object', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error).to.equal(undefined)
+      expect(previews(calls)).to.have.lengthOf(1)
+      expect(pushes(calls)).to.have.lengthOf(1)
+      const pushUrl = new URL(pushes(calls)[0].url)
+      expect(pushUrl.searchParams.get('delete')).to.equal('true')
+      expect(pushUrl.searchParams.get('protect_guids')).to.equal('GUID_BOOK')
+    })
+
+    it('refuses under --force when the preview fails', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        dryRunBody: JSON.stringify({message: 'Internal error.'}),
+        dryRunStatus: 500,
+        exclude: ['table/*'],
+        force: true,
+      })
+
+      expect(error?.message).to.contain('The push preview failed (500): Internal error')
+      expect(error?.message).to.contain('Re-run without --delete')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('refuses under --force when the preview request throws', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, dryRunThrows: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('The push preview failed (socket hang up)')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('refuses under --force when the instance returns no preview operations', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, dryRunBody: '{}', exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('This instance returned no push preview')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('still lets a server policy-plan refusal speak for itself under --force', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        dryRunBody: JSON.stringify({message: 'Your plan allows 1 policy.', payload: {code: 'policy_plan_limit'}}),
+        dryRunStatus: 403,
+        exclude: ['table/*'],
+        force: true,
+      })
+
+      expect(error?.message).to.equal('Push refused (403): Your plan allows 1 policy.')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('leaves --force without --delete alone: no preview, no refusal', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: false, exclude: ['table/*'], force: true})
+
+      expect(error).to.equal(undefined)
+      expect(previews(calls)).to.deep.equal([])
+      expect(pushes(calls)).to.have.lengthOf(1)
+    })
+
+    it('leaves --force --delete without a filter alone: no preview, no refusal', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, force: true})
+
+      expect(error).to.equal(undefined)
+      expect(previews(calls)).to.deep.equal([])
+      expect(pushes(calls)).to.have.lengthOf(1)
+    })
+
+    it('leaves --force --delete alone when the filter removes nothing', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['nothing/*'], force: true})
+
+      expect(error).to.equal(undefined)
+      expect(previews(calls)).to.deep.equal([])
+      expect(pushes(calls)).to.have.lengthOf(1)
+    })
+
+    it('does not refuse up front without --force: the preview decides, as before', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*']})
+
+      // The preview spares the table, so the guard passes and the run stops at
+      // the confirmation a non-interactive shell cannot give.
+      expect(previews(calls)).to.have.lengthOf(1)
+      expect(error?.message).to.equal('Non-interactive environment detected. Use --force to skip confirmation.')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('keeps the non-force refusal output unchanged', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {error, logs} = await runFilteredPush(tmpDir, {
+        delete: true,
+        exclude: ['table/*'],
+        operations: [{action: 'delete', details: '', name: 'user', type: 'table'}],
+      })
+
+      const refusal = logs.slice(logs.indexOf('--- Refusing to push ---') - 1)
+      expect(refusal).to.deep.equal([
+        '',
+        '--- Refusing to push ---',
+        '',
+        '  --delete would remove 1 object(s) that --include/--exclude filtered out:',
+        '',
+        `  ${'DELETE'.padEnd(8)} ${'table'.padEnd(18)} user  (${join('table', 'user.xs')})`,
+        '',
+        '  1 filtered-out document(s) have no guid yet, so the server cannot be told to spare them.',
+        '  This instance may also predate protected pushes.',
+        '',
+      ])
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+    })
+
+    it('refuses --force the same way when --include is the filter', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, force: true, include: ['function/*']})
+
+      expect(error?.message).to.contain('1 filtered-out document(s) have no guid yet')
+      expect(calls).to.deep.equal([])
+    })
+
+    it('does not count a filtered-out policy as unprotectable under --force, and still checks the preview', async () => {
+      writeXs(tmpDir, 'table/book.xs', 'table book {\n  guid = "GUID_BOOK"\n}')
+      writeXs(tmpDir, 'policy/tmp_001.xs', 'policy tmp_001 {\n  guid = "GUID_POLICY"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, force: true, include: ['function/*']})
+
+      expect(error).to.equal(undefined)
+      expect(previews(calls)).to.have.lengthOf(1)
+      expect(pushes(calls)).to.have.lengthOf(1)
+    })
+
+    it('refuses under --force when the preview deletes a filtered-out policy after all', async () => {
+      writeXs(tmpDir, 'policy/tmp_001.xs', 'policy tmp_001 {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        force: true,
+        include: ['function/*'],
+        operations: [{action: 'delete', details: '', name: 'tmp_001', type: 'policy'}],
+      })
+
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('protects and checks every document of a filtered-out multi-document file under --force', async () => {
+      writeXs(tmpDir, 'table/bundle.xs', 'table a {\n  guid = "GA"\n}\n---\ntable b {\n  guid = "GB"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        exclude: ['table/*'],
+        force: true,
+        operations: [
+          {action: 'unchanged', details: '', name: 'foo', type: 'function'},
+          {action: 'delete', details: '', name: 'b', type: 'table'},
+        ],
+      })
+
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(new URL(previews(calls)[0].url).searchParams.get('protect_guids')).to.equal('GA,GB')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    for (const [form, bundle, deleted] of [
+      ['CRLF', 'table a {\r\n  guid = "GA"\r\n}\r\n---\r\ntable b {\r\n  guid = "GB"\r\n}\r\n', 'b'],
+      ['`--- `', 'table a {\n  guid = "GA"\n}\n--- \ntable b {\n  guid = "GB"\n}', 'b'],
+      ['leading `---`', '---\ntable a {\n  guid = "GA"\n}\n---\ntable b {\n  guid = "GB"\n}', 'a'],
+    ]) {
+      it(`protects and checks every document of a filtered-out ${form} bundle under --force`, async () => {
+        writeXs(tmpDir, 'table/bundle.xs', bundle)
+
+        const {calls, error} = await runFilteredPush(tmpDir, {
+          delete: true,
+          exclude: ['table/*'],
+          force: true,
+          operations: [
+            {action: 'unchanged', details: '', name: 'foo', type: 'function'},
+            {action: 'delete', details: '', name: deleted, type: 'table'},
+          ],
+        })
+
+        expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+        expect(new URL(previews(calls)[0].url).searchParams.get('protect_guids')).to.equal('GA,GB')
+        expect(pushes(calls)).to.deep.equal([])
+      })
+    }
+
+    it('checks a filtered-out file holding one document after a leading `---` under --force', async () => {
+      writeXs(tmpDir, 'table/book.xs', '---\ntable book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        exclude: ['table/*'],
+        force: true,
+        operations: [
+          {action: 'unchanged', details: '', name: 'foo', type: 'function'},
+          {action: 'delete', details: '', name: 'book', type: 'table'},
+        ],
+      })
+
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      expect(new URL(previews(calls)[0].url).searchParams.get('protect_guids')).to.equal('GUID_BOOK')
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('refuses --force before any request when a filtered-out document does not parse', async () => {
+      writeXs(tmpDir, 'table/book.xs', '/* the book table */ table book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('1 filtered-out document(s) could not be read')
+      expect(calls).to.deep.equal([])
+    })
+
+    it('still reads the preview under --force when the filtered-out files hold no document', async () => {
+      writeXs(tmpDir, 'table/notes.xs', '// nothing here yet\n')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, dryRunThrows: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('The push preview failed (socket hang up)')
+      expect(previews(calls)).to.have.lengthOf(1)
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('refuses --force before any request when a later document of a filtered-out file has no guid', async () => {
+      writeXs(tmpDir, 'table/bundle.xs', 'table a {\n  guid = "GA"\n}\n---\ntable b {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('1 filtered-out document(s) have no guid yet')
+      expect(calls).to.deep.equal([])
+    })
+
+    it('protects and checks a document the --force flatten moves outside the filter', async () => {
+      writeXs(tmpDir, 'table/other.xs', 'table other {\n  guid = "GUID_OTHER"\n}')
+      writeXs(tmpDir, 'bundle.xs', 'function bar {\n  guid = "GUID_BAR"\n}\n---\ntable book {\n  guid = "GUID_BOOK"\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {
+        delete: true,
+        exclude: ['table/*'],
+        force: true,
+        operations: [
+          {action: 'unchanged', details: '', name: 'foo', type: 'function'},
+          {action: 'unchanged', details: '', name: 'bar', type: 'function'},
+          {action: 'delete', details: '', name: 'book', type: 'table'},
+        ],
+      })
+
+      expect(fs.existsSync(join(tmpDir, 'table', 'book.xs'))).to.equal(true)
+      expect(error?.message).to.equal('Re-run without --delete, or without the --include/--exclude filter.')
+      const protectGuids = new URL(previews(calls)[0].url).searchParams.get('protect_guids')
+      expect(protectGuids?.split(',').sort()).to.deep.equal(['GUID_BOOK', 'GUID_OTHER'])
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('checks under --force when only the flatten leaves a document outside the filter', async () => {
+      writeXs(tmpDir, 'bundle.xs', 'function bar {\n  guid = "GUID_BAR"\n}\n---\ntable book {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, exclude: ['table/*'], force: true})
+
+      expect(error?.message).to.contain('1 filtered-out document(s) have no guid yet')
+      expect(previews(calls)).to.deep.equal([])
+      expect(pushes(calls)).to.deep.equal([])
+    })
+
+    it('keeps --dry-run --force on the preview path: no up-front refusal', async () => {
+      writeXs(tmpDir, 'table/user.xs', 'table user {\n}')
+
+      const {calls, error} = await runFilteredPush(tmpDir, {delete: true, dryRun: true, exclude: ['table/*'], force: true})
+
+      expect(error).to.equal(undefined)
+      expect(previews(calls)).to.have.lengthOf(1)
+      expect(pushes(calls)).to.deep.equal([])
+    })
+  })
 })
 
 const FINGERPRINT: SyncTargetIdentity = {
@@ -1523,3 +1965,92 @@ function jsonApi(body: unknown, status = 200, stringifyObject = true): Response 
   } as Response
 }
 
+interface FilteredCall {
+  method: string
+  url: string
+}
+
+/** The delete-capable writes: every POST that is not the preview. */
+function pushes(calls: FilteredCall[]): FilteredCall[] {
+  return calls.filter((call) => call.method === 'POST' && !call.url.includes('/dry-run'))
+}
+
+function previews(calls: FilteredCall[]): FilteredCall[] {
+  return calls.filter((call) => call.url.includes('/dry-run'))
+}
+
+/**
+ * A push with no sync record, so the only requests are the preview and the
+ * push itself. `operations` is what the preview returns (default: the payload,
+ * unchanged); every request is recorded, and the error the push stopped with
+ * is returned rather than thrown.
+ */
+async function runFilteredPush(
+  inputDir: string,
+  options: {
+    delete: boolean
+    dryRun?: boolean
+    dryRunBody?: string
+    dryRunStatus?: number
+    dryRunThrows?: boolean
+    exclude?: string[]
+    force?: boolean
+    include?: string[]
+    operations?: Array<{action: string; details: string; name: string; type: string}>
+  },
+): Promise<{calls: FilteredCall[]; error?: Error; logs: string[]}> {
+  const {command, logs} = stubCommand()
+  const calls: FilteredCall[] = []
+  const flags: PushFlags = {
+    delete: options.delete,
+    'dry-run': Boolean(options.dryRun),
+    env: false,
+    exclude: options.exclude,
+    force: Boolean(options.force),
+    guids: false,
+    include: options.include,
+    records: false,
+    sync: true,
+    transaction: true,
+    truncate: false,
+    verbose: false,
+  }
+
+  let error: Error | undefined
+  try {
+    await executePush(
+      {
+        accessToken: 'token',
+        branch: '',
+        command,
+        inputDir,
+        log: (message) => logs.push(stripVTControlCharacters(message)),
+        async verboseFetch(url, init) {
+          const method = String(init.method ?? 'GET').toUpperCase()
+          calls.push({method, url})
+
+          if (url.includes('/multidoc/dry-run')) {
+            if (options.dryRunThrows) throw new Error('socket hang up')
+            if (options.dryRunBody !== undefined) return jsonApi(options.dryRunBody, options.dryRunStatus ?? 200, false)
+            const docs = String(init.body ?? '').split('\n---\n').filter((doc) => doc.trim())
+            const operations =
+              options.operations ??
+              docs.map((doc) => ({action: 'unchanged', details: '', name: parseDocument(doc)?.name ?? 'unknown', type: parseDocument(doc)?.type ?? 'function'}))
+            return jsonApi({
+              operations,
+              summary: {function: {created: 0, deleted: 0, truncated: 0, unchanged: 0, updated: operations.length}},
+            })
+          }
+
+          return jsonApi({guid_map: []})
+        },
+      },
+      workspaceTarget(),
+      flags,
+    )
+  } catch (error_) {
+    error = error_ as Error
+  }
+
+  return {calls, error, logs}
+}

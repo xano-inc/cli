@@ -74,6 +74,14 @@ describe('flattenBundleFile', () => {
     expect(fs.existsSync(bundle)).to.equal(true) // not deleted
   })
 
+  it('splits a CRLF bundle instead of skipping it as one document', () => {
+    const bundle = writeBundle('crlf.xs', 'table a {\r\n}\r\n---\r\ntable b {\r\n}\r\n')
+    const result = flattenBundleFile(bundle)
+    expect(result.skipped).to.be.undefined
+    expect(fs.readFileSync(join(root, 'table', 'a.xs'), 'utf8')).to.equal('table a {\n}\n')
+    expect(fs.readFileSync(join(root, 'table', 'b.xs'), 'utf8')).to.equal('table b {\n}\n')
+  })
+
   it('throws on a destination collision unless force is set', () => {
     const bundle = writeBundle()
     // Pre-create one of the destinations to force a clash.

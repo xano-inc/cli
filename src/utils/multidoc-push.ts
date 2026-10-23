@@ -3,7 +3,7 @@ import {minimatch} from 'minimatch'
 import * as fs from 'node:fs'
 import {join, relative} from 'node:path'
 
-import {buildDocumentKey, findFilesWithGuid, parseDocument} from './document-parser.js'
+import {buildDocumentKey, findFilesWithGuid, parseDocument, splitMultidocFragments} from './document-parser.js'
 import {
   compareLocalToExport,
   indexLocalDocuments,
@@ -371,6 +371,8 @@ export interface FilteredOutDocument {
   name: string
   relPath: string
   type: string
+  /** Set when the file could not be opened or the document does not parse: it cannot be declared or matched. */
+  unreadable?: true
 }
 
 /**
@@ -380,7 +382,10 @@ export interface FilteredOutDocument {
  * ones a `--delete` sweep would remove: a filtered-out document never reaches
  * the payload, so the server reads it as deleted from the tree. Their GUIDs are
  * sent as `protect_guids` so the server spares them, and their keys are used to
- * VERIFY the server actually did.
+ * VERIFY the server actually did. A file holding several documents (a bundle)
+ * describes each of them, split as the server splits it: push leaves every one
+ * out. A file that can't be opened, or a document in it that doesn't parse, is
+ * described as `unreadable` so the guard refuses rather than skip it.
  */
 export function describeFilteredOut(allFiles: string[], keptFiles: string[], inputDir: string): FilteredOutDocument[] {
   const kept = new Set(keptFiles)
@@ -389,29 +394,36 @@ export function describeFilteredOut(allFiles: string[], keptFiles: string[], inp
   for (const filePath of allFiles) {
     if (kept.has(filePath)) continue
 
+    const relPath = relative(inputDir, filePath)
+    const unreadable = {key: '', name: '', relPath, type: '', unreadable: true} as const
     let content: string
     try {
-      content = fs.readFileSync(filePath, 'utf8').trim()
+      content = fs.readFileSync(filePath, 'utf8')
     } catch {
+      out.push(unreadable)
       continue
     }
 
-    if (!content) continue
+    for (const fragment of splitMultidocFragments(content)) {
+      const parsed = parseDocument(fragment)
+      if (!parsed) {
+        // Only comments: nothing the server could hold, so nothing to spare.
+        if (fragment.split('\n').some((line) => line.trim() && !line.trim().startsWith('//'))) out.push(unreadable)
+        continue
+      }
 
-    const parsed = parseDocument(content)
-    if (!parsed) continue
-
-    const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
-    out.push({
-      guid: parsed.guid,
-      // The preview buckets every trigger subtype under the generic `trigger`
-      // type, so key triggers that way to match (DEV-7084, same as
-      // filterChangedEntries).
-      key: `${parsed.type.endsWith('_trigger') ? 'trigger' : parsed.type}:${opName}`,
-      name: opName,
-      relPath: relative(inputDir, filePath),
-      type: parsed.type,
-    })
+      const opName = parsed.verb ? `${parsed.name} ${parsed.verb}` : parsed.name
+      out.push({
+        guid: parsed.guid,
+        // The preview buckets every trigger subtype under the generic `trigger`
+        // type, so key triggers that way to match (DEV-7084, same as
+        // filterChangedEntries).
+        key: `${parsed.type.endsWith('_trigger') ? 'trigger' : parsed.type}:${opName}`,
+        name: opName,
+        relPath,
+        type: parsed.type,
+      })
+    }
   }
 
   return out
@@ -444,6 +456,137 @@ export function deletesHittingFilteredOut(
   }
 
   return hits
+}
+
+/** The comma-joined GUIDs sent as `protect_guids`; documents without a GUID are left out. */
+export function protectGuidsFor(filteredOut: FilteredOutDocument[]): string {
+  return filteredOut
+    .map((d) => d.guid)
+    .filter((g): g is string => typeof g === 'string' && g.length > 0)
+    .join(',')
+}
+
+/**
+ * Why `protect_guids` cannot cover every filtered-out document, one line per
+ * reason; empty when it can. A document that has never been pushed has no GUID
+ * to declare, and past PROTECT_GUIDS_MAX_CHARS the list is not sent at all.
+ * Policies are not counted: their guid is never read (parseDocument treats the
+ * body as opaque) and a push never deletes a policy.
+ */
+export function unprotectableFilteredOut(filteredOut: FilteredOutDocument[]): string[] {
+  const reasons: string[] = []
+  const unreadable = filteredOut.filter((d) => d.unreadable).length
+  if (unreadable > 0) {
+    reasons.push(`${unreadable} filtered-out document(s) could not be read, so the server cannot be told to spare them.`)
+  }
+
+  const missingGuids = filteredOut.filter((d) => !d.guid && !d.unreadable && d.type !== 'policy').length
+  if (missingGuids > 0) {
+    reasons.push(`${missingGuids} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`)
+  }
+
+  if (protectGuidsFor(filteredOut).length > PROTECT_GUIDS_MAX_CHARS) {
+    reasons.push('Too many filtered-out documents to declare in one request.')
+  }
+
+  return reasons
+}
+
+/** Stop a --delete push whose preview deletes something the filter excluded. */
+function refuseDeletesHittingFilteredOut(
+  command: Command,
+  log: (msg: string) => void,
+  endangered: Array<{name: string; relPath: string; type: string}>,
+  filteredOut: FilteredOutDocument[],
+): never {
+  log('')
+  log(ux.colorize('red', '--- Refusing to push ---'))
+  log('')
+  log(`  --delete would remove ${endangered.length} object(s) that --include/--exclude filtered out:`)
+  log('')
+  for (const hit of endangered.slice(0, 10)) {
+    log(`  ${ux.colorize('red', 'DELETE'.padEnd(8))} ${hit.type.padEnd(18)} ${hit.name}  ${ux.colorize('dim', `(${hit.relPath})`)}`)
+  }
+
+  if (endangered.length > 10) {
+    log(ux.colorize('dim', `  ... and ${endangered.length - 10} more`))
+  }
+
+  log('')
+  for (const reason of unprotectableFilteredOut(filteredOut)) {
+    log(ux.colorize('dim', `  ${reason}`))
+  }
+
+  log(ux.colorize('dim', '  This instance may also predate protected pushes.'))
+  log('')
+  command.error('Re-run without --delete, or without the --include/--exclude filter.')
+}
+
+/**
+ * The --include/--exclude delete guard for a --force push, which shows no
+ * preview. --force skips the confirmation, never this check: refuse before any
+ * write when `protect_guids` cannot cover the filtered-out documents, otherwise
+ * read the server's preview and refuse if it still deletes one of them (an
+ * instance that ignores `protect_guids`). With nobody there to confirm, a
+ * preview that cannot be read refuses too.
+ */
+async function verifyFilteredOutSpared(args: {
+  accessToken: string
+  command: Command
+  dryRunUrl: null | string
+  filteredOut: FilteredOutDocument[]
+  init: RequestInit
+  log: (msg: string) => void
+  target: PushTarget
+  verbose: boolean
+  verboseFetch: PushContext['verboseFetch']
+}): Promise<void> {
+  const {accessToken, command, dryRunUrl, filteredOut, init, log, target, verbose, verboseFetch} = args
+  const remedy = 'Re-run without --delete, or without the --include/--exclude filter.'
+
+  const reasons = unprotectableFilteredOut(filteredOut)
+  if (reasons.length > 0) {
+    log('')
+    log(ux.colorize('red', '--- Refusing to push ---'))
+    log('')
+    log('  --delete could remove objects that --include/--exclude filtered out, and --force does not skip this check.')
+    log('')
+    command.error(`${reasons.join(' ')} ${remedy}`)
+  }
+
+  function unverified(why: string): never {
+    return command.error(`${why}, so --delete cannot be shown to spare what --include/--exclude filtered out. ${remedy}`)
+  }
+
+  if (!dryRunUrl) unverified('This target has no push preview')
+
+  log(ux.colorize('dim', 'Checking the push preview: --delete must spare what --include/--exclude filtered out.'))
+
+  let response: Response
+  let text: string
+  try {
+    response = await verboseFetch(dryRunUrl, init, verbose, accessToken)
+    text = await response.text()
+  } catch (error) {
+    unverified(`The push preview failed (${(error as Error).message})`)
+  }
+
+  if (!response.ok) {
+    refuseIfExplained(command, target, response.status, text)
+    unverified(`The push preview failed (${response.status})${previewFailureReason(text)}`)
+  }
+
+  let operations: unknown
+  try {
+    operations = (JSON.parse(text) as null | Partial<DryRunResult>)?.operations
+  } catch {
+    // Not JSON
+  }
+
+  if (!Array.isArray(operations)) unverified('This instance returned no push preview')
+
+  const endangered = deletesHittingFilteredOut(operations as DryRunResult['operations'], filteredOut)
+  if (endangered.length > 0) refuseDeletesHittingFilteredOut(command, log, endangered, filteredOut)
 }
 
 export function pathMatchesFilters(
@@ -1135,8 +1278,8 @@ export async function executePush(
 
   const allFiles = collectFiles(inputDir)
   const files = applyFilters(allFiles, inputDir, flags.include, flags.exclude, log)
-  const filteredOut = describeFilteredOut(allFiles, files, inputDir)
-  const filteredOutCount = allFiles.length - files.length
+  let filteredOut = describeFilteredOut(allFiles, files, inputDir)
+  let filteredOutCount = allFiles.length - files.length
 
   const knowledgeOnly = files.length === 0 && (knowledgeObjects.length > 0 || ctx.knowledge !== undefined)
 
@@ -1231,11 +1374,15 @@ export async function executePush(
 
       // Re-collect and re-read: the bundle files are gone, replaced by the split
       // per-document tree, so the rest of the push sees a clean one-doc-per-file set.
+      // The split documents land at new paths that the filter may now leave out,
+      // so the filtered-out set is rebuilt from the new tree too: --delete must
+      // spare those documents, the same as any other filtered-out file.
       pushedBytes.clear()
-      const refreshed = readDocuments(
-        applyFilters(collectFiles(inputDir), inputDir, flags.include, flags.exclude, () => {}),
-        pushedBytes,
-      )
+      const refreshedFiles = collectFiles(inputDir)
+      const refreshedKept = applyFilters(refreshedFiles, inputDir, flags.include, flags.exclude, () => {})
+      filteredOut = describeFilteredOut(refreshedFiles, refreshedKept, inputDir)
+      filteredOutCount = refreshedFiles.length - refreshedKept.length
+      const refreshed = readDocuments(refreshedKept, pushedBytes)
       documentEntries = refreshed
 
       if (documentEntries.length === 0) {
@@ -1533,8 +1680,7 @@ export async function executePush(
   // itself), so it has a length ceiling: past PROTECT_GUIDS_MAX_CHARS we send
   // nothing and let the verification below refuse the push rather than issue a
   // request the server may truncate or reject.
-  const protectableGuids = filteredOut.map((d) => d.guid).filter((g): g is string => typeof g === 'string' && g.length > 0)
-  const protectGuidsParam = protectableGuids.join(',')
+  const protectGuidsParam = protectGuidsFor(filteredOut)
 
   if (shouldDelete && protectGuidsParam && protectGuidsParam.length <= PROTECT_GUIDS_MAX_CHARS) {
     queryParams.set('protect_guids', protectGuidsParam)
@@ -1605,44 +1751,11 @@ export async function executePush(
           // instance ignores the parameter, a document that has never been
           // pushed has no GUID to protect, and a very large filter exceeds what
           // the query string can carry. In every one of those cases the push is
-          // refused rather than allowed to delete.
+          // refused rather than allowed to delete. A --force push runs the
+          // same check in verifyFilteredOutSpared below.
           if (shouldDelete) {
             const endangered = deletesHittingFilteredOut(preview.operations, filteredOut)
-            if (endangered.length > 0) {
-              log('')
-              log(ux.colorize('red', '--- Refusing to push ---'))
-              log('')
-              log(
-                `  --delete would remove ${endangered.length} object(s) that --include/--exclude filtered out:`,
-              )
-              log('')
-              for (const hit of endangered.slice(0, 10)) {
-                log(`  ${ux.colorize('red', 'DELETE'.padEnd(8))} ${hit.type.padEnd(18)} ${hit.name}  ${ux.colorize('dim', `(${hit.relPath})`)}`)
-              }
-
-              if (endangered.length > 10) {
-                log(ux.colorize('dim', `  ... and ${endangered.length - 10} more`))
-              }
-
-              log('')
-              const unprotectable = filteredOut.filter((d) => !d.guid).length
-              if (unprotectable > 0) {
-                log(
-                  ux.colorize(
-                    'dim',
-                    `  ${unprotectable} filtered-out document(s) have no guid yet, so the server cannot be told to spare them.`,
-                  ),
-                )
-              }
-
-              if (protectGuidsParam.length > PROTECT_GUIDS_MAX_CHARS) {
-                log(ux.colorize('dim', '  Too many filtered-out documents to declare in one request.'))
-              }
-
-              log(ux.colorize('dim', '  This instance may also predate protected pushes.'))
-              log('')
-              command.error('Re-run without --delete, or without the --include/--exclude filter.')
-            }
+            if (endangered.length > 0) refuseDeletesHittingFilteredOut(command, log, endangered, filteredOut)
           }
 
           // Check for bad cross-references using dry-run operations to avoid false positives
@@ -1882,6 +1995,19 @@ export async function executePush(
     } else {
       command.error('Non-interactive environment detected. Use --force to skip confirmation.')
     }
+  } else if (shouldDelete && !knowledgeOnly && filteredOutCount > 0) {
+    // ── --force with --delete and a filter: no preview, but still the guard ─
+    await verifyFilteredOutSpared({
+      accessToken,
+      command,
+      dryRunUrl,
+      filteredOut,
+      init: {body: multidoc, headers: requestHeaders, method: 'POST'},
+      log,
+      target,
+      verbose: flags.verbose,
+      verboseFetch,
+    })
   }
 
   // ── Show bad references in force mode (preview mode shows them inline) ─
@@ -2542,6 +2668,18 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
   if (guidance) command.error(`Push refused (${status}): ${message}${guidance}`)
 }
 
+/** `: <server message>` from a failed preview's JSON body, or '' when it carries none. */
+function previewFailureReason(errorText: string): string {
+  try {
+    const errorJson = JSON.parse(errorText)
+    if (typeof errorJson?.message === 'string' && errorJson.message.trim()) return `: ${errorJson.message.trim().replace(/\.$/, '')}`
+  } catch {
+    // Not JSON
+  }
+
+  return ''
+}
+
 async function handleDryRunError(
   response: Response,
   command: Command,
@@ -2618,15 +2756,7 @@ async function handleDryRunError(
       // Not JSON, fall through
     }
 
-    let reason = ''
-    try {
-      const errorJson = JSON.parse(errorText)
-      if (typeof errorJson?.message === 'string' && errorJson.message.trim()) reason = `: ${errorJson.message.trim().replace(/\.$/, '')}`
-    } catch {
-      // Not JSON
-    }
-
-    command.warn(`Push preview failed (${response.status})${reason}. Skipping preview.`)
+    command.warn(`Push preview failed (${response.status})${previewFailureReason(errorText)}. Skipping preview.`)
     if (verbose) {
       log(ux.colorize('dim', errorText))
     }
