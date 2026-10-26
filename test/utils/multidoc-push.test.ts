@@ -1011,6 +1011,22 @@ describe('multidoc-push helpers', () => {
       expect(withApiGroupSwaggerDefault('api_group shop {\n  swagger {\n    active = false\n  }\n}')).to.equal(null)
     })
 
+    it('leaves a pulled private group (guid and swagger block) alone', () => {
+      expect(
+        withApiGroupSwaggerDefault('api_group shop {\n  swagger = {active: false}\n  guid = "abc"\n}'),
+      ).to.equal(null)
+    })
+
+    it('leaves a one-line group alone, as the GUID writeback does', () => {
+      expect(withApiGroupSwaggerDefault('api_group shop {}')).to.equal(null)
+    })
+
+    it('does not count a commented-out swagger line as a block', () => {
+      expect(withApiGroupSwaggerDefault('api_group shop {\n  // swagger = {active: true}\n}')).to.equal(
+        'api_group shop {\n  // swagger = {active: true}\n  swagger = {active: false}\n}',
+      )
+    })
+
     it('leaves other document types alone', () => {
       expect(withApiGroupSwaggerDefault('table shop {\n  auth = false\n}')).to.equal(null)
       expect(withApiGroupSwaggerDefault('query "items" verb=GET {\n  api_group = "shop"\n}')).to.equal(null)
