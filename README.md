@@ -314,7 +314,9 @@ refuses these files and offers to flatten them.
 `xano flatten` performs that split on demand, producing the same
 one-document-per-file tree `pull` would have written. It is purely local — no
 profile, token, or network — and deletes the original bundle once the split
-succeeds, unless you pass `--keep-source`.
+succeeds, unless you pass `--keep-source`. It splits on `---` lines the way the
+server does, and leaves the file unchanged if a piece doesn't parse (for example
+when a `--- ` line inside a multi-line string cuts a document in two).
 
 ```bash
 # Split a bundle in place into per-document files (removes the original)

@@ -82,6 +82,23 @@ describe('flattenBundleFile', () => {
     expect(fs.readFileSync(join(root, 'table', 'b.xs'), 'utf8')).to.equal('table b {\n}\n')
   })
 
+  it('refuses and keeps the source when a split leaves a document that does not parse', () => {
+    // The `--- ` line inside the prompt splits like a separator, leaving a `"""` tail.
+    const content = 'table a {\n}\n---\nagent b {\n  prompt = """\n    step one\n--- \n    """\n}\n'
+    const bundle = writeBundle('cut.xs', content)
+
+    expect(() => flattenBundleFile(bundle)).to.throw(/1 document\(s\) do not parse[\s\S]*"""/)
+    expect(fs.readFileSync(bundle, 'utf8')).to.equal(content)
+    expect(fs.readdirSync(root)).to.deep.equal(['cut.xs']) // nothing written
+  })
+
+  it('still splits a bundle whose extra fragment holds only comments', () => {
+    const bundle = writeBundle('notes.xs', 'table a {\n}\n---\n// moved to b\n---\ntable b {\n}\n')
+    const result = flattenBundleFile(bundle)
+    expect(result.written).to.have.lengthOf(2)
+    expect(result.removedSource).to.equal(true)
+  })
+
   it('throws on a destination collision unless force is set', () => {
     const bundle = writeBundle()
     // Pre-create one of the destinations to force a clash.
