@@ -21,7 +21,7 @@ export default class TenantDeployRequestSetStatus extends BaseCommand {
     }),
   }
   static description =
-    "Change a tenant deploy request's status (draft, submit, approve, request_changes, close, or reopen). Approving records one reviewer's vote and, once the required reviewer count is met, authorizes the release; by default it does NOT deploy. Pass --deploy to also deploy the release inline (the UI's \"approve and deploy\"), which the backend honors only on a quick-deploy tenant; otherwise the release is left for `xano tenant deploy_release`. An inline deploy is gated on the release's policy check: a refusal exits 2 and leaves the request approved; --deploy --override-policy with --reason proceeds past it."
+    "[CRITICAL] STOP and confirm with the user before running --status approve --deploy; if this is the vote that completes the tenant's required reviewer count, it deploys the release to the tenant immediately. Change a tenant deploy request's status (draft, submit, approve, request_changes, close, or reopen). Approving records one reviewer's vote and, once the required reviewer count is met, authorizes the release; by default it does NOT deploy. Pass --deploy to also deploy the release inline (the UI's \"approve and deploy\"), which the backend honors only on a quick-deploy tenant; otherwise the release is left for `xano tenant deploy_release`."
   static examples = [
     `$ xano tenant_deploy_request set_status 12 --status submit
 Deploy request #12 is now: pending
@@ -37,7 +37,6 @@ The release is approved but not yet deployed. Deploy it with: xano tenant deploy
 Deploy request #12 is now: approved (2/2 required reviewers)
 Deployed to tenant as part of this approval.
 `,
-    `$ xano tenant_deploy_request set_status 12 --status approve --deploy --override-policy --reason "Finding accepted; fix tracked in JIRA-12"`,
     `$ xano tenant_deploy_request set_status 12 --status request_changes --reason "Needs a migration note"`,
     `$ xano tenant_deploy_request set_status 12 --status close --reason "Superseded by #14"`,
     `$ xano tenant_deploy_request set_status 12 --status reopen`,
@@ -59,9 +58,10 @@ Deployed to tenant as part of this approval.
     'override-policy': Flags.boolean({
       default: false,
       description: 'With --status approve --deploy: proceed past a blocking policy gate on the inline deploy, recording --reason as the override reason (needs the workspace:policy update permission; audited). Has effect only with --deploy — only an inline deploy hits the gate.',
+      hidden: true,
     }),
     reason: Flags.string({
-      description: 'Reason for this status change. Required for request_changes and close, and with --override-policy.',
+      description: 'Reason for this status change. Required for request_changes and close.',
       required: false,
     }),
     status: Flags.string({

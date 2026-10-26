@@ -35,7 +35,7 @@ export default class ReleaseDeploy extends BaseCommand {
     }),
   }
   static description =
-    "[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch. With --set_live the branch is then set live through the set-live policy gate: when blocking findings refuse it, the branch stays, set live is refused, and the command exits 2 unless --policy-override gives a reason. Setting live needs no workspace:policy permission."
+    "[IMPORTANT] ALWAYS confirm with the user before deploying a release. Deploys a release to its workspace as a new branch."
   static examples = [
     `$ xano release deploy "v1.0"
 Are you sure you want to deploy release "v1.0"? (y/N) y
@@ -46,7 +46,6 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
 `,
     `$ xano release deploy "v1.0" --branch "restore-v1" --no-set_live`,
     `$ xano release deploy "v1.0" -w 40 -o json --force`,
-    `$ xano release deploy "v1.0" --branch "rollback-v1" --set_live --policy-override "Rollback approved; finding tracked in JIRA-12"`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -68,7 +67,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'With --set_live, set the branch live past a blocking set-live policy gate with an audited reason (requires workspace:policy update)'}),
+    'policy-override': Flags.string({description: 'With --set_live, set the branch live past a blocking set-live policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
     set_live: Flags.boolean({
       default: false,
       description: '[CRITICAL] STOP and confirm with the user before setting the deployed branch as live.',
@@ -189,7 +188,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
   /** The set-live verdict a successful deploy answered with --set_live (`pass`, `overridden`, ...). */
   private logPolicyOutcome(release: Release): void {
     const status = release.policy_gate?.status
-    if (status) this.log(`  Policy gate: ${status}`)
+    if (status && status !== 'disabled') this.log(`  Policy gate: ${status}`)
   }
 
   /** Stops the command when the set-live gate refused after the branch was created (exit 2). */
