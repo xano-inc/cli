@@ -158,10 +158,11 @@ Deployed to tenant as part of this approval.
             this.log('Deployed to tenant as part of this approval.')
           } else if (item.resolution?.deploy_status === 'failed') {
             this.log(`Approved, but the deploy failed: ${item.resolution.deploy_error ?? 'unknown error'}`)
-          } else {
+          } else if (item.status === 'approved') {
             // deploy_status "" or absent: the quorum is complete and the release is authorized, but it
             // was not deployed (a bare approve, or --deploy on a tenant without quick deploy). Say so and
-            // name the next step, rather than printing nothing.
+            // name the next step, rather than printing nothing. Gated on the status so a vote that left
+            // the request pending never reads as approved.
             this.log(`The release is approved but not yet deployed. Deploy it with: xano tenant deploy_release <tenant> --release <release> (\`xano tenant_deploy_request get ${item.id}\` names the tenant and release).`)
           }
         }

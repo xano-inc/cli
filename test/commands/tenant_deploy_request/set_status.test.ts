@@ -76,6 +76,14 @@ describe('tenant_deploy_request set_status and the approve-and-deploy path', () 
     expect(result.error).to.equal(undefined)
   })
 
+  it('an approve answered without fully_approved while still pending prints only the status line', async () => {
+    fixture.route(() => json(request({approvals_count: 1, fully_approved: undefined, required_reviewers: 2, resolution: undefined, status: 'pending'})))
+    const result = await setStatus('--status', 'approve')
+    expect(result.stdout).to.contain('Deploy request #12 is now: pending (1/2 required reviewers)')
+    expect(result.stdout).to.not.contain('not yet deployed')
+    expect(result.error).to.equal(undefined)
+  })
+
   it('--deploy with a non-approve status is refused before any request, exiting 1', async () => {
     fixture.route(() => json(request()))
     const result = await setStatus('--status', 'submit', '--deploy')
