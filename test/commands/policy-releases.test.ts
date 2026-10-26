@@ -79,7 +79,6 @@ describe('release policy checks', () => {
     })
 
     for (const [check, line] of [
-      [{message: 'Policies are not enabled on this instance; nothing was evaluated.', status: 'disabled'}, 'Policy check disabled: Policies are not enabled on this instance; nothing was evaluated.'],
       [{message: 'No release to check.', status: 'skipped'}, 'Policy check skipped: No release to check.'],
       [{message: 'The policy check could not run.', status: 'error'}, 'Policy check error: The policy check could not run.'],
       [{advisory: 0, blocking: 0, run_id: 1713, run_status: 'pass', status: 'recorded'}, 'Policy check: pass (run 1713), no findings'],
@@ -91,6 +90,12 @@ describe('release policy checks', () => {
         expect(result.stdout).not.to.contain('--check')
       })
     }
+
+    it('release create says nothing about a disabled check', async () => {
+      fixture.route(() => json({id: 12, name: 'v1.2', policy_run: {message: 'Policies are not enabled on this instance; nothing was evaluated.', status: 'disabled'}}))
+      const result = await runCommand(['release', 'create', 'v1.2', '--branch', 'main'], fixture.config)
+      expect(result.stdout).to.contain('Created release: v1.2').and.not.to.contain('Policy check')
+    })
 
     it('release create says nothing about a check a credential cannot read', async () => {
       fixture.route(() => json({id: 12, name: 'v1.2', policy_run: null}))
@@ -465,7 +470,6 @@ describe('release policy checks', () => {
 
     for (const [answer, reason] of [
       [policyRefusal('policy_permission_required'), 'your role lacks the `workspace:policy` read permission'],
-      [policyRefusal('policy_feature_disabled'), 'the Policies feature is off on this instance'],
       [json({code: 'ERROR_CODE_NOT_FOUND', message: 'Release not found.'}, 404), 'Release not found.'],
     ] as const) {
       it(`get degrades to "not available" rather than failing (${reason})`, async () => {
@@ -476,6 +480,13 @@ describe('release policy checks', () => {
         expect(result.stdout).to.contain('Tenant: prod').and.to.contain('Release: v1.2')
       })
     }
+
+    it('get says nothing about policies when the Policies feature is off', async () => {
+      requestRoutes(() => policyRefusal('policy_feature_disabled'))
+      const result = await runCommand(['tenant_deploy_request', 'get', '7'], fixture.config)
+      expect(result.error).to.equal(undefined)
+      expect(result.stdout).to.contain('Release: v1.2').and.not.to.contain('Polic')
+    })
 
     it('get -o json carries the verdict, or why it is not available', async () => {
       requestRoutes(() => json(passed))

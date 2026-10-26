@@ -25,18 +25,12 @@ export default class TenantDeployRequestGet extends BaseCommand {
       required: true,
     }),
   }
-  static description =
-    "Get details of a specific tenant deploy request, with the policy check of its release on its tenant (what the deploy's policy gate would decide now), for a credential that reads policies"
+  static description = 'Get details of a specific tenant deploy request'
   static examples = [
     `$ xano tenant_deploy_request get 12
 Deploy request #12: "Deploy v1.2 to prod" [pending]
   Tenant: prod
   Release: v1.2
-Policy check of release "v1.2" on tenant "prod":
-Policy gate: pass
-  This release has no blocking policy findings.
-  Release: v1.2 (policy run 301, pass)
-  Blocking findings in this release: 0
 `,
     `$ xano tenant_deploy_request get 12 -o json`,
   ]
@@ -135,7 +129,8 @@ Policy gate: pass
         {verboseFetch: (...args) => this.verboseFetch(...args)},
         {profile: target.profile, release, tenant, verbose: target.verbose, workspace: String(target.workspaceId)},
       )
-      return 'answer' in result ? {answer: result.answer} : {unavailable: unavailableReason(result.unavailable)}
+      if ('answer' in result) return result.answer.status === 'disabled' ? {} : {answer: result.answer}
+      return (result.unavailable.payload as undefined | {code?: unknown})?.code === 'policy_feature_disabled' ? {} : {unavailable: unavailableReason(result.unavailable)}
     } catch (error) {
       return {unavailable: error instanceof Error ? error.message : String(error)}
     }

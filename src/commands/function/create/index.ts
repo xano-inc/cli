@@ -45,7 +45,6 @@ Name: my_function
   ...
 }
 `,
-    `$ xano function:create -f function.xs --policy-override "Exception approved; finding tracked in JIRA-12"`,
   ]
 static override flags = {
     ...BaseCommand.baseFlags,
@@ -69,7 +68,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Create the function past a blocking live-branch publish policy gate with an audited reason (requires workspace:policy update)'}),
+    'policy-override': Flags.string({description: 'Create the function past a blocking live-branch publish policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
     stdin: Flags.boolean({
       char: 's',
       default: false,

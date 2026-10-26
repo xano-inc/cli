@@ -113,9 +113,6 @@ Push functions but exclude test files
     `$ xano workspace push -i "knowledge/**"
 Push only knowledge files (agents.md / skills / docs)
 `,
-    `$ xano workspace push -m "Tightened the auth policies"
-Label the Version History entry of each policy this push changes; other objects get no message
-`,
     `$ xano workspace push --sync --delete
 Full sync including knowledge files; removes server objects not present locally
 `,
@@ -184,16 +181,17 @@ Full sync including knowledge files; removes server objects not present locally
     message: Flags.string({
       char: 'm',
       description: 'Labels the Version History entry of each policy this push changes; other objects get no message',
+      hidden: true,
       required: false,
     }),
     output: Flags.string({
       char: 'o',
       default: 'summary',
-      description: 'Output format; JSON retains the complete import and policy feedback',
+      description: 'Output format; JSON retains the complete import feedback',
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Override a blocking live-branch policy gate with an audited reason (requires workspace:policy update)'}),
+    'policy-override': Flags.string({description: 'Override a blocking live-branch policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
     records: Flags.boolean({
       default: false,
       description:
@@ -404,7 +402,7 @@ Full sync including knowledge files; removes server objects not present locally
     }
 
     const warning = policyCheckWarning(check)
-    if (warning) this.warn(warning)
+    if (warning && check && check.status !== 'disabled') this.warn(warning)
     const code = policyExitCode(check)
     if (code) {
       process.exitCode = code
