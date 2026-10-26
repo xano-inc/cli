@@ -20,6 +20,7 @@ import {
   type PushFlags,
   type PushTarget,
   selectWritebacks,
+  withApiGroupSwaggerDefault,
   writeBackFormattedDocuments,
   type WritebackHttpResponse,
 } from '../../src/utils/multidoc-push.js'
@@ -992,6 +993,100 @@ describe('multidoc-push helpers', () => {
   })
   })
 
+  describe('withApiGroupSwaggerDefault', () => {
+    it('adds swagger = {active: false} to a new api_group with no swagger block', () => {
+      expect(withApiGroupSwaggerDefault('api_group shop {\n  canonical = "shop1"\n}')).to.equal(
+        'api_group shop {\n  canonical = "shop1"\n  swagger = {active: false}\n}',
+      )
+    })
+
+    it('leaves an api_group with a guid alone (an existing group keeps its docs setting)', () => {
+      expect(withApiGroupSwaggerDefault('api_group shop {\n  canonical = "shop1"\n  guid = "abc"\n}')).to.equal(null)
+    })
+
+    it('leaves an api_group with any swagger block alone', () => {
+      expect(withApiGroupSwaggerDefault('api_group shop {\n  swagger = {active: true}\n}')).to.equal(null)
+      expect(withApiGroupSwaggerDefault('api_group shop {\n  swagger = {active: false}\n}')).to.equal(null)
+      expect(withApiGroupSwaggerDefault('api_group shop {\n  swagger = {token: "t"}\n}')).to.equal(null)
+      expect(withApiGroupSwaggerDefault('api_group shop {\n  swagger {\n    active = false\n  }\n}')).to.equal(null)
+    })
+
+    it('leaves other document types alone', () => {
+      expect(withApiGroupSwaggerDefault('table shop {\n  auth = false\n}')).to.equal(null)
+      expect(withApiGroupSwaggerDefault('query "items" verb=GET {\n  api_group = "shop"\n}')).to.equal(null)
+    })
+  })
+
+  describe('executePush api_group swagger default', () => {
+    let tmpDir: string
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(join(tmpdir(), 'xano-apigroup-swagger-'))
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, {force: true, recursive: true})
+    })
+
+    it('sends a new group with swagger = {active: false} and writes it next to the guid', async () => {
+      const file = writeXs(tmpDir, 'apigroup/shop.xs', 'api_group shop {\n  canonical = "shop1"\n}\n')
+      const {calls, logs} = await runPush(tmpDir, {force: true, guid: 'abc'})
+      expect(pushBody(calls)).to.include('swagger = {active: false}')
+      expect(fs.readFileSync(file, 'utf8')).to.equal(
+        'api_group shop {\n  canonical = "shop1"\n  swagger = {active: false}\n  guid = "abc"\n}\n',
+      )
+      expect(logs.some((line) => line.includes('Added swagger = {active: false} to 1 new API group'))).to.equal(true)
+    })
+
+    it('a second push sends the file as it is: it already says what the instance stored', async () => {
+      const file = writeXs(tmpDir, 'apigroup/shop.xs', 'api_group shop {\n  canonical = "shop1"\n}\n')
+      await runPush(tmpDir, {force: true, guid: 'abc'})
+      const afterFirst = fs.readFileSync(file, 'utf8')
+      const {calls} = await runPush(tmpDir, {force: true, guid: 'abc'})
+      expect(pushBody(calls)).to.equal(afterFirst.trim())
+      expect(fs.readFileSync(file, 'utf8')).to.equal(afterFirst)
+    })
+
+    it('leaves a group that already has a guid alone, so public docs stay public', async () => {
+      const original = 'api_group shop {\n  canonical = "shop1"\n  guid = "abc"\n}\n'
+      const file = writeXs(tmpDir, 'apigroup/shop.xs', original)
+      const {calls} = await runPush(tmpDir, {force: true, guid: 'abc'})
+      expect(pushBody(calls)).to.not.include('swagger')
+      expect(fs.readFileSync(file, 'utf8')).to.equal(original)
+    })
+
+    it('leaves a new group with a swagger block as it is, apart from the guid', async () => {
+      const file = writeXs(tmpDir, 'apigroup/shop.xs', 'api_group shop {\n  swagger = {active: true}\n}\n')
+      const {calls} = await runPush(tmpDir, {force: true, guid: 'abc'})
+      expect(pushBody(calls)).to.equal('api_group shop {\n  swagger = {active: true}\n}')
+      expect(fs.readFileSync(file, 'utf8')).to.equal('api_group shop {\n  swagger = {active: true}\n  guid = "abc"\n}\n')
+    })
+
+    it('--dry-run does not write the file', async () => {
+      const original = 'api_group shop {\n  canonical = "shop1"\n}\n'
+      const file = writeXs(tmpDir, 'apigroup/shop.xs', original)
+      const {calls} = await runPush(tmpDir, {dryRun: true, guid: 'abc'})
+      expect(calls.find((call) => call.url.includes('/multidoc/dry-run'))?.body).to.include('swagger = {active: false}')
+      expect(fs.readFileSync(file, 'utf8')).to.equal(original)
+    })
+
+    it('--no-guids sends the default but does not write the file', async () => {
+      const original = 'api_group shop {\n  canonical = "shop1"\n}\n'
+      const file = writeXs(tmpDir, 'apigroup/shop.xs', original)
+      const {calls} = await runPush(tmpDir, {force: true, guid: 'abc', guids: false})
+      expect(pushBody(calls)).to.include('swagger = {active: false}')
+      expect(fs.readFileSync(file, 'utf8')).to.equal(original)
+    })
+
+    it('--fast records the rewritten file, so the next --fast push sends nothing', async () => {
+      const file = writeXs(tmpDir, 'apigroup/shop.xs', 'api_group shop {\n  canonical = "shop1"\n}\n')
+      await runPush(tmpDir, {fast: true, force: true, guid: 'abc'})
+      expect(loadedFiles(tmpDir)['apigroup/shop.xs'].sha256).to.equal(hashFile(file))
+      const {calls} = await runPush(tmpDir, {fast: true, force: true, guid: 'abc'})
+      expect(pushBody(calls)).to.equal(undefined)
+    })
+  })
+
   describe('executePush --sync --delete prune', () => {
     let tmpDir: string
 
@@ -1223,6 +1318,10 @@ const FINGERPRINT: SyncTargetIdentity = {
   instance_host: 'example.test',
   workspace_created_at: '2025-11-29 15:54:06+0000',
   workspace_id: '1',
+}
+
+function pushBody(calls: Array<{body?: string; method: string; url: string}>): string | undefined {
+  return calls.find((call) => call.method === 'POST' && call.url.includes('/multidoc') && !call.url.includes('dry-run'))?.body
 }
 
 function writeXs(dir: string, rel: string, contents: string): string {

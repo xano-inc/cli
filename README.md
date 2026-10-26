@@ -253,6 +253,15 @@ directory *adds* a file rather than overwriting, and renaming a workspace leaves
 the old-name file behind. Delete the stale ones, keeping the single document that
 matches your target workspace.
 
+**New API groups keep their docs private.** The instance stores a new API group
+whose file has no `swagger` block with its API docs private. `workspace push` and
+`sandbox push` send such a group with `swagger = {active: false}`, and write that
+line into its file along with the GUID, so the file says what the instance stored
+and the next push reports no change. A group whose file already has a `guid` (one
+you pulled or pushed before) or a `swagger` block is sent and kept as it is, so a
+group with public docs is never made private. `--dry-run` and `--no-guids` leave
+the files untouched.
+
 ### `.xano/sync_state.json`
 
 `--fast` skips files whose contents still match a local sync
