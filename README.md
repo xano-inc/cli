@@ -47,7 +47,7 @@ The Metadata API pages unevenly, so `list` commands differ in what they expose. 
 |---|---|---|
 | `function list`, `unit_test list`, `workflow_test list` (plus `sandbox` / `tenant` variants) | `--page`, `--per_page` | `Page 2 · 50 shown · next: --page 3` |
 | `static_host list`, `static_host build list` (plus `ephemeral` variants) | `--page` only | `Page 2 · 100 shown · 340 total` |
-| `branch list`, `workspace list`, `tenant snapshot list`, `sandbox env list`, `tenant env list` | none | `12 branches` |
+| `branch list`, `workspace list`, `sandbox env list`, `tenant env list` | none | `12 branches` |
 | `tenant list`, `release list`, `platform list`, `tenant cluster list`, `ephemeral list` | none | none |
 | `tenant backup list` | `--page` only (pre-existing) | none |
 
