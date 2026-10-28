@@ -966,6 +966,14 @@ function withGuid(content: string, guid: string): null | string {
   }
 
   // No GUID line exists — insert before the final closing brace
+  return insertBeforeClosingBrace(content, `guid = "${guid}"`)
+}
+
+/**
+ * Return `content` with `line` inserted before its final closing brace, indented like
+ * the line above it, or null when there is no closing-brace line.
+ */
+function insertBeforeClosingBrace(content: string, line: string): null | string {
   const lines = content.split('\n')
   let insertIndex = -1
 
@@ -992,8 +1000,37 @@ function withGuid(content: string, guid: string): null | string {
     }
   }
 
-  lines.splice(insertIndex, 0, `${indent}guid = "${guid}"`)
+  lines.splice(insertIndex, 0, `${indent}${line}`)
   return lines.join('\n')
+}
+
+const GUID_LINE_REGEX = /^\s*guid\s*=/m
+const SWAGGER_BLOCK_REGEX = /^\s*swagger\s*[={]/m
+
+/**
+ * Return `content` with `swagger = {active: false}` added when it is a NEW api_group
+ * (no guid line) with no swagger block, or null when it is left as it is.
+ *
+ * The instance stores a new group without a swagger block with private docs, but reads
+ * the same document once it carries a guid as public (cloud-client ApiGroup::decode,
+ * DEV-7610). So after the GUID writeback the file no longer said what the instance
+ * stored: every dry-run reported the group as updated, and the next push made its docs
+ * public. Sending and keeping the block makes the file match. A group that already has
+ * a guid (pulled, or pushed before) or a swagger block is left alone, so a group with
+ * public docs is never made private.
+ */
+export function withApiGroupSwaggerDefault(content: string): null | string {
+  if (parseDocument(content)?.type !== 'api_group') return null
+  if (GUID_LINE_REGEX.test(content) || SWAGGER_BLOCK_REGEX.test(content)) return null
+  return insertBeforeClosingBrace(content, 'swagger = {active: false}')
+}
+
+/** Rewrite a local .xs file with `rewrite`. Returns true if the file was modified. */
+function rewriteFile(filePath: string, rewrite: (content: string) => null | string): boolean {
+  const updated = rewrite(fs.readFileSync(filePath, 'utf8'))
+  if (updated === null) return false
+  fs.writeFileSync(filePath, updated, 'utf8')
+  return true
 }
 
 const CANONICAL_REGEX = /canonical\s*=\s*(["'])([^"']*)\1/
@@ -1273,6 +1310,13 @@ export async function executePush(
           'workspace into this tree, or renaming one, leaves the old file behind.)',
       )
     }
+
+    // A new api_group without a swagger block is sent with the private-docs default the
+    // instance gives it, and the GUID writeback below writes the same line to its file.
+    documentEntries = documentEntries.map((entry) => {
+      const content = withApiGroupSwaggerDefault(entry.content)
+      return content === null ? entry : {...entry, content}
+    })
 
     multidoc = documentEntries.map((d) => d.content).join('\n---\n')
 
@@ -2002,6 +2046,7 @@ export async function executePush(
 
         let updatedCount = 0
         let canonicalCount = 0
+        let swaggerCount = 0
         for (const entry of guidMap) {
           if (!entry.guid || entry.type === 'policy') continue
 
@@ -2025,6 +2070,9 @@ export async function executePush(
           }
 
           try {
+            // Before the GUID: a file with a guid line is an existing group and keeps its docs setting.
+            if (rewriteFile(filePath, withApiGroupSwaggerDefault)) swaggerCount++
+            updateSnapshot(pushedBytes, filePath, withApiGroupSwaggerDefault)
             const updated = syncGuidToFile(filePath, entry.guid)
             if (updated) updatedCount++
             updateSnapshot(pushedBytes, filePath, (content) => withGuid(content, entry.guid))
@@ -2050,6 +2098,10 @@ export async function executePush(
 
         if (canonicalCount > 0) {
           log(`Synced ${canonicalCount} canonicals to local files (the instance assigned its own)`)
+        }
+
+        if (swaggerCount > 0) {
+          log(`Added swagger = {active: false} to ${swaggerCount} new API group file(s) (their docs stay private)`)
         }
       }
 
