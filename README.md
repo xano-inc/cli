@@ -253,6 +253,18 @@ directory *adds* a file rather than overwriting, and renaming a workspace leaves
 the old-name file behind. Delete the stale ones, keeping the single document that
 matches your target workspace.
 
+**Filters don't delete the `.xs` documents they filter out.** With `--sync --delete`,
+a file that `-i`/`-e` leaves out is missing from the push, so the delete sweep would
+remove its objects. The CLI sends the GUIDs of every document in those files (split on
+`---` lines the way the server splits them) as
+`protect_guids` so the server spares them, then checks the server's preview and refuses
+the push if anything filtered out would still be deleted. `--force` skips only the confirmation, not this check. With
+`--force` the push is refused before anything is sent when a filtered-out document has no
+`guid` yet or can't be parsed, or when there are too many of them to declare in one request (about 4,000
+characters of GUIDs). To push anyway, drop `--delete` or the filter. Knowledge files
+are not covered by this check yet: with `--sync --delete`, a knowledge file the filter
+leaves out can still be deleted.
+
 ### `.xano/sync_state.json`
 
 `--fast` skips files whose contents still match a local sync
@@ -302,7 +314,9 @@ refuses these files and offers to flatten them.
 `xano flatten` performs that split on demand, producing the same
 one-document-per-file tree `pull` would have written. It is purely local — no
 profile, token, or network — and deletes the original bundle once the split
-succeeds, unless you pass `--keep-source`.
+succeeds, unless you pass `--keep-source`. It splits on `---` lines the way the
+server does, and leaves the file unchanged if a piece doesn't parse (for example
+when a `--- ` line inside a multi-line string cuts a document in two).
 
 ```bash
 # Split a bundle in place into per-document files (removes the original)
