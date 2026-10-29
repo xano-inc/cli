@@ -129,14 +129,14 @@ describe('official policy commands and workspace carriage', () => {
   })
 
   for (const [check, code, warning] of [
-    [{blocking: false, status: 'pass'}, 0, null],
-    [{blocking: true, status: 'fail'}, 2, null],
-    [{blocking: false, status: 'fail'}, 0, null],
-    [{blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}, 0, null],
-    [{blocking: false, message: 'Policies are not enabled.', status: 'disabled'}, 0, 'Policy check disabled: Policies are not enabled.'],
-    [{blocking: false, message: 'Evaluation is unavailable.', status: 'unavailable'}, 0, 'Policy check unavailable: Evaluation is unavailable.'],
-    [{blocking: false, message: 'A check could not run.', status: 'error'}, 0, 'Policy check error: A check could not run.'],
-    [{blocking: true, message: 'A check could not run.', status: 'error'}, 2, 'Policy check error: A check could not run.'],
+    [{block: false, status: 'pass'}, 0, null],
+    [{block: true, status: 'fail'}, 2, null],
+    [{block: false, status: 'fail'}, 0, null],
+    [{block: false, message: 'No active policies on this branch.', status: 'not_applicable'}, 0, null],
+    [{block: false, message: 'Policies are not enabled.', status: 'disabled'}, 0, 'Policy check disabled: Policies are not enabled.'],
+    [{block: false, message: 'Evaluation is unavailable.', status: 'unavailable'}, 0, 'Policy check unavailable: Evaluation is unavailable.'],
+    [{block: false, message: 'A check could not run.', status: 'error'}, 0, 'Policy check error: A check could not run.'],
+    [{block: true, message: 'A check could not run.', status: 'error'}, 2, 'Policy check error: A check could not run.'],
     [undefined, 0, 'Policy check: no policy feedback returned.'],
   ] as const) {
     it(`evaluate retains JSON and uses exit ${code} for ${JSON.stringify(check)}`, async () => {
@@ -151,7 +151,7 @@ describe('official policy commands and workspace carriage', () => {
   }
 
   it('evaluate prints the server message under the headline of a branch with nothing to evaluate', async () => {
-    fixture.route(() => json({id: 0, policy_check: {blocking: false, message: 'No active policies on this branch.', status: 'not_applicable'}}))
+    fixture.route(() => json({id: 0, policy_check: {block: false, message: 'No active policies on this branch.', status: 'not_applicable'}}))
     const result = await runCommand(['policy', 'evaluate'], fixture.config)
     expect(result.stdout).to.contain('Policy check: not_applicable\nNo active policies on this branch.')
     expect(result.stderr).not.to.contain('Policy check')
@@ -166,7 +166,7 @@ describe('official policy commands and workspace carriage', () => {
   })
 
   it('push keeps gate JSON and exit2 after import without inserting policy GUIDs', async () => {
-    const policyCheck = {blocking: true, findings: [{message: 'Missing auth', rule_id: 'R1'}], status: 'fail'}
+    const policyCheck = {block: true, findings: [{message: 'Missing auth', rule_id: 'R1'}], status: 'fail'}
     fixture.route(() => json({guid_map: [{guid: 'server-guid', name: 'AUTH-001', type: 'policy'}], policy_check: policyCheck}))
     const result = await runCommand(
       ['workspace', 'push', '-d', path.join(fixture.directory, 'policies'), '--force', '--guids', '-o', 'json'],
@@ -179,8 +179,8 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls[0].body).to.contain('policy AUTH-001')
     expect(fs.readFileSync(policyFile, 'utf8')).to.equal(source)
   })
-  const covered = {enforcement: 'blocking', included: true, run_id: 1674, stale: false, version: 1}
-  const active = {active: true, enforcement: 'blocking', id: 1, key: 'AUTH-001', latest_run: covered, rules: [{id: 'R1'}], version: 1}
+  const covered = {enforcement: 'block', included: true, run_id: 1674, stale: false, version: 1}
+  const active = {enforcement: 'block', id: 1, key: 'AUTH-001', latest_run: covered, rules: [{id: 'R1'}], version: 1}
   for (const [results, expected] of [[[], 'not_evaluated'], [[{check_id: 'R1', checked: 0, policy_key: 'AUTH-001', status: 'pass'}], 'no_objects_checked']] as const) {
     it(`status reports ${expected} without presenting coverage`, async () => {
       fixture.route(url => url.pathname.includes('/run/') ? json({id: 1674, results}) : json({curPage: 1, items: [active], nextPage: null, prevPage: null}))
@@ -208,11 +208,11 @@ describe('official policy commands and workspace carriage', () => {
   })
 
   it('status counts findings from the run summary exactly as it counted them from the whole run', async () => {
-    const second = {...active, id: 2, key: 'SEC-100', latest_run: {...covered, enforcement: 'advisory'}}
+    const second = {...active, id: 2, key: 'SEC-100', latest_run: {...covered, enforcement: 'warn'}}
     const results = [{check_id: 'R1', checked: 4, policy_key: 'AUTH-001', status: 'fail'}, {check_id: 'R1', checked: 4, policy_key: 'SEC-100', status: 'fail'}]
     const whole = {findings: ['AUTH-001', 'AUTH-001', 'SEC-100'].map(key => ({message: 'found', object: {name: 'GET /x', type: 'query'}, policy_key: key, rule_id: 'R1'})), id: 1674, results}
     // The summary lists no finding: each policy's verdict counts its findings.
-    const summary = {counts: {advisory: 1, blocking: 2, errors: 0, findings: 3}, id: 1674, policies: [{findings: 2, key: 'AUTH-001'}, {findings: 1, key: 'SEC-100'}], results}
+    const summary = {counts: {block: 2, errors: 0, findings: 3, warn: 1}, id: 1674, policies: [{findings: 2, key: 'AUTH-001'}, {findings: 1, key: 'SEC-100'}], results}
     const outputs = []
     for (const run of [whole, summary]) {
       fixture.route(url => url.pathname.includes('/run/') ? json(run) : json({items: [active, second]}))
@@ -221,8 +221,8 @@ describe('official policy commands and workspace carriage', () => {
     }
 
     expect(outputs[1].stdout).to.equal(outputs[0].stdout)
-    expect(outputs[1].stdout).to.contain('AUTH-001  fail  Blocking  2 findings (blocking)').and.to.contain('SEC-100  fail  Blocking  1 findings')
-    expect(outputs[1].stdout).to.contain('The latest run has 2 blocking findings (AUTH-001)')
+    expect(outputs[1].stdout).to.contain('AUTH-001  fail  Block  2 findings (Block)').and.to.contain('SEC-100  fail  Block  1 findings')
+    expect(outputs[1].stdout).to.contain('The latest run has 2 Block findings (AUTH-001)')
   })
 
   it('status takes staleness from the platform, whatever the run recorded', async () => {
@@ -245,7 +245,7 @@ describe('official policy commands and workspace carriage', () => {
       id: 1675,
       objects_checked: 4,
       policies: [],
-      policy_check: {blocking: true, blocking_finding_ids: [findings[0].id], message: 'Active policies reported findings.', run_id: 1675, status: 'fail'},
+      policy_check: {block: true, block_finding_ids: [findings[0].id], message: 'Active policies reported findings.', run_id: 1675, status: 'fail'},
       results: [{check_id: 'AUTH-001.R1', checked: 4, policy_key: 'AUTH-001', status: 'fail'}],
       status: 'fail',
       stored: true,
@@ -257,9 +257,9 @@ describe('official policy commands and workspace carriage', () => {
       const result = await runCommand(['policy', 'evaluate'], fixture.config)
       expect(fixture.calls[0].method).to.equal('POST')
       expect(fixture.calls[0].body).to.equal(undefined)
-      expect(result.stdout).to.contain('Policy check: fail (blocking findings)\nActive policies reported findings.')
-      expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: no auth')
-      expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:\n  SEC-100.R1 (SEC-100)  table account: stale tag')
+      expect(result.stdout).to.contain('Policy check: fail (Block findings)\nActive policies reported findings.')
+      expect(result.stdout).to.contain('Block findings (1) — Block policies; a gate refuses a change that introduces one or changes its object:\n  AUTH-001.R1 (AUTH-001)  query GET /x: no auth')
+      expect(result.stdout).to.contain('Warn findings (1) — Warn policies; reported, nothing stopped:\n  SEC-100.R1 (SEC-100)  table account: stale tag')
       expect(result.stdout).not.to.contain('Not stored')
       expect(process.exitCode).to.equal(2)
     })
@@ -281,7 +281,7 @@ describe('official policy commands and workspace carriage', () => {
       id: 0,
       objects_checked: 0,
       policies: [],
-      policy_check: {blocking: false, blocking_finding_ids: [], message: 'No active policies on this branch; nothing was evaluated.', run_id: 0, status: 'not_applicable'},
+      policy_check: {block: false, block_finding_ids: [], message: 'No active policies on this branch; nothing was evaluated.', run_id: 0, status: 'not_applicable'},
       results: [],
       started_at: '2026-09-24T01:11:59.623Z',
       status: 'not_applicable',
@@ -470,35 +470,65 @@ describe('official policy commands and workspace carriage', () => {
     finished_at: '2026-09-17T22:42:00.980Z',
     id: 1674,
     objects_checked: 23,
-    policies: [{key: 'AUTH-001', rules: [{check: 'object.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication', params: {except_tags: ['public']}}], statement: 'Every endpoint declares auth.'}],
+    policies: [{key: 'AUTH-001', rules: [{check: 'object.auth_required', id: 'AUTH-001.R1', label: 'Endpoints declare authentication', params: {except_tags: [{reason: 'Public by design', value: 'public'}]}}], statement: 'Every endpoint declares auth.'}],
     results: [{check_id: 'AUTH-001.R1', checked: 23, policy_key: 'AUTH-001', status: 'fail'}],
     started_at: '2026-09-17T22:42:00.903Z',
     status: 'fail',
     trigger: 'push',
   }
 
-  it('runs lists the retained runs newest first and says how to read one', async () => {
-    const summary = {counts: {blocking: 1, errors: 0, findings: 1}, finished_at: run.finished_at, id: 1674, objects_checked: 23, started_at: run.started_at, status: 'fail', trigger: 'push'}
-    fixture.route(() => json({items: [summary, {...summary, counts: {blocking: 0, errors: 0, findings: 0}, id: 1673, status: 'pass', trigger: 'manual'}]}))
-    const result = await runCommand(['policy', 'runs', '--limit', '5'], fixture.config)
+  it('runs lists a page of the stored runs with their outcome, and says how to read the next', async () => {
+    const summary = {
+      actor: {id: 7, kind: 'user', name: 'André'}, branch: {id: 1, label: 'feature'}, counts: {block: 1, errors: 0, findings: 1}, finished_at: run.finished_at,
+      id: 1674, outcome: 'blocked', scope: {kind: 'workspace'}, started_at: run.started_at, status: 'fail', trigger: 'merge',
+    }
+    const manual = {...summary, actor: null, counts: {block: 0, errors: 0, findings: 0}, id: 1673, outcome: null, status: 'pass', trigger: 'manual'}
+    fixture.route(() => json({curPage: 1, items: [summary, manual], itemsTotal: 137, nextPage: 2, prevPage: null}))
+    const result = await runCommand(['policy', 'runs', '--per-page', '2'], fixture.config)
     expect(result.error).to.equal(undefined)
     expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/policy/run')
-    expect(fixture.calls[0].url.searchParams.get('limit')).to.equal('5')
-    expect(result.stdout).to.contain('1674  fail    1 findings    23 objects  push     2026-09-17T22:42:00.903Z')
-    expect(result.stdout).to.contain('1673  pass    0 findings    23 objects  manual   2026-09-17T22:42:00.903Z')
+    expect(Object.fromEntries(fixture.calls[0].url.searchParams)).to.deep.equal({branch: 'feature', page: '1', per_page: '2'})
+    expect(result.stdout).to.contain('1674   fail    blocked                 1 (1 Block)  merge       feature   André         2026-09-17T22:42:00.980Z')
+    expect(result.stdout).to.contain('1673   pass    —                       0            manual      feature                 2026-09-17T22:42:00.980Z')
+    expect(result.stdout).to.contain('Page 1: 2 of 137 runs.\nNext page: `xano policy runs --per-page 2 --page 2`')
     expect(result.stdout).to.contain('xano policy runs <id> --run-detail')
   })
 
-  it('runs refuses a --limit beyond the twenty runs a branch retains, before any request', async () => {
+  it('runs sends the run list filters, search and order, and names them in the next page\'s command', async () => {
+    fixture.route(() => json({curPage: 2, items: [{counts: {block: 0, errors: 0, findings: 0}, id: 9, outcome: 'blocked', status: 'fail', trigger: 'merge'}], itemsTotal: 30, nextPage: 3, prevPage: 1}))
+    const result = await runCommand([
+      'policy', 'runs', '--page', '2', '--limit', '10', '--trigger', 'merge', '--trigger', 'set_live', '--outcome', 'blocked',
+      '--outcome', 'allowed_with_override', '--scope', 'partial', '--search', 'visits', '--sort', 'outcome', '--order', 'asc', '--latest-only',
+    ], fixture.config)
+    expect(result.error).to.equal(undefined)
+    expect(Object.fromEntries(fixture.calls[0].url.searchParams)).to.deep.equal({
+      branch: 'feature', latest_only: 'true', order: 'asc', 'outcome[0]': 'blocked', 'outcome[1]': 'allowed_with_override', page: '2', per_page: '10',
+      q: 'visits', scope: 'partial', sort: 'outcome', 'trigger[0]': 'merge', 'trigger[1]': 'set_live',
+    })
+    expect(result.stdout).to.contain('Page 2: 1 of 30 runs matching.')
+    expect(result.stdout).to.contain('Next page: `xano policy runs --per-page 10 --trigger merge --trigger set_live --outcome blocked --outcome allowed_with_override --scope partial --search visits --sort outcome --order asc --latest-only --page 3`')
+    fixture.route(() => json({curPage: 1, items: [], itemsTotal: 0, nextPage: null, prevPage: null}))
+    expect((await runCommand(['policy', 'runs', '--outcome', 'blocked'], fixture.config)).stdout).to.contain('No policy runs match.')
+  })
+
+  it('runs refuses a page beyond 100 runs, an unknown trigger, and the list flags beside a run id, before any request', async () => {
     fixture.route(() => json({items: []}))
-    const result = await runCommand(['policy', 'runs', '--limit', '21'], fixture.config)
-    expect(result.error?.message).to.contain('20')
+    expect((await runCommand(['policy', 'runs', '--limit', '101'], fixture.config)).error?.message).to.contain('--limit lists at most 100 runs a page')
+    const perPage = (await runCommand(['policy', 'runs', '--per-page', '101'], fixture.config)).error?.message
+    expect(perPage).to.contain('--per-page').and.to.contain('101')
+    expect((await runCommand(['policy', 'runs', '--trigger', 'save'], fixture.config)).error?.message).to.contain('Expected --trigger=save to be one of')
+    for (const flags of [['--page', '2'], ['--outcome', 'blocked'], ['--latest-only']]) {
+      // eslint-disable-next-line no-await-in-loop -- one command at a time against one stubbed fetch
+      const result = await runCommand(['policy', 'runs', '1674', ...flags], fixture.config)
+      expect(result.error?.message).to.contain(`${flags[0]} pages or filters the run list, not run 1674`)
+    }
+
     expect(fixture.calls).to.have.length(0)
   })
 
   /** The run's summary and one page of its findings, each from its own route, as the platform serves them. */
   function runRoute(page?: Record<string, unknown>): void {
-    const head: Record<string, unknown> = {...run, counts: {advisory: 0, blocking: 1, errors: 0, findings: 1}}
+    const head: Record<string, unknown> = {...run, counts: {block: 1, errors: 0, findings: 1, warn: 0}}
     delete head.findings
     fixture.route(url => url.pathname.endsWith('/findings') ? json(page ?? {items: run.findings, limit: 100, offset: 0, total: 1}) : json(head))
   }
@@ -511,32 +541,32 @@ describe('official policy commands and workspace carriage', () => {
     expect(fixture.calls.map(call => call.url.pathname)).to.deep.equal(['/api:meta/workspace/1/policy/run/1674/summary', '/api:meta/workspace/1/policy/run/1674/findings'])
     expect(Object.fromEntries(fixture.calls[1].url.searchParams)).to.deep.equal({branch: 'feature', limit: '100', offset: '0'})
     expect(result.stdout).to.contain('Run 1674  fail  push  2026-09-17T22:42:00.903Z → 2026-09-17T22:42:00.980Z  23 objects checked')
-    expect(result.stdout).to.contain('Findings: 1 (1 blocking, 0 advisory)\nFindings 1-1 of 1:')
+    expect(result.stdout).to.contain('Findings: 1 (1 Block, 0 Warn)\nFindings 1-1 of 1:')
     // The rule id leads the finding line, because a check label is shared by every rule using it.
     expect(result.stdout).to.contain('AUTH-001.R1  Endpoints declare authentication [high] (Auth)  query GET /x: no auth')
     expect(result.stdout).not.to.contain('Next page')
     expect(result.stdout).to.contain('Run 1674 as recorded')
-    expect(result.stdout).to.contain('settings: except_tags=[public]')
+    expect(result.stdout).to.contain('settings: except_tags=[public ("Public by design")]')
   })
 
   it('runs pages the findings of a run with --offset and --limit, and narrows them with the filter flags', async () => {
     runRoute({items: run.findings, limit: 1, offset: 200, total: 250})
     const result = await runCommand([
-      'policy', 'runs', '1674', '--offset', '200', '--limit', '1', '--blocking', '--policy', 'AUTH-001', '--policy', 'SEC-100',
+      'policy', 'runs', '1674', '--offset', '200', '--limit', '1', '--block', '--policy', 'AUTH-001', '--policy', 'SEC-100',
       '--rule', 'AUTH-001.R1', '--severity', 'high', '--kind', 'query', '--object', 'query:18', '--tag', 'soc2', '--search', '"no auth"',
     ], fixture.config)
     expect(result.error).to.equal(undefined)
     // A list filter repeats its key the way PHP reads a list.
     expect(Object.fromEntries(fixture.calls[1].url.searchParams)).to.deep.equal({
-      blocking: 'true', branch: 'feature', 'kind[0]': 'query', limit: '1', 'object[0]': 'query:18', offset: '200', 'policy[0]': 'AUTH-001',
+      block: 'true', branch: 'feature', 'kind[0]': 'query', limit: '1', 'object[0]': 'query:18', offset: '200', 'policy[0]': 'AUTH-001',
       'policy[1]': 'SEC-100', q: 'no auth', 'rule[0]': 'AUTH-001.R1', 'severity[0]': 'high', 'tag[0]': 'soc2',
     })
     expect(result.stdout).to.contain('Findings 201-201 of 250 matching (one page):')
     expect(result.stdout).to.contain('Next page: `xano policy runs 1674 --offset 201`, or --all for all 250, with the same filters.')
 
     runRoute({items: [], limit: 100, offset: 0, total: 0})
-    const advisory = await runCommand(['policy', 'runs', '1674', '--advisory'], fixture.config)
-    expect(fixture.calls.at(-1)?.url.searchParams.get('blocking')).to.equal('false')
+    const advisory = await runCommand(['policy', 'runs', '1674', '--warn'], fixture.config)
+    expect(fixture.calls.at(-1)?.url.searchParams.get('block')).to.equal('false')
     expect(advisory.stdout).to.contain('No findings match.')
 
     runRoute({items: [], limit: 100, offset: 300, total: 250})
@@ -546,7 +576,7 @@ describe('official policy commands and workspace carriage', () => {
 
   it('runs refuses finding flags without a run id, and a page beyond 500, before any request', async () => {
     fixture.route(() => json({items: []}))
-    for (const flags of [['--offset', '5'], ['--all'], ['--blocking'], ['--policy', 'AUTH-001'], ['--search', 'auth']]) {
+    for (const flags of [['--offset', '5'], ['--all'], ['--block'], ['--warn'], ['--policy', 'AUTH-001']]) {
       // eslint-disable-next-line no-await-in-loop -- one command at a time against one stubbed fetch
       const result = await runCommand(['policy', 'runs', ...flags], fixture.config)
       expect(result.error?.message).to.contain(`${flags[0]} pages one run's findings`)
@@ -554,7 +584,7 @@ describe('official policy commands and workspace carriage', () => {
 
     const tooMany = await runCommand(['policy', 'runs', '1674', '--limit', '501'], fixture.config)
     expect(tooMany.error?.message).to.contain('at most 500 findings')
-    const both = await runCommand(['policy', 'runs', '1674', '--blocking', '--advisory'], fixture.config)
+    const both = await runCommand(['policy', 'runs', '1674', '--block', '--warn'], fixture.config)
     expect(both.error?.message).to.contain('cannot also be provided')
     const pagedAll = await runCommand(['policy', 'runs', '1674', '--all', '--offset', '100'], fixture.config)
     expect(pagedAll.error?.message).to.contain('cannot also be provided')
@@ -569,7 +599,7 @@ describe('official policy commands and workspace carriage', () => {
     runRoute({items: run.findings, limit: 100, offset: 0, total: 150})
     const asJson = JSON.parse((await runCommand(['policy', 'runs', '1674', '-o', 'json'], fixture.config)).stdout)
     expect(asJson.id).to.equal(1674)
-    expect(asJson.counts).to.deep.equal({advisory: 0, blocking: 1, errors: 0, findings: 1})
+    expect(asJson.counts).to.deep.equal({block: 1, errors: 0, findings: 1, warn: 0})
     // findings stays an array, as scripts read it; the paging is beside it.
     expect(asJson.findings).to.deep.equal(run.findings)
     expect(asJson.findings_page).to.deep.equal({limit: 100, next_offset: 1, offset: 0, total: 150})
@@ -585,9 +615,9 @@ describe('official policy commands and workspace carriage', () => {
       const limit = Number(url.searchParams.get('limit'))
       return json({items: all.slice(offset, offset + limit), limit, offset, total: all.length})
     })
-    const result = await runCommand(['policy', 'runs', '1674', '--all', '--blocking', '-o', 'json'], fixture.config)
+    const result = await runCommand(['policy', 'runs', '1674', '--all', '--block', '-o', 'json'], fixture.config)
     expect(result.error).to.equal(undefined)
-    const pages = fixture.calls.slice(1).map(call => [call.url.searchParams.get('offset'), call.url.searchParams.get('limit'), call.url.searchParams.get('blocking')])
+    const pages = fixture.calls.slice(1).map(call => [call.url.searchParams.get('offset'), call.url.searchParams.get('limit'), call.url.searchParams.get('block')])
     expect(pages).to.deep.equal([['0', '500', 'true'], ['500', '500', 'true'], ['1000', '500', 'true']])
     expect(result.stderr).to.contain('Reading 1200 findings of run 1674, 500 a request (3 requests)')
     const asJson = JSON.parse(result.stdout)
@@ -605,7 +635,7 @@ describe('official policy commands and workspace carriage', () => {
       {id: 'F1', message: 'no auth', object: {name: 'GET /x', type: 'query'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R1'},
       {id: 'F2', message: 'stale tag', object: {name: 'account', type: 'table'}, policy_key: 'SEC-100', rule_id: 'SEC-100.R2'},
     ]
-    const policyCheck = {blocking: true, blocking_findings: [findings[0]], findings, status: 'fail'}
+    const policyCheck = {block: true, block_findings: [findings[0]], findings, status: 'fail'}
     fixture.route(() => json({guid_map: [], policy_check: policyCheck}))
     const result = await runCommand(
       ['workspace', 'push', '-d', path.join(fixture.directory, 'policies'), '--force'],
@@ -614,9 +644,9 @@ describe('official policy commands and workspace carriage', () => {
     expect(result.error).to.equal(undefined)
     expect(result.stdout).to.contain('Pushed 1 documents to')
     expect(result.stdout).to.contain('Policy documents: 1 sent without a preview, so which of them changed is not known')
-    expect(result.stdout).to.contain('Blocking findings (1) — active blocking policies; a gate refuses a change that introduces one or changes its object:')
+    expect(result.stdout).to.contain('Block findings (1) — Block policies; a gate refuses a change that introduces one or changes its object:')
     expect(result.stdout).to.contain('SEC-100.R1 (SEC-100)  query GET /x: no auth')
-    expect(result.stdout).to.contain('Advisory findings (1) — reported, not blocking:')
+    expect(result.stdout).to.contain('Warn findings (1) — Warn policies; reported, nothing stopped:')
     expect(result.stdout).to.contain('SEC-100.R2 (SEC-100)  table account: stale tag')
     expect(result.stdout).to.contain('Next: `xano policy status --run-detail`')
     expect(process.exitCode).to.equal(2)

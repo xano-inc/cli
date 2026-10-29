@@ -25,7 +25,8 @@ describe('policy create from a platform template', () => {
     expect(result.error).to.equal(undefined)
     expect(JSON.parse(result.stdout)).to.deep.equal(created)
     const parsed = fixture.calls.find(call => call.url.pathname.endsWith('/parse'))!
-    expect(JSON.parse(parsed.body!).data).to.deep.equal({key: 'SAFE-001', rules: [{check: 'stack.statement_forbidden', params: {statements: ['db.truncate']}, title: ''}], severity: 'high', statement: 'Keep stored data.', title: 'No unsafe calls'})
+    // The template id is kept on the policy; the platform names it (key and title) after the template.
+    expect(JSON.parse(parsed.body!).data).to.deep.equal({rules: [{check: 'stack.statement_forbidden', params: {statements: ['db.truncate']}, title: ''}], severity: 'high', statement: 'Keep stored data.', template: 'safe_calls'})
     const write = fixture.calls.at(-1)!
     expect(write.method).to.equal('POST')
     expect(write.url.searchParams.get('branch')).to.equal('scratch')
@@ -50,7 +51,7 @@ describe('policy create from a platform template', () => {
   })
 
   it('takes one need of a needs_any rule, and names the alternatives when none is filled', async () => {
-    const vendors = {...readyTemplate, id: 'vendors', rules: [{check: 'outbound.vendor_allowlist', needs: ['hosts', 'providers'], needs_any: true, params: {}, title: ''}]}
+    const vendors = {...readyTemplate, id: 'vendors', rules: [{check: 'outbound.vendor_allowlist', needs: ['hosts', 'providers'], needs_any: ['hosts', 'providers'], params: {}, title: ''}]}
     fixture.route((url, method) => {
       if (url.pathname.endsWith('/check')) return json({items: [], templates: [vendors]})
       if (url.pathname.endsWith('/parse')) return json({policy: {key: 'SAFE-001'}, rule_warnings: [], source: 'canonical source'})
@@ -64,6 +65,27 @@ describe('policy create from a platform template', () => {
     const result = await captureOutput(() => PolicyCreate.run(['--template', 'vendors', '--param', 'hosts=["api.example.com"]'], fixture.config))
     expect(result.error).to.equal(undefined)
     expect(JSON.parse(fixture.calls.find(call => call.url.pathname.endsWith('/parse'))!.body!).data.rules[0].params).to.deep.equal({hosts: ['api.example.com']})
+  })
+
+  it('refuses a missing required need by name and an empty needs_any group by its options, and fills a dotted need', async () => {
+    const admin = {...readyTemplate, examples: {functions: ['require_admin']}, id: 'admin_endpoints_check_role', key: 'AUTH-002', rules: [{check: 'object.statement_required', needs: ['functions', 'tags', 'paths'], needs_any: ['tags', 'paths'], params: {placement: 'first'}, title: ''}]}
+    const retention = {...readyTemplate, id: 'retained_data_has_age_limit', key: 'RET-003', rules: [{check: 'table.coverage_required', needs: ['tags', 'referenced_by.max_age_days'], needs_any: [], params: {referenced_by: {object_kinds: ['task']}}, title: ''}]}
+    fixture.route((url, method) => {
+      if (url.pathname.endsWith('/check')) return json({items: [], templates: [admin, retention]})
+      if (url.pathname.endsWith('/parse')) return json({policy: {key: 'RET-003'}, rule_warnings: [], source: 'canonical source'})
+      if (method === 'GET') return json({items: [], nextPage: null})
+      return json(created)
+    })
+    const none = await captureOutput(() => PolicyCreate.run(['--template', 'admin_endpoints_check_role'], fixture.config))
+    expect(none.error?.message).to.contain(`: 1.functions, and 1.tags or 1.paths. For example: --param 'functions=["require_admin"]'.`)
+    const noGroup = await captureOutput(() => PolicyCreate.run(['--template', 'admin_endpoints_check_role', '--param', 'functions=["require_admin"]'], fixture.config))
+    expect(noGroup.error?.message).to.contain(': 1.tags or 1.paths.')
+    expect(fixture.calls.every(call => call.method === 'GET')).to.equal(true)
+
+    const result = await captureOutput(() => PolicyCreate.run(['--template', 'retained_data_has_age_limit', '--param', '1.tags=["retained"]', '--param', '1.referenced_by.max_age_days=730'], fixture.config))
+    expect(result.error).to.equal(undefined)
+    expect(JSON.parse(fixture.calls.find(call => call.url.pathname.endsWith('/parse'))!.body!).data.rules[0].params)
+      .to.deep.equal({referenced_by: {max_age_days: 730, object_kinds: ['task']}, tags: ['retained']})
   })
 
   it('fills nested parameters with typed JSON, keeping unrelated seed values', async () => {
@@ -107,16 +129,28 @@ describe('policy create from a platform template', () => {
     expect(fixture.calls.map(call => call.url.pathname)).to.satisfy((paths: string[]) => paths.every(pathname => pathname.endsWith('/check')))
   })
 
-  it('checks every list page for case-insensitive key collisions and chooses a free suffix', async () => {
+  it('leaves the key to the platform, which picks a free suffix, and reports the key it chose', async () => {
     fixture.route((url, method) => {
       if (url.pathname.endsWith('/check')) return json({templates: [readyTemplate]})
-      if (url.pathname.endsWith('/parse')) return json({policy: {key: 'SAFE-001-3'}, source: 'canonical source'})
-      if (method === 'GET') return url.searchParams.get('page') === '2' ? json({items: [{key: 'SAFE-001-2'}], nextPage: null}) : json({items: [{key: 'safe-001'}], nextPage: 2})
+      if (url.pathname.endsWith('/parse')) return json({policy: {key: 'SAFE-001-3', template: 'safe_calls', title: 'No unsafe calls (3)'}, source: 'canonical source'})
+      if (method === 'GET') return json({items: [{key: 'safe-001'}], nextPage: null})
       return json(created)
     })
     const result = await runCommand(['policy', 'create', '--template', 'safe_calls'], fixture.config)
     expect(result.error).to.equal(undefined)
-    expect(JSON.parse(fixture.calls.find(call => call.url.pathname.endsWith('/parse'))!.body!).data.key).to.equal('SAFE-001-3')
+    expect(JSON.parse(fixture.calls.find(call => call.url.pathname.endsWith('/parse'))!.body!).data).to.include({template: 'safe_calls'}).and.not.to.have.any.keys('key', 'title')
+    expect(result.stdout).to.contain('Created SAFE-001-3 (Version 1)')
+  })
+
+  it('checks every list page for a case-insensitive collision with a chosen --key', async () => {
+    fixture.route((url, method) => {
+      if (url.pathname.endsWith('/check')) return json({templates: [readyTemplate]})
+      if (method === 'GET') return url.searchParams.get('page') === '2' ? json({items: [{key: 'SAFE-001-2'}], nextPage: null}) : json({items: [{key: 'safe-001'}], nextPage: 2})
+      return json(created)
+    })
+    const result = await runCommand(['policy', 'create', '--template', 'safe_calls', '--key', 'safe-001-2'], fixture.config)
+    expect(result.error?.message).to.contain('Policy safe-001-2 already exists')
+    expect(fixture.calls.filter(call => call.method === 'GET' && !call.url.pathname.endsWith('/check')).map(call => call.url.searchParams.get('page'))).to.deep.equal(['1', '2'])
   })
 
   it('refuses an explicitly taken key instead of updating it', async () => {

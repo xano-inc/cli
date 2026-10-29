@@ -1,5 +1,7 @@
 /** The shapes the policy routes answer with. Policy grammar belongs to the platform. */
 export interface PolicyCatalogueEntry {
+  /** The catalogue's group for the check (`security`, `data_access`…), served as an id with no label. */
+  category?: string
   description?: string
   fix_hint?: string
   id: string
@@ -9,6 +11,8 @@ export interface PolicyCatalogueEntry {
   params?: Record<string, PolicyParamSchema>
   /** Params of which a rule must set at least one. */
   requires_one_of?: string[]
+  /** The shared scope params that can narrow this check; each is described in `params`. */
+  scope_fields?: Array<{applies_when?: Record<string, unknown>; name: string}>
   /** Goals in a customer's words, each with the complete params (scope params included) that achieve it. */
   uses?: PolicyCheckUse[]
 }
@@ -24,11 +28,27 @@ export interface PolicyCheckUse {
 
 /** One param as the catalogue describes it: a nested object's parts are its `properties`. */
 export interface PolicyParamSchema {
+  /** The value an unset param takes; PHP sends an empty map as `[]`. */
+  default?: unknown
+  description?: string
   /** A value that fits the param, shown as a hint; never filled in. */
   example?: unknown
+  /**
+   * An exception list's kind (`type: "exception[]"`): `tag`, `path`, `entry` or `object`. Each entry is
+   * `{value, reason}`, or for `object` (`except_objects`) `{kind, guid, name, reason}`, the server
+   * stamping `by` and `at`.
+   */
+  exception?: string
+  /** An exception list's rule for each entry's `value`, as the param's items were described before. */
+  items?: PolicyParamSchema
+  /** The smallest whole number an `integer` param takes. */
+  minimum?: number
+  /** A nested object's parts; a `<name>` key stands for a key the author chooses. */
   properties?: Record<string, PolicyParamSchema>
   required?: boolean
   type?: string
+  /** The values a `string` param takes, or a `string[]` param's entries. */
+  values?: unknown[]
 }
 
 /** One rule as a run snapshot records it: the settings the check ran with, plus the check's label. */
@@ -43,10 +63,15 @@ export interface PolicySnapshotRule {
 
 /** One policy as a run snapshot records it, including the description it carried at run time. */
 export interface PolicySnapshotPolicy {
+  /** `warn` or `block` as the run evaluated it (an `off` policy is not evaluated). */
+  enforcement?: string
+  guid?: string
   key?: string
   rules?: PolicySnapshotRule[]
   /** The policy description as written at run time. */
   statement?: string
+  /** The template id the policy was created from; empty for one built from scratch or by the agent. */
+  template?: string
   title?: string
   /** The Version History index this run evaluated. */
   version?: number
@@ -62,12 +87,15 @@ export interface PolicyRuleResult {
 }
 
 export interface PolicyFinding {
-  /** Stable finding id, used to tell a blocking finding from an advisory one. */
+  /** Stable finding id, used to tell a Block finding from a Warn one. */
   id?: string
+  /** The technical sentence: the detail behind `reason`. */
   message?: string
-  object?: {id?: number; name?: string; type?: string}
+  object?: {guid?: string; id?: number; name?: string; type?: string}
   policy_key?: string
   policy_title?: string
+  /** What the object does wrong, in a few plain words; an older stored run's finding has none. */
+  reason?: string
   rule_id?: string
   rule_title?: string
   severity?: string
@@ -76,10 +104,10 @@ export interface PolicyFinding {
 /**
  * A finding as the platform trims it for a caller without `workspace:policy` read (`access:
  * "coverage"`): no rule id, severity, params or `allow`, but the check's label, first description
- * sentence and fix hint, and whether it blocks.
+ * sentence and fix hint, and whether its policy is a Block one.
  */
 export interface CoverageFinding extends PolicyFinding {
-  blocking?: boolean
+  block?: boolean
   /** `null` when the rule can no longer be resolved (a deleted policy, a rule removed since the run). */
   check?: null | {description?: string; fix_hint?: string; label?: string}
   /** Coverage only: the run evaluated a policy the branch no longer holds. */
@@ -88,10 +116,12 @@ export interface CoverageFinding extends PolicyFinding {
 
 /** The verdict every `policy_check` carries. */
 export interface PolicyVerdict {
-  /** True when an active, blocking policy failed; it decides the exit code whatever the status. */
-  blocking?: boolean
+  /** True when a Block policy failed; it decides the exit code whatever the status. */
+  block?: boolean
   /** The platform's verdict, including the names of rules that checked no objects. */
   message?: string
+  /** A gate's outcome for the run it stored: `allowed`, `blocked` or `allowed_with_override`. */
+  outcome?: null | string
   run_id?: number
   /**
    * `pass`, `fail` or `error` (a check could not run) for an evaluation; `disabled`,
@@ -102,13 +132,21 @@ export interface PolicyVerdict {
   status?: string
 }
 
-/** A run's finding counts: every finding, the blocking ones, and the rules that could not run. */
+/** A run's finding counts: every finding, the Block ones, and the rules that could not run. */
 export interface PolicyCounts {
-  /** The findings that do not block; the run summary serves it, a push's feedback does not. */
-  advisory?: number
-  blocking: number
+  /** The findings of Block policies. */
+  block: number
   errors: number
   findings: number
+  objects_checked?: number
+  /** Distinct objects with a finding, in all and per mode; a run summary serves it, a push's feedback does not. */
+  objects_failing?: {block?: number; total?: number; warn?: number}
+  policies_checked?: number
+  policies_failing?: number
+  /** The policies the run skipped because they are off. */
+  policies_off?: number
+  /** The findings of Warn policies; the run summary serves it, a push's feedback does not. */
+  warn?: number
 }
 
 /**
@@ -121,12 +159,12 @@ export interface PushPolicyCheck extends PolicyVerdict {
    * objects the push carried that the caller may read (the workspace too, for a push that carried
    * the workspace document and a caller with `workspace:settings` read), trimmed (`CoverageFinding`),
    * with `run_id` 0, `results` empty and a `note`. `counts` are about those findings, except
-   * `counts.errors` (the branch's); `blocking` is what a reader's push of the same change says, so
+   * `counts.errors` (the branch's); `block` is what a reader's push of the same change says, so
    * the exit code is the same whoever pushed.
    */
   access?: string
-  /** The first blocking findings. */
-  blocking_findings?: PolicyFinding[]
+  /** The first Block findings. */
+  block_findings?: PolicyFinding[]
   /** What the lists are out of. */
   counts?: PolicyCounts
   /**
@@ -135,8 +173,8 @@ export interface PushPolicyCheck extends PolicyVerdict {
    * before it on the live branch; elsewhere not in the newest run that still described the branch);
    * `all`: no baseline was known, so every finding there. An older platform sends no `basis`.
    */
-  elsewhere?: {basis?: string; blocking?: number; total?: number}
-  /** The first findings, blocking first. */
+  elsewhere?: {basis?: string; block?: number; total?: number}
+  /** The first findings, Block first. */
   findings?: PolicyFinding[]
   /** The platform's sentence on what a trimmed answer leaves out (`access: "coverage"`). */
   note?: string
@@ -151,8 +189,8 @@ export interface PushPolicyCheck extends PolicyVerdict {
 
 /** One policy that applies to an object, as the coverage route serves it. */
 export interface ObjectCoveragePolicy {
-  blocking?: boolean
-  /** `blocking` or `advisory`. */
+  block?: boolean
+  /** `block` or `warn`: an off policy is never evaluated, so it applies nowhere. */
   enforcement?: string
   key?: string
   /** Why it applies here, one plain sentence per rule. */
@@ -167,7 +205,7 @@ export interface ObjectCoveragePolicy {
 }
 
 /**
- * `GET policy/object/coverage`: which active policies apply to one object, and its findings in the
+ * `GET policy/object/coverage`: which policies that are on apply to one object, and its findings in the
  * branch's newest run, trimmed for anyone who may read the object (`workspace:policy` read is not
  * needed). The same trimmed shape for every caller.
  */
@@ -180,9 +218,8 @@ export interface ObjectCoverage {
   /** The branch's newest ended run, `null` before the first. */
   run?: null | {started_at?: string; status?: string}
   summary?: {
-    advisory?: number
     applies?: number
-    blocking?: number
+    block?: number
     /** The policies that apply whose status is `could_not_check`; an older platform does not send it. */
     could_not_check?: number
     not_checked?: number
@@ -192,14 +229,22 @@ export interface ObjectCoverage {
      * could not be checked) or `pass`.
      */
     state?: string
+    warn?: number
   }
 }
 
 /** A policy's place in its branch's newest run, as the platform serves it on every policy. */
 export interface PolicyCoverage {
+  /** When the newest run finished. */
+  checked_at?: null | string
+  /** The enforcement the newest run evaluated this policy with; `null` when it did not. */
   enforcement: null | string
   /** Whether the newest run evaluated this policy at all. */
   included: boolean
+  /** Distinct objects the newest run examined for this policy, and those with a finding of it. */
+  objects_checked?: number
+  objects_failing?: number
+  rules_failing?: number
   /** 0 when the branch has no run. */
   run_id: number
   /** True only when the newest run evaluated a different version of this policy. */
@@ -208,12 +253,16 @@ export interface PolicyCoverage {
 }
 
 export interface Policy {
-  active: boolean
+  /** `off` (never evaluated), `warn` (reports only) or `block` (its findings gate changes). */
   enforcement: string
   id: number
   key: string
   latest_run?: PolicyCoverage
   rules?: Array<{id: string}>
+  /** `critical`, `high`, `medium` or `low`; the parse route always answers it, its default included. */
+  severity?: string
+  /** The template id the policy was created from (`endpoints_need_login`); empty for one built from scratch or by the agent. */
+  template?: string
   title?: string
   /** When the policy was last written, as served; sent back as `last_updated_at` to refuse acting on a stale read. */
   updated_at?: number | string
@@ -221,15 +270,58 @@ export interface Policy {
   version: number
 }
 
+/** Who started a run, or overrode a gate. */
+export interface PolicyActor {
+  id?: number
+  /** `user`, `cli` or `agent`. */
+  kind?: string
+  name?: string
+}
+
+/** A gate's override: why, by whom, when. */
+export interface PolicyOverride {
+  at?: string
+  by?: PolicyActor
+  reason?: string
+}
+
+/** What a run covered: the whole branch, or (`partial`) the objects a publish carried. */
+export interface PolicyRunScope {
+  count?: number
+  kind?: string
+  objects?: Array<{guid?: string; id?: number; name?: string; type?: string}>
+}
+
 /** One stored run as the run list serves it: the verdict and counts, without findings or results. */
 export interface PolicyRunSummary {
-  counts: {blocking: number; errors: number; findings: number}
+  actor?: null | PolicyActor
+  branch?: null | {id?: number; label?: string}
+  counts: PolicyCounts
+  created_at?: number
   finished_at?: string
+  /** The merge source, or the branch a set live replaced; else null. */
+  from_branch?: null | {id?: number; label?: string}
   id: number
-  objects_checked: number
+  /** The gate's refusal or override sentence. */
+  note?: null | string
+  objects_checked?: number
+  /** A gate's verdict: `allowed`, `blocked`, `allowed_with_override`; `null` for a check that gated nothing. */
+  outcome?: null | string
+  override?: null | PolicyOverride
+  scope?: PolicyRunScope
   started_at?: string
   status: string
+  /** `manual`, `push`, `merge`, `set_live`, `install`, `release`, `deploy`, `publish` or `save`. */
   trigger?: string
+}
+
+/** One page of the run list (`GET policy/run`). */
+export interface PolicyRunListPage {
+  curPage?: number
+  items: PolicyRunSummary[]
+  itemsTotal?: number
+  nextPage?: null | number
+  prevPage?: null | number
 }
 
 /** One run in full, as `GET run/{id}` serves it. */
@@ -238,11 +330,15 @@ export interface PolicyRun {
   finished_at?: number | string
   /** 0 for an evaluation that was not stored. */
   id?: number
+  note?: null | string
   /** How many workspace objects the run inspected. */
   objects_checked?: number
+  outcome?: null | string
+  override?: null | PolicyOverride
   /** The snapshot of the policies as they were when the run went out. */
   policies?: PolicySnapshotPolicy[]
   results?: PolicyRuleResult[]
+  scope?: PolicyRunScope
   started_at?: number | string
   status?: string
   trigger?: string
@@ -250,13 +346,13 @@ export interface PolicyRun {
 
 /**
  * What `policy evaluate` answers: the run as `GET run/{id}` serves it, whether it was stored, and the verdict.
- * With no active policy on the branch it is no run at all: `id` 0, `status` `not_applicable`, nothing evaluated.
+ * With no policy that is on in the branch it is no run at all: `id` 0, `status` `not_applicable`, nothing evaluated.
  */
 export interface PolicyEvaluation extends PolicyRun {
   /** The summary answer's counts (`--summary`). */
   counts?: PolicyCounts
-  /** `blocking_total`: every blocking finding, beside the summary answer's listed ones. */
-  policy_check?: PolicyVerdict & {blocking_finding_ids?: string[]; blocking_total?: number}
+  /** `block_total`: every Block finding, beside the summary answer's listed ones. */
+  policy_check?: PolicyVerdict & {block_finding_ids?: string[]; block_total?: number}
   stored?: boolean
   /** The summary answer: every finding, and whether `findings` lists only the first. */
   total?: number
@@ -265,9 +361,12 @@ export interface PolicyEvaluation extends PolicyRun {
 
 /** One run without its findings, as `GET run/{id}/summary` serves it. */
 export interface PolicyRunHead extends PolicyRun {
+  actor?: null | PolicyActor
+  branch?: null | {id?: number; label?: string}
   counts?: PolicyCounts
+  from_branch?: null | {id?: number; label?: string}
   /** The snapshot, each policy with its verdict in this run. */
-  policies?: Array<PolicySnapshotPolicy & {blocking?: boolean; findings?: number; objects_checked?: number; status?: string}>
+  policies?: Array<PolicySnapshotPolicy & {block?: boolean; findings?: number; objects_checked?: number; objects_failing?: number; status?: string}>
 }
 
 /** One page of a run's findings, as `GET run/{id}/findings` serves it. */

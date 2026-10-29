@@ -35,7 +35,7 @@ Deployed tenant release, bypassing deploy request #12's approval gate.
     }),
     'override-policy': Flags.boolean({
       default: false,
-      description: 'Also proceed past a blocking policy gate, recording --reason as the override reason (needs the workspace:policy update permission; audited)',
+      description: 'Also proceed past a policy gate that blocks the deploy, recording --reason as the override reason (needs the workspace:policy update permission; audited)',
       hidden: true,
     }),
     reason: Flags.string({

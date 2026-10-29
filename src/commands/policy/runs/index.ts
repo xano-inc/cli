@@ -1,22 +1,29 @@
 import {Args, Flags, Interfaces} from '@oclif/core'
 
-import type {PolicyFindingsPage, PolicyRunHead, PolicyRunSummary} from '../../../utils/policy/types.js'
+import type {PolicyFindingsPage, PolicyRunHead, PolicyRunListPage} from '../../../utils/policy/types.js'
 
 import PolicyCommand from '../../../policy-command.js'
 import {quoted} from '../../../utils/policy/gate.js'
 import {releasePolicyRunLines, type ReleaseRunHead, releaseRunLines} from '../../../utils/policy/release.js'
 import {listItems, type PolicyQuery, type PolicyRequest} from '../../../utils/policy/request.js'
-import {policyRunSummary, policyRunTable} from '../../../utils/policy/runs.js'
+import {policyRunListFooter, policyRunSummary, policyRunTable} from '../../../utils/policy/runs.js'
 
-/** A branch retains this many runs, and the run list serves at most this many. */
-const RUNS_RETAINED = 20
+/** How many runs a page of the run list holds unless `--per-page` says otherwise, and the most it may. */
+const RUNS_PER_PAGE = 25
+const RUNS_PER_PAGE_MAX = 100
+/** The run list's filters and order, as the platform takes them. */
+const RUN_TRIGGERS = ['manual', 'push', 'merge', 'set_live', 'install', 'release', 'deploy', 'publish'] as const
+const RUN_OUTCOMES = ['allowed', 'blocked', 'allowed_with_override', 'none'] as const
+const RUN_SORTS = ['date', 'check', 'source', 'trigger', 'run_by', 'scope', 'result', 'outcome'] as const
+/** The flags that page, filter or order the run list, so reading one run refuses them. */
+const LIST_FLAGS = ['page', 'per-page', 'trigger', 'outcome', 'scope', 'sort', 'order', 'latest-only'] as const
 /** How many findings a run read prints unless `--limit` says otherwise, and the most a page holds. */
 const FINDINGS_LIMIT = 100
 const FINDINGS_MAX = 500
 /** The findings route's list filters, each a repeatable flag of the same name. */
 const LIST_FILTERS = ['policy', 'rule', 'severity', 'kind', 'object', 'tag'] as const
 /** The flags that page or filter one run's findings, so a run list refuses them. */
-const FINDING_FLAGS = ['offset', 'all', 'advisory', 'blocking', ...LIST_FILTERS, 'search'] as const
+const FINDING_FLAGS = ['offset', 'all', 'warn', 'block', ...LIST_FILTERS] as const
 /** How many releases a lookup by name reads a request, and the most requests it makes. */
 const RELEASES_PAGE = 100
 const RELEASE_PAGES = 50
@@ -24,48 +31,51 @@ const RELEASE_PAGES = 50
 export default class PolicyRuns extends PolicyCommand {
   static override args = {
     run_id: Args.string({
-      description: 'Run ID to read; omit to list the retained runs, newest first',
+      description: 'Run ID to read; omit to list the stored runs, newest first, a page at a time',
       required: false,
     }),
   }
   static override description =
-    "List the stored policy check runs, or read one of them a page of findings at a time. --release reads a release's check instead: the run stored when the release was cut, evaluated on what it ships against the policies it ships"
+    "List the stored policy check runs a page at a time (gated checks with their outcome: allowed, blocked or allowed with override), or read one of them a page of findings at a time. --release reads a release's check instead: the run stored when the release was cut, evaluated on what it ships against the policies it ships"
   static override examples = [
     '$ xano policy runs',
-    '$ xano policy runs --limit 5',
+    '$ xano policy runs --page 2 --per-page 50',
+    '$ xano policy runs --trigger merge --trigger set_live --outcome blocked',
+    '$ xano policy runs --scope partial --sort outcome --search visits',
+    '$ xano policy runs --latest-only --per-page 1 -o json',
     '$ xano policy runs 1674 --run-detail',
     '$ xano policy runs 1674 --offset 100 --limit 100',
     '$ xano policy runs 1674 --all -o json',
-    '$ xano policy runs 1674 --blocking --policy AUTH-001 --severity critical --severity high',
+    '$ xano policy runs 1674 --block --policy AUTH-001 --severity critical --severity high',
     '$ xano policy runs 1674 -o json',
     '$ xano policy runs --release v1.2',
-    '$ xano policy runs --release v1.2 --blocking --all -o json',
+    '$ xano policy runs --release v1.2 --block --all -o json',
     '$ xano policy runs --release v1.2 --recheck',
     '$ xano policy runs --release-id 12',
   ]
   static override flags = {
     ...PolicyCommand.policyFlags,
-    advisory: Flags.boolean({
-      default: false,
-      description: 'With a run ID, only the advisory findings',
-      exclusive: ['blocking'],
-    }),
     all: Flags.boolean({
       default: false,
       description: 'With a run ID, read every page and print every finding that matches, instead of one page',
       exclusive: ['offset', 'limit'],
     }),
-    blocking: Flags.boolean({
+    block: Flags.boolean({
       default: false,
-      description: "With a run ID, only the blocking findings (an active blocking policy's)",
-      exclusive: ['advisory'],
+      description: 'With a run ID, only the findings of Block policies',
+      exclusive: ['warn'],
     }),
     kind: Flags.string({
       description: 'With a run ID, only findings on this object kind (query, function, table, ...); repeatable',
       multiple: true,
     }),
+    'latest-only': Flags.boolean({
+      default: false,
+      description: "Only the runs that can describe the branch: no publish runs and no blocked gated checks (what `policy status` reads)",
+    }),
     limit: Flags.integer({
-      description: `How many runs to list, newest first (1-${RUNS_RETAINED}, default ${RUNS_RETAINED}: a branch retains at most ${RUNS_RETAINED}); with a run ID, how many findings to print (1-${FINDINGS_MAX}, default ${FINDINGS_LIMIT})`,
+      description: `With a run ID, how many findings to print (1-${FINDINGS_MAX}, default ${FINDINGS_LIMIT}); without one, the same as --per-page`,
+      exclusive: ['per-page'],
       min: 1,
     }),
     object: Flags.string({
@@ -73,8 +83,27 @@ export default class PolicyRuns extends PolicyCommand {
       multiple: true,
     }),
     offset: Flags.integer({
-      description: "With a run ID, how many findings to skip, in the platform's order (blocking first)",
+      description: "With a run ID, how many findings to skip, in the platform's order (Block first)",
       min: 0,
+    }),
+    order: Flags.string({
+      description: 'The run list\'s order for --sort (default desc: newest, or last, first)',
+      options: ['asc', 'desc'],
+    }),
+    outcome: Flags.string({
+      description: 'Only runs with this outcome; none is a check that gated nothing; repeatable',
+      multiple: true,
+      options: [...RUN_OUTCOMES],
+    }),
+    page: Flags.integer({
+      description: 'Which page of the run list to print (default 1)',
+      min: 1,
+    }),
+    'per-page': Flags.integer({
+      description: `How many runs a page of the list holds (1-${RUNS_PER_PAGE_MAX}, default ${RUNS_PER_PAGE})`,
+      exclusive: ['limit'],
+      max: RUNS_PER_PAGE_MAX,
+      min: 1,
     }),
     policy: Flags.string({
       description: 'With a run ID, only findings of this policy key; repeatable',
@@ -101,16 +130,34 @@ export default class PolicyRuns extends PolicyCommand {
       default: false,
       description: 'With a run ID, also print the policy descriptions and rule settings that run recorded',
     }),
+    scope: Flags.string({
+      description: 'Only runs over the whole branch (workspace) or over the objects a publish carried (partial)',
+      options: ['workspace', 'partial'],
+    }),
     search: Flags.string({
-      description: 'With a run ID, only findings whose policy key or title, rule title, object name or message contains this text',
+      description: 'With a run ID, only findings whose policy key or title, rule title, object name, reason or message contains this text; without one, only runs whose trigger, branch, who ran it, tenant, release or objects contain it',
     }),
     severity: Flags.string({
       description: 'With a run ID, only findings of this severity (critical, high, medium, low); repeatable',
       multiple: true,
     }),
+    sort: Flags.string({
+      description: 'The run list\'s order: date (default), check, source, trigger, run_by, scope, result (failing policies) or outcome',
+      options: [...RUN_SORTS],
+    }),
     tag: Flags.string({
       description: 'With a run ID, only findings whose policy or object carries this tag; repeatable',
       multiple: true,
+    }),
+    trigger: Flags.string({
+      description: 'Only runs started this way; repeatable',
+      multiple: true,
+      options: [...RUN_TRIGGERS],
+    }),
+    warn: Flags.boolean({
+      default: false,
+      description: 'With a run ID, only the findings of Warn policies',
+      exclusive: ['block'],
     }),
   }
 
@@ -122,7 +169,8 @@ export default class PolicyRuns extends PolicyCommand {
     const wanted = args.run_id?.trim() ?? ''
     if (wanted === '') return this.listRuns(request, flags)
     // Runs older than the one `policy status` reads are reachable here by id.
-    if (!/^\d+$/.test(wanted)) this.error(`"${wanted}" is not a run ID. Run \`xano policy runs\` for the retained runs.`)
+    if (!/^\d+$/.test(wanted)) this.error(`"${wanted}" is not a run ID. Run \`xano policy runs\` for the stored runs.`)
+    this.refuseListFlags(flags, `run ${wanted}`)
     const limit = findingsLimit(this, flags)
     // The run's summary and its findings a page at a time: neither reads the whole run, which can hold tens of thousands.
     const head = (await request(`/run/${wanted}/summary`)) as PolicyRunHead
@@ -149,27 +197,37 @@ export default class PolicyRuns extends PolicyCommand {
     return {items, limit: items.length, offset: 0, total: Number.isFinite(total) ? total : items.length}
   }
 
-  /** The retained runs, newest first; the flags that read one run's findings are refused. */
+  /**
+   * One page of the stored runs, newest first unless `--sort`/`--order` say otherwise, filtered as the
+   * flags say; the flags that read one run's findings are refused.
+   */
   private async listRuns(request: PolicyRequest, flags: RunsFlags): Promise<void> {
     if (flags['run-detail']) this.error('--run-detail reads one run: `xano policy runs <id> --run-detail`.')
     const paging = FINDING_FLAGS.find(name => flags[name] !== undefined && flags[name] !== false)
     if (paging) this.error(`--${paging} pages one run's findings: \`xano policy runs <id> --${paging} ...\`.`)
-    const limit = flags.limit ?? RUNS_RETAINED
-    if (limit > RUNS_RETAINED) this.error(`--limit lists at most ${RUNS_RETAINED} runs: a branch retains only its newest ${RUNS_RETAINED}.`)
-    const result = await request('/run', 'GET', undefined, {limit: String(limit)})
+    const perPage = flags['per-page'] ?? flags.limit ?? RUNS_PER_PAGE
+    if (perPage > RUNS_PER_PAGE_MAX) {
+      // Name the flag the user passed: --per-page wins over its alias --limit.
+      const flag = flags['per-page'] === undefined ? '--limit' : '--per-page'
+      this.error(`${flag} lists at most ${RUNS_PER_PAGE_MAX} runs a page; page on with --page.`)
+    }
+    const query = runListQuery(flags, perPage)
+    const result = await request('/run', 'GET', undefined, query)
     if (flags.output === 'json') {
       this.log(JSON.stringify(result, null, 2))
       return
     }
 
-    const runs = listItems<PolicyRunSummary>(result)
+    const page = result as PolicyRunListPage
+    const runs = listItems<PolicyRunListPage['items'][number]>(result)
+    const filtered = Object.keys(query).some(name => !['order', 'page', 'per_page', 'sort'].includes(name))
     if (runs.length === 0) {
-      this.log('No policy runs retained on this branch.')
+      this.log(filtered ? 'No policy runs match.' : (flags.page ?? 1) > 1 ? `No policy runs on page ${flags.page}.` : 'No policy runs stored on this branch.')
       return
     }
 
     for (const line of policyRunTable(runs)) this.log(line)
-    this.log('Only the most recent runs are retained per branch. Read one with `xano policy runs <id> --run-detail`.')
+    for (const line of policyRunListFooter(page, {filtered, next: runListNext(flags)})) this.log(line)
   }
 
   /**
@@ -179,6 +237,7 @@ export default class PolicyRuns extends PolicyCommand {
    */
   private async readRelease(flags: RunsFlags, runId?: string): Promise<void> {
     if (runId?.trim()) this.error('Read one run by its ID, or a release\'s check with --release, not both.')
+    this.refuseListFlags(flags, 'a release\'s check')
     const name = flags.release?.trim() ?? String(flags['release-id'] ?? '')
     if (!name) this.error('--release needs a release name.')
     const limit = findingsLimit(this, flags)
@@ -212,6 +271,12 @@ export default class PolicyRuns extends PolicyCommand {
       reading: `release ${name}`,
       request,
     })
+  }
+
+  /** Reading one run refuses the run list's flags. */
+  private refuseListFlags(flags: RunsFlags, reading: string): void {
+    const listing = LIST_FLAGS.find(name => flags[name] !== undefined && flags[name] !== false)
+    if (listing) this.error(`--${listing} pages or filters the run list, not ${reading}: \`xano policy runs --${listing} ...\`.`)
   }
 
   /** The release's ID from its name, reading the workspace's releases a page at a time until it is found. */
@@ -274,11 +339,40 @@ function findingsLimit(command: {error(message: string): never}, flags: RunsFlag
   return limit
 }
 
-/** The findings route's query for one page: `blocking` true or false, and each list filter given. */
+/** The findings route's query for one page: `block` true or false, and each list filter given. */
 function findingsQuery(flags: RunsFlags, limit: number): PolicyQuery {
   const query: PolicyQuery = {limit: String(limit), offset: String(flags.offset ?? 0)}
-  if (flags.blocking || flags.advisory) query.blocking = String(flags.blocking)
+  if (flags.block || flags.warn) query.block = String(flags.block)
   for (const name of LIST_FILTERS) if (flags[name]?.length) query[name] = flags[name]
   if (flags.search?.trim()) query.q = flags.search
   return query
+}
+
+/** The run list's query for one page: the page, its size, each filter given and the order. */
+function runListQuery(flags: RunsFlags, perPage: number): PolicyQuery {
+  const query: PolicyQuery = {page: String(flags.page ?? 1), per_page: String(perPage)}
+  if (flags.trigger?.length) query.trigger = flags.trigger
+  if (flags.outcome?.length) query.outcome = flags.outcome
+  if (flags.scope) query.scope = flags.scope
+  if (flags.search?.trim()) query.q = flags.search.trim()
+  if (flags.sort) query.sort = flags.sort
+  if (flags.order) query.order = flags.order
+  if (flags['latest-only']) query.latest_only = 'true'
+  return query
+}
+
+/** The command that lists the next page: this one's list flags, without `--page`. */
+function runListNext(flags: RunsFlags): string {
+  const parts = ['xano policy runs']
+  if (flags.branch !== undefined) parts.push(`-b ${quoted(flags.branch)}`)
+  const perPage = flags['per-page'] ?? flags.limit
+  if (perPage !== undefined) parts.push(`--per-page ${perPage}`)
+  for (const trigger of flags.trigger ?? []) parts.push(`--trigger ${trigger}`)
+  for (const outcome of flags.outcome ?? []) parts.push(`--outcome ${outcome}`)
+  if (flags.scope) parts.push(`--scope ${flags.scope}`)
+  if (flags.search?.trim()) parts.push(`--search ${quoted(flags.search.trim())}`)
+  if (flags.sort) parts.push(`--sort ${flags.sort}`)
+  if (flags.order) parts.push(`--order ${flags.order}`)
+  if (flags['latest-only']) parts.push('--latest-only')
+  return parts.join(' ')
 }

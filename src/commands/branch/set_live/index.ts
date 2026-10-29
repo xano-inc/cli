@@ -59,7 +59,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Set the branch live past a blocking set-live policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
+    'policy-override': Flags.string({description: 'Set the branch live past a set-live policy gate that blocks it, with an audited reason (requires workspace:policy update)', hidden: true}),
     workspace: Flags.integer({
       char: 'w',
       description: 'Workspace ID (uses profile workspace if not provided)',
@@ -106,7 +106,7 @@ static override flags = {
     // Construct the API URL
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/branch/${encodeURIComponent(branchLabel)}/live`
 
-    // A reason from someone with workspace:policy update sets the branch live past a blocking gate.
+    // A reason from someone with workspace:policy update sets the branch live past a gate that blocks it.
     const overrideReason = flags['policy-override']?.trim()
 
     // Set branch as live via the API

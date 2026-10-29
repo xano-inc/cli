@@ -29,7 +29,7 @@ const blocked = {
   truncated: false,
 }
 
-const refusal = (answer: Record<string, unknown> = blocked, message = 'Set live refused: 1 blocking policy finding (1 introduced by this change).') =>
+const refusal = (answer: Record<string, unknown> = blocked, message = 'Set live blocked by 1 object failing in Block. The failures come from AUTH-001.') =>
   json({code: 'ERROR_CODE_ACCESS_DENIED', message, payload: {code: 'policy_gate', ...answer}}, 403)
 
 const live = {backup: false, created_at: '2026-09-27 10:00:00+0000', label: 'rollback', live: true}
@@ -40,16 +40,23 @@ describe('branch set_live and the set-live policy gate', () => {
   /** `branch set_live rollback` with no confirmation prompt. */
   const setLive = (...extra: string[]) => runCommand(['branch', 'set_live', 'rollback', '--force', ...extra], fixture.config)
 
+  it('a refusal names the blocked check the gate stored, which `policy runs` reads', async () => {
+    fixture.route(() => refusal({...blocked, outcome: 'blocked', run_id: 214}))
+    const result = await setLive()
+    expect(result.stdout).to.contain('  Stored as check 214 (blocked): xano policy runs 214')
+    expect(result.error).to.have.nested.property('oclif.exit', 2)
+  })
+
   it('a refusal prints the verdict, exits 2 with the platform\'s message, and names the override', async () => {
     fixture.route(() => refusal())
     const result = await setLive()
     expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/branch/rollback/live')
     expect(fixture.calls[0].body).to.equal(undefined)
     expect(result.stdout).to.contain('Policy gate: blocked')
-    expect(result.stdout).to.contain('Blocking findings: 1 (1 introduced, 0 on objects the branch changes); 2 already on the live branch never block')
+    expect(result.stdout).to.contain('Block findings: 1 (1 introduced, 0 on objects the branch changes); 2 already on the live branch never block')
     expect(result.stdout).to.contain('Endpoint has no authentication.')
     const message = oneLine(result.error?.message ?? '')
-    expect(message).to.contain('Set live refused: 1 blocking policy finding (1 introduced by this change).')
+    expect(message).to.contain('Set live blocked by 1 object failing in Block. The failures come from AUTH-001.')
     expect(message).to.contain('xano branch set_live rollback --policy-override "<why>"')
     expect(message).not.to.contain('Failed to set branch as live')
     expect(result.error).to.have.nested.property('oclif.exit', 2)
@@ -70,7 +77,7 @@ describe('branch set_live and the set-live policy gate', () => {
     const result = await setLive('-o', 'json')
     const output = JSON.parse(result.stdout)
     expect(output).to.include({set_live: false})
-    expect(output.message).to.contain('Set live refused')
+    expect(output.message).to.contain('Set live blocked by')
     expect(output.policy_gate.gate).to.equal('set_live')
     expect(result.error).to.have.nested.property('oclif.exit', 2)
   })
@@ -84,7 +91,7 @@ describe('branch set_live and the set-live policy gate', () => {
   })
 
   it('a reason from a credential that may not override is refused with the platform\'s message', async () => {
-    const message = 'Set live refused: 1 blocking policy finding (1 introduced by this change). Overriding a policy gate needs the workspace:policy update permission.'
+    const message = 'Set live blocked by 1 object failing in Block. The failures come from AUTH-001. Overriding a policy gate needs the workspace:policy update permission.'
     fixture.route(() => refusal({...blocked, can_override: false, override_denied: true}, message))
     const result = await setLive('--policy-override', 'Please')
     expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({override_reason: 'Please'})

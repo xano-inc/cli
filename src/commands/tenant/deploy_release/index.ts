@@ -72,7 +72,7 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       required: false,
     }),
     'override-reason': Flags.string({
-      description: 'Deploy past a blocking policy gate, recording this reason (needs the workspace:policy update permission; audited)',
+      description: 'Deploy past a policy gate that blocks it, recording this reason (needs the workspace:policy update permission; audited)',
       exclusive: ['check'],
       hidden: true,
     }),

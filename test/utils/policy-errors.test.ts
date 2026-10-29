@@ -23,8 +23,8 @@ describe('policy route errors', () => {
   })
 
   it('falls back to the snippet, then to the position alone, and prints nothing without either', () => {
-    const snippet = JSON.stringify({message: 'Invalid block: enforcement', payload: {col: 3, error_snippet: 'enforcement = "advisory"', line: 22}})
-    expect(describePolicyError(snippet, 400, url)).to.equal('Invalid block: enforcement\n  at line 22, col 3: enforcement = "advisory"')
+    const snippet = JSON.stringify({message: 'Invalid block: enforcement', payload: {col: 3, error_snippet: 'enforcement = "warn"', line: 22}})
+    expect(describePolicyError(snippet, 400, url)).to.equal('Invalid block: enforcement\n  at line 22, col 3: enforcement = "warn"')
     expect(describePolicyError(JSON.stringify({message: 'Bad', payload: {line: 5}}), 400, url)).to.equal('Bad\n  at line 5')
     expect(describePolicyError(JSON.stringify({message: 'Bad', payload: {param: 'source'}}), 400, url)).to.equal('Bad')
   })

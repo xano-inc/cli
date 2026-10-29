@@ -48,7 +48,7 @@ Deployed to tenant as part of this approval.
     }),
     'override-policy': Flags.boolean({
       default: false,
-      description: 'With --status approve: if this vote deploys, proceed past a blocking policy gate, recording --reason as the override reason (needs the workspace:policy update permission; audited)',
+      description: 'With --status approve: if this vote deploys, proceed past a policy gate that blocks the deploy, recording --reason as the override reason (needs the workspace:policy update permission; audited)',
       hidden: true,
     }),
     reason: Flags.string({

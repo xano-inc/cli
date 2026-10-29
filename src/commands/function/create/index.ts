@@ -68,7 +68,7 @@ static override flags = {
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Create the function past a blocking live-branch publish policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
+    'policy-override': Flags.string({description: 'Create the function past a live-branch publish policy gate that blocks it, with an audited reason (requires workspace:policy update)', hidden: true}),
     stdin: Flags.boolean({
       char: 's',
       default: false,
@@ -156,7 +156,7 @@ static override flags = {
     const queryParams = new URLSearchParams({
       include_xanoscript: 'false',
     })
-    // A reason from someone with workspace:policy update saves past a blocking publish gate.
+    // A reason from someone with workspace:policy update saves past a publish gate that blocks it.
     const overrideReason = flags['policy-override']?.trim()
     if (overrideReason) queryParams.set('override_reason', overrideReason)
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function?${queryParams.toString()}`

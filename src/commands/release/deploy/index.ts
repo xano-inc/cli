@@ -67,7 +67,7 @@ Deployed release "v1.0" to workspace 40 (branch: v1.0)
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'With --set_live, set the branch live past a blocking set-live policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
+    'policy-override': Flags.string({description: 'With --set_live, set the branch live past a set-live policy gate that blocks it, with an audited reason (requires workspace:policy update)', hidden: true}),
     set_live: Flags.boolean({
       default: false,
       description: '[CRITICAL] STOP and confirm with the user before setting the deployed branch as live.',

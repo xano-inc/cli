@@ -10,7 +10,7 @@ const answer = {
   access: 'coverage',
   findings: [
     {
-      blocking: true,
+      block: true,
       check: {description: 'Requires every endpoint to declare authentication.', fix_hint: 'Set auth on the endpoint.', label: 'Endpoints require authentication'},
       deleted: false,
       id: 'AUTH-010.R1:query:42',
@@ -21,7 +21,7 @@ const answer = {
       rule_title: 'Endpoint requires authentication',
     },
     {
-      blocking: false,
+      block: false,
       check: null,
       deleted: false,
       id: 'LOG-003.R1:query:42',
@@ -35,11 +35,11 @@ const answer = {
   note,
   object: {app_id: 3, id: 42, name: 'orders', type: 'query'},
   policies: [
-    {blocking: true, enforcement: 'blocking', key: 'AUTH-010', reasons: ['every endpoint in API group public'], status: 'failing', title: 'Endpoints require login'},
-    {blocking: false, enforcement: 'advisory', key: 'LOG-002', reasons: ['every endpoint'], status: 'passing', title: ''},
+    {block: true, enforcement: 'block', key: 'AUTH-010', reasons: ['every endpoint in API group public'], status: 'failing', title: 'Endpoints require login'},
+    {block: false, enforcement: 'warn', key: 'LOG-002', reasons: ['every endpoint'], status: 'passing', title: ''},
   ],
   run: {started_at: '2026-10-08T14:02:11.000Z', status: 'fail'},
-  summary: {advisory: 1, applies: 2, blocking: 1, could_not_check: 0, not_checked: 0, passing: 1, state: 'findings'},
+  summary: {applies: 2, block: 1, could_not_check: 0, not_checked: 0, passing: 1, state: 'findings', warn: 1},
 }
 
 describe('policy coverage', () => {
@@ -53,11 +53,11 @@ describe('policy coverage', () => {
     expect(fixture.calls[0].method).to.equal('GET')
     expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/policy/object/coverage')
     expect(Object.fromEntries(fixture.calls[0].url.searchParams)).to.deep.equal({branch: 'feature', id: '42', type: 'query'})
-    expect(result.stdout).to.contain('query orders (id 42): Policies 1 blocking · 1 advisory')
+    expect(result.stdout).to.contain('query orders (id 42): Policies 1 Block · 1 Warn')
     expect(result.stdout).to.contain('Latest run: 2026-10-08T14:02:11.000Z (fail)')
-    expect(result.stdout).to.contain('Blocking findings (1):\n  Endpoint requires authentication (AUTH-010 Endpoints require login)  query orders: query "orders" (GET) has no authentication\n    Fix: Set auth on the endpoint.')
-    expect(result.stdout).to.contain('Advisory findings (1):\n  Logs leave out request input (LOG-003)  query orders: query "orders" logs its input\n')
-    expect(result.stdout).to.contain('Policies that apply (2): 1 passing\n  AUTH-010  Blocking  failing  Endpoints require login\n    Applies: every endpoint in API group public\n  LOG-002  Advisory  passing\n    Applies: every endpoint')
+    expect(result.stdout).to.contain('Block findings (1):\n  Endpoint requires authentication (AUTH-010 Endpoints require login)  query orders: query "orders" (GET) has no authentication\n    Fix: Set auth on the endpoint.')
+    expect(result.stdout).to.contain('Warn findings (1):\n  Logs leave out request input (LOG-003)  query orders: query "orders" logs its input\n')
+    expect(result.stdout).to.contain('Policies that apply (2): 1 passing\n  AUTH-010  Block  failing  Endpoints require login\n    Applies: every endpoint in API group public\n  LOG-002  Warn  passing\n    Applies: every endpoint')
     expect(result.stdout.trimEnd().endsWith(note)).to.equal(true)
     expect(process.exitCode ?? 0).to.equal(0)
   })
@@ -98,7 +98,7 @@ describe('policy coverage', () => {
 
   it('words every chip state as Studio does', () => {
     expect(coverageChip({state: 'none_apply'})).to.equal('Policies · None apply')
-    expect(coverageChip({advisory: 0, blocking: 2, state: 'findings'})).to.equal('Policies 2 blocking · 0 advisory')
+    expect(coverageChip({block: 2, state: 'findings', warn: 0})).to.equal('Policies 2 Block · 0 Warn')
     expect(coverageChip({applies: 3, state: 'not_checked'})).to.equal('Policies · 3 apply · not checked yet')
     expect(coverageChip({state: 'check_failed'})).to.equal('Policies · Last check failed')
     expect(coverageChip({passing: 6, state: 'pass'})).to.equal('Policies ✓ 6 pass')
@@ -109,19 +109,19 @@ describe('policy coverage', () => {
       ...answer,
       findings: [],
       policies: [
-        {blocking: true, enforcement: 'blocking', key: 'COV-ERR', reasons: ['every endpoint'], status: 'could_not_check', title: 'Errors here'},
-        {blocking: false, enforcement: 'advisory', key: 'COV-PASS', reasons: ['every endpoint'], status: 'passing', title: ''},
-        {blocking: false, enforcement: 'advisory', key: 'COV-NEW', reasons: ['every endpoint'], status: 'not_checked', title: ''},
+        {block: true, enforcement: 'block', key: 'COV-ERR', reasons: ['every endpoint'], status: 'could_not_check', title: 'Errors here'},
+        {block: false, enforcement: 'warn', key: 'COV-PASS', reasons: ['every endpoint'], status: 'passing', title: ''},
+        {block: false, enforcement: 'warn', key: 'COV-NEW', reasons: ['every endpoint'], status: 'not_checked', title: ''},
       ],
       run: {started_at: '2026-10-08T14:02:11.000Z', status: 'error'},
-      summary: {advisory: 0, applies: 3, blocking: 0, could_not_check: 1, not_checked: 1, passing: 1, state: 'check_failed'},
+      summary: {applies: 3, block: 0, could_not_check: 1, not_checked: 1, passing: 1, state: 'check_failed', warn: 0},
     }))
     const result = await runCommand(['policy', 'coverage', 'query:42'], fixture.config)
     expect(result.stdout).to.contain('query orders (id 42): Policies · Last check failed')
     expect(result.stdout).to.contain("Policies that apply (3): 1 passing · 1 couldn't check · 1 not checked yet\n"
-      + "  COV-ERR  Blocking  couldn't check  Errors here\n    Applies: every endpoint\n"
-      + '  COV-PASS  Advisory  passing\n    Applies: every endpoint\n'
-      + '  COV-NEW  Advisory  not checked yet\n')
+      + "  COV-ERR  Block  couldn't check  Errors here\n    Applies: every endpoint\n"
+      + '  COV-PASS  Warn  passing\n    Applies: every endpoint\n'
+      + '  COV-NEW  Warn  not checked yet\n')
     expect(process.exitCode ?? 0).to.equal(0)
   })
 

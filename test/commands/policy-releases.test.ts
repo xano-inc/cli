@@ -26,8 +26,8 @@ const blocked = {
   findings: [finding],
   gate: 'tenant_deploy',
   gated: true,
-  message: 'Deploy blocked: this release has 1 blocking policy finding.',
-  release: {carried: true, counts: {advisory: 0, blocking: 1, errors: 0, findings: 1}, id: 12, name: 'v1.2', run_id: 555, status: 'fail'},
+  message: 'Deploy blocked by 1 object failing in Block.',
+  release: {carried: true, counts: {block: 1, errors: 0, findings: 1, warn: 0}, id: 12, name: 'v1.2', run_id: 555, status: 'fail'},
   run_id: 555,
   status: 'blocked',
   total: 1,
@@ -39,8 +39,8 @@ const passed = {
   findings: [],
   gate: 'tenant_deploy',
   gated: true,
-  message: 'This release has no blocking policy findings.',
-  release: {carried: true, counts: {advisory: 0, blocking: 0, errors: 0, findings: 0}, id: 12, name: 'v1.2', run_id: 555, status: 'pass'},
+  message: 'This release has no Block policy findings.',
+  release: {carried: true, counts: {block: 0, errors: 0, findings: 0, warn: 0}, id: 12, name: 'v1.2', run_id: 555, status: 'pass'},
   run_id: 555,
   status: 'pass',
   total: 0,
@@ -59,14 +59,14 @@ describe('release policy checks', () => {
   const fixture = policyFixture()
 
   describe('the check a release cut stores', () => {
-    const recorded = {advisory: 1, blocking: 2, run_id: 1712, run_status: 'fail', status: 'recorded'}
+    const recorded = {block: 2, run_id: 1712, run_status: 'fail', status: 'recorded', warn: 1}
 
     it('release create prints the recorded check and where to read it', async () => {
       fixture.route(() => json({branch: 'main', id: 12, name: 'v1.2', policy_run: recorded}))
       const result = await runCommand(['release', 'create', 'v1.2', '--branch', 'main'], fixture.config)
       expect(result.error).to.equal(undefined)
       expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/release')
-      expect(result.stdout).to.contain('Policy check: fail (run 1712), 2 blocking, 1 advisory findings')
+      expect(result.stdout).to.contain('Policy check: fail (run 1712), 2 Block, 1 Warn findings')
       expect(result.stdout).to.contain('Findings: xano policy runs --release v1.2')
       expect(result.stdout).to.contain('xano tenant deploy_release <tenant> --release v1.2 --check')
       expect(process.exitCode ?? 0).to.equal(0)
@@ -81,7 +81,7 @@ describe('release policy checks', () => {
     for (const [check, line] of [
       [{message: 'No release to check.', status: 'skipped'}, 'Policy check skipped: No release to check.'],
       [{message: 'The policy check could not run.', status: 'error'}, 'Policy check error: The policy check could not run.'],
-      [{advisory: 0, blocking: 0, run_id: 1713, run_status: 'pass', status: 'recorded'}, 'Policy check: pass (run 1713), no findings'],
+      [{block: 0, run_id: 1713, run_status: 'pass', status: 'recorded', warn: 0}, 'Policy check: pass (run 1713), no findings'],
     ] as const) {
       it(`release create prints a ${check.status} check`, async () => {
         fixture.route(() => json({id: 12, name: 'v1.2', policy_run: check}))
@@ -110,7 +110,7 @@ describe('release policy checks', () => {
       fixture.route(() => json({id: 13, name: 'v2', policy_run: recorded}))
       const result = await runCommand(['release', 'push', '-n', 'v2', '-d', tree], fixture.config)
       expect(result.error).to.equal(undefined)
-      expect(result.stdout).to.contain('Policy check: fail (run 1712), 2 blocking, 1 advisory findings')
+      expect(result.stdout).to.contain('Policy check: fail (run 1712), 2 Block, 1 Warn findings')
     })
 
     it('release import prints the check of the release it imported', async () => {
@@ -185,10 +185,10 @@ describe('release policy checks', () => {
 
     it('a non-reader gate refusal names the blocking policy and the counts, without the findings', async () => {
       // The platform names the blocking policies to every caller; the findings stay a reader's.
-      const message = 'Deploy blocked: this release has 1 blocking policy finding from AUTH-001.'
+      const message = 'Deploy blocked by 1 object failing in Block. The failures come from AUTH-001.'
       tenantRoutes(() => refusal({...blocked, can_override: false, findings: undefined, message, truncated: undefined}))
       const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
-      expect(result.stdout).to.contain(message).and.to.contain('Blocking findings in this release: 1')
+      expect(result.stdout).to.contain(message).and.to.contain('Block findings in this release: 1')
       expect(result.stdout).to.contain('The findings are listed only for a credential that reads policies (workspace:policy read).')
       expect(result.stdout).not.to.contain('Endpoint has no authentication.')
       expect(result.error).to.have.nested.property('oclif.exit', 2)
@@ -204,7 +204,7 @@ describe('release policy checks', () => {
       expect(result.stdout).to.contain('nothing was deployed')
       expect(result.stdout).to.contain('Policy gate: blocked')
       expect(result.stdout).to.contain('Release: v1.2 (policy run 555, fail)')
-      expect(result.stdout).to.contain('Blocking findings (1):')
+      expect(result.stdout).to.contain('Block findings (1):')
       expect(result.stdout).to.contain('R1 [high] (AUTH-001)  query GET /orders: Endpoint has no authentication.')
       // The gate judges the release alone: nothing compares it with the tenant's current release.
       expect(result.stdout).not.to.contain('Compared with').and.not.to.contain('introduced')
@@ -215,8 +215,8 @@ describe('release policy checks', () => {
     it('--check exits 0 for a passing verdict and for a blocked tenant that is not gated', async () => {
       tenantRoutes(() => { throw new Error('deployed') })
       const pass = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2', '--check'], fixture.config)
-      expect(pass.stdout).to.contain('Policy gate: pass').and.to.contain('This release has no blocking policy findings.')
-      expect(pass.stdout).to.contain('Blocking findings in this release: 0')
+      expect(pass.stdout).to.contain('Policy gate: pass').and.to.contain('This release has no Block policy findings.')
+      expect(pass.stdout).to.contain('Block findings in this release: 0')
       expect(process.exitCode ?? 0).to.equal(0)
 
       tenantRoutes(() => { throw new Error('deployed') }, () => json({...blocked, gated: false}))
@@ -244,7 +244,7 @@ describe('release policy checks', () => {
       tenantRoutes(() => refusal(blocked))
       const result = await runCommand(['tenant', 'deploy_release', 'prod', '--release', 'v1.2'], fixture.config)
       expect(result.stdout).to.contain('Policy gate: blocked').and.to.contain('R1 [high]')
-      expect(result.error?.message).to.contain('Deploy blocked: this release has 1 blocking policy finding.')
+      expect(result.error?.message).to.contain('Deploy blocked by 1 object failing in Block.')
       expect(result.error?.message).to.contain('xano tenant deploy_release prod --release v1.2 --override-reason "<why>"')
       expect(result.error?.message).not.to.contain('Failed to deploy to tenant')
       expect(result.error).to.have.nested.property('oclif.exit', 2)
@@ -317,7 +317,7 @@ describe('release policy checks', () => {
     const setLiveRefusal = (answer: Record<string, unknown> = setLiveBlocked) =>
       json({
         code: 'ERROR_CODE_ACCESS_DENIED',
-        message: 'The release was deployed as branch "rollback". Set live refused: 1 blocking policy finding (1 introduced by this change).',
+        message: 'The release was deployed as branch "rollback". Set live blocked by 1 object failing in Block. The failures come from AUTH-001.',
         payload: {code: 'policy_gate', ...answer},
       }, 403)
 
@@ -327,7 +327,7 @@ describe('release policy checks', () => {
       expect(fixture.calls[0].url.pathname).to.equal('/api:meta/workspace/1/release/v1.2/deploy')
       expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({branch: 'rollback', set_live: true})
       expect(result.stdout).to.contain('Policy gate: blocked')
-      expect(result.stdout).to.contain('Blocking findings: 1 (1 introduced, 0 on objects the release changes); 2 already on the live branch never block')
+      expect(result.stdout).to.contain('Block findings: 1 (1 introduced, 0 on objects the release changes); 2 already on the live branch never block')
       expect(result.stdout).to.contain('Endpoint has no authentication.')
       const message = oneLine(result.error?.message ?? '')
       expect(message).to.contain('The branch was created; set live was refused.')
@@ -547,13 +547,13 @@ describe('release policy checks', () => {
 
   describe('policy runs --release', () => {
     const run = {
-      counts: {advisory: 1, blocking: 1, errors: 0, findings: 2},
+      counts: {block: 1, errors: 0, findings: 2, warn: 1},
       id: 1712,
       objects_checked: 40,
       policies: [{key: 'AUTH-001', rules: [{id: 'R1', label: 'Authentication required'}]}],
       release: {branch: {id: 3, label: 'main'}, id: 12},
       results: [{check_id: 'R1', checked: 40, policy_key: 'AUTH-001', status: 'fail'}],
-      shipped: [{active: true, enforcement: 'blocking', key: 'AUTH-001'}, {active: true, enforcement: 'advisory', key: 'LOG-001'}],
+      shipped: [{enforcement: 'block', key: 'AUTH-001'}, {enforcement: 'warn', key: 'LOG-001'}],
       status: 'fail',
       trigger: 'release',
     }
@@ -579,12 +579,12 @@ describe('release policy checks', () => {
 
         return json({run})
       })
-      const result = await runCommand(['policy', 'runs', '--release', 'v1.2', '--blocking', '--all', '-o', 'json'], fixture.config)
+      const result = await runCommand(['policy', 'runs', '--release', 'v1.2', '--block', '--all', '-o', 'json'], fixture.config)
       expect(result.error).to.equal(undefined)
       expect(JSON.parse(result.stdout).findings).to.have.length(501)
       expect(JSON.parse(result.stdout).findings_page).to.deep.equal({limit: 501, next_offset: null, offset: 0, total: 501})
       expect(fixture.calls.at(-1)!.url.searchParams.get('offset')).to.equal('500')
-      expect(fixture.calls.at(-1)!.url.searchParams.get('blocking')).to.equal('true')
+      expect(fixture.calls.at(-1)!.url.searchParams.get('block')).to.equal('true')
     })
 
     for (const args of [
@@ -605,7 +605,7 @@ describe('release policy checks', () => {
       fixture.route((url, method) => {
         if (url.pathname.endsWith('/release')) return json(url.searchParams.get('page') === '1' ? first : [{id: 12, name: 'v1.2'}])
         if (url.pathname.endsWith('/policy_run/findings')) return json(findings)
-        if (url.pathname.endsWith('/policy_run')) return json(method === 'POST' ? {check: {advisory: 1, blocking: 1, run_id: 1712, run_status: 'fail', status: 'recorded'}, run: stored} : {run: stored})
+        if (url.pathname.endsWith('/policy_run')) return json(method === 'POST' ? {check: {block: 1, run_id: 1712, run_status: 'fail', status: 'recorded', warn: 1}, run: stored} : {run: stored})
         throw new Error(`unexpected request ${url.pathname}`)
       })
     }
@@ -629,9 +629,9 @@ describe('release policy checks', () => {
 
     it('passes the finding filters to the release\'s findings route', async () => {
       releaseRoutes()
-      await runCommand(['policy', 'runs', '--release', 'v1.2', '--blocking', '--policy', 'AUTH-001'], fixture.config)
+      await runCommand(['policy', 'runs', '--release', 'v1.2', '--block', '--policy', 'AUTH-001'], fixture.config)
       const query = fixture.calls.at(-1)!.url.searchParams
-      expect(query.get('blocking')).to.equal('true')
+      expect(query.get('block')).to.equal('true')
       expect(query.get('policy[0]')).to.equal('AUTH-001')
     })
 
@@ -661,7 +661,7 @@ describe('release policy checks', () => {
       const result = await runCommand(['policy', 'runs', '--release', 'v1.2', '--recheck'], fixture.config)
       expect(result.error).to.equal(undefined)
       expect(fixture.calls.find(call => call.url.pathname.endsWith('/policy_run'))?.method).to.equal('POST')
-      expect(result.stdout).to.contain('Rechecked. Policy check: fail (run 1712), 1 blocking, 1 advisory finding')
+      expect(result.stdout).to.contain('Rechecked. Policy check: fail (run 1712), 1 Block, 1 Warn finding')
       expect(result.stdout).to.contain('Run 1712  fail  release')
     })
 
@@ -687,12 +687,12 @@ describe('release policy checks', () => {
       {branch: 'main', id: 10, name: 'v0.9'},
     ]
     const checks = [
-      storedCheck(15, 'fail', {advisory: 1, blocking: 2, findings: 3}),
-      // Advisory findings alone still make the run's status `fail`; the tag counts them instead.
-      storedCheck(14, 'fail', {advisory: 11, blocking: 0, findings: 11}),
-      storedCheck(13, 'pass', {advisory: 0, blocking: 0, findings: 0}),
-      storedCheck(12, 'error', {advisory: 0, blocking: 1, errors: 2, findings: 1}),
-      storedCheck(11, 'pass', {advisory: 0, blocking: 0, findings: 0}, 0),
+      storedCheck(15, 'fail', {block: 2, findings: 3, warn: 1}),
+      // Warn findings alone still make the run's status `fail`; the tag counts them instead.
+      storedCheck(14, 'fail', {block: 0, findings: 11, warn: 11}),
+      storedCheck(13, 'pass', {block: 0, findings: 0, warn: 0}),
+      storedCheck(12, 'error', {block: 1, errors: 2, findings: 1, warn: 0}),
+      storedCheck(11, 'pass', {block: 0, findings: 0, warn: 0}, 0),
     ]
     const releaseLine = /^ {2}- \S+ \(ID: \d+\) - main( \[hotfix])?( \(.+\))?$/
 
@@ -705,10 +705,10 @@ describe('release policy checks', () => {
       listRoutes()
       const result = await runCommand(['release', 'list'], fixture.config)
       expect(result.error).to.equal(undefined)
-      expect(result.stdout).to.match(/ {2}- v1\.4 \(ID: 15\) - main \(.+\) \[policies: 2 blocking, 1 advisory]\n/)
-      expect(result.stdout).to.contain('  - v1.3-hotfix (ID: 14) - main [hotfix] [policies: 11 advisory]\n')
+      expect(result.stdout).to.match(/ {2}- v1\.4 \(ID: 15\) - main \(.+\) \[policies: 2 Block, 1 Warn]\n/)
+      expect(result.stdout).to.contain('  - v1.3-hotfix (ID: 14) - main [hotfix] [policies: 11 Warn]\n')
       expect(result.stdout).to.contain('  - v1.2 (ID: 13) - main [policies: passed]\n')
-      expect(result.stdout).to.contain('  - v1.1 (ID: 12) - main [policies: could not check, 1 blocking]\n')
+      expect(result.stdout).to.contain('  - v1.1 (ID: 12) - main [policies: could not check, 1 Block]\n')
       expect(result.stdout).to.contain('  - v1.0 (ID: 11) - main [policies: none shipped]\n')
       expect(result.stdout).to.contain('  - v0.9 (ID: 10) - main [policies: not checked]\n')
       expect(result.stdout).to.contain('Policy check details: xano policy runs --release <name>')
@@ -731,7 +731,7 @@ describe('release policy checks', () => {
     it('tags an enveloped release list too', async () => {
       listRoutes(undefined, {items: releases.slice(0, 1)})
       const result = await runCommand(['release', 'list'], fixture.config)
-      expect(result.stdout).to.contain('[policies: 2 blocking, 1 advisory]')
+      expect(result.stdout).to.contain('[policies: 2 Block, 1 Warn]')
     })
 
     it('asks about no checks for an empty list', async () => {

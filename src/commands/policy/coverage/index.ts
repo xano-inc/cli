@@ -13,7 +13,7 @@ export default class PolicyCoverage extends PolicyCommand {
     }),
   }
   static override description =
-    "Show which active policies apply to one object, why, and the object's findings in the branch's latest run, "
+    "Show which policies that are on apply to one object, why, and the object's findings in the branch's latest run, "
     + 'with each fix hint. Needs only the read permission for that object kind (workspace:api for an endpoint, '
     + 'workspace:function for a function, …), not workspace:policy; the answer leaves out policy details that need it.'
   static override examples = [
