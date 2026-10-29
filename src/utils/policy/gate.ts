@@ -8,7 +8,7 @@ import {findingLine} from './findings.js'
 export interface GateRelease {
   /** Whether the release was cut with its policies; one cut without them has no check. */
   carried?: boolean
-  counts?: null | {advisory?: number; blocking?: number; errors?: number; findings?: number}
+  counts?: null | {block?: number; errors?: number; findings?: number; warn?: number}
   id?: number
   name?: string
   /** The release's stored policy run, 0 when it has none. */
@@ -25,26 +25,32 @@ export interface GateRelease {
 export interface PolicyGateAnswer {
   can_override?: boolean
   code?: string
-  /** The first of the release's blocking findings. */
+  /** The first of the release's Block findings. */
   findings?: PolicyFinding[]
   /** `tenant_deploy`, or `tenant_approve` when an approval completes the deploy. */
   gate?: string
   /** False for an ephemeral or sandbox tenant: the verdict is reported but never refuses. */
   gated?: boolean
   message?: string
+  /** The stored run's outcome: `allowed`, `blocked` or `allowed_with_override`. */
+  outcome?: null | string
   override_denied?: boolean
   release?: GateRelease | null
+  /**
+   * A live gate's (set-live, publish): the run it stored, 0 when it stored none (a dry run). The
+   * tenant deploy gate's: the release's own check, which it judges.
+   */
   run_id?: number
   /** `pass`, `blocked`, `overridden`, `not_applicable`, `not_carried`, `disabled` or `unavailable`. */
   status?: string
-  /** Every blocking finding the release has, listed or not. */
+  /** Every Block finding the release has, listed or not. */
   total?: number
   truncated?: boolean
 }
 
 /**
  * A gate that measures a change against the live branch (set-live, publish, a live-branch save): its
- * blocking findings split by why they block.
+ * Block findings split by why they block.
  */
 export interface LiveGateAnswer extends Omit<PolicyGateAnswer, 'gated' | 'release'> {
   changed?: number
@@ -69,7 +75,7 @@ function releaseLine(release: GateRelease | null | undefined, status: string): s
   return `  Release: ${name}${detail ? ` (${detail})` : ''}`
 }
 
-/** The first of the release's blocking findings, and where the rest of its findings are. */
+/** The first of the release's Block findings, and where the rest of its findings are. */
 function findingLines(answer: PolicyGateAnswer): string[] {
   const findings = answer.findings ?? []
   if (findings.length === 0) {
@@ -80,7 +86,7 @@ function findingLines(answer: PolicyGateAnswer): string[] {
   const total = answer.total ?? findings.length
   const releaseName = answer.release?.name?.trim()
   return [
-    `  Blocking findings (${total > findings.length ? `first ${findings.length} of ${total}` : findings.length}):`,
+    `  Block findings (${total > findings.length ? `first ${findings.length} of ${total}` : findings.length}):`,
     ...findings.map(finding => `  ${findingLine(finding, new Map())}`),
     ...(releaseName ? [`  Every finding of the release: xano policy runs --release ${quoted(releaseName)}`] : []),
   ]
@@ -88,7 +94,7 @@ function findingLines(answer: PolicyGateAnswer): string[] {
 
 /**
  * The gate's verdict on stdout: a headline with its sentence, the release it judged, how many of its
- * findings block, and the first of them. Every blocking finding of the release counts, whatever the
+ * findings block, and the first of them. Every Block finding of the release counts, whatever the
  * tenant runs today.
  */
 export function gateLines(answer: PolicyGateAnswer): string[] {
@@ -98,7 +104,7 @@ export function gateLines(answer: PolicyGateAnswer): string[] {
   if (answer.release !== undefined) lines.push(releaseLine(answer.release, status))
   // Listed findings carry their own count; otherwise say how many there are.
   if (['blocked', 'overridden', 'pass'].includes(status) && typeof answer.total === 'number' && (answer.findings ?? []).length === 0) {
-    lines.push(`  Blocking findings in this release: ${answer.total}`)
+    lines.push(`  Block findings in this release: ${answer.total}`)
   }
 
   lines.push(...findingLines(answer))
@@ -119,13 +125,13 @@ export function deployedGateLine(answer: PolicyGateAnswer): string {
 
 /**
  * The verdict of a gate that measures a change against the live branch (set-live, publish): its
- * status, what blocks, and the first blocking findings. `subject` is what changes: a branch set live,
+ * status, what blocks, and the first Block findings. `subject` is what changes: a branch set live,
  * the branch a release was deployed as (`release deploy --set_live`), or an object saved to live.
  */
 export function liveGateLines(answer: LiveGateAnswer, subject: 'branch' | 'release' | 'save'): string[] {
   const lines = [`Policy gate: ${answer.status?.trim() || 'unknown'}`]
   if (typeof answer.total === 'number') {
-    lines.push(`  Blocking findings: ${answer.total} (${answer.introduced ?? 0} introduced, ${answer.changed ?? 0} on objects the ${subject} changes); ${answer.existing ?? 0} already on the live branch never block`)
+    lines.push(`  Block findings: ${answer.total} (${answer.introduced ?? 0} introduced, ${answer.changed ?? 0} on objects the ${subject} changes); ${answer.existing ?? 0} already on the live branch never block`)
   }
 
   const findings = answer.findings ?? []
@@ -136,7 +142,18 @@ export function liveGateLines(answer: LiveGateAnswer, subject: 'branch' | 'relea
     lines.push('  The findings are listed only for a credential that reads policies (workspace:policy read).')
   }
 
+  lines.push(...storedRunLines(answer))
   return lines
+}
+
+/**
+ * The run a live gate stored with its outcome (`allowed`, `blocked`, `allowed_with_override`), as
+ * `xano policy runs <id>` reads it; none for a verdict that stored no run (a dry run, `run_id` 0).
+ * The tenant deploy gate's `run_id` is the release's check instead, so `gateLines` never says this.
+ */
+function storedRunLines(answer: PolicyGateAnswer): string[] {
+  if (typeof answer.outcome !== 'string' || answer.outcome === '' || typeof answer.run_id !== 'number' || answer.run_id <= 0) return []
+  return [`  Stored as check ${answer.run_id} (${answer.outcome.replaceAll('_', ' ')}): xano policy runs ${answer.run_id}`]
 }
 
 /**

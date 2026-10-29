@@ -5,7 +5,7 @@ import {trialLines} from '../../src/commands/policy/evaluate/index.js'
 import {json, policyFixture} from '../helpers/policy-fixture.js'
 
 const snapshot = [{
-  active: false,
+  enforcement: 'off',
   key: 'TRY-001',
   rules: [{check: 'object.settings_forbidden', id: 'TRY-001.R1', label: 'Objects avoid forbidden settings', params: {}, title: ''}],
   statement: 'Tried before it counts.',
@@ -18,7 +18,7 @@ const trial = {
   findings: [{id: 'TRY-001.R1:function:1', message: 'matches forbidden settings', object: {name: 'alpha', type: 'function'}, policy_key: 'TRY-001', rule_id: 'TRY-001.R1'}],
   id: 0,
   policies: snapshot,
-  policy_check: {blocking: false, blocking_finding_ids: [], message: 'Policies reported findings.', run_id: 0, status: 'fail'},
+  policy_check: {block: false, block_finding_ids: [], message: 'Policies reported findings.', run_id: 0, status: 'fail'},
   results: [{check_id: 'TRY-001.R1', checked: 3, message: '1 finding', policy_key: 'TRY-001', status: 'fail'}],
   stored: false,
 }

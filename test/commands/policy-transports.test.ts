@@ -122,7 +122,7 @@ describe('which pushes carry policy files', () => {
       keys: ['AUTH-001'],
       message: '1 policy file was left out (AUTH-001): Policies are not enabled on this instance, so imports leave policies out and keep the workspace\'s own policies as they are.',
     }
-    const disabled = {blocking: false, message: 'Policies are not enabled on this instance; nothing was evaluated.', status: 'disabled'}
+    const disabled = {block: false, message: 'Policies are not enabled on this instance; nothing was evaluated.', status: 'disabled'}
 
     it('prints the platform\'s notice instead of the policy documents it sent', async () => {
       answer({guid_map: [], policies_skipped: featureOff, policy_check: disabled})

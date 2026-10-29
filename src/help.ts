@@ -31,6 +31,20 @@ class CustomCommandHelp extends BaseCommandHelp {
 
     return label
   }
+
+  /**
+   * A command that declares `static policyFileExample` (lines of text) gets a POLICY FILE section after
+   * its description, printed as written: the description and examples sections rewrap and trim lines,
+   * which would flatten a file's indentation.
+   */
+  protected sections(): ReturnType<BaseCommandHelp['sections']> {
+    const sections = super.sections()
+    const example = (this.command as {policyFileExample?: unknown}).policyFileExample
+    if (!Array.isArray(example) || example.length === 0) return sections
+    const at = sections.findIndex(section => section.header === 'DESCRIPTION')
+    sections.splice(at === -1 ? sections.length : at + 1, 0, {generate: () => example.join('\n'), header: 'POLICY FILE'})
+    return sections
+  }
 }
 
 /**

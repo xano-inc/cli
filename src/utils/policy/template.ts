@@ -13,8 +13,14 @@ export interface PolicyTemplate {
   frameworks?: string[]
   id: string
   key: string
-  /** `needs`: the param paths the author fills, every one of them unless `needs_any` says one is enough. */
-  rules: Array<{check: string; needs: string[]; needs_any?: boolean; params: Record<string, unknown>; title: string}>
+  /** One sentence on what the template's rules cannot see. */
+  limits?: string
+  /**
+   * `needs`: the param paths the author fills (a dotted path names an object param's property, as in
+   * `referenced_by.max_age_days`). Every one is required except those `needs_any` groups: of the group,
+   * one is enough. An older instance serves `needs_any: true`, the whole of `needs` as the group.
+   */
+  rules: Array<{check: string; needs: string[]; needs_any?: boolean | string[]; params: Record<string, unknown>; title: string}>
   severity: string
   summary: string
   /** Becomes the policy title. */
@@ -33,7 +39,7 @@ export function recipeRefusal(recipe: PolicyRecipe): string {
     ? ` Create its templates in order with --template, one policy each: ${templates.join(', ')}.`
     : ''
   const own = rules > 0 ? ` ${rules === 1 ? 'The rule' : `The ${rules} rules`} no template covers ${rules === 1 ? 'goes' : 'go'} in a policy of your own (\`xano policy publish\`).` : ''
-  return `"${recipe.id}" is a recipe (${recipe.title}), not a template, and a recipe has no create action.${steps}${own} Run \`xano policy catalogue --recipe ${recipe.id}\` for what to set up first and the rules.`
+  return `"${recipe.id}" is a recipe (${recipe.title}), not a template, and a recipe has no create action.${steps}${own} Run \`xano policy catalogue --recipe ${recipe.id}\` for the objects to build and the rules.`
 }
 
 /** The catalogue's `document.key`: the platform's key pattern, and its refusal with `%s` for the key. */
@@ -54,34 +60,49 @@ export interface TemplatePolicyOptions {
   overrides?: string[]
 }
 
-/** The policy document a template becomes, for the parse route's `data`. */
+/**
+ * The policy document a template becomes, for the parse route's `data`. It carries the template's id,
+ * and leaves the key and title to the platform unless `--key` names one: it takes the template's key
+ * (with a free `-2`, `-3`… suffix when taken) and title (`Title (2)` when the branch already has a
+ * policy from the template), as Studio's adds do.
+ */
 export interface TemplatePolicyDocument {
-  key: string
+  key?: string
   rules: Array<{check: string; params: Record<string, unknown>; title: string}>
   severity: string
   statement: string
-  title: string
+  template: string
 }
 
 /**
- * The policy document for a template: its sparse settings with the `--param` assignments applied, every
- * `needs` path filled (at least one of a rule's when it says `needs_any`), and a key no policy on the
- * branch holds (compared case-insensitively). A taken template key gets a free numeric suffix; a taken or
- * malformed `--key` is refused.
+ * The policy document for a template: its id, its sparse settings with the `--param` assignments
+ * applied and every `needs` path filled (of a rule's `needs_any` group, at least one). A `--key` that is
+ * malformed or that a policy on the branch holds (compared case-insensitively) is refused; without one
+ * the platform names the policy.
  */
 export function policyFromTemplate(template: PolicyTemplate, takenKeys: string[], options: TemplatePolicyOptions = {}): TemplatePolicyDocument {
   const {checks = [], key, keyRule, overrides = []} = options
   const taken = new Set(takenKeys.map(value => value.toLowerCase()))
-  let chosen = key ?? template.key
-  if (!keyPattern(keyRule).test(chosen)) throw new Error(keyRefusal(keyRule, chosen))
-  if (key !== undefined && taken.has(chosen.toLowerCase())) throw new Error(`Policy ${chosen} already exists. Choose a new --key or use policy publish to update it.`)
-  for (let suffix = 2; taken.has(chosen.toLowerCase()); suffix++) chosen = `${template.key.slice(0, 63 - String(suffix).length)}-${suffix}`
+  if (key !== undefined) {
+    if (!keyPattern(keyRule).test(key)) throw new Error(keyRefusal(keyRule, key))
+    if (taken.has(key.toLowerCase())) throw new Error(`Policy ${key} already exists. Choose a new --key or use policy publish to update it.`)
+  }
+
   const rules = template.rules.map(rule => ({check: rule.check, params: Array.isArray(rule.params) ? {} : structuredClone(rule.params), title: rule.title}))
   for (const assignment of overrides) applyOverride(rules, assignment)
 
   const missing = template.rules.flatMap((rule, index) => missingNeeds(rule, rules[index].params, index))
-  if (missing.length > 0) throw new Error(`Fill the template's required settings with --param 'N.path=JSON': ${missing.join(', ')}.${exampleHint(template, checks, missing)}`)
-  return {key: chosen, rules, severity: template.severity, statement: template.summary, title: template.title}
+  if (missing.length > 0) throw new Error(`Fill the template's required settings with --param 'N.path=JSON': ${listMissing(missing)}.${exampleHint(template, checks, missing)}`)
+  return {...(key === undefined ? {} : {key}), rules, severity: template.severity, statement: template.summary, template: template.id}
+}
+
+/**
+ * The unfilled needs as one list: `1.functions`, or `1.functions, and 1.tags or 1.paths` when a
+ * `needs_any` group's options follow other entries, so the group reads as one choice.
+ */
+function listMissing(missing: string[]): string {
+  if (missing.length < 2 || !missing.some(entry => entry.includes(' or '))) return missing.join(', ')
+  return `${missing.slice(0, -1).join(', ')}, and ${missing.at(-1)}`
 }
 
 /**
@@ -103,6 +124,26 @@ function exampleHint(template: PolicyTemplate, checks: PolicyCatalogueEntry[], m
   }
 
   return ''
+}
+
+/**
+ * The `policy create` command for a template, with a `--param` for each need it requires (of a
+ * `needs_any` group, its first option): the template's example for the path, else its check's, else
+ * `<JSON>` to replace. The rule number is left off for a single-rule template, as `--param` takes it.
+ */
+export function templateCreateCommand(template: PolicyTemplate, checks: PolicyCatalogueEntry[] = []): string {
+  const examples = template.examples && typeof template.examples === 'object' && !Array.isArray(template.examples) ? template.examples : {}
+  const rules = Array.isArray(template.rules) ? template.rules : []
+  const params = rules.flatMap((rule, index) => {
+    const needs = Array.isArray(rule.needs) ? rule.needs : []
+    const group = needsAnyGroup(rule.needs_any, needs)
+    return needs.filter(need => !group.includes(need) || need === group[0]).map(path => {
+      const example = Object.hasOwn(examples, path) ? examples[path] : checkExample(checks.find(check => check.id === rule.check), path)
+      const value = example === undefined ? '<JSON>' : JSON.stringify(example)
+      return ` --param '${rules.length === 1 ? path : `${index + 1}.${path}`}=${value}'`
+    })
+  })
+  return `xano policy create --template ${template.id}${params.join('')}`
 }
 
 /** The catalogue's `example` for a param path of a check (`table_selector.has_field` reads a part's), or undefined. */
@@ -136,13 +177,25 @@ function keyRefusal(rule: null | PolicyKeyRule | undefined, key: string): string
 }
 
 /**
- * A rule's unfilled `needs`, each as `N.path`: every unfilled one, or, for a `needs_any` rule with none
- * filled, one entry naming the alternatives (`1.hosts or 1.providers`).
+ * A rule's unfilled `needs`, each as `N.path`: every unfilled need outside its `needs_any` group, then,
+ * when no need of the group is filled, one entry naming the group's options (`1.tags or 1.paths`).
  */
 function missingNeeds(rule: PolicyTemplate['rules'][number], params: Record<string, unknown>, index: number): string[] {
-  const needs = (rule.needs ?? []).map(path => ({filled: filled(readPath(params, path)), name: `${index + 1}.${path}`}))
-  if (rule.needs_any === true && needs.length > 1) return needs.some(need => need.filled) ? [] : [needs.map(need => need.name).join(' or ')]
-  return needs.filter(need => !need.filled).map(need => need.name)
+  const needs = Array.isArray(rule.needs) ? rule.needs : []
+  const group = new Set(needsAnyGroup(rule.needs_any, needs))
+  const state = needs.map(path => ({filled: filled(readPath(params, path)), name: `${index + 1}.${path}`, path}))
+  const required = state.filter(need => !group.has(need.path) && !need.filled).map(need => need.name)
+  const options = state.filter(need => group.has(need.path))
+  return options.length === 0 || options.some(need => need.filled) ? required : [...required, options.map(need => need.name).join(' or ')]
+}
+
+/**
+ * The needs of a rule's `needs_any` group, two or more for it to group anything: the list the instance
+ * serves, or every need for an older instance's `needs_any: true`.
+ */
+function needsAnyGroup(needsAny: PolicyTemplate['rules'][number]['needs_any'], needs: string[]): string[] {
+  const group = needsAny === true ? needs : Array.isArray(needsAny) ? needsAny.filter(need => needs.includes(need)) : []
+  return group.length > 1 ? group : []
 }
 
 /** The value at a dotted path of a rule's params, or undefined when any step is missing. */

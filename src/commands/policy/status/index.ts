@@ -7,7 +7,7 @@ import {policyResultSummary} from '../../../utils/policy/findings.js'
 import {listAllPolicies, type PolicyRequest} from '../../../utils/policy/request.js'
 import {
   computeStatusRows,
-  enforcementColumn,
+  enforcementLabel,
   findingsLabel,
   statusExitCode,
   statusExitReason,
@@ -21,7 +21,7 @@ export default class PolicyStatus extends PolicyCommand {
     ...PolicyCommand.policyFlags,
     'fail-on-findings': Flags.boolean({
       default: false,
-      description: 'Exit 2 for current blocking findings, whatever else is true; otherwise exit 1 for stale, missing or errored evaluation evidence',
+      description: 'Exit 2 for current Block findings, whatever else is true; otherwise exit 1 for stale, missing or errored evaluation evidence',
     }),
     'run-detail': Flags.boolean({
       default: false,
@@ -41,7 +41,7 @@ export default class PolicyStatus extends PolicyCommand {
     } else if (rows.length === 0) this.log('No policies found.')
     else {
       for (const row of rows)
-        this.log(`${row.key}  ${statusLabel(row)}  ${enforcementColumn(row)}  ${findingsLabel(row)}  ${row.title ?? ''}`)
+        this.log(`${row.key}  ${statusLabel(row)}  ${enforcementLabel(row.enforcement)}  ${findingsLabel(row)}  ${row.title ?? ''}`)
       const counted = new Set(rows.filter((row) => row.counted).map((row) => row.key))
       for (const line of policyResultSummary(run?.results?.filter((result) => counted.has(result.policy_key ?? '')))) this.log(line)
       if (flags['run-detail'] && run) this.logRunDetail(run)

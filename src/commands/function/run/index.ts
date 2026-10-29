@@ -132,6 +132,7 @@ static override flags = {
         branch,
         name: functionName,
         profile,
+        tenant: flags.tenant,
         verbose: flags.verbose,
         workspaceId,
       })
@@ -145,9 +146,8 @@ static override flags = {
       }
     }
 
-    // 3) Execute via the meta run endpoint, scoped to the tenant when one is given.
-    const tenantPath = flags.tenant ? `/tenant/${encodeURIComponent(flags.tenant)}` : ''
-    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}${tenantPath}/function/run`
+    // 3) Execute via the meta run endpoint.
+    const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/run`
     const body: JsonObject = {input, name: functionName}
     if (branch) body.branch = branch
 
@@ -163,6 +163,9 @@ static override flags = {
     // rejected server-side with "Invalid data source."
     const dataSource = flags.datasource?.trim()
     if (dataSource) headers['X-Data-Source'] = dataSource
+
+    // X-Tenant runs the function on that tenant instead of the workspace.
+    if (flags.tenant) headers['X-Tenant'] = flags.tenant
 
     const response = await this.verboseFetch(
       apiUrl,
@@ -219,19 +222,23 @@ static override flags = {
     branch: string
     name: string
     profile: ProfileConfig
+    tenant?: string
     verbose: boolean
     workspaceId: string
   }): Promise<FunctionListItem | undefined> {
-    const {branch, name, profile, verbose, workspaceId} = opts
+    const {branch, name, profile, tenant, verbose, workspaceId} = opts
      
     const params = new URLSearchParams({per_page: '100', search: name})
     if (branch) params.set('branch', branch)
     const url = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function?${params.toString()}`
 
+    const headers: Record<string, string> = {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`}
+    if (tenant) headers['X-Tenant'] = tenant
+
     try {
       const response = await this.verboseFetch(
         url,
-        {headers: {accept: 'application/json', Authorization: `Bearer ${profile.access_token}`}, method: 'GET'},
+        {headers, method: 'GET'},
         verbose,
         profile.access_token,
       )

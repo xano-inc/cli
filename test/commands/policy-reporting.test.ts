@@ -1,3 +1,4 @@
+import {Config} from '@oclif/core'
 import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
 import path from 'node:path'
@@ -16,14 +17,14 @@ const catalogue = {items: checks, templates: []}
 const backendError = {
   code: 'ERROR_CODE_SYNTAX_ERROR',
   message: 'Invalid block: enforcement',
-  payload: {col: 3, error_snippet: 'enforcement = "advisory"', line: 22, stack: ['/internal/nested.php']},
+  payload: {col: 3, error_snippet: 'enforcement = "warn"', line: 22, stack: ['/internal/nested.php']},
   stack: '#0 /internal/Stack.php',
   trace: ['file: /internal/Schema.php(444)', 'credential test-token'],
   traceId: 'private-trace-id',
 }
 const coverage = (overrides: Record<string, unknown> = {}) =>
-  ({enforcement: 'blocking', included: true, run_id: 1129, stale: false, version: 1, ...overrides})
-const policy = {active: true, enforcement: 'blocking', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
+  ({enforcement: 'block', included: true, run_id: 1129, stale: false, version: 1, ...overrides})
+const policy = {enforcement: 'block', id: 7, key: 'AUTH-001', latest_run: coverage(), rules: [{id: 'R1'}], version: 1}
 const staleCoverage = coverage({stale: true, version: 0})
 const notInRun = coverage({enforcement: null, included: false, version: null})
 const noRun = coverage({enforcement: null, included: false, run_id: 0, version: null})
@@ -89,9 +90,11 @@ describe('policy reporting', () => {
     ]}))
     const result = await command('policy catalogue')
     expect(result.error).to.equal(undefined)
-    const lines = result.stdout.split('\n')
+    const all = result.stdout.split('\n')
+    // The index at the head names the templates too; the list itself follows the checks.
+    const lines = all.slice(all.indexOf('Templates (xano policy create --template <id>):'))
     const at = (text: string) => lines.findIndex(line => line.includes(text))
-    expect(at('Templates (xano policy create --template <id>):')).to.be.greaterThan(at('stack.statement_forbidden'))
+    expect(all.indexOf('Templates (xano policy create --template <id>):')).to.be.greaterThan(all.findIndex(line => line.startsWith('stack.statement_forbidden')))
     expect(lines.filter(line => line === 'Access control')).to.have.length(1)
     expect(lines).not.to.include('Secrets')
     expect(at('Access control')).to.be.lessThan(at('endpoints_need_login'))
@@ -112,13 +115,224 @@ describe('policy reporting', () => {
       {category: 'access_control', frameworks: [], id: 'one_auth_table', key: 'AUTH-050', rules: [rule], severity: 'medium', summary: '', title: 'Users sign in through one auth table'},
       {category: 'access_control', frameworks: ['newer'], id: 'tagged_later', key: 'N-001', rules: [rule], severity: 'low', summary: '', title: 'Tagged by a newer instance'},
     ]}))
-    const lines = (await command('policy catalogue')).stdout.split('\n')
-    const heading = lines.indexOf('Templates (xano policy create --template <id>):')
+    const all = (await command('policy catalogue')).stdout.split('\n')
+    const lines = all.slice(all.indexOf('Templates (xano policy create --template <id>):'))
+    const heading = 0
     expect(lines[heading + 1]).to.equal(note)
     expect(lines.filter(line => line === note)).to.have.length(1)
     expect(lines.find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\) \[SOC 2, HIPAA\]$/)
     expect(lines.find(line => line.includes('one_auth_table'))).to.match(/\(AUTH-050, medium, 1 rule\)$/)
     expect(lines.find(line => line.includes('tagged_later'))).to.match(/\[newer\]$/)
+  })
+
+  it('catalogue shows each template\'s rules: number, title and check, preset params, and what to fill with its needs_any group as one choice', async () => {
+    fixture.route(() => json({items: checks, templates: [
+      {category: 'access_control', id: 'admin_endpoints_check_role', key: 'AUTH-002', rules: [{check: 'object.statement_required', needs: ['functions', 'tags', 'paths'], needs_any: ['tags', 'paths'], params: {placement: 'first'}, title: 'Admin endpoints call the role check first'}], severity: 'critical', summary: '', title: 'Admin endpoints check the caller\'s role'},
+      {category: 'integrations', id: 'approved_vendors_only', key: 'VND-001', rules: [{check: 'outbound.vendor_allowlist', needs: ['hosts', 'providers'], needs_any: ['hosts', 'providers'], params: [], title: ''}], severity: 'high', summary: '', title: 'Data only goes to approved vendors'},
+      {category: 'data_protection', id: 'retained_data_has_age_limit', key: 'RET-003', rules: [{check: 'table.coverage_required', needs: ['tags', 'referenced_by.max_age_days'], needs_any: [], params: {referenced_by: {object_kinds: ['task']}}, title: ''}, {check: 'object.naming', needs: [], params: {}, title: ''}], severity: 'medium', summary: '', title: 'Retained data is deleted after a set number of days'},
+    ]}))
+    const lines = (await command('policy catalogue')).stdout.split('\n')
+    const row = (id: string) => lines.findIndex(line => line.startsWith(`  ${id} `))
+    expect(lines.slice(row('admin_endpoints_check_role') + 1, row('admin_endpoints_check_role') + 4)).to.deep.equal([
+      '      1. Admin endpoints call the role check first: object.statement_required',
+      '         {"placement":"first"}',
+      '         Fill: functions, and tags or paths',
+    ])
+    expect(lines.slice(row('approved_vendors_only') + 1, row('approved_vendors_only') + 4)).to.deep.equal([
+      '      1. outbound.vendor_allowlist', '         {}', '         Fill: hosts or providers',
+    ])
+    expect(lines.slice(row('retained_data_has_age_limit') + 1, row('retained_data_has_age_limit') + 6)).to.deep.equal([
+      '      1. table.coverage_required', '         {"referenced_by":{"object_kinds":["task"]}}', '         Fill: tags, referenced_by.max_age_days',
+      '      2. object.naming', '         {}',
+    ])
+  })
+
+  it('catalogue opens with an index by category, an example policy file and the scope fields as the catalogue words them', async () => {
+    const paths = 'Endpoints whose path inside their API group starts with any listed path, compared segment by segment.'
+    fixture.route(() => json({...recipeCatalogue, items: [
+      {category: 'authentication', id: 'object.auth_required', label: 'Endpoints require login', params: {paths: {description: paths, type: 'string[]'}, tags: {description: 'Objects with a listed tag.', type: 'string[]'}}, scope_fields: [{name: 'tags'}, {name: 'paths'}]},
+      {category: 'structure', id: 'object.statement_required', label: 'Objects call a statement', params: {tags: {type: 'string[]'}}, scope_fields: [{name: 'tags'}]},
+      {id: 'from.older_instance', label: 'No category', params: {}},
+    ], template_categories: [{id: 'integrations', label: 'Integrations'}]}))
+    const result = await command('policy catalogue')
+    expect(result.error).to.equal(undefined)
+    const lines = result.stdout.split('\n')
+    expect(lines.slice(0, 10)).to.deep.equal([
+      'Index (each entry is detailed below):',
+      '  Checks by category (xano policy catalogue --check <id>):',
+      '    authentication: object.auth_required',
+      '    structure: object.statement_required',
+      '    other: from.older_instance',
+      '  Templates by category (xano policy catalogue --template <id>):',
+      '    Integrations: approved_vendors_only',
+      '  Recipes (xano policy catalogue --recipe <id>):',
+      '    protect_card_data, ai_cost_and_agent_safety',
+      '  What no check can see: 2 topics, at the end.',
+    ])
+    const example = lines.findIndex(line => line.startsWith('A policy file'))
+    expect(lines.slice(example + 2, example + 4)).to.deep.equal(['  policy "AUTH-010" {', '    title = "Admin endpoints check the caller\'s role"'])
+    expect(lines).to.include('        paths: ["admin"]')
+    const scope = lines.findIndex(line => line.startsWith('Scope fields'))
+    expect(scope).to.be.greaterThan(example)
+    expect(lines.slice(scope + 1, scope + 7)).to.deep.equal([
+      '', '  tags', '    Objects with a listed tag.', '', '  paths', `    ${paths}`,
+    ])
+    expect(lines.findIndex(line => line.startsWith('Check ID'))).to.be.greaterThan(scope)
+  })
+
+  it('catalogue head says what severity and enforcement take and do, as the served document words them', async () => {
+    const document = {fields: {
+      enforcement: {default: 'warn', description: 'Off: not checked. Warn: reports problems and stops nothing. Block: stops a gated change.', type: 'string', values: ['off', 'warn', 'block']},
+      severity: {default: 'medium', description: 'Orders findings; never blocks.', type: 'string', values: ['critical', 'high', 'medium', 'low']},
+    }}
+    fixture.route(() => json({...catalogue, document}))
+    const served = (await command('policy catalogue')).stdout.replaceAll('\n', ' ')
+    expect(served).to.contain('severity is "critical", "high", "medium" (default) or "low". Orders findings; never blocks.')
+    expect(served).to.contain('enforcement is "off", "warn" (default) or "block". Off: not checked. Warn: reports problems and stops nothing. Block: stops a gated change.')
+    // An instance that serves no document gets the offline copy, worded as the platform words it.
+    fixture.route(() => json(catalogue))
+    const offline = (await command('policy catalogue')).stdout.replaceAll('\n', ' ')
+    expect(offline).to.contain('severity is "critical", "high", "medium" (default) or "low". How much a violation')
+    expect(offline).to.contain('enforcement is "off", "warn" (default) or "block". Whether the policy is checked and whether it blocks. Off: not checked. Warn: reports problems and stops nothing.')
+      .and.to.contain('Block: stops a publish, merge or set live that adds a new problem or changes an object that already has one, and a tenant deploy with any problem')
+  })
+
+  it('catalogue says how an exception list\'s entries are written: a value with its reason, or an object by kind and guid', async () => {
+    const naming = {
+      category: 'naming', description: 'Names follow a convention.', id: 'object.naming', label: 'Names follow a naming convention', object_kinds: ['function'],
+      params: {
+        allowed_names: {default: [], exception: 'entry', items: {type: 'string'}, type: 'exception[]'},
+        except_objects: {default: [], exception: 'object', items: {type: 'object_ref'}, type: 'exception[]'},
+      },
+      scope_fields: [],
+    }
+    fixture.route(() => json({items: [naming, checks[1]], templates: []}))
+    const lines = (await command('policy catalogue', ['--check', 'object.naming'])).stdout.split('\n')
+    expect(lines).to.include('    allowed_names (exception[], entry exceptions {value: string, reason})')
+    expect(lines).to.include('    except_objects (exception[], object exceptions {kind, guid, name, reason})')
+  })
+
+  it('catalogue lists each check\'s own params with type, default, example and description, an object param\'s parts by dotted path, and its scope fields by name', async () => {
+    const coverage = {
+      category: 'coverage', description: 'Tables are covered.', id: 'table.coverage_required', label: 'Tables are referenced by a required object', object_kinds: ['table'],
+      params: {
+        placement: {default: 'any', description: 'Where the match counts.', example: 'first', type: 'string', values: ['any', 'first']},
+        referenced_by: {default: [], description: 'Objects that provide coverage.', example: {object_kinds: ['task']}, properties: {
+          age_field: {description: 'The field a row\'s age is measured from; default created_at.', example: 'expires_at', type: 'string'},
+          max_age_days: {description: 'Delete rows older than this.', example: 730, minimum: 1, type: 'integer'},
+        }, required: false, type: 'object'},
+        tags: {description: 'Objects with a listed tag.', type: 'string[]'},
+      },
+      scope_fields: [{name: 'tags'}],
+      uses: [{goal: 'Logs go after two years.', params: {referenced_by: {max_age_days: 730}}}],
+    }
+    fixture.route(() => json({items: [coverage, checks[1]], templates: []}))
+    const lines = (await command('policy catalogue', ['--check', 'table.coverage_required'])).stdout.split('\n')
+    const params = lines.indexOf('  Params:')
+    expect(params).to.be.greaterThan(0)
+    expect(lines.slice(params, params + 8)).to.deep.equal([
+      '  Params:',
+      // A head longer than 60 characters puts the description under it.
+      '    placement (string, one of: "any" | "first", default "any", e.g. "first"):',
+      '      Where the match counts.',
+      '    referenced_by (object, e.g. {"object_kinds":["task"]}): Objects that provide coverage.',
+      '    referenced_by.age_field (string, e.g. "expires_at"): The field a row\'s age is measured from; default created_at.',
+      '    referenced_by.max_age_days (integer, min 1, e.g. 730): Delete rows older than this.',
+      '  Scope fields: tags',
+      '  Use: Logs go after two years.',
+    ])
+    expect(lines.join('\n')).not.to.contain('    tags (')
+    // A check with no params of its own and no scope fields adds nothing.
+    const plain = (await command('policy catalogue', ['--check', 'table.auth_table_rules'])).stdout
+    expect(plain).not.to.contain('Params:').and.not.to.contain('Scope fields:')
+  })
+
+  const templateCatalogue = {
+    items: [{...checks[0], params: {...checks[0].params, statements: {example: ['db.del'], required: true, type: 'string[]'}}}],
+    recipes: [{id: 'protect_card_data', templates: ['retained_data_has_age_limit'], title: 'Protect payment card data'}],
+    template_categories: [{id: 'data_protection', label: 'Data protection'}],
+    template_frameworks: [{id: 'gdpr', label: 'GDPR'}],
+    template_frameworks_note: 'Tags point to related topics.',
+    templates: [
+      {
+        category: 'data_protection', examples: {'referenced_by.max_age_days': 730, tags: ['retained']}, frameworks: ['gdpr'], id: 'retained_data_has_age_limit', key: 'RET-003',
+        limits: 'Reads the cutoff each cleanup task\'s delete filters on.',
+        rules: [{check: 'table.coverage_required', needs: ['tags', 'referenced_by.max_age_days'], needs_any: [], params: {referenced_by: {object_kinds: ['task']}}, title: 'Retained rows are deleted once they are too old'}],
+        severity: 'medium', summary: 'Every retained table is cleaned up by a task.', title: 'Retained data is deleted after a set number of days',
+      },
+      {
+        category: 'access_control', examples: {functions: ['require_admin']}, id: 'admin_endpoints_check_role', key: 'AUTH-002',
+        rules: [
+          {check: 'object.statement_required', needs: ['functions', 'tags', 'paths'], needs_any: ['tags', 'paths'], params: {placement: 'first'}, title: ''},
+          {check: 'stack.statement_forbidden', needs: ['statements'], needs_any: [], params: {}, title: ''},
+        ],
+        severity: 'critical', summary: '', title: 'Admin endpoints check the caller\'s role',
+      },
+    ],
+  }
+
+  it('catalogue --template narrows both output modes to the one template: its statement, rules, examples, what it cannot see and the create command', async () => {
+    fixture.route(() => json(templateCatalogue))
+    const summary = await command('policy catalogue', ['--template', 'retained_data_has_age_limit'])
+    expect(summary.error).to.equal(undefined)
+    const lines = summary.stdout.split('\n')
+    const row = lines.indexOf('  retained_data_has_age_limit  Retained data is deleted after a set number of days (RET-003, medium, 1 rule) [GDPR]')
+    expect(row).to.be.greaterThan(0)
+    expect(lines).to.include('Tags point to related topics.').and.to.include('Data protection')
+    expect(lines.slice(row + 1, row + 12)).to.deep.equal([
+      '    Statement: Every retained table is cleaned up by a task.',
+      '    Severity medium; a policy created from it starts with enforcement warn.',
+      '    Rules:',
+      '      1. Retained rows are deleted once they are too old: table.coverage_required',
+      '         {"referenced_by":{"object_kinds":["task"]}}',
+      '         Fill: tags, referenced_by.max_age_days',
+      '    Examples: referenced_by.max_age_days=730, tags=["retained"]',
+      '    Cannot see: Reads the cutoff each cleanup task\'s delete filters on.',
+      '    Create it (edit the example values):',
+      `      xano policy create --template retained_data_has_age_limit --param 'tags=["retained"]' --param 'referenced_by.max_age_days=730'`,
+      '',
+    ])
+    expect(summary.stdout).not.to.contain('admin_endpoints_check_role').and.not.to.contain('Index (').and.not.to.contain('Check ID')
+    const asJson = await command('policy catalogue', ['--template', 'retained_data_has_age_limit', '-o', 'json'])
+    expect(JSON.parse(asJson.stdout)).to.deep.equal([templateCatalogue.templates[0]])
+  })
+
+  it('catalogue --template numbers a multi-rule template\'s params, takes the first of a needs_any group and the check\'s example where the template gives none', async () => {
+    fixture.route(() => json(templateCatalogue))
+    const {stdout} = await command('policy catalogue', ['--template', 'admin_endpoints_check_role'])
+    expect(stdout).to.contain(`      xano policy create --template admin_endpoints_check_role --param '1.functions=["require_admin"]' --param '1.tags=<JSON>' --param '2.statements=["db.del"]'\n`)
+    expect(stdout).to.contain('    Examples: functions=["require_admin"]\n')
+    expect(stdout, 'a template with no summary has no statement line').not.to.contain('Statement:')
+  })
+
+  it('catalogue --template names the near miss, points a recipe or check id at its own flag, and is exclusive with --check and --recipe', async () => {
+    fixture.route(() => json(templateCatalogue))
+    const near = await command('policy catalogue', ['--template', 'retained_data'])
+    expect(near.error?.message).to.contain('"retained_data" is not a template. Did you mean retained_data_has_age_limit?')
+    expect(near.stdout).to.equal('')
+    const recipe = await command('policy catalogue', ['--template', 'protect_card_data'])
+    expect(recipe.error?.message).to.contain('"protect_card_data" is not a template; it is a recipe: run `xano policy catalogue --recipe protect_card_data`.')
+    const check = await command('policy catalogue', ['--recipe', 'stack.statement_forbidden'])
+    expect(check.error?.message).to.contain('"stack.statement_forbidden" is not a recipe; it is a policy check: run `xano policy catalogue --check stack.statement_forbidden`.')
+    const withCheck = await command('policy catalogue', ['--template', 'retained_data_has_age_limit', '--check', 'stack.statement_forbidden'])
+    expect(withCheck.error?.message).to.contain('cannot also be provided')
+    const withRecipe = await command('policy catalogue', ['--template', 'retained_data_has_age_limit', '--recipe', 'protect_card_data'])
+    expect(withRecipe.error?.message).to.contain('cannot also be provided')
+  })
+
+  it('catalogue --check prints only the check, without the index or the example', async () => {
+    fixture.route(() => json(recipeCatalogue))
+    const {stdout} = await command('policy catalogue', ['--check', 'stack.statement_forbidden'])
+    expect(stdout).not.to.contain('Index (').and.not.to.contain('A policy file').and.not.to.contain('Scope fields')
+  })
+
+  it('parse --help shows a policy file with its indentation kept', async () => {
+    // Help rewrites the command ids of the config it is given, so it gets one of its own.
+    const {stdout} = await runCommand(['policy', 'parse', '--help'], await Config.load({root: process.cwd()}))
+    const lines = stdout.split('\n')
+    const section = lines.indexOf('POLICY FILE')
+    expect(section).to.be.greaterThan(lines.indexOf('DESCRIPTION'))
+    expect(lines).to.include('    policy "AUTH-010" {').and.to.include('      rule {').and.to.include('          paths: ["admin"]')
   })
 
   it('catalogue prints no framework note when no template carries a tag', async () => {
@@ -135,7 +349,7 @@ describe('policy reporting', () => {
       {category: 'access_control', frameworks: ['soc2'], id: 'endpoints_need_login', key: 'AUTH-010', rules: [rule], severity: 'critical', summary: '', title: 'Endpoints require login'},
     ]}))
     const {stdout} = await command('policy catalogue')
-    expect(stdout.split('\n').find(line => line.includes('endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\)$/)
+    expect(stdout.split('\n').find(line => line.startsWith('  endpoints_need_login'))).to.match(/\(AUTH-010, critical, 1 rule\)$/)
     expect(stdout).not.to.contain('SOC 2')
   })
 
@@ -198,47 +412,55 @@ describe('policy reporting', () => {
       {id: 'spend_caps', keywords: ['cost'], topic: 'Spend caps', why: 'No check reads what AI calls cost yet.'},
     ],
     recipes: [{
+      builds: [
+        {fills: ['approved_vendors_only.providers'], kind: 'function', name: 'charge_card', role: 'Sends the card to the processor and keeps only its token.'},
+        {kind: 'field_attribute', name: 'sensitive', role: 'Set on each card field.'},
+      ],
       frameworks: ['pci_dss'], id: 'protect_card_data', keywords: ['card'], limits: ['people_and_training', 'retired_topic'],
-      prerequisites: ['Approve your processor\'s hosts for VND-001.'],
       rules: [{check: 'table.field_attribute_required', needs: [], params: {field_names: ['card_number'], forbidden: true}, title: 'Card numbers are never stored'}],
       summary: 'No table stores a card number.', templates: ['approved_vendors_only', 'from_a_newer_instance'], title: 'Protect payment card data',
+      user_fills: ['approved_vendors_only.hosts', 'rules[0].field_names'],
     }, {
-      frameworks: [], id: 'ai_cost_and_agent_safety', keywords: ['ai'], limits: ['spend_caps'], prerequisites: [],
+      builds: [], frameworks: [], id: 'ai_cost_and_agent_safety', keywords: ['ai'], limits: ['spend_caps'],
       rules: [{check: 'stack.statement_order', needs: ['before.functions'], params: {after: ['db.del']}, title: 'Deletes wait for an approval check'}],
-      summary: 'AI calls stay out of loops.', templates: [], title: 'Keep AI calls affordable and agents safe',
+      summary: 'AI calls stay out of loops.', templates: [], title: 'Keep AI calls affordable and agents safe', user_fills: [],
     }],
     template_frameworks: [{id: 'pci_dss', label: 'PCI DSS'}],
     template_frameworks_note: 'Tags point to related topics.',
     templates: [{category: 'integrations', frameworks: [], id: 'approved_vendors_only', key: 'VND-001', rules: [{check: 'outbound.vendor_allowlist', needs: [], params: {}, title: ''}], severity: 'high', summary: '', title: 'Data only goes to approved vendors'}],
   }
 
-  it('catalogue lists the recipes after the templates: tags, what to do first, templates in order, rules and limits by topic', async () => {
+  it('catalogue lists the recipes after the templates: tags, what to build, what you fill, templates in order, rules and limits by topic', async () => {
     fixture.route(() => json(recipeCatalogue))
     const result = await command('policy catalogue')
     expect(result.error).to.equal(undefined)
     const lines = result.stdout.split('\n')
     const heading = lines.findIndex(line => line.startsWith('Recipes ('))
     expect(heading).to.be.greaterThan(lines.findIndex(line => line.startsWith('Templates (')))
-    expect(lines[heading]).to.contain('nothing creates a recipe')
+    expect(lines[heading]).to.contain('nothing creates a recipe: build its objects')
     expect(lines[heading + 1]).to.equal('Tags point to related topics.')
     const recipe = lines.indexOf('  protect_card_data  Protect payment card data [PCI DSS]')
     expect(recipe).to.be.greaterThan(heading)
-    expect(lines.slice(recipe + 1, recipe + 14)).to.deep.equal([
+    expect(lines.slice(recipe + 1, recipe + 17)).to.deep.equal([
       '    No table stores a card number.',
-      '    First:',
-      '      - Approve your processor\'s hosts for VND-001.',
+      '    Build (the enforcement; the rules point at it):',
+      '      - function charge_card: Sends the card to the processor and keeps only its token.',
+      '        Fills: approved_vendors_only.providers',
+      '      - field_attribute sensitive: Set on each card field.',
+      '    You fill in: approved_vendors_only.hosts, rules[0].field_names',
       '    Templates, in order (xano policy create --template <id>, one policy each):',
       '      1. approved_vendors_only  Data only goes to approved vendors (VND-001)',
       '      2. from_a_newer_instance',
       '    Rules no template covers, together in one policy of your own:',
-      '      - Card numbers are never stored: table.field_attribute_required',
+      '      rules[0] Card numbers are never stored: table.field_attribute_required',
       '        {"field_names":["card_number"],"forbidden":true}',
       '    No rule here can see: People and training; retired_topic.',
       '',
       '  ai_cost_and_agent_safety  Keep AI calls affordable and agents safe',
       '    AI calls stay out of loops.',
     ])
-    expect(lines).to.include('        You fill in: before.functions')
+    expect(lines).to.include('        Needs: before.functions')
+    expect(result.stdout).not.to.contain('First:')
     expect(lines).to.include('    No rule here can see: Spend caps.')
   })
 
@@ -285,16 +507,22 @@ describe('policy reporting', () => {
     expect(both.error?.message).to.contain('cannot also be provided')
   })
 
-  it('list prints the version beside its activation state, and JSON is the native body', async () => {
-    const body = {curPage: 1, items: [{...policy, title: 'Auth', version: 5}], nextPage: null, prevPage: null}
+  it('list prints the version beside its enforcement, and JSON is the native body', async () => {
+    const body = {curPage: 1, items: [
+      {...policy, title: 'Auth', version: 5},
+      {...policy, enforcement: 'warn', id: 8, key: 'LOG-001', title: 'Logs', version: 2},
+      {...policy, enforcement: 'off', id: 9, key: 'OLD-001', title: 'Old', version: 1},
+    ], nextPage: null, prevPage: null}
     fixture.route(() => json(body))
     const result = await command('policy list')
-    expect(result.stdout).to.contain('AUTH-001  Active, Blocking  Auth (ID: 7, Version 5)')
+    expect(result.stdout).to.contain('AUTH-001  Block  Auth (ID: 7, Version 5)')
+      .and.to.contain('LOG-001  Warn  Logs (ID: 8, Version 2)')
+      .and.to.contain('OLD-001  Off  Old (ID: 9, Version 1)')
     expect(JSON.parse((await command('policy list', ['-o', 'json'])).stdout)).to.deep.equal(body)
   })
 
   it('runs JSON is the native body, like list', async () => {
-    const body = {curPage: 1, items: [{counts: {blocking: 1, errors: 0, findings: 1}, id: 1129, objects_checked: 10, started_at: 2000, status: 'fail', trigger: 'manual'}], nextPage: null, prevPage: null}
+    const body = {curPage: 1, items: [{counts: {block: 1, errors: 0, findings: 1}, id: 1129, objects_checked: 10, started_at: 2000, status: 'fail', trigger: 'manual'}], nextPage: null, prevPage: null}
     fixture.route(() => json(body))
     expect(JSON.parse((await command('policy runs', ['-o', 'json'])).stdout)).to.deep.equal(body)
   })
@@ -307,7 +535,7 @@ describe('policy reporting', () => {
   })
 
   it('evaluate --run-detail reports what the run it just produced recorded, and only when asked', async () => {
-    fixture.route(() => json({...detailRun, policy_check: {blocking: false, findings: [], status: 'pass'}}))
+    fixture.route(() => json({...detailRun, policy_check: {block: false, findings: [], status: 'pass'}}))
     const detail = await command('policy evaluate', ['--run-detail'])
     expect(detail.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
       .and.to.contain('R1  Endpoints require authentication  settings: api_groups=[lab], except_tags=[public]')
@@ -318,14 +546,14 @@ describe('policy reporting', () => {
   it('evaluate --summary asks for the summary answer and says which run has the findings it leaves out', async () => {
     const findings = Array.from({length: 50}, (_, n) => ({id: `F${n}`, message: 'No auth', object: {name: `GET /x${n}`, type: 'query'}, policy_key: 'AUTH-001', rule_id: 'R1'}))
     const answer = {
-      ...detailRun, counts: {advisory: 70, blocking: 0, errors: 0, findings: 70}, findings,
-      policy_check: {blocking: false, blocking_finding_ids: [], blocking_total: 0, message: 'Active policies reported findings.', run_id: 1129, status: 'fail'},
+      ...detailRun, counts: {block: 0, errors: 0, findings: 70, warn: 70}, findings,
+      policy_check: {block: false, block_finding_ids: [], block_total: 0, message: 'Active policies reported findings.', run_id: 1129, status: 'fail'},
       stored: true, total: 70, truncated: true,
     }
     fixture.route(() => json(answer))
     const result = await command('policy evaluate', ['--summary', '--run-detail'])
     expect(JSON.parse(fixture.calls[0].body!)).to.deep.equal({answer: 'summary'})
-    expect(result.stdout).to.contain('Policy check: advisory findings (not blocking)\nActive policies reported findings.\nFindings: 70 (0 blocking, 70 advisory)')
+    expect(result.stdout).to.contain('Policy check: findings (Warn only, nothing stopped)\nActive policies reported findings.\nFindings: 70 (0 Block, 70 Warn)')
     expect(result.stdout).to.contain('Listed: the first 50 of 70; `xano policy runs 1129` has them all.')
     // The summary carries the snapshot, so --run-detail still reports what the run recorded.
     expect(result.stdout).to.contain('Run 1129 as recorded (manual, 2000):')
@@ -337,9 +565,21 @@ describe('policy reporting', () => {
     expect(unstored.stdout).to.contain('Listed: the first 50 of 70; this evaluation was not stored, so the rest cannot be listed.')
 
     // Without the flag an evaluation sends no body and answers the whole run, as before.
-    fixture.route(() => json({...detailRun, policy_check: {blocking: false, status: 'pass'}}))
+    fixture.route(() => json({...detailRun, policy_check: {block: false, status: 'pass'}}))
     await command('policy evaluate')
     expect(fixture.calls.at(-1)?.body).to.equal(undefined)
+  })
+
+  it('parse summary always shows the severity, medium included, where the platform writes every other; JSON keeps the served source', async () => {
+    const canonical = 'policy AUTH-001 {\n  title = "Auth"\n  enforcement = "warn"\n\n  rule {\n    check = "object.auth_required"\n  }\n}'
+    fixture.route(() => json({policy: {enforcement: 'warn', key: 'AUTH-001', severity: 'medium'}, rule_warnings: [], source: canonical}))
+    const summary = await command('policy parse')
+    expect(summary.stdout.split('\n').slice(0, 4)).to.deep.equal(['policy AUTH-001 {', '  title = "Auth"', '  severity = "medium"', '  enforcement = "warn"'])
+    expect(JSON.parse((await command('policy parse', ['-o', 'json'])).stdout).source).to.equal(canonical)
+    // A severity the platform already wrote is left as it is.
+    const high = canonical.replace('  enforcement', '  severity = "high"\n  enforcement')
+    fixture.route(() => json({policy: {key: 'AUTH-001', severity: 'high'}, rule_warnings: [], source: high}))
+    expect((await command('policy parse')).stdout.trimEnd()).to.equal(high)
   })
 
   it('names a rule refused for its name with the platform sentence and where the name is', async () => {
@@ -354,7 +594,7 @@ describe('policy reporting', () => {
       fixture.route(() => json(backendError, 400))
       const result = await command('policy parse', ['-o', 'json', ...(verbose ? ['-v'] : [])])
       expect(result.error?.message).to.contain('ERROR_CODE_SYNTAX_ERROR: Invalid block: enforcement')
-        .and.to.contain('at line 22, col 3: enforcement = "advisory"')
+        .and.to.contain('at line 22, col 3: enforcement = "warn"')
       expect(`${result.error?.message}${result.stdout}`).not.to.contain('/internal/').and.not.to.contain('private-trace-id')
       expect(JSON.parse(result.stdout).error.message).to.equal(result.error?.message)
       if (verbose) expect(result.stderr).to.contain('/internal/Schema.php').and.to.contain('private-trace-id')
@@ -402,11 +642,11 @@ describe('policy reporting', () => {
     expect(result.stderr).to.contain('/internal/Schema.php')
   })
 
-  it('inactive status hides historical counts and diagnostics, and never calls an inactive policy blocking', async () => {
-    statusRoute({...policy, active: false, latest_run: staleCoverage}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
+  it('off status hides historical counts and diagnostics, and never calls an off policy blocking', async () => {
+    statusRoute({...policy, enforcement: 'off', latest_run: staleCoverage}, {...run, results: [{...run.results[0], message: 'OLD ERROR', status: 'error'}]})
     const result = await command('policy status')
     expect(result.error).to.equal(undefined)
-    expect(result.stdout).to.contain('inactive; not evaluated  Inactive  not checked  ').and.not.to.contain('OLD ERROR')
+    expect(result.stdout).to.contain('off; not evaluated  Off  not checked  ').and.not.to.contain('OLD ERROR')
     expect(result.stdout).not.to.contain('— findings')
     expect(result.stdout).not.to.contain('Blocking')
     expect(process.exitCode ?? 0).to.equal(0)
@@ -414,12 +654,12 @@ describe('policy reporting', () => {
 
   it('status words enforcement as Studio does, and marks only findings the run judged blocking', async () => {
     statusRoute(policy, run)
-    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Blocking  1 findings (blocking)')
-    statusRoute({...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run)
+    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Block  1 findings (Block)')
+    statusRoute({...policy, enforcement: 'warn', latest_run: coverage({enforcement: 'warn'})}, run)
     const advisory = await command('policy status', ['-o', 'json'])
-    expect(JSON.parse(advisory.stdout).status[0]).to.include({blocking: false, findings: 1})
-    statusRoute({...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run)
-    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Advisory  1 findings  ').and.not.to.contain('(blocking)')
+    expect(JSON.parse(advisory.stdout).status[0]).to.include({block: false, findings: 1})
+    statusRoute({...policy, enforcement: 'warn', latest_run: coverage({enforcement: 'warn'})}, run)
+    expect((await command('policy status')).stdout).to.contain('AUTH-001  fail  Warn  1 findings  ').and.not.to.contain('(Block)')
   })
 
   it('status --run-detail reports the description, settings and coverage the run recorded', async () => {
@@ -446,7 +686,7 @@ describe('policy reporting', () => {
     ]
     statusRoute({...policy, rules: [{id: 'R1'}, {id: 'R2'}]}, {...run, findings: [], results})
     const result = await command('policy status')
-    expect(result.stdout).to.contain('AUTH-001  pass; 1 rule no objects checked  Blocking  0 findings')
+    expect(result.stdout).to.contain('AUTH-001  pass; 1 rule no objects checked  Block  0 findings')
     expect(result.stdout).to.contain('No objects checked (proves nothing about coverage):\n  AUTH-001 R2: no objects checked')
     const asJson = await command('policy status', ['-o', 'json'])
     expect(JSON.parse(asJson.stdout).status[0]).to.include({rules_unchecked: 1, status: 'pass'})
@@ -455,7 +695,7 @@ describe('policy reporting', () => {
   it('--fail-on-findings says in one line why it failed, and says it in JSON too', async () => {
     statusRoute(policy, run)
     const blocked = await command('policy status', ['--fail-on-findings'])
-    expect(blocked.stdout).to.contain('The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.')
+    expect(blocked.stdout).to.contain('The latest run has 1 Block finding (AUTH-001); the merge gate evaluates the branch again before a merge.')
     expect(process.exitCode).to.equal(2)
 
     statusRoute({...policy, latest_run: staleCoverage}, run)
@@ -465,8 +705,8 @@ describe('policy reporting', () => {
 
     statusRoute(policy, run)
     const asJson = JSON.parse((await command('policy status', ['--fail-on-findings', '-o', 'json'])).stdout)
-    expect(asJson.status[0]).to.include({active: true, blocking: true, counted: true, enforcement: 'blocking'})
-    expect(asJson.fail_on_findings).to.deep.equal({exit: 2, reason: 'The latest run has 1 blocking finding (AUTH-001); the merge gate evaluates the branch again before a merge.'})
+    expect(asJson.status[0]).to.include({block: true, counted: true, enforcement: 'block'})
+    expect(asJson.fail_on_findings).to.deep.equal({exit: 2, reason: 'The latest run has 1 Block finding (AUTH-001); the merge gate evaluates the branch again before a merge.'})
     expect(process.exitCode).to.equal(2)
   })
 
@@ -475,7 +715,7 @@ describe('policy reporting', () => {
     fixture.route((url) => url.pathname.includes('/run/') ? json(run) : json({items: [policy, stale]}))
     const result = await command('policy status', ['--fail-on-findings', '-o', 'json'])
     expect(JSON.parse(result.stdout).fail_on_findings.exit).to.equal(2)
-    expect(JSON.parse(result.stdout).fail_on_findings.reason).to.contain('1 blocking finding (AUTH-001)')
+    expect(JSON.parse(result.stdout).fail_on_findings.reason).to.contain('1 Block finding (AUTH-001)')
       .and.to.contain('Evidence is also stale, missing or errored (SEC-100 outdated; evaluate again).')
     expect(process.exitCode).to.equal(2)
   })
@@ -489,7 +729,7 @@ describe('policy reporting', () => {
 
   it('evaluate names an unnamed rule by the label its own run snapshot recorded', async () => {
     const finding = {id: 'F1', message: 'No auth', object: {name: 'orders', type: 'query'}, policy_key: 'AUTH-001', rule_id: 'R1', rule_title: ''}
-    fixture.route(() => json({...detailRun, findings: [finding], policy_check: {blocking: true, blocking_finding_ids: ['F1'], status: 'fail'}}))
+    fixture.route(() => json({...detailRun, findings: [finding], policy_check: {block: true, block_finding_ids: ['F1'], status: 'fail'}}))
     const result = await command('policy evaluate')
     expect(result.stdout).to.contain('Endpoints require authentication (AUTH-001)')
     expect(process.exitCode).to.equal(2)
@@ -500,8 +740,8 @@ describe('policy reporting', () => {
     [{...policy, latest_run: staleCoverage}, true, 'stale'],
     [{...policy, latest_run: notInRun}, false, 'not_evaluated'],
     [{...policy, latest_run: noRun}, false, 'not_evaluated'],
-    [{...policy, active: false, latest_run: staleCoverage}, true, 'inactive'],
-    [{...policy, active: false, latest_run: noRun}, false, 'inactive'],
+    [{...policy, enforcement: 'off', latest_run: staleCoverage}, true, 'off'],
+    [{...policy, enforcement: 'off', latest_run: noRun}, false, 'off'],
   ] as const) {
     it(`status JSON carries the served freshness for ${status} stale=${stale}`, async () => {
       statusRoute(current, run)
@@ -514,12 +754,12 @@ describe('policy reporting', () => {
 
   for (const [current, latest, code] of [
     [policy, run, 2],
-    [{...policy, enforcement: 'advisory', latest_run: coverage({enforcement: 'advisory'})}, run, 0],
+    [{...policy, enforcement: 'warn', latest_run: coverage({enforcement: 'warn'})}, run, 0],
     [{...policy, latest_run: staleCoverage}, run, 1],
     [{...policy, latest_run: notInRun}, run, 1],
     [{...policy, latest_run: noRun}, run, 1],
-    [{...policy, active: false, latest_run: staleCoverage}, run, 0],
-    [{...policy, active: false, latest_run: noRun}, run, 0],
+    [{...policy, enforcement: 'off', latest_run: staleCoverage}, run, 0],
+    [{...policy, enforcement: 'off', latest_run: noRun}, run, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'pass'}]}, 0],
     [policy, {...run, findings: [], results: [{...run.results[0], status: 'error'}]}, 1],
     [policy, {...run, findings: [], results: []}, 1],
@@ -534,10 +774,10 @@ describe('policy reporting', () => {
 
   for (const action of ['policy evaluate', 'workspace push']) {
     it(`${action} labels advisory findings without changing JSON or exit status`, async () => {
-      const check = {blocking: false, findings: [{message: 'Review auth'}], status: 'fail'}
+      const check = {block: false, findings: [{message: 'Review auth'}], status: 'fail'}
       fixture.route(() => json({policy_check: check}))
       const summary = await command(action)
-      expect(summary.stdout).to.contain('Policy check: advisory findings (not blocking)')
+      expect(summary.stdout).to.contain('Policy check: findings (Warn only, nothing stopped)')
       const result = await command(action, ['-o', 'json'])
       expect(JSON.parse(result.stdout).policy_check).to.deep.equal(check)
       expect(process.exitCode ?? 0).to.equal(0)

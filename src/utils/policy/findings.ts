@@ -28,6 +28,17 @@ function findingName(finding: PolicyFinding, rules: Map<string, PolicySnapshotRu
 }
 
 /**
+ * What a finding says: its plain reason, then the technical message as the detail. A finding stored
+ * before reasons existed has only the message.
+ */
+export function findingText(finding: PolicyFinding): string {
+  const reason = finding.reason?.trim() ?? ''
+  const message = finding.message ?? ''
+  if (!reason) return message
+  return message.trim() ? `${reason} — ${message}` : reason
+}
+
+/**
  * One finding line. The rule id leads it, because the check's label is shared by every
  * rule that uses that check — with two rules of one policy failing, the labels alone do
  * not tell them apart, and the id is what `--run-detail` and the JSON cite.
@@ -39,7 +50,7 @@ export function findingLine(finding: PolicyFinding, rules: Map<string, PolicySna
   const policy = finding.policy_title || finding.policy_key || 'policy'
   const severity = finding.severity?.trim() ? ` [${finding.severity.trim()}]` : ''
   return `  ${[id, id === rule ? '' : rule].filter(Boolean).join('  ')}${severity} (${policy})  ${
-    finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${finding.message ?? ''}`
+    finding.object?.type ?? ''} ${finding.object?.name ?? ''}: ${findingText(finding)}`
 }
 
 /**
@@ -53,7 +64,7 @@ export function coverageFindingLines(finding: CoverageFinding): string[] {
   const rule = finding.rule_title?.trim() || finding.check?.label?.trim() || 'finding'
   const object = [finding.object?.type, finding.object?.name].filter(Boolean).join(' ')
   const deleted = finding.deleted ? ' [policy deleted]' : ''
-  const lines = [`  ${rule} (${title ? `${key} ${title}` : key})${deleted}  ${object}: ${finding.message ?? ''}`]
+  const lines = [`  ${rule} (${title ? `${key} ${title}` : key})${deleted}  ${object}: ${findingText(finding)}`]
   const fix = finding.deleted ? '' : finding.check?.fix_hint?.trim()
   if (fix) lines.push(`    Fix: ${fix}`)
   return lines

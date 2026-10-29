@@ -28,7 +28,7 @@ const blocked = {
   truncated: false,
 }
 
-const message = 'Publish refused: 1 blocking policy finding (0 introduced by this change, 1 on objects it changes).'
+const message = 'Publish blocked by 1 object failing in Block. The failures come from AUTH-001.'
 const refusal = (answer: Record<string, unknown> = blocked) =>
   json({code: 'ERROR_CODE_ACCESS_DENIED', message, payload: {code: 'policy_gate', ...answer}}, 403)
 
@@ -49,7 +49,7 @@ describe('function create and edit and the live-branch publish gate', () => {
     const result = await create()
     expect(fixture.calls[0].url.searchParams.has('override_reason')).to.equal(false)
     expect(result.stdout).to.contain('Policy gate: blocked')
-    expect(result.stdout).to.contain('Blocking findings: 1 (0 introduced, 1 on objects the save changes); 0 already on the live branch never block')
+    expect(result.stdout).to.contain('Block findings: 1 (0 introduced, 1 on objects the save changes); 0 already on the live branch never block')
     expect(result.stdout).to.contain('AUTH-001.R1 [high] (AUTH-001)  function cleanup: calls db.truncate')
     const error = oneLine(result.error?.message ?? '')
     expect(error).to.contain(`Nothing was saved. ${message}`)

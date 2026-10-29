@@ -9,15 +9,17 @@ import {listAllPolicies} from '../../../utils/policy/request.js'
 import {policyFromTemplate, recipeRefusal} from '../../../utils/policy/template.js'
 
 export default class PolicyCreate extends PolicyCommand {
-  static override description = 'Create an independent policy from a platform template'
+  static override description = 'Create an independent policy from a platform template. The policy keeps the template id; the platform names it after the template (a free key suffix, and a numbered title for a second copy) unless --key is given'
   static override examples = [
     '$ xano policy create --template endpoints_need_login -b dev',
     `$ xano policy create --template no_pii_in_responses --key DATA-020 --param 'fields=["email","ssn"]'`,
+    `$ xano policy create --template admin_endpoints_check_role --param 'functions=["require_admin"]' --param 'paths=["admin"]'`,
+    `$ xano policy create --template retained_data_has_age_limit --param 'tags=["retained"]' --param 'referenced_by.max_age_days=730'`,
   ]
   static override flags = {
     ...PolicyCommand.policyFlags,
     ...PolicyCommand.publishFlags,
-    key: Flags.string({description: 'New policy key (default: the template key with a free numeric suffix if taken)'}),
+    key: Flags.string({description: "New policy key (default: the platform's choice, the template key with a free numeric suffix if taken)"}),
     param: Flags.string({description: 'Parameter override: N.path=JSON, 1-based rule number; path=JSON for a single-rule template', multiple: true}),
     template: Flags.string({description: 'Template id from policy catalogue', required: true}),
   }
@@ -32,7 +34,8 @@ export default class PolicyCreate extends PolicyCommand {
     const recipe = template || !Array.isArray(catalogue.recipes) ? undefined : catalogue.recipes.find(item => item.id === flags.template)
     if (recipe) this.error(recipeRefusal(recipe))
     if (!template) this.error(`Unknown template "${flags.template}". Run xano policy catalogue to see this instance's templates.`)
-    const keys = (await listAllPolicies(request)).map(policy => policy.key)
+    // Only a chosen key is checked here; the platform picks a free one otherwise.
+    const keys = flags.key === undefined ? [] : (await listAllPolicies(request)).map(policy => policy.key)
     // The key is checked against the pattern this instance's catalogue serves, and an unfilled need's
     // example falls back to its check's own.
     const document = policyFromTemplate(template, keys, {checks: catalogue.items, key: flags.key, keyRule: catalogue.document?.key, overrides: flags.param})

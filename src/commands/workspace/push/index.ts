@@ -191,7 +191,7 @@ Full sync including knowledge files; removes server objects not present locally
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Override a blocking live-branch policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
+    'policy-override': Flags.string({description: 'Override a live-branch policy gate that blocks the push, with an audited reason (requires workspace:policy update)', hidden: true}),
     records: Flags.boolean({
       default: false,
       description:
@@ -373,7 +373,7 @@ Full sync including knowledge files; removes server objects not present locally
 
   /**
    * A failure after the import landed. The import stands, so its policy feedback is reported as for
-   * any push and a blocking finding still exits 2; otherwise the failure exits 1. Under `-o json`
+   * any push and a Block finding still exits 2; otherwise the failure exits 1. Under `-o json`
    * stdout holds the import's document with the failure as `error`.
    */
   private catchAfterImport(error: FailedAfterImportError): never {
@@ -409,14 +409,14 @@ Full sync including knowledge files; removes server objects not present locally
       // A caller without workspace:policy read is told its own findings and no run, so the run reads would be refused.
       if (!json) {
         this.log(isCoverageCheck(check)
-          ? ((check?.blocking_findings ?? []).length > 0
-            ? 'Next: fix the blocking findings above, or `xano policy coverage <type>:<id>` for the policies that apply to one object.'
-            // Blocking as a reader's push would, on objects this credential is not told about.
-            : 'Next: the blocking findings are on objects this push did not list, which someone with workspace:policy read can see; `xano policy coverage <type>:<id>` shows the policies that apply to an object you may read.')
+          ? ((check?.block_findings ?? []).length > 0
+            ? 'Next: fix the Block findings above, or `xano policy coverage <type>:<id>` for the policies that apply to one object.'
+            // Block findings as a reader's push would see them, on objects this credential is not told about.
+            : 'Next: the Block findings are on objects this push did not list, which someone with workspace:policy read can see; `xano policy coverage <type>:<id>` shows the policies that apply to an object you may read.')
           : 'Next: `xano policy status --run-detail` for the current standing, or `xano policy runs` for this run.')
       }
 
-      this.warn('Workspace import completed with blocking policy findings; the imported changes were not rolled back.')
+      this.warn('Workspace import completed with Block policy findings; the imported changes were not rolled back.')
     }
   }
 }

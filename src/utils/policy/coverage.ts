@@ -20,7 +20,7 @@ export function coverageChip(summary: ObjectCoverage['summary']): string {
     }
 
     case 'findings': {
-      return `Policies ${count(summary.blocking)} blocking · ${count(summary.advisory)} advisory`
+      return `Policies ${count(summary.block)} Block · ${count(summary.warn)} Warn`
     }
 
     case 'none_apply': {
@@ -65,7 +65,7 @@ export function coverageCounts(summary: ObjectCoverage['summary']): string {
 }
 
 function policyLines(policy: ObjectCoveragePolicy): string[] {
-  const enforcement = policy.blocking ? 'Blocking' : 'Advisory'
+  const enforcement = policy.block ? 'Block' : 'Warn'
   const status = STATUS[policy.status ?? ''] ?? policy.status ?? ''
   return [
     `  ${[policy.key, enforcement, status, policy.title].filter(Boolean).join('  ')}`,
@@ -80,7 +80,7 @@ function objectName(object: ObjectCoverage['object']): string {
 }
 
 /**
- * An object's coverage on stdout: the chip, the run it reads, the findings Blocking then Advisory,
+ * An object's coverage on stdout: the chip, the run it reads, the findings Block then Warn,
  * each with its fix, the policies that apply (counted, then each with its status and why), and the
  * platform's note.
  */
@@ -90,10 +90,10 @@ export function coverageLines(answer: ObjectCoverage): string[] {
     ? `Latest run: ${answer.run.started_at ?? 'unknown time'} (${answer.run.status ?? 'unknown'}); changes made since are not included.`
     : 'No run yet: the branch has never been checked.')
   const findings: CoverageFinding[] = answer.findings ?? []
-  const blocking = findings.filter(finding => finding.blocking === true)
-  const advisory = findings.filter(finding => finding.blocking !== true)
-  if (blocking.length > 0) lines.push(`Blocking findings (${blocking.length}):`, ...blocking.flatMap(finding => coverageFindingLines(finding)))
-  if (advisory.length > 0) lines.push(`Advisory findings (${advisory.length}):`, ...advisory.flatMap(finding => coverageFindingLines(finding)))
+  const block = findings.filter(finding => finding.block === true)
+  const warn = findings.filter(finding => finding.block !== true)
+  if (block.length > 0) lines.push(`Block findings (${block.length}):`, ...block.flatMap(finding => coverageFindingLines(finding)))
+  if (warn.length > 0) lines.push(`Warn findings (${warn.length}):`, ...warn.flatMap(finding => coverageFindingLines(finding)))
   const policies = answer.policies ?? []
   const counts = coverageCounts(answer.summary)
   if (policies.length > 0) lines.push(`Policies that apply (${policies.length}):${counts ? ` ${counts}` : ''}`, ...policies.flatMap(policy => policyLines(policy)))

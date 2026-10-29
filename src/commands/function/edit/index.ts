@@ -105,7 +105,7 @@ Name: my_function
       options: ['summary', 'json'],
       required: false,
     }),
-    'policy-override': Flags.string({description: 'Publish past a blocking live-branch publish policy gate with an audited reason (requires workspace:policy update)', hidden: true}),
+    'policy-override': Flags.string({description: 'Publish past a live-branch publish policy gate that blocks it, with an audited reason (requires workspace:policy update)', hidden: true}),
     publish: Flags.boolean({
       default: true,
       description: 'Publish the function after editing',
@@ -214,7 +214,7 @@ Name: my_function
       include_xanoscript: 'false',
       publish: flags.publish ? 'true' : 'false',
     })
-    // A reason from someone with workspace:policy update publishes past a blocking publish gate.
+    // A reason from someone with workspace:policy update publishes past a publish gate that blocks it.
     const overrideReason = flags['policy-override']?.trim()
     if (overrideReason) queryParams.set('override_reason', overrideReason)
     const apiUrl = `${profile.instance_origin}/api:meta/workspace/${workspaceId}/function/${functionId}?${queryParams.toString()}`

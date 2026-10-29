@@ -3,7 +3,7 @@ import type {PolicyFinding} from './types.js'
 import {findingLine} from './findings.js'
 
 /**
- * One blocking finding of a refused push: its rule, policy, object and message (a finding's message
+ * One Block finding of a refused push: its rule, policy, object and message (a finding's message
  * rarely names its object), and whether the push introduced it or changed its object.
  */
 function refusedFindingLine(finding: PolicyFinding & {gate_reason?: unknown}): string {
@@ -12,16 +12,17 @@ function refusedFindingLine(finding: PolicyFinding & {gate_reason?: unknown}): s
 }
 
 /**
- * The refusal's headline. The platform's sentence names the policies the blocking findings come from,
- * to every caller (`Push refused: 2 blocking policy findings from AUTH-010 and PII-001 (1 introduced
- * by this change, 1 on objects it changes).`), so it is printed as it is; without one, the counts.
+ * The refusal's headline. The platform's sentence names the policies the Block findings come from,
+ * to every caller (`Push blocked by 2 objects failing in Block. The failures come from AUTH-010 and
+ * PII-001.`; an older platform's began `Push refused:`), so it is printed as it is; without one, the
+ * counts.
  */
 function headline(payload: Record<string, unknown>, message?: string): string {
   const sentence = message?.trim() ?? ''
-  if (sentence.startsWith('Push refused:')) return sentence
+  if (sentence.startsWith('Push blocked by ') || sentence.startsWith('Push refused:')) return sentence
   const count = (key: string) => typeof payload[key] === 'number' ? payload[key] : 0
   const total = count('total')
-  return `Push refused: ${total} blocking policy finding${total === 1 ? '' : 's'} (${count('introduced')} introduced, ${count('changed')} on changed objects).`
+  return `Push blocked by ${total} failure${total === 1 ? '' : 's'} in Block (${count('introduced')} introduced, ${count('changed')} on changed objects).`
 }
 
 /** Preserve a gate refusal through shared push and operational-error wrappers. */

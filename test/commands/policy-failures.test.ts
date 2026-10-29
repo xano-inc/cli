@@ -117,7 +117,7 @@ describe('policy failure contracts', () => {
     expect(result.stderr).to.contain('→ POST')
   })
 
-  for (const [verbose, check, code] of [['flag', {blocking: false, status: 'pass'}, 0], ['env', {blocking: true, status: 'fail'}, 2]] as const) {
+  for (const [verbose, check, code] of [['flag', {block: false, status: 'pass'}, 0], ['env', {block: true, status: 'fail'}, 2]] as const) {
     it(`evaluate JSON stays a single document with verbose ${verbose} and exit ${code}`, async () => {
       fixture.route(() => json({policy_check: check}))
       if (verbose === 'env') process.env.XANO_VERBOSE = 'true'
@@ -138,9 +138,9 @@ describe('policy failure contracts', () => {
   })
 
   function statusRoute(): void {
-    const latest = {enforcement: 'blocking', included: true, run_id: 5, stale: false, version: 1}
+    const latest = {enforcement: 'block', included: true, run_id: 5, stale: false, version: 1}
     fixture.route(url => url.pathname.includes('/run/') ? json({id: 5, results})
-      : json({items: [{active: true, enforcement: 'blocking', id: 7, key: 'AUTH-001', latest_run: latest, rules: results.map(result => ({id: result.check_id})), version: 1}]}))
+      : json({items: [{enforcement: 'block', id: 7, key: 'AUTH-001', latest_run: latest, rules: results.map(result => ({id: result.check_id})), version: 1}]}))
   }
 
   it('status gives errors precedence over failed rules', async () => {
@@ -154,8 +154,8 @@ describe('policy failure contracts', () => {
     it(`${action} summary prints every rule error before zero-object coverage`, async () => {
       if (action === 'status') statusRoute()
       // A push carries the results in its verdict; an evaluation answers them in its run.
-      else if (action === 'push') fixture.route(() => json({policy_check: {blocking: false, results, status: 'error'}}))
-      else fixture.route(() => json({policy_check: {blocking: false, status: 'error'}, results}))
+      else if (action === 'push') fixture.route(() => json({policy_check: {block: false, results, status: 'error'}}))
+      else fixture.route(() => json({policy_check: {block: false, status: 'error'}, results}))
       const result = action === 'push'
         ? await runCommand(['workspace', 'push', '-d', fixture.directory, '--force', '--no-guids'], fixture.config)
         : await run(action)

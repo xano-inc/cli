@@ -41,7 +41,7 @@ describe('workspace push with policy files, without the workspace:policy permiss
   })
 
   it('pushes the rest of the work when the policy file is unchanged', async () => {
-    fixture.route(() => json({guid_map: [{guid: 'g-1', name: 'AUTH-001', type: 'policy'}], policy_check: {blocking: false, status: 'pass'}}))
+    fixture.route(() => json({guid_map: [{guid: 'g-1', name: 'AUTH-001', type: 'policy'}], policy_check: {block: false, status: 'pass'}}))
     const result = await push('--force')
     expect(result.error).to.equal(undefined)
     expect(process.exitCode ?? 0).to.equal(0)
