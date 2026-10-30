@@ -25,7 +25,7 @@ export default class TenantClusterEdit extends BaseCommand {
     `$ xano tenant cluster edit 1 --name "us-east-1-updated" --description "Updated cluster" --domain "us-east.xano.io" --type standard
 Updated tenant cluster: us-east-1-updated (standard) - ID: 1
 `,
-    `$ xano tenant cluster edit 1 --name "eu-west" --description "" --domain "" --type run -o json`,
+    `$ xano tenant cluster edit 1 --name "eu-west" --description "" --domain "" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -51,9 +51,10 @@ Updated tenant cluster: us-east-1-updated (standard) - ID: 1
       required: false,
     }),
     type: Flags.string({
+      default: 'standard',
       description: 'Cluster type',
-      options: ['standard', 'run'],
-      required: true,
+      options: ['standard'],
+      required: false,
     }),
   }
 

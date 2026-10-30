@@ -21,7 +21,7 @@ export default class TenantClusterCreate extends BaseCommand {
     `$ xano tenant cluster create --name "us-east-1" --credentials_file ./kubeconfig.yaml
 Created tenant cluster: us-east-1 (standard) - ID: 3
 `,
-    `$ xano tenant cluster create --name "eu-west-1" --credentials "..." --type run --description "EU run cluster" -o json`,
+    `$ xano tenant cluster create --name "eu-west-1" --credentials "..." --description "EU cluster" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -59,7 +59,7 @@ Created tenant cluster: us-east-1 (standard) - ID: 3
     type: Flags.string({
       default: 'standard',
       description: 'Cluster type',
-      options: ['standard', 'run'],
+      options: ['standard'],
       required: false,
     }),
   }
