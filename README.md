@@ -776,7 +776,7 @@ xano tenant cluster get <cluster_id>
 
 # Create a cluster
 xano tenant cluster create --name "us-east-1" --credentials_file ./kubeconfig.yaml
-xano tenant cluster create --name "eu-west-1" --type run -d "EU run cluster"
+xano tenant cluster create --name "eu-west-1" -d "EU cluster" --domain "eu-west.xano.io"
 
 # Edit a cluster
 xano tenant cluster edit <cluster_id> --name "us-east-1" -d "Updated" --domain "us-east.xano.io"
