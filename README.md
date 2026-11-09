@@ -254,13 +254,18 @@ the old-name file behind. Delete the stale ones, keeping the single document tha
 matches your target workspace.
 
 **New API groups keep their docs private.** The instance stores a new API group
-whose file has no `swagger` block with its API docs private. `workspace push` and
-`sandbox push` send such a group with `swagger = {active: false}`, and write that
-line into its file along with the GUID, so the file says what the instance stored
-and the next push reports no change. A group whose file already has a `guid` (one
-you pulled or pushed before) or a `swagger` block is sent and kept as it is, so a
-group with public docs is never made private. `--dry-run` and `--no-guids` leave
-the files untouched.
+whose file has no `swagger` block with its API docs private. `workspace push`,
+`sandbox push` and `ephemeral push` send such a group with `swagger = {active: false}`,
+and write that line into its file along with the GUID, so the file says what the
+instance stored and the next push reports no change. A group whose file already has
+a `guid` (one you pulled or pushed before) or a `swagger` block is sent and kept as
+it is, so a group with public docs is never made private. `--dry-run` and
+`--no-guids` leave the files untouched.
+
+A new group pushed with an earlier CLI got a `guid` but no `swagger` block in its
+file, while the instance stored its docs private. Every push then reports it as
+changed, and the next real push makes its docs public. To keep them private, add
+`swagger = {active: false}` to that file, or pull the workspace again before pushing.
 
 ### `.xano/sync_state.json`
 

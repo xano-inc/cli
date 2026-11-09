@@ -969,19 +969,26 @@ function withGuid(content: string, guid: string): null | string {
   return insertBeforeClosingBrace(content, `guid = "${guid}"`)
 }
 
+const CLOSING_BRACE_LINE_REGEX = /^}\s*(\/\/.*)?$/
+
 /**
  * Return `content` with `line` inserted before its final closing brace, indented like
- * the line above it, or null when there is no closing-brace line.
+ * the line above it, or null when the final brace is not on a line of its own.
+ *
+ * The final brace is the last line that is not blank or a `//` comment, and it may
+ * carry a trailing comment (`} // end`). Searching up for any bare `}` instead would
+ * find a nested block's brace whenever the final one is not bare, and put the line
+ * inside that block.
  */
 function insertBeforeClosingBrace(content: string, line: string): null | string {
   const lines = content.split('\n')
   let insertIndex = -1
 
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].trim() === '}') {
-      insertIndex = i
-      break
-    }
+    const trimmed = lines[i].trim()
+    if (!trimmed || trimmed.startsWith('//')) continue
+    if (CLOSING_BRACE_LINE_REGEX.test(trimmed)) insertIndex = i
+    break
   }
 
   if (insertIndex === -1) {

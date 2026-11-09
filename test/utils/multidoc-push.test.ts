@@ -1031,6 +1031,18 @@ describe('multidoc-push helpers', () => {
       expect(withApiGroupSwaggerDefault('table shop {\n  auth = false\n}')).to.equal(null)
       expect(withApiGroupSwaggerDefault('query "items" verb=GET {\n  api_group = "shop"\n}')).to.equal(null)
     })
+
+    it('inserts before a final brace that carries a comment, not inside a nested block', () => {
+      expect(
+        withApiGroupSwaggerDefault('api_group shop {\n  cors = {\n    mode = "simple"\n  }\n} // end\n// note\n'),
+      ).to.equal('api_group shop {\n  cors = {\n    mode = "simple"\n  }\n  swagger = {active: false}\n} // end\n// note\n')
+    })
+
+    it('leaves a group alone when its final brace shares a line with other code', () => {
+      expect(
+        withApiGroupSwaggerDefault('api_group shop {\n  cors = {\n    mode = "simple"\n  }\n  canonical = "shop1" }'),
+      ).to.equal(null)
+    })
   })
 
   describe('executePush api_group swagger default', () => {
@@ -1076,6 +1088,19 @@ describe('multidoc-push helpers', () => {
       const {calls} = await runPush(tmpDir, {force: true, guid: 'abc'})
       expect(pushBody(calls)).to.equal('api_group shop {\n  swagger = {active: true}\n}')
       expect(fs.readFileSync(file, 'utf8')).to.equal('api_group shop {\n  swagger = {active: true}\n  guid = "abc"\n}\n')
+    })
+
+    it('writes the swagger and guid lines before a commented final brace', async () => {
+      const file = writeXs(
+        tmpDir,
+        'apigroup/shop.xs',
+        'api_group shop {\n  cors = {\n    mode = "simple"\n  }\n} // end\n',
+      )
+      const {calls} = await runPush(tmpDir, {force: true, guid: 'abc'})
+      expect(pushBody(calls)).to.include('  }\n  swagger = {active: false}\n} // end')
+      expect(fs.readFileSync(file, 'utf8')).to.equal(
+        'api_group shop {\n  cors = {\n    mode = "simple"\n  }\n  swagger = {active: false}\n  guid = "abc"\n} // end\n',
+      )
     })
 
     it('--dry-run does not write the file', async () => {
