@@ -749,11 +749,14 @@ xano tenant_deploy_request create "Deploy v1.2 to prod" --tenant prod --release 
 xano tenant_deploy_request edit <id> --title "Deploy v1.2.1 to prod"
 xano tenant_deploy_request edit <id> --reviewers 12,45,67
 
-# Change status: draft, submit, approve, request_changes, close, or reopen
-# (approve records one reviewer's vote; once enough votes are in it deploys the
-# release as part of that same call)
+# Change status: draft, submit, approve, request_changes, close, or reopen.
+# Approving records one reviewer's vote and authorizes the release once enough
+# votes are in; a bare approve does NOT deploy (it names `tenant deploy_release`
+# as the next step). Pass --deploy to also deploy inline (the UI's "approve and
+# deploy"), which the backend honors only on a quick-deploy tenant.
 xano tenant_deploy_request set_status <id> --status submit
 xano tenant_deploy_request set_status <id> --status approve
+xano tenant_deploy_request set_status <id> --status approve --deploy   # also deploy inline (quick-deploy tenants)
 xano tenant_deploy_request set_status <id> --status request_changes --reason "Needs a migration note"
 xano tenant_deploy_request set_status <id> --status close --reason "Superseded by a newer request"
 xano tenant_deploy_request set_status <id> --status reopen
