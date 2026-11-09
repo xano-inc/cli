@@ -18,7 +18,6 @@ import TenantBackupList from '../../src/commands/tenant/backup/list/index.js'
 import TenantClusterList from '../../src/commands/tenant/cluster/list/index.js'
 import TenantEnvList from '../../src/commands/tenant/env/list/index.js'
 import TenantList from '../../src/commands/tenant/list/index.js'
-import TenantSnapshotList from '../../src/commands/tenant/snapshot/list/index.js'
 import TenantUnitTestList from '../../src/commands/tenant/unit_test/list/index.js'
 import TenantWorkflowTestList from '../../src/commands/tenant/workflow_test/list/index.js'
 import UnitTestList from '../../src/commands/unit_test/list/index.js'
@@ -136,7 +135,6 @@ describe('list command paging surface', () => {
       ['branch list', BranchList],
       ['workspace list', WorkspaceList],
       ['knowledge list', KnowledgeList],
-      ['tenant snapshot list', TenantSnapshotList],
       ['sandbox env list', SandboxEnvList],
       ['tenant env list', TenantEnvList],
     ]
