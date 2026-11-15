@@ -2,7 +2,7 @@ import snakeCase from 'lodash.snakecase'
 import * as fs from 'node:fs'
 import {basename, dirname, join, relative, resolve} from 'node:path'
 
-import {placeDocuments, splitMultidoc} from './document-parser.js'
+import {parseDocument, placeDocuments, splitMultidoc, splitMultidocFragments} from './document-parser.js'
 
 /** Outcome of flattening one bundle file. */
 export interface FlattenResult {
@@ -48,6 +48,22 @@ export function flattenBundleFile(bundleFile: string, opts: FlattenOptions = {})
 
   if (documents.length === 0) return {removedSource: false, skipped: 'empty', written: []}
   if (documents.length === 1) return {removedSource: false, skipped: 'single', written: []}
+
+  // A fragment that holds code but doesn't parse would be left out of the split,
+  // and the source deleted with it. That happens when a line inside a document
+  // reads as a separator (e.g. `--- ` in a multi-line string), so refuse instead.
+  const unparsed = splitMultidocFragments(content)
+    .filter((fragment) => !parseDocument(fragment))
+    .map((fragment) => fragment.split('\n').find((line) => line.trim() && !line.trim().startsWith('//')))
+    .filter((firstLine): firstLine is string => firstLine !== undefined)
+  if (unparsed.length > 0) {
+    throw new Error(
+      `${unparsed.length} document(s) do not parse, so splitting would drop them; the file was left unchanged. ` +
+        `A line inside a document that reads \`---\` (even with trailing spaces) is taken as a separator. ` +
+        `Unparsed document(s) start with:\n` +
+        unparsed.map((line) => `    ${line.trim()}`).join('\n'),
+    )
+  }
 
   const outputDir = opts.outputDir ? resolve(opts.outputDir) : dirname(bundleFile)
 

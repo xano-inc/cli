@@ -10,6 +10,7 @@ import {
   placeDocuments,
   resolveDocumentPath,
   splitMultidoc,
+  splitMultidocFragments,
 } from '../../src/utils/document-parser.js'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -214,6 +215,26 @@ describe('document-parser', () => {
       const blob = 'table a {\n}\n---\n\n---\n   \n---\ntable b {\n}'
       const docs = splitMultidoc(blob)
       expect(docs.map((d) => d.name)).to.deep.equal(['a', 'b'])
+    })
+
+    it('splits where the server does: CRLF, a `---` line with trailing whitespace, a leading `---`', () => {
+      expect(splitMultidoc('table a {\r\n}\r\n---\r\ntable b {\r\n}').map((d) => d.name)).to.deep.equal(['a', 'b'])
+      expect(splitMultidoc('table a {\n}\n--- \t\ntable b {\n}').map((d) => d.name)).to.deep.equal(['a', 'b'])
+      expect(splitMultidoc('---\ntable a {\n}\n---\ntable b {\n}').map((d) => d.name)).to.deep.equal(['a', 'b'])
+      expect(splitMultidoc('table a {\r\n}\r\n').map((d) => d.content)).to.deep.equal(['table a {\n}'])
+    })
+
+    it('does not split on an indented `---`, as the server does not', () => {
+      expect(splitMultidoc('table a {\n  ---\n}')).to.have.lengthOf(1)
+    })
+  })
+
+  describe('splitMultidocFragments', () => {
+    it('keeps a non-empty fragment that does not parse', () => {
+      expect(splitMultidocFragments('table a {\n}\n---\n\n---\n/* not a document */')).to.deep.equal([
+        'table a {\n}',
+        '/* not a document */',
+      ])
     })
   })
 
