@@ -138,7 +138,7 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
       if (!hasApprovedRequest) {
         this.error(
           `Tenant "${tenantName}" requires an approved deploy request before "${releaseName}" can be deployed.\n` +
-            `Run: xano tenant_deploy_request create "Deploy ${releaseName} to ${tenantName}" --tenant ${tenantName} --release ${releaseName} --reviewers <id,id,...>`,
+            `Run: xano tenant_deploy_request create "Deploy ${releaseName} to ${tenantName}" --tenant ${tenantName} --release ${releaseName}`,
         )
       }
     }
@@ -185,7 +185,7 @@ Deployed release "v1.0" to tenant: My Tenant (my-tenant)
         // to direct deploy, since opening a request doesn't require deploy
         // permission.
         if ((response.status === 401 || response.status === 403) && requiresApproval) {
-          message += `\n\nYou don't have permission to deploy to this tenant directly, but it supports deploy requests: xano tenant_deploy_request create "Deploy ${releaseName} to ${tenantName}" --tenant ${tenantName} --release ${releaseName} --reviewers <id,id,...>`
+          message += `\n\nYou don't have permission to deploy to this tenant directly, but it supports deploy requests: xano tenant_deploy_request create "Deploy ${releaseName} to ${tenantName}" --tenant ${tenantName} --release ${releaseName}`
         }
 
         this.error(message)
