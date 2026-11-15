@@ -49,6 +49,7 @@ import {
   type SyncTargetState,
   toRelPath,
 } from './sync-state.js'
+import {auditPlanRequiredMessage} from './table-audit.js'
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -2534,6 +2535,10 @@ function refuseIfExplained(command: Command, target: PushTarget, status: number,
   // The plan's policy cap: the platform's message names the plan, its cap and the remedy, and the
   // push itself would be refused the same way, so the preview stops here rather than skipping.
   if (status === 403 && refusal?.code === 'policy_plan_limit') command.error(`Push refused (${status}): ${message}`)
+  // A table whose audit block turns auditing on, on a plan without Content Record Audit: the push
+  // would be refused the same way, so the preview stops here too.
+  const auditPlan = auditPlanRequiredMessage({payload})
+  if (auditPlan) command.error(`Push refused (${status}): ${auditPlan}`)
   if (refusal?.code === 'policy_gate_transaction_required') {
     command.error('Push refused: the live branch policy gate requires a transaction. Remove --no-transaction and retry. Nothing was imported.')
   }

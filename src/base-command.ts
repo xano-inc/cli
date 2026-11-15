@@ -14,6 +14,7 @@ import {
   parseLocalProfile,
   resolveProfileSelection,
 } from './utils/local-config.js'
+import {auditPlanRequiredMessage} from './utils/table-audit.js'
 
 export interface ProfileConfig {
   access_token: string
@@ -385,6 +386,9 @@ export default abstract class BaseCommand extends Command {
       if (errorJson.message) {
         message = errorJson.message
       }
+
+      // turning on table audit on a plan without Content Record Audit (403, payload.code audit_plan_required)
+      message = auditPlanRequiredMessage(errorJson) ?? message
     } catch {
       if (errorText) {
         message += `\n${errorText}`

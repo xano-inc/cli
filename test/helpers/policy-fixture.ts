@@ -8,6 +8,8 @@ export const json = (body: unknown, status = 200) => new Response(JSON.stringify
 
 export interface PolicyCall {
   body?: string
+  /** Request headers, keys lowercased. */
+  headers: Record<string, string>
   method: string
   url: URL
 }
@@ -66,7 +68,10 @@ export function policyFixture(options: {branch?: string; profile?: string; sourc
       const url = new URL(String(input))
       const method = requestOptions?.method ?? 'GET'
       const body = requestOptions?.body as string | undefined
-      fixture.calls.push({body, method, url})
+      const headers = Object.fromEntries(
+        Object.entries((requestOptions?.headers ?? {}) as Record<string, string>).map(([key, value]) => [key.toLowerCase(), value]),
+      )
+      fixture.calls.push({body, headers, method, url})
       return handler(url, method, body)
     }) as typeof globalThis.fetch
   }
