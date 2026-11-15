@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Xano CLI (`@xano/cli`) is a TypeScript command-line interface for Xano's Metadata API. It provides commands for managing profiles, workspaces, branches, functions, releases, tenants, tests, and static hosting - all from the terminal.
+Xano CLI (`@xano/cli`) is a TypeScript command-line interface for Xano's Metadata API. It provides commands for managing profiles, workspaces, branches, functions, releases, tenants, tests, and static hosting, and for exporting a table's audit trail - all from the terminal.
 
 **Binary name:** `xano` (invoked as `xano <command>`)
 
@@ -104,6 +104,7 @@ src/
 │   │   ├── create.ts
 │   │   └── edit.ts
 │   ├── release/                 # Release management (CRUD, import, export)
+│   ├── table/                   # Table audit trail export (audit) - read-only; auditing is toggled in XanoScript
 │   ├── tenant/                  # Tenant management (CRUD, deploy, backups)
 │   ├── platform/                # Platform management (list, get)
 │   ├── unit_test/               # Unit test management (list, run, run_all)
@@ -136,6 +137,7 @@ test/
 | `src/utils/sandbox-marker.ts` | Per-user `sandbox_sync.json` token next to credentials; invalidates on reset, delete, and sandbox push |
 | `src/utils/export-compare.ts` | Multidoc export parse/match/compare shared by `--fast` fallback and `--writeback` |
 | `src/utils/object-fetch.ts` | Per-object Metadata API fetch, GUID restoration, and writeback ID lookup |
+| `src/utils/table-audit.ts` | `table audit` route query, CSV rendering, and the `audit_plan_required` plan message (used by `parseApiError` and the push refusal check) |
 
 ## Coding Conventions
 

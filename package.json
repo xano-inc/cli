@@ -107,6 +107,9 @@
       "ephemeral:static_host:build": {
         "description": "Manage static host builds for an ephemeral tenant"
       },
+      "table": {
+        "description": "Read workspace tables (audit trail export)"
+      },
       "tenant": {
         "description": "Manage tenants in a workspace"
       },

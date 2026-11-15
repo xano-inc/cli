@@ -447,6 +447,42 @@ when the function returns an error status.
 > denied with an access error — grant run/debug to the role (or use a token whose role has
 > it). `function list`/`get`/`create`/`edit` only need the Function permission.
 
+### Tables
+
+```bash
+# Export a table's audit trail (newest first; by table name or ID)
+xano table audit users                                  # the 50 newest events, as JSON
+xano table audit users --all -o csv -f users_audit.csv  # every event, as CSV, to a file
+xano table audit 42 --record 17 --op update --all       # every update of record 17
+xano table audit users --limit 100 --before 98765       # the page after cursor 98765
+xano table audit users --datasource test --all          # the trail on the 'test' data source
+```
+
+`table audit` is read-only: it exports what the database recorded for auditors and scripts.
+Auditing itself is turned on and off in the table's XanoScript `audit` block
+(`audit = {enabled: true, mask: [...], exclude: [...]}`) and goes through `workspace push`/`pull`.
+
+| Flag | Meaning |
+| --- | --- |
+| `--record <id>` | only the events of this record |
+| `--op <op>` | only `insert`, `update`, `delete`, `truncate` or `system` events |
+| `--limit <n>` | events per request (page size), 1-100, default 50. Without `--all` it is the number of events returned |
+| `--before <cursor>` | start after this cursor (the `next` value of a previous page) |
+| `--all` | follow the `next` cursor until every matching event is fetched |
+| `--datasource <label>` | read the trail of a non-live data source (sends `X-Data-Source`; default `live`) |
+| `-o, --output json\|csv` | `json` (default): the route's response (`enabled`, `available`, `log_table`, `items`, `next`), with every page's `items` joined under `--all`. `csv`: a header and one row per event |
+| `-f, --file <path>` | write the export to a file instead of stdout |
+
+CSV columns, in order: `id, created_at, tx_id, op, record_id, changed, old, new, context, db_user,
+app_name, client_addr`. `created_at` is ISO 8601 UTC with milliseconds; `changed`, `old`, `new` and
+`context` (who made the change: source, user, endpoint) are JSON strings. Without `--all`, when more
+events remain the command prints `More events: rerun with --before <next>` on stderr. When auditing is
+off for the table it says so on stderr (events recorded while it was on are still exported).
+
+On a plan without Content Record Audit, a push that would turn a table's auditing on is refused, and
+the CLI prints `Content Record Audit is not included in this plan. Upgrade to Pro or above to audit a
+table.`
+
 ### Knowledge
 
 ```bash
