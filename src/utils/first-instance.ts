@@ -8,7 +8,7 @@
  * "No instances found".
  */
 
-/** The error code a no-instance stop carries, for `--json` consumers. */
+/** The error code a no-instance stop carries (`xano auth --json` prints it in its error document). */
 export const NO_INSTANCE_CODE = 'no_instance'
 
 /** How long the browser callback waits on the instance check before it shows the plain page. */
