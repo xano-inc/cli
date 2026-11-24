@@ -99,6 +99,10 @@ describe('an account with no instance yet (DEV-10170)', () => {
       originalExit = process.exit
       requested = []
       instanceLists = [[]]
+      // A non-interactive run must never prompt; the interactive tests answer for the user.
+      inquirer.prompt = (async () => {
+        throw new Error('unexpected prompt')
+      }) as unknown as typeof inquirer.prompt
       globalThis.fetch = (async (input: RequestInfo | URL) => {
         const url = new URL(String(input))
         requested.push(url.pathname)
