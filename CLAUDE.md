@@ -137,6 +137,7 @@ test/
 | `src/utils/sandbox-marker.ts` | Per-user `sandbox_sync.json` token next to credentials; invalidates on reset, delete, and sandbox push |
 | `src/utils/export-compare.ts` | Multidoc export parse/match/compare shared by `--fast` fallback and `--writeback` |
 | `src/utils/object-fetch.ts` | Per-object Metadata API fetch, GUID restoration, and writeback ID lookup |
+| `src/utils/first-instance.ts` | An account with no instance yet (DEV-10170): `xano auth` and `profile wizard` send it to `<origin>/trial` (a CLI sign-up skips the dashboard's `/welcome` → `/trial`), with the `no_instance` error code; the browser callback page gets a **Start free trial** link |
 | `src/utils/table-audit.ts` | `table audit` route query, CSV rendering, and the `audit_plan_required` plan message (used by `parseApiError` and the push refusal check) |
 
 ## Coding Conventions

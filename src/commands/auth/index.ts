@@ -7,6 +7,13 @@ import {dirname} from 'node:path'
 import open from 'open'
 
 import {buildUserAgent, resolveCredentialsPath} from '../../base-command.js'
+import {
+  isXanoCloudOrigin,
+  NO_INSTANCE_CODE,
+  noInstanceMessage,
+  trialPageIfNoInstance,
+  trialPageUrl,
+} from '../../utils/first-instance.js'
 
 interface ProfileConfig {
   access_token: string
@@ -70,6 +77,99 @@ export function matchInstance(instances: Instance[], query: string): Instance | 
   }
 
   return instances.find((inst) => inst.name === q)
+}
+
+/** Text safe inside an HTML attribute or element. */
+function escapeHtml(text: string): string {
+  return text.replaceAll(/[&<>"']/g, (char) => ({'"': '&quot;', '&': '&amp;', "'": '&#39;', '<': '&lt;', '>': '&gt;'})[char] ?? char)
+}
+
+/**
+ * The page the browser shows once the CLI has the token. An account with no instance yet gets one
+ * more step, a link to Xano's trial page (`trialUrl`, DEV-10170). Exported for tests.
+ */
+export function callbackSuccessPage(trialUrl: null | string): string {
+  const body =
+    trialUrl === null
+      ? '<p>You can now close this window and return to your terminal.</p>'
+      : `<p>One more step: your Xano account has no instance yet. Start your free trial to get one for the CLI to work with, then return to your terminal.</p>
+                    <a class="next" href="${escapeHtml(trialUrl)}">Start free trial</a>`
+
+  return `
+              <!DOCTYPE html>
+              <html>
+                <head>
+                  <title>Xano CLI - Authentication Successful</title>
+                  <style>
+                    body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                      display: flex;
+                      flex-direction: column;
+                      justify-content: center;
+                      align-items: center;
+                      min-height: 100vh;
+                      margin: 0;
+                      background: #f4f5f7;
+                      color: #1a1a2e;
+                    }
+                    .container {
+                      text-align: center;
+                      padding: 48px;
+                      background: white;
+                      border-radius: 12px;
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                      max-width: 400px;
+                    }
+                    .checkmark {
+                      width: 64px;
+                      height: 64px;
+                      background: #1b62f8;
+                      border-radius: 50%;
+                      display: flex;
+                      justify-content: center;
+                      align-items: center;
+                      margin: 0 auto 24px;
+                    }
+                    .checkmark svg {
+                      width: 32px;
+                      height: 32px;
+                      fill: white;
+                    }
+                    h1 {
+                      font-size: 24px;
+                      font-weight: 600;
+                      margin: 0 0 12px;
+                      color: #1a1a2e;
+                    }
+                    p {
+                      font-size: 14px;
+                      color: #6b7280;
+                      margin: 0;
+                    }
+                    .next {
+                      display: inline-block;
+                      margin: 20px 0 12px;
+                      padding: 10px 18px;
+                      border-radius: 8px;
+                      background: #1b62f8;
+                      color: white;
+                      font-size: 14px;
+                      font-weight: 600;
+                      text-decoration: none;
+                    }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <div class="checkmark">
+                      <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    </div>
+                    <h1>Authentication Successful</h1>
+                    ${body}
+                  </div>
+                </body>
+              </html>
+            `
 }
 
 interface Workspace {
@@ -193,7 +293,7 @@ To authenticate, open the following URL in any browser:
       // Step 3: Fetch and select instance
       // Self-hosted instances (non-default origin) don't have /api:meta/instance
       // The origin itself IS the instance
-      const isSelfHosted = !/^https:\/\/app\.(.*\.)?xano\.com$/.test(flags.origin)
+      const isSelfHosted = !isXanoCloudOrigin(flags.origin)
       let instance: Instance
 
       if (isSelfHosted) {
@@ -210,10 +310,10 @@ To authenticate, open the following URL in any browser:
       } else {
         this.log('')
         this.log('Fetching available instances...')
-        const instances = await this.fetchInstances(token, flags.origin)
+        let instances = await this.fetchInstances(token, flags.origin)
 
         if (instances.length === 0) {
-          this.error('No instances found. Please check your account.')
+          instances = await this.waitForFirstInstance(token, flags.origin, nonInteractive)
         }
 
         instance = await this.resolveInstance(instances, flags.instance, nonInteractive)
@@ -281,6 +381,49 @@ To authenticate, open the following URL in any browser:
         message: error.message ?? String(err),
         ...(error.suggestions?.length ? {suggestions: error.suggestions} : {}),
       },
+    }
+  }
+
+  /**
+   * An account with no instance yet (DEV-10170): a sign-up made from `xano auth` skips the
+   * dashboard's `/welcome` → `/trial` path, so its first instance comes from a trial the user has
+   * not started. A non-interactive run stops with the trial page; an interactive one names it and
+   * checks again on request, so the user doesn't have to sign in a second time.
+   */
+  protected async waitForFirstInstance(token: string, origin: string, nonInteractive: boolean): Promise<Instance[]> {
+    const message = noInstanceMessage(origin, 'xano auth')
+    if (nonInteractive) {
+      this.error(message, {code: NO_INSTANCE_CODE})
+    }
+
+    this.log('')
+    this.log('Your Xano account has no instance yet. Start your free trial to get one:')
+    this.log(`  ${trialPageUrl(origin)}`)
+
+    for (;;) {
+      this.log('')
+      // eslint-disable-next-line no-await-in-loop -- each check waits on the user
+      const {again} = await inquirer.prompt([
+        {
+          default: true,
+          message: 'Check again for an instance?',
+          name: 'again',
+          type: 'confirm',
+        },
+      ])
+
+      if (!again) {
+        this.error(message, {code: NO_INSTANCE_CODE})
+      }
+
+      this.log('Fetching available instances...')
+      // eslint-disable-next-line no-await-in-loop -- one check per answer
+      const instances = await this.fetchInstances(token, origin)
+      if (instances.length > 0) {
+        return instances
+      }
+
+      this.log(`Still no instance. Start your free trial at ${trialPageUrl(origin)}, then check again.`)
     }
   }
 
@@ -701,84 +844,32 @@ To authenticate, open the following URL in any browser:
 
   private startAuthServer(origin: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const server = http.createServer((req, res) => {
+      let received = false
+      const server = http.createServer(async (req, res) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`)
 
         if (url.pathname === '/callback') {
           const token = url.searchParams.get('token')
 
           if (token) {
-            // Send success response to browser
+            // A repeated callback while the first one is being answered gets the plain page.
+            if (received) {
+              res.writeHead(200, {'Content-Type': 'text/html'})
+              res.end(callbackSuccessPage(null))
+              return
+            }
+
+            received = true
+            clearTimeout(timeout)
+            const accessToken = decodeURIComponent(token)
+            // An account with no instance yet gets one more step on this page: Xano's trial (DEV-10170).
+            const trialUrl = await this.trialPageFor(accessToken, origin)
             res.writeHead(200, {'Content-Type': 'text/html'})
-            res.end(`
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>Xano CLI - Authentication Successful</title>
-                  <style>
-                    body {
-                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                      display: flex;
-                      flex-direction: column;
-                      justify-content: center;
-                      align-items: center;
-                      min-height: 100vh;
-                      margin: 0;
-                      background: #f4f5f7;
-                      color: #1a1a2e;
-                    }
-                    .container {
-                      text-align: center;
-                      padding: 48px;
-                      background: white;
-                      border-radius: 12px;
-                      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                      max-width: 400px;
-                    }
-                    .checkmark {
-                      width: 64px;
-                      height: 64px;
-                      background: #1b62f8;
-                      border-radius: 50%;
-                      display: flex;
-                      justify-content: center;
-                      align-items: center;
-                      margin: 0 auto 24px;
-                    }
-                    .checkmark svg {
-                      width: 32px;
-                      height: 32px;
-                      fill: white;
-                    }
-                    h1 {
-                      font-size: 24px;
-                      font-weight: 600;
-                      margin: 0 0 12px;
-                      color: #1a1a2e;
-                    }
-                    p {
-                      font-size: 14px;
-                      color: #6b7280;
-                      margin: 0;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class="container">
-                    <div class="checkmark">
-                      <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    </div>
-                    <h1>Authentication Successful</h1>
-                    <p>You can now close this window and return to your terminal.</p>
-                  </div>
-                </body>
-              </html>
-            `)
+            res.end(callbackSuccessPage(trialUrl))
 
             // Close server and resolve with token
-            clearTimeout(timeout)
             server.close()
-            resolve(decodeURIComponent(token))
+            resolve(accessToken)
           } else {
             res.writeHead(400, {'Content-Type': 'text/html'})
             res.end(`
@@ -893,6 +984,18 @@ To authenticate, open the following URL in any browser:
         }
       })
     })
+  }
+
+  /**
+   * Xano's trial page when the account behind `token` lists no instance, else null (a self-hosted
+   * origin, an account with instances, or a check that failed or took too long).
+   */
+  private async trialPageFor(token: string, origin: string): Promise<null | string> {
+    if (!isXanoCloudOrigin(origin)) {
+      return null
+    }
+
+    return trialPageIfNoInstance(() => this.fetchInstances(token, origin), origin)
   }
 
   private async validateToken(token: string, origin: string): Promise<UserInfo> {
