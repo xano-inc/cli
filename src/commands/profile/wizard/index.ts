@@ -5,6 +5,7 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import {buildUserAgent, resolveCredentialsPath} from '../../../base-command.js'
+import {isXanoCloudOrigin, NO_INSTANCE_CODE, noInstanceMessage} from '../../../utils/first-instance.js'
 
 interface ProfileConfig {
   access_token: string
@@ -121,6 +122,11 @@ Profile 'production' created successfully at ~/.xano/credentials.yaml
       }
 
       if (instances.length === 0) {
+        // A new account's first instance comes from its trial (DEV-10170).
+        if (isXanoCloudOrigin(flags.origin)) {
+          this.error(noInstanceMessage(flags.origin, 'xano profile wizard'), {code: NO_INSTANCE_CODE})
+        }
+
         this.error('No instances found. Please check your access token.')
       }
 

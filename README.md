@@ -110,6 +110,14 @@ without an interactive terminal:
 echo "$CODE" | xano auth --no-browser -i my-instance -w 5 -b dev -p staging
 ```
 
+A new Xano account gets its first instance from its free trial. When the
+account you sign in with (or sign up with, from the browser login) has no
+instance yet, the CLI's browser sign-in page links to the trial at `<origin>/trial`, and
+`xano auth` prints that link and asks to check again once your trial instance
+is ready. A non-interactive run (`--code`, piped stdin, `--json`) stops instead
+with the trial link and the error code `no_instance`; start the trial, then
+run `xano auth` again.
+
 If you can't run `xano auth` at all, you can always create a profile manually
 with a Metadata API token from the Xano dashboard — see
 [Profiles](#profiles) below.
