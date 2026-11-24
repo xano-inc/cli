@@ -5,7 +5,6 @@ import BaseCommand from '../../../base-command.js'
 interface ApprovalRequest {
   description?: string
   id: number
-  reviewers?: Array<{id: number}>
   status: string
   title: string
 }
@@ -17,12 +16,12 @@ export default class TenantDeployRequestEdit extends BaseCommand {
       required: true,
     }),
   }
-  static description = "Edit a tenant deploy request's title, description or reviewers. The author or an existing reviewer may do this."
+  static description = "Edit a tenant deploy request's title or description."
   static examples = [
     `$ xano tenant_deploy_request edit 12 --title "Deploy v1.2.1 to prod"
 Updated deploy request #12: "Deploy v1.2.1 to prod" [pending]
 `,
-    `$ xano tenant_deploy_request edit 12 --reviewers 12,45,67 -o json`,
+    `$ xano tenant_deploy_request edit 12 --description "Includes the orders migration" -o json`,
   ]
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -36,10 +35,6 @@ Updated deploy request #12: "Deploy v1.2.1 to prod" [pending]
       default: 'summary',
       description: 'Output format',
       options: ['summary', 'json'],
-      required: false,
-    }),
-    reviewers: Flags.string({
-      description: 'Replacement comma-separated user IDs to request review from',
       required: false,
     }),
     title: Flags.string({
@@ -88,9 +83,6 @@ Updated deploy request #12: "Deploy v1.2.1 to prod" [pending]
 
       const body: Record<string, unknown> = {
         description: flags.description === undefined ? (current.description ?? '') : flags.description,
-        reviewer_ids: flags.reviewers
-          ? flags.reviewers.split(',').map((id) => Number.parseInt(id.trim(), 10))
-          : (current.reviewers ?? []).map((r) => r.id),
         title: flags.title === undefined ? current.title : flags.title,
       }
 
