@@ -143,6 +143,36 @@ describe('an account with no instance yet (DEV-10170)', () => {
       expect(fs.readFileSync(credentials(), 'utf8')).to.contain('instance_origin: https://x1.dev.xano.io')
     })
 
+    describe('the browser callback check', () => {
+      // A protected method: the callback server that calls it opens a real browser.
+      let check: (origin: string) => Promise<null | string>
+
+      beforeEach(() => {
+        const auth = new Auth([], config) as unknown as {trialPageFor(t: string, o: string): Promise<null | string>}
+        check = (origin) => auth.trialPageFor('tok', origin)
+      })
+
+      it('links the trial for a Xano account with no instance', async () => {
+        expect(await check(ORIGIN)).to.equal('https://app.dev.xano.com/trial')
+        expect(requested).to.deep.equal(['/api:meta/instance'])
+      })
+
+      it('shows the plain page for an account with an instance', async () => {
+        instanceLists = [[anInstance]]
+        expect(await check(ORIGIN)).to.equal(null)
+      })
+
+      it('shows the plain page when the listing is refused', async () => {
+        globalThis.fetch = (async () => json({message: 'Unauthorized'}, 401)) as typeof globalThis.fetch
+        expect(await check(ORIGIN)).to.equal(null)
+      })
+
+      it('never checks a self-hosted origin', async () => {
+        expect(await check('https://xano.mycompany.com')).to.equal(null)
+        expect(requested).to.deep.equal([])
+      })
+    })
+
     describe('interactively', () => {
       let auth: Auth
       const answers: boolean[] = []

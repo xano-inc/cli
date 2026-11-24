@@ -385,6 +385,18 @@ To authenticate, open the following URL in any browser:
   }
 
   /**
+   * Xano's trial page when the account behind `token` lists no instance, else null (a self-hosted
+   * origin, an account with instances, or a check that failed or took too long).
+   */
+  protected async trialPageFor(token: string, origin: string): Promise<null | string> {
+    if (!isXanoCloudOrigin(origin)) {
+      return null
+    }
+
+    return trialPageIfNoInstance(() => this.fetchInstances(token, origin), origin)
+  }
+
+  /**
    * An account with no instance yet (DEV-10170): a sign-up made from `xano auth` skips the
    * dashboard's `/welcome` → `/trial` path, so its first instance comes from a trial the user has
    * not started. A non-interactive run stops with the trial page; an interactive one names it and
@@ -984,18 +996,6 @@ To authenticate, open the following URL in any browser:
         }
       })
     })
-  }
-
-  /**
-   * Xano's trial page when the account behind `token` lists no instance, else null (a self-hosted
-   * origin, an account with instances, or a check that failed or took too long).
-   */
-  private async trialPageFor(token: string, origin: string): Promise<null | string> {
-    if (!isXanoCloudOrigin(origin)) {
-      return null
-    }
-
-    return trialPageIfNoInstance(() => this.fetchInstances(token, origin), origin)
   }
 
   private async validateToken(token: string, origin: string): Promise<UserInfo> {
